@@ -1,0 +1,115 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  min-height: 56px;
+  background: var(--bg);
+  border-bottom: 2px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  padding: 0 6px 0 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+.steps {
+  display: flex;
+  flex: 1;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  min-width: 0;
+}
+
+.stepDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--coral);
+  flex-shrink: 0;
+}
+
+.stepDone .stepDot {
+  background: var(--coral);
+}
+
+.stepCurrent {
+  color: var(--ink);
+}
+
+.stepCurrent .stepDot {
+  background: var(--coral);
+  box-shadow: 0 0 0 3px var(--coral-soft);
+}
+
+.stepLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* On narrow phones show only the current step name; dots show progress. */
+@media (max-width: 520px) {
+  .brandName {
+    display: none;
+  }
+  .step:not(.stepCurrent) .stepLabel {
+    display: none;
+  }
+}
+
+.lang {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 2px solid var(--line);
+}
+
+.langButton {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.langButton[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+.langLarge .langButton {
+  min-width: 72px;
+  min-height: var(--tap);
+  font-size: 1.1rem;
+}

@@ -1,0 +1,89 @@
+import { describe, expect, it } from "vitest";
+import { en } from "../i18n/messages.en";
+import { hy } from "../i18n/messages.hy";
+import { LOCALES } from "../i18n/locales";
+import { translate, translatePlural } from "../i18n/translate";
+import { LESSONS } from "../lessons";
+import { COUNTRIES } from "./countries";
+
+describe("translations", () => {
+  it("Armenian has exactly the English keys, all non-empty", () => {
+    expect(Object.keys(hy).sort()).toEqual(Object.keys(en).sort());
+    for (const value of Object.values(hy)) expect(value.trim()).not.toBe("");
+  });
+
+  it("uses the same placeholders in both languages", () => {
+    // Callers pass both {country} (in-sentence form) and {name} (base form);
+    // a language may pick whichever its grammar needs.
+    const placeholders = (s: string) => (s.match(/\{\w+\}/g) ?? []).map((p) => (p === "{name}" ? "{country}" : p)).sort();
+    for (const key of Object.keys(en) as (keyof typeof en)[]) {
+      expect(placeholders(hy[key]), key).toEqual(placeholders(en[key]));
+    }
+  });
+
+  it("uses the app name and tagline", () => {
+    expect(translate("en", "app.name")).toBe("AriMap");
+    expect(translate("hy", "app.name")).toBe("ԱրիՄապ");
+    expect(translate("en", "app.tagline")).toBe("Discover the world.");
+    expect(translate("hy", "app.tagline")).toBe("Բացահայտիր աշխարհը");
+  });
+
+  it("selects plural forms", () => {
+    expect(translatePlural("en", "travel.crossingsLeft", 1)).toBe("1 crossing left");
+    expect(translatePlural("en", "travel.crossingsLeft", 2)).toBe("2 crossings left");
+    expect(translatePlural("hy", "travel.crossingsLeft", 2)).toBe("Մնաց 2 սահմանահատում");
+  });
+});
+
+describe("country content", () => {
+  it("covers every lesson country with localized text and plausible coordinates", () => {
+    for (const lesson of Object.values(LESSONS)) {
+      for (const id of lesson.countries) {
+        const c = COUNTRIES[id];
+        expect(c, id).toBeDefined();
+        for (const locale of LOCALES) {
+          expect(c.name[locale]).toBeTruthy();
+          expect(c.nameInText[locale]).toBeTruthy();
+          expect(c.capital.name[locale]).toBeTruthy();
+          expect(c.hint[locale]).toBeTruthy();
+        }
+        const [lon, lat] = c.capital.coordinates;
+        expect(lon).toBeGreaterThan(-10);
+        expect(lon).toBeLessThan(20);
+        expect(lat).toBeGreaterThan(40);
+        expect(lat).toBeLessThan(58);
+      }
+    }
+  });
+
+  it("keeps France's landmark separate from its capital", () => {
+    const france = COUNTRIES.FRA;
+    expect(france.capital.name.en).toBe("Paris");
+    expect(france.landmark?.name.en).toBe("Eiffel Tower");
+    expect(france.landmark?.coordinates).not.toEqual(france.capital.coordinates);
+  });
+
+  it("gives every lesson country a localized, illustrated landmark", () => {
+    const expected: Record<string, [string, string, string]> = {
+      FRA: ["Eiffel Tower", "Էյֆելյան աշտարակ", "eiffel-tower"],
+      BEL: ["Atomium", "Ատոմիում", "atomium"],
+      NLD: ["Amsterdam canal houses", "Ամստերդամի ջրանցքների տները", "amsterdam-canal-houses"],
+      LUX: ["Adolphe Bridge", "Ադոլֆի կամուրջ", "adolphe-bridge"],
+      DEU: ["Brandenburg Gate", "Բրանդենբուրգյան դարպասներ", "brandenburg-gate"],
+    };
+    for (const [id, [en, hy, illustration]] of Object.entries(expected)) {
+      const landmark = COUNTRIES[id].landmark!;
+      expect(landmark.name).toEqual({ en, hy });
+      expect(landmark.illustration).toBe(illustration);
+      for (const text of [landmark.nameInText, landmark.fact]) {
+        expect(text.en.trim().length, id).toBeGreaterThan(0);
+        expect(text.hy.trim().length, id).toBeGreaterThan(0);
+      }
+      // One short fact, not a paragraph.
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      if (landmark.coordinates) expect(landmark.coordinates, id).not.toEqual(COUNTRIES[id].capital.coordinates);
+    }
+    // The canal houses are a group of buildings: no invented single location.
+    expect(COUNTRIES.NLD.landmark!.coordinates).toBeUndefined();
+  });
+});

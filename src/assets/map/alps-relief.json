@@ -1,0 +1,49 @@
+{
+  "levels": {
+    "base": {
+      "x": 485,
+      "y": 462,
+      "width": 593.75,
+      "height": 393.125
+    },
+    "detail": {
+      "x": 485,
+      "y": 462,
+      "width": 594.0625,
+      "height": 393.125
+    }
+  },
+  "check": [
+    {
+      "lonLat": [
+        6.865,
+        45.833
+      ],
+      "world": [
+        598.164,
+        674.152
+      ]
+    },
+    {
+      "lonLat": [
+        13.837,
+        46.378
+      ],
+      "world": [
+        950.105,
+        623.443
+      ]
+    },
+    {
+      "lonLat": [
+        10.985,
+        47.421
+      ],
+      "world": [
+        803.592,
+        555.66
+      ]
+    }
+  ],
+  "source": "Terrarium z8 (Mapzen/Tilezen terrain tiles), Natural Earth 1:10m ALPS range polygon"
+}

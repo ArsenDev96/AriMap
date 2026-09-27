@@ -9,6 +9,8 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    // Separate build folder used by the end-to-end tests (playwright.config.ts).
+    ".next-e2e/**",
     "out/**",
     "build/**",
     "next-env.d.ts",

@@ -1,0 +1,169 @@
+/* Illustrated Discover scenery, in the bright atlas style: full green trees
+   with highlights, grey-stone mountains with white snow, soft shadows. Every
+   colour is a variable, so the same artwork is recoloured over a selected
+   (teal) country instead of fading away. */
+.scenery {
+  --sc-shadow: rgba(24, 80, 34, 0.2);
+  --sc-outline: rgba(58, 62, 74, 0.5);
+  --sc-rock: #d9d2c6;
+  --sc-rock-light: #efebe4;
+  --sc-rock-shade: #9d9487;
+  --sc-snow: #ffffff;
+  --sc-snow-shade: #dbe4ec;
+  --sc-hill: #8fcd69;
+  --sc-hill-back: #83c460;
+  --sc-hill-shade: #6cb052;
+  --sc-hill-outline: rgba(36, 96, 38, 0.38);
+  --sc-trunk: #7a5a3c;
+  --sc-leaf-outline: #25693a;
+  --sc-leaf-shade: #3b9446;
+  --sc-leaf: #56b153;
+  --sc-leaf-light: #9ad77b;
+  --sc-fir-outline: #1e5c33;
+  --sc-fir: #3f9f50;
+  --sc-fir-shade: #2c813f;
+  --sc-wave: rgba(255, 255, 255, 0.95);
+  --sc-wave-soft: rgba(255, 255, 255, 0.45);
+
+  pointer-events: none;
+}
+
+/* Over a selected country (teal): pale mint stone and deep sea-green trees,
+   clearly visible yet quieter than the white name and the capital. */
+.onDark {
+  --sc-shadow: rgba(3, 50, 44, 0.22);
+  --sc-outline: rgba(3, 55, 50, 0.45);
+  --sc-rock: #c9ece5;
+  --sc-rock-light: #e4f7f3;
+  --sc-rock-shade: #6fbcae;
+  --sc-snow: #ffffff;
+  --sc-snow-shade: #d3ece7;
+  --sc-hill: #2fb4a4;
+  --sc-hill-back: #29ab9b;
+  --sc-hill-shade: #1a9384;
+  --sc-hill-outline: rgba(3, 60, 54, 0.35);
+  --sc-trunk: #4f3d2a;
+  --sc-leaf-outline: #0a5448;
+  --sc-leaf-shade: #16806c;
+  --sc-leaf: #2c9c7f;
+  --sc-leaf-light: #6fd0ae;
+  --sc-fir-outline: #0a5448;
+  --sc-fir: #279577;
+  --sc-fir-shade: #177a62;
+}
+
+/* Neighbouring countries: the same landscape, slightly less emphasis. */
+.context {
+  opacity: 0.85;
+}
+
+/* Each symbol keeps its size on screen: the world group is scaled by k, and
+   --inv (1/k) undoes it. --nx/--ny nudge the anchor in screen px. */
+.symbol {
+  transform: scale(var(--inv)) translate(var(--nx, 0px), var(--ny, 0px)) scale(var(--sx, 1), var(--sy, 1));
+}
+
+.shadow {
+  fill: var(--sc-shadow);
+}
+
+.rock {
+  fill: var(--sc-rock);
+}
+
+.rockLight {
+  fill: var(--sc-rock-light);
+}
+
+.rockShade {
+  fill: var(--sc-rock-shade);
+}
+
+.snow {
+  fill: var(--sc-snow);
+}
+
+.snowShade {
+  fill: var(--sc-snow-shade);
+}
+
+.outline,
+.hillOutline {
+  fill: none;
+  stroke: var(--sc-outline);
+  stroke-width: 0.85px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.hill {
+  fill: var(--sc-hill);
+}
+
+.hillBack {
+  fill: var(--sc-hill-back);
+}
+
+.hillShade {
+  fill: var(--sc-hill-shade);
+}
+
+.hillOutline {
+  stroke: var(--sc-hill-outline);
+}
+
+.trunk {
+  fill: none;
+  stroke: var(--sc-trunk);
+  stroke-width: 1.3px;
+  stroke-linecap: round;
+}
+
+/* Broadleaf crowns: an outline layer of slightly larger circles under the fills. */
+.leafOutline {
+  fill: var(--sc-leaf-outline);
+}
+
+.leafShade {
+  fill: var(--sc-leaf-shade);
+}
+
+.leaf {
+  fill: var(--sc-leaf);
+}
+
+.leafLight {
+  fill: var(--sc-leaf-light);
+}
+
+/* Firs: a stroke under the fill, so only its outer half shows as a soft edge. */
+.firOutline {
+  fill: none;
+  stroke: var(--sc-fir-outline);
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+}
+
+.fir {
+  fill: var(--sc-fir);
+}
+
+.firShade {
+  fill: var(--sc-fir-shade);
+}
+
+
+.wave {
+  fill: none;
+  stroke: var(--sc-wave);
+  stroke-width: 1.6px;
+  stroke-linecap: round;
+}
+
+.waveSoft {
+  fill: none;
+  stroke: var(--sc-wave-soft);
+  stroke-width: 1.1px;
+  stroke-linecap: round;
+}
+

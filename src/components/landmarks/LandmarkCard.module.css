@@ -1,0 +1,90 @@
+.landmark {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+/* Every illustration gets the same box; the trimmed artwork is scaled to fit
+   it whole (object-fit: contain), so tall towers and wide bridges get the same
+   visual weight and nothing is cropped. */
+.stage {
+  height: clamp(124px, 38vw, 168px);
+}
+
+/* Positioned box for next/image `fill`, inside the stage's padding. */
+.frame {
+  position: relative;
+  height: 100%;
+}
+
+/* next/image `fill`: positioned to cover the frame; contain keeps the whole artwork visible. */
+.image {
+  object-fit: contain;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.name {
+  font-weight: 900;
+  font-size: 1.1rem;
+  line-height: 1.25;
+}
+
+.fact {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* Phones: the figure's parts join the country card's grid (LessonScreen.module.css).
+   The art becomes a square tile beside the country name and capital; the
+   landmark's name and fact run full width beneath them. */
+@media (max-width: 899.98px) {
+  .landmark {
+    display: contents;
+  }
+
+  .stage {
+    grid-column: 2;
+    grid-row: 1;
+    box-sizing: border-box;
+    width: clamp(112px, 33vw, 132px);
+    height: clamp(112px, 33vw, 132px);
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+  }
+
+  .text {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .name {
+    font-size: 1.05rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .stage {
+    height: 156px;
+  }
+}
