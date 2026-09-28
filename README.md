@@ -61,6 +61,8 @@ src/data/geo/              prepared Natural Earth TopoJSON (see docs/DATA.md)
 src/components/            React UI (screens, panels, SVG map, zoom, inset)
 scripts/prepare-geo.mjs    reproducible map-data preparation
 scripts/prepare-landmarks.mjs  landmark display copies (trimmed, resized)
+scripts/generate-relief.mjs    map relief and forests from elevation and land-cover data (see docs/TERRAIN.md)
+public/relief/             zoomed landscape tiles, loaded only when needed
 src/assets/landmarks/      landmark display copies (see docs/CONTENT.md)
 e2e/                       Playwright end-to-end test
 ```
@@ -74,6 +76,7 @@ Progress is saved in `localStorage` under `arimap:state` (version 1). The saved 
 ## Data and artwork
 
 - Map: Natural Earth 1:10m Admin 0 Countries v5.1.1 (public domain). See [docs/DATA.md](docs/DATA.md).
-- Alpine relief (Discover): terrain tiles by Mapzen. Europe terrain data produced using Copernicus data and information funded by the European Union - EU-DEM layers; Austria terrain data © offene Daten Österreichs – Digitales Geländemodell (DGM) Österreich; SRTM and GMTED2010 terrain data courtesy of the U.S. Geological Survey. Range extent from Natural Earth (public domain). See [docs/TERRAIN.md](docs/TERRAIN.md).
+- Relief: Terrain Tiles by Mapzen, from the Registry of Open Data on AWS. SRTM and GMTED2010 terrain data courtesy of the U.S. Geological Survey. Global ETOPO1 terrain data U.S. National Oceanic and Atmospheric Administration. These credits are also shown in the app ("About the map"). See [docs/TERRAIN.md](docs/TERRAIN.md).
+- Forests: © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium (CC BY 4.0; Zanaga et al., 2022, ESA WorldCover 10 m 2021 v200, doi:10.5281/zenodo.7254221). Also shown in "About the map".
 - Landmark illustrations: five **AI-generated stylised illustrations** (not photographs). The originals are in `public/images/landmarks/`; trimmed display copies made by `scripts/prepare-landmarks.mjs` are in `src/assets/landmarks/`. Provenance, image mapping, and sources for landmark facts and locations are in [docs/CONTENT.md](docs/CONTENT.md). The player interface shows no provenance notice.
 - Fonts: Nunito (Latin) and Noto Sans Armenian, self-hosted at build time via `next/font` (both SIL Open Font License).

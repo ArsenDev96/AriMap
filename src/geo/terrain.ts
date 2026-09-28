@@ -1,11 +1,15 @@
 import type { CountryId, LonLat } from "@/core/content/types";
-import type { Point, RegionMap } from "./regionMap";
 
 /**
- * Illustrated scenery for the Discover map: mountain ridges, forests and a few
- * wave marks, anchored to real places. Sources and simplifications are listed
- * in docs/TERRAIN.md; src/geo/terrain.test.ts checks every anchor against the
- * map data (and, when NE_REGIONS is set, against Natural Earth's named ranges).
+ * Geographic anchors for the map's landscape: wave marks (drawn in Discover),
+ * and the crests of the main mountain ranges and named forests. Mountains and
+ * forests are painted from elevation and land-cover data
+ * (src/components/map/Relief.tsx, scripts/generate-relief.mjs); the crests and
+ * forests are kept as independent reference points, which the tests use to
+ * check that the relief and forests show where they really are. Sources and
+ * simplifications are listed in docs/TERRAIN.md; src/geo/terrain.test.ts checks
+ * every anchor against the map data (and, when NE_REGIONS is set, against
+ * Natural Earth's named ranges).
  */
 
 export type RangeKind = "alpine" | "rocky" | "hills";
@@ -15,25 +19,15 @@ export interface MountainRange {
   /** Natural Earth region name the crests lie in, or null (see `peaks`). */
   naturalEarth: string | null;
   kind: RangeKind;
-  /**
-   * Drawn as painted relief from elevation data (Scenery's `AlpineRelief`)
-   * instead of mountain symbols. The crests still anchor the range for tests.
-   */
-  relief?: true;
   /** Crest lines, west to east, through named summits (lon, lat). */
   crests: readonly (readonly LonLat[])[];
 }
-
-export type ForestKind = "broadleaf" | "conifer";
 
 export interface Forest {
   id: string;
   country: CountryId;
   /** Coordinate of the forest's Wikipedia article. */
   center: LonLat;
-  /** Approximate radius of the wooded area. */
-  radiusKm: number;
-  kind: ForestKind;
 }
 
 export const MOUNTAIN_RANGES: readonly MountainRange[] = [
@@ -41,7 +35,6 @@ export const MOUNTAIN_RANGES: readonly MountainRange[] = [
     id: "alps",
     naturalEarth: "Alps",
     kind: "alpine",
-    relief: true,
     crests: [
       // Main chain: Mercantour, Monte Viso, Mont Blanc, Monte Rosa, Gotthard, Bernina, Ortler, Wildspitze, Grossglockner, Niedere Tauern.
       [[7.13, 44.14], [7.09, 44.67], [6.95, 45.15], [6.87, 45.83], [7.87, 45.94], [8.57, 46.56], [9.91, 46.38], [10.55, 46.51], [10.87, 46.89], [11.8, 47.05], [12.7, 47.08], [13.9, 47.3], [15.2, 47.55]],
@@ -167,30 +160,31 @@ export const MOUNTAIN_RANGES: readonly MountainRange[] = [
 ];
 
 /**
- * Named forests. None in Belgium, the Netherlands or Luxembourg (the Ardennes,
- * Veluwe and Oesling are left out on purpose): the crowded Low Countries stay clear.
+ * Named forests: independent reference points (each article's coordinate), not
+ * drawn. Forests are painted from ESA WorldCover tree cover; the tests check
+ * that the painted forest shows at each of these places.
  */
 export const FORESTS: readonly Forest[] = [
-  { id: "landes", country: "FRA", center: [-0.58, 44.18], radiusKm: 60, kind: "conifer" },
-  { id: "compiegne", country: "FRA", center: [2.88, 49.38], radiusKm: 10, kind: "broadleaf" },
-  { id: "morvan", country: "FRA", center: [4.0, 47.08], radiusKm: 25, kind: "broadleaf" },
-  { id: "vosges", country: "FRA", center: [7.0, 48.0], radiusKm: 35, kind: "conifer" },
-  { id: "black-forest", country: "DEU", center: [8.05, 48.25], radiusKm: 45, kind: "conifer" },
-  { id: "palatinate", country: "DEU", center: [7.88, 49.29], radiusKm: 20, kind: "broadleaf" },
-  { id: "odenwald", country: "DEU", center: [9.02, 49.58], radiusKm: 16, kind: "broadleaf" },
-  { id: "spessart", country: "DEU", center: [9.43, 49.9], radiusKm: 20, kind: "broadleaf" },
-  { id: "rothaar", country: "DEU", center: [8.25, 51.08], radiusKm: 25, kind: "conifer" },
-  { id: "teutoburg", country: "DEU", center: [8.82, 51.9], radiusKm: 15, kind: "broadleaf" },
-  { id: "solling", country: "DEU", center: [9.6, 51.73], radiusKm: 12, kind: "broadleaf" },
-  { id: "harz", country: "DEU", center: [10.63, 51.75], radiusKm: 20, kind: "conifer" },
-  { id: "thuringian", country: "DEU", center: [10.75, 50.67], radiusKm: 25, kind: "conifer" },
-  { id: "bavarian", country: "DEU", center: [12.67, 49.0], radiusKm: 30, kind: "conifer" },
-  { id: "schorfheide", country: "DEU", center: [13.82, 52.97], radiusKm: 18, kind: "conifer" },
-  { id: "tuchola", country: "POL", center: [18.0, 53.6], radiusKm: 35, kind: "conifer" },
-  { id: "new-forest", country: "GBR", center: [-1.62, 50.86], radiusKm: 12, kind: "broadleaf" },
-  { id: "thetford", country: "GBR", center: [0.65, 52.46], radiusKm: 12, kind: "conifer" },
-  { id: "kielder", country: "GBR", center: [-2.53, 55.21], radiusKm: 15, kind: "conifer" },
-  { id: "galloway", country: "GBR", center: [-4.42, 55.12], radiusKm: 18, kind: "conifer" },
+  { id: "landes", country: "FRA", center: [-0.58, 44.18] },
+  { id: "compiegne", country: "FRA", center: [2.88, 49.38] },
+  { id: "morvan", country: "FRA", center: [4.0, 47.08] },
+  { id: "vosges", country: "FRA", center: [7.0, 48.0] },
+  { id: "black-forest", country: "DEU", center: [8.05, 48.25] },
+  { id: "palatinate", country: "DEU", center: [7.88, 49.29] },
+  { id: "odenwald", country: "DEU", center: [9.02, 49.58] },
+  { id: "spessart", country: "DEU", center: [9.43, 49.9] },
+  { id: "rothaar", country: "DEU", center: [8.25, 51.08] },
+  { id: "teutoburg", country: "DEU", center: [8.82, 51.9] },
+  { id: "solling", country: "DEU", center: [9.6, 51.73] },
+  { id: "harz", country: "DEU", center: [10.63, 51.75] },
+  { id: "thuringian", country: "DEU", center: [10.75, 50.67] },
+  { id: "bavarian", country: "DEU", center: [12.67, 49.0] },
+  { id: "schorfheide", country: "DEU", center: [13.82, 52.97] },
+  { id: "tuchola", country: "POL", center: [18.0, 53.6] },
+  { id: "new-forest", country: "GBR", center: [-1.62, 50.86] },
+  { id: "thetford", country: "GBR", center: [0.65, 52.46] },
+  { id: "kielder", country: "GBR", center: [-2.53, 55.21] },
+  { id: "galloway", country: "GBR", center: [-4.42, 55.12] },
 ];
 
 /** A few wave marks in open water, well away from coasts. */
@@ -210,83 +204,3 @@ export const WAVES: readonly { sea: string; at: LonLat }[] = [
   { sea: "Tyrrhenian Sea", at: [11.5, 41.4] },
   { sea: "Adriatic Sea", at: [14.5, 43.4] },
 ];
-
-/** Countries kept free of all scenery: Luxembourg and the crowded Low Countries. */
-export const SCENERY_FREE: ReadonlySet<CountryId> = new Set(["BEL", "NLD", "LUX"]);
-
-// --- Pure helpers (shared by the renderer and the tests) -----------------------
-
-/** Deterministic hash of the arguments to [0, 1). */
-export function hash01(...parts: number[]): number {
-  let h = 2166136261;
-  for (const p of parts) {
-    h ^= Math.round(p * 1000) | 0;
-    h = Math.imul(h, 16777619);
-    h ^= h >>> 13;
-    h = Math.imul(h, 0x5bd1e995);
-    h ^= h >>> 15;
-  }
-  return (h >>> 0) / 4294967296;
-}
-
-/** World units per kilometre around a point (the projection is equal-area, so this is close to uniform). */
-export function worldPerKm(map: RegionMap, at: LonLat): number {
-  const a = map.project(at);
-  const b = map.project([at[0], at[1] + 1 / 111.32]);
-  return Math.hypot(b[0] - a[0], b[1] - a[1]);
-}
-
-/**
- * Zoom level of detail: the finest nested spacing `base / 2^level` that is still
- * at least `targetPx` on screen at scale k. Coarser levels' points are kept at
- * finer levels, so zooming in adds scenery rather than moving it.
- */
-export function detailLevel(k: number, targetPx: number, base: number, maxLevel = 6): number {
-  const level = Math.floor(Math.log2((base * k) / targetPx));
-  return Math.max(0, Math.min(maxLevel, level));
-}
-
-/** Points along a polyline at `phase + n * spacing` (arc length), with the local direction. */
-export function pointsAlong(line: readonly Point[], spacing: number, phase: number): { at: Point; along: number; dir: Point }[] {
-  const out: { at: Point; along: number; dir: Point }[] = [];
-  let start = 0;
-  let next = phase % spacing;
-  for (let i = 1; i < line.length; i++) {
-    const [ax, ay] = line[i - 1];
-    const [bx, by] = line[i];
-    const len = Math.hypot(bx - ax, by - ay);
-    if (len === 0) continue;
-    const dir: Point = [(bx - ax) / len, (by - ay) / len];
-    while (next <= start + len) {
-      const t = next - start;
-      out.push({ at: [ax + dir[0] * t, ay + dir[1] * t], along: next, dir });
-      next += spacing;
-    }
-    start += len;
-  }
-  return out;
-}
-
-/**
- * Nested jittered grid: one point per cell at `level` (cell size base / 2^level).
- * A cell containing its parent cell's point keeps it, so each level contains the
- * previous one.
- */
-export function gridPoint(seed: number, base: number, level: number, i: number, j: number, cache: Map<string, Point>): Point {
-  const key = `${seed}:${level}:${i}:${j}`;
-  const hit = cache.get(key);
-  if (hit) return hit;
-  const size = base / 2 ** level;
-  let point: Point | null = null;
-  if (level > 0) {
-    const parent = gridPoint(seed, base, level - 1, i >> 1, j >> 1, cache);
-    if (Math.floor(parent[0] / size) === i && Math.floor(parent[1] / size) === j) point = parent;
-  }
-  if (!point) {
-    const jx = 0.15 + 0.7 * hash01(seed, level, i, j, 1);
-    const jy = 0.15 + 0.7 * hash01(seed, level, i, j, 2);
-    point = [(i + jx) * size, (j + jy) * size];
-  }
-  cache.set(key, point);
-  return point;
-}

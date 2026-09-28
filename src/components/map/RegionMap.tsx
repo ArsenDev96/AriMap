@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
@@ -24,7 +24,10 @@ import {
 import { routeLine } from "@/geo/route";
 import { useI18n } from "../i18n";
 import { LandTexture, SeaTexture } from "./AtlasSurface";
+import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
 import { insideShape } from "./insideShape";
+import { createLiveView, placeLayer, type LiveView } from "./liveView";
+import { Relief } from "./Relief";
 import { Scenery } from "./Scenery";
 import { useCountryTap } from "./useTap";
 import styles from "./RegionMap.module.css";
@@ -39,6 +42,21 @@ const INSET_MIN_WIDTH = 88;
 const INSET_TOGGLE_EXTENT = 8 + 44 + 4;
 /** Inset width before it shrinks to fit: at least 112px, 100px on narrow maps so it clears the Low Countries' names. */
 const INSET_WIDTH = { min: 112, compactMin: 100, max: 208 };
+/**
+ * Dragging and zooming move the drawn map as one layer, which the browser
+ * shifts and scales without drawing it again (see liveView.ts). The map is drawn
+ * again for the new view once it settles: when the gesture ends, after this
+ * pause (ms) in it, or at once if the layer would no longer cover the view.
+ */
+const SETTLE_MS = 150;
+/** The layer extends this share of the map's width and height past each edge, so a drag reveals map already drawn. */
+const OVERSCAN = 0.3;
+/**
+ * The drawn layer and the names stay composited layers this long (ms) after a
+ * gesture ends, so gestures in quick succession (or a wheel that pauses) reuse
+ * them. Then the map is drawn with the page again, exactly as at rest.
+ */
+const RELEASE_MS = 400;
 
 interface Props {
   lesson: LessonDefinition;
@@ -64,12 +82,20 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const { t, l, name, countryParams } = useI18n();
   const map = useMemo(() => getRegionMap(lesson.countries), [lesson.countries]);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<SVGSVGElement>(null);
   const insetRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
-  const zoomRef = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const zoomRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  // The view the map is drawn for. During a gesture the live view runs ahead of
+  // it: the drawn layer and the names follow the live view until it settles.
   const [transform, setTransform] = useState<Transform>({ k: 1, x: 0, y: 0 });
+  const [live] = useState(() => createLiveView({ k: 1, x: 0, y: 0 }));
+  const drawnRef = useRef(transform);
+  // The last view the player stopped at (not one the map was only redrawn for
+  // mid-gesture): the landscape fetches sharper tiles for this view only.
+  const [settledView, setSettledView] = useState<Transform>(transform);
   const [insetBox, setInsetBox] = useState<Box | null>(null);
   const [controlsBox, setControlsBox] = useState<Box | null>(null);
   // The player's open/closed choice, kept for the stage it was made in. Without
@@ -102,11 +128,25 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
     [map, size, padding],
   );
   const base = limits?.base ?? null;
+  const margin = useMemo(() => ({ x: Math.round(size.width * OVERSCAN), y: Math.round(size.height * OVERSCAN) }), [size]);
 
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg || !limits) return;
-    const behavior = d3zoom<SVGSVGElement, unknown>()
+    const stage = stageRef.current;
+    if (!stage || !limits) return;
+    let latest = live.get();
+    let frame = 0;
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    let release: ReturnType<typeof setTimeout> | undefined;
+    // Draw the map for the live view; `stopped` when the player has stopped there (the gesture ended or paused).
+    const settle = (stopped: boolean) => {
+      cancelAnimationFrame(frame);
+      frame = 0;
+      clearTimeout(idle);
+      live.set(latest);
+      setTransform(latest);
+      if (stopped) setSettledView(latest);
+    };
+    const behavior = d3zoom<HTMLDivElement, unknown>()
       .extent([
         [0, 0],
         [size.width, size.height],
@@ -114,28 +154,62 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       // The base view is also the minimum zoom, so the view never extends past the data coverage.
       .scaleExtent([limits.base.k, limits.base.k * MAX_ZOOM])
       .translateExtent(limits.translateExtent as [[number, number], [number, number]])
+      // During a gesture (drag, pinch, wheel or zoom animation) and shortly
+      // after, the drawn layer and the names are composited layers (see CSS).
+      .on("start", () => {
+        clearTimeout(release);
+        stage.setAttribute("data-gesture", "");
+      })
       .on("zoom", (event) => {
         const { k, x, y } = event.transform;
-        setTransform({ k, x, y });
+        latest = { k, x, y };
+        // The player is moving the map: no hover highlight until the gesture ends (see CSS).
+        if (event.sourceEvent && !stage.hasAttribute("data-moving")) stage.setAttribute("data-moving", "");
+        clearTimeout(idle);
+        idle = setTimeout(() => settle(true), SETTLE_MS);
+        // At most once per frame: move the drawn layer and the names, without drawing the map again.
+        if (frame) return;
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          live.set(latest);
+          if (!placeLayer(worldRef.current, drawnRef.current, latest, size, margin)) settle(false);
+        });
+      })
+      .on("end", () => {
+        stage.removeAttribute("data-moving");
+        settle(true);
+        clearTimeout(release);
+        release = setTimeout(() => stage.removeAttribute("data-gesture"), RELEASE_MS);
       });
-    const selection = select(svg);
+    const selection = select(stage);
     selection.call(behavior).on("dblclick.zoom", null);
     selection.call(behavior.transform, zoomIdentity.translate(limits.base.x, limits.base.y).scale(limits.base.k));
     zoomRef.current = behavior;
     return () => {
       selection.on(".zoom", null);
+      cancelAnimationFrame(frame);
+      clearTimeout(idle);
+      clearTimeout(release);
+      stage.removeAttribute("data-moving");
+      stage.removeAttribute("data-gesture");
     };
-  }, [limits, size.width, size.height]);
+  }, [limits, size, margin, live]);
+
+  // Once the map is drawn for a view, place the layer for the live view (usually the same).
+  useLayoutEffect(() => {
+    drawnRef.current = transform;
+    placeLayer(worldRef.current, transform, live.get(), size, margin);
+  }, [transform, live, size, margin]);
 
   const zoomBy = (factor: number) => {
-    const svg = svgRef.current;
-    if (!svg || !zoomRef.current) return;
-    select(svg).transition().duration(prefersReducedMotion() ? 0 : 250).call(zoomRef.current.scaleBy, factor);
+    const stage = stageRef.current;
+    if (!stage || !zoomRef.current) return;
+    select(stage).transition().duration(prefersReducedMotion() ? 0 : 250).call(zoomRef.current.scaleBy, factor);
   };
   const resetZoom = () => {
-    const svg = svgRef.current;
-    if (!svg || !zoomRef.current || !base) return;
-    select(svg)
+    const stage = stageRef.current;
+    if (!stage || !zoomRef.current || !base) return;
+    select(stage)
       .transition()
       .duration(prefersReducedMotion() ? 0 : 300)
       .call(zoomRef.current.transform, zoomIdentity.translate(base.x, base.y).scale(base.k));
@@ -200,6 +274,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const obstacles = useMemo(() => {
     const boxes: Box[] = [];
     if (controlsBox) boxes.push({ x0: controlsBox.x0 - 4, y0: controlsBox.y0 - 4, x1: size.width, y1: size.height });
+    // "About the map", in the top-right corner.
+    boxes.push({ x0: size.width - ABOUT_BUTTON_EXTENT - 4, y0: 0, x1: size.width, y1: ABOUT_BUTTON_EXTENT + 4 });
     // The inset sits in a left-hand corner (top on wide maps, bottom otherwise);
     // its area runs to the map edges it touches.
     if (insetBox) {
@@ -259,11 +335,11 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
         name,
       })
     : null;
-  // Illustrated scenery: a Discover-only prototype, on the main map only.
+  // Wave marks: Discover only, on the main map only.
   const scenery = stage === "discover" && mainLayout !== null;
-  // Illustrated atlas surface (bright water and land, white borders, textures): Discover only for now.
-  const atlas = stage === "discover";
-  const selectedIds = lesson.countries.filter((id) => view.tones[id] === "selected");
+  // Lesson countries in a state colour (selection, Find answers, Travel): the
+  // land texture is lighter over them, and the relief uses its neutral overlay.
+  const tonedKey = lesson.countries.filter((id) => (view.tones[id] ?? "default") !== "default").join(",");
   // Scenery also keeps 8px of room around the zoom controls and the close-up.
   const sceneryAvoid = scenery
     ? [...sceneryClearance(map, mainLayout, transform), ...obstacles.map((o) => ({ x0: o.x0 - 8, y0: o.y0 - 8, x1: o.x1 + 8, y1: o.y1 + 8 }))]
@@ -271,56 +347,70 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
 
   return (
     // data-crowded: a small country's name has no nearby clear spot on the whole-map view.
-    <div className={`${styles.wrapper} ${atlas ? styles.atlas : ""}`} ref={wrapperRef} data-crowded={crowded || undefined} data-map-style={atlas ? "atlas" : undefined}>
-      <svg
-        ref={svgRef}
+    // The same illustrated landscape (atlas surface and relief) in every stage.
+    <div className={`${styles.wrapper} ${styles.atlas}`} ref={wrapperRef} data-crowded={crowded || undefined} data-map-style="atlas">
+      {/* The stage takes the gestures and taps; taps reach the countries in the drawn layer. */}
+      <div
+        ref={stageRef}
         data-testid="map-main"
-        className={styles.svg}
-        width={size.width}
-        height={size.height}
+        className={styles.stage}
         role="group"
         aria-label={t("map.label", { region: l(lesson.regionName) })}
         aria-describedby="map-gestures"
         {...tap}
       >
-        <rect className={styles.sea} width={size.width} height={size.height} />
-        {ready && (
+        {ready && mainLayout && (
           <>
-            <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
-              {atlas && <SeaTexture map={map} />}
-              <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} flash={flash} />
-              {atlas && <LandTexture map={map} darkKey={selectedIds.join(",")} />}
-              {scenery && (
-                <>
+            {/* The drawn map, larger than the view by `margin` on each side (its
+                user space still starts at the view's corner), moved as one layer
+                during a gesture. */}
+            <svg
+              ref={worldRef}
+              className={styles.world}
+              width={size.width + 2 * margin.x}
+              height={size.height + 2 * margin.y}
+              viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
+              style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
+              role="none"
+            >
+              <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
+                <SeaTexture map={map} />
+                <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
+                <LandTexture map={map} darkKey={tonedKey} />
+                <Relief map={map} tones={view.tones} transform={settledView} viewport={size} />
+                {scenery && (
                   <Scenery
                     map={map}
-                    active={lesson.countries}
-                    tones={view.tones}
                     transform={transform}
                     viewport={size}
                     avoid={sceneryAvoid}
                     compact={size.width < COMPACT_MAP_WIDTH}
                   />
-                  <BorderLayer map={map} active={lesson.countries} />
-                </>
-              )}
-            </g>
-            <Overlay
-              map={map}
-              active={lesson.countries}
-              view={view}
-              route={route}
-              transform={transform}
-              viewport={size}
-              textMode={calloutsInInset ? "noCallouts" : "all"}
-              obstacles={obstacles}
-              insetArea={insetOpen ? insetBounds : null}
-              motion={motion}
-              layout={mainLayout ?? undefined}
-            />
+                )}
+                <BorderLayer map={map} active={lesson.countries} />
+                <FlashLayer map={map} flash={flash} />
+              </g>
+            </svg>
+            {/* Names, markers and the route, in screen space, over the drawn map. */}
+            <svg className={styles.overlayLayer} width={size.width} height={size.height} aria-hidden="true" data-overlay="">
+              <LiveOverlay
+                live={live}
+                map={map}
+                active={lesson.countries}
+                view={view}
+                route={route}
+                transform={transform}
+                viewport={size}
+                textMode={calloutsInInset ? "noCallouts" : "all"}
+                obstacles={obstacles}
+                insetArea={insetOpen ? insetBounds : null}
+                motion={motion}
+                layout={mainLayout}
+              />
+            </svg>
           </>
         )}
-      </svg>
+      </div>
       <p id="map-gestures" className="visually-hidden">
         {t("map.gestures")}
       </p>
@@ -365,7 +455,12 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               >
                 <rect className={styles.sea} width={insetSize.width} height={insetSize.height} />
                 <g transform={`translate(${insetTransform.x},${insetTransform.y}) scale(${insetTransform.k})`}>
-                  <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} flash={flash} />
+                  <SeaTexture map={map} />
+                  <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
+                  <LandTexture map={map} darkKey={tonedKey} />
+                  <Relief map={map} tones={view.tones} transform={insetTransform} viewport={insetSize} />
+                  <BorderLayer map={map} active={lesson.countries} />
+                  <FlashLayer map={map} flash={flash} />
                 </g>
                 <Overlay
                   map={map}
@@ -383,6 +478,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
           )}
         </div>
       )}
+
+      <AboutMap />
 
       <div className={styles.controls} ref={controlsRef} data-testid="map-controls">
         <button type="button" className={styles.control} onClick={() => zoomBy(1.6)} aria-label={t("map.zoomIn")} title={t("map.zoomIn")}>
@@ -424,15 +521,12 @@ interface LayerProps {
   view: MapView;
   focusable: boolean;
   onKeyTap?: (country: CountryId) => void;
-  /** Latest Find answer to emphasise once, or null. */
-  flash: AnswerFlash | null;
 }
 
 /** Memoised so that zooming only updates the parent transform, not every path. */
-const CountryLayer = memo(function CountryLayer({ map, active, view, focusable, onKeyTap, flash }: LayerProps) {
+const CountryLayer = memo(function CountryLayer({ map, active, view, focusable, onKeyTap }: LayerProps) {
   const { t, name } = useI18n();
   const explored = new Set(view.explored);
-  const flashShape = flash ? map.shapes.find((s) => s.id === flash.country) : undefined;
   const context = map.shapes.filter((s) => !active.includes(s.id));
   const playable = map.shapes.filter((s) => active.includes(s.id));
   const labels = new Set(view.labels);
@@ -480,23 +574,28 @@ const CountryLayer = memo(function CountryLayer({ map, active, view, focusable, 
           );
         })}
       </g>
-      {/* A brief outline on the country just answered in Find, over the borders; it fades out. */}
-      {flash && flashShape && (
-        <path
-          key={flash.key}
-          d={flashShape.d}
-          className={flash.kind === "correct" ? styles.flashCorrect : styles.flashWrong}
-          aria-hidden="true"
-          data-flash={flash.kind}
-        />
-      )}
     </>
   );
 });
 
+/** A brief outline on the country just answered in Find, over the relief and borders; it fades out. */
+function FlashLayer({ map, flash }: { map: RegionMapData; flash: AnswerFlash | null }) {
+  const shape = flash ? map.shapes.find((s) => s.id === flash.country) : undefined;
+  if (!flash || !shape) return null;
+  return (
+    <path
+      key={flash.key}
+      d={shape.d}
+      className={flash.kind === "correct" ? styles.flashCorrect : styles.flashWrong}
+      aria-hidden="true"
+      data-flash={flash.kind}
+    />
+  );
+}
+
 /**
- * Borders redrawn over the scenery (which lies on the fills), so every border
- * stays crisp. Purely visual: no country ids, no pointer events.
+ * Borders redrawn over the relief and scenery (which lie on the fills), so
+ * every border stays crisp. Purely visual: no country ids, no pointer events.
  */
 const BorderLayer = memo(function BorderLayer({ map, active }: { map: RegionMapData; active: readonly CountryId[] }) {
   return (
@@ -776,7 +875,8 @@ interface LayoutInput {
 
 interface OverlayLayout {
   route: Point[];
-  area: { cx: number; cy: number; r: number } | null;
+  /** Hint circle: `fit` is the radius that suits the country at this zoom, before the limits (34px, `cap`). */
+  area: { cx: number; cy: number; r: number; fit: number; cap: number } | null;
   insetRect: Box | null;
   markers: { kind: MapMarker["kind"]; country: CountryId; x: number; y: number }[];
   markerTexts: MarkerText[];
@@ -812,8 +912,8 @@ function layoutOverlay({ map, active, view, route: routeWorld, transform, viewpo
     const [[x0, y0], [x1, y1]] = shapeById(view.areaHint).bounds as Bounds;
     const [cx, cy] = toScreen(map.project(getCountry(view.areaHint).label.coordinates));
     const size = Math.sqrt((x1 - x0) * (y1 - y0)) * transform.k;
-    const r = Math.min(Math.max(34, size * 0.55), Math.max(34, Math.min(viewport.width, viewport.height) * 0.3));
-    area = { cx, cy, r };
+    const cap = Math.max(34, Math.min(viewport.width, viewport.height) * 0.3);
+    area = { cx, cy, r: Math.min(Math.max(34, size * 0.55), cap), fit: size * 0.55, cap };
   }
 
   let insetRect: Box | null = null;
@@ -959,6 +1059,13 @@ function layoutOverlay({ map, active, view, route: routeWorld, transform, viewpo
     if (!spot && ax >= 0 && ay >= 0 && ax <= viewport.width && ay <= viewport.height) {
       // No room inside its own country (e.g. Belgium, next to Brussels, on a
       // 320px map): the name goes in a callout beside it, like Luxembourg's.
+      label.inline = false;
+      continue;
+    }
+    if (!spot && obstacles.some((o) => overlaps(labelBox(label, 0, 0), o))) {
+      // Its label point is off screen, nothing in its visible part fits, and at
+      // the label point it would sit under the map controls: left out until the
+      // view changes (no callout either, as it would point off screen).
       label.inline = false;
       continue;
     }
@@ -1207,6 +1314,58 @@ interface OverlayProps extends Omit<LayoutInput, "l" | "name"> {
   motion?: RouteMotion;
   /** Layout already computed by the caller for these same inputs. */
   layout?: OverlayLayout;
+}
+
+/**
+ * A layout moved from the view it was made for to another view, without placing
+ * anything again: every route point, marker and name anchor goes to its new
+ * screen position, and names, callouts and marker names keep their offset from
+ * their anchor and their size. Used during a gesture, so names stay on their
+ * countries; the layout is made again once the view settles.
+ */
+function followView(layout: OverlayLayout, from: Transform, to: Transform): OverlayLayout {
+  if (from.k === to.k && from.x === to.x && from.y === to.y) return layout;
+  const s = to.k / from.k;
+  const at = ([x, y]: Point): Point => [(x - from.x) * s + to.x, (y - from.y) * s + to.y];
+  const shift = (b: Box, [dx, dy]: Point): Box => ({ x0: b.x0 + dx, y0: b.y0 + dy, x1: b.x1 + dx, y1: b.y1 + dy });
+  const moved = (p: Point, q: Point): Point => [q[0] - p[0], q[1] - p[1]];
+  let area = layout.area;
+  if (area) {
+    const [cx, cy] = at([area.cx, area.cy]);
+    area = { ...area, cx, cy, r: Math.min(Math.max(34, area.fit * s), area.cap), fit: area.fit * s };
+  }
+  let insetRect = layout.insetRect;
+  if (insetRect) {
+    const [[x0, y0], [x1, y1]] = [at([insetRect.x0, insetRect.y0]), at([insetRect.x1, insetRect.y1])];
+    insetRect = { x0, y0, x1, y1 };
+  }
+  return {
+    ...layout,
+    route: layout.route.map(at),
+    area,
+    insetRect,
+    markers: layout.markers.map((m) => {
+      const [x, y] = at([m.x, m.y]);
+      return { ...m, x, y };
+    }),
+    markerTexts: layout.markerTexts.map((m) => {
+      const a = at(m.at);
+      const [dx, dy] = moved(m.at, a);
+      return { ...m, at: a, x: m.x + dx, y: m.y + dy };
+    }),
+    labels: layout.labels.map((label) => {
+      const a = at(label.anchor);
+      const d = moved(label.anchor, a);
+      return { ...label, anchor: a, box: label.box && shift(label.box, d), callout: label.callout && shift(label.callout, d) };
+    }),
+  };
+}
+
+/** The main map's overlay, following the live view during a gesture (see followView). */
+function LiveOverlay({ live, layout, ...props }: OverlayProps & { live: LiveView; layout: OverlayLayout }) {
+  const view = useSyncExternalStore(live.subscribe, live.get, live.get);
+  const followed = useMemo(() => followView(layout, props.transform, view), [layout, props.transform, view]);
+  return <Overlay {...props} layout={followed} />;
 }
 
 function Overlay({ motion, layout: given, ...input }: OverlayProps) {
