@@ -33,6 +33,8 @@
   /* Very gentle depth: slightly deeper water towards the bottom. */
   background: linear-gradient(175deg, var(--map-sea), var(--map-sea-deep));
   box-shadow: inset 0 0 0 1px rgba(31, 58, 95, 0.1);
+  /* The layers below stack within the map. */
+  isolation: isolate;
 }
 
 /* Takes the gestures and taps; holds the drawn layer and the names over it. */
@@ -52,31 +54,85 @@
   cursor: grabbing;
 }
 
-/* The drawn map: larger than the view, and moved as one layer while the map
-   is dragged or zoomed, so a gesture never redraws it (see liveView.ts). */
+/* The drawn map, larger than the view. At rest it is drawn with the page. */
 .world {
   position: absolute;
   display: block;
 }
 
-/* Names, markers and the route, in screen space. Taps pass through to the
-   countries. */
+/* Names, markers and the route, in screen space, over the map. Taps pass
+   through to the countries. */
 .overlayLayer {
   position: absolute;
+  z-index: 1;
   left: 0;
   top: 0;
   display: block;
   pointer-events: none;
 }
 
-/* During a gesture (and briefly after) both are composited layers: the browser
-   moves the drawn map without drawing it again, and the names, redrawn each
-   frame, are light to draw and never make it redraw what lies under or around
-   them (such as the close-up). Only then: at rest, the map and its text are
-   drawn with the page, exactly as before. */
-.stage[data-gesture] .world,
-.stage[data-gesture] .overlayLayer {
+/* The gesture copy of the landscape and the live borders (see RegionMap.tsx).
+   At rest: in front of everything, nearly transparent, so the browser keeps
+   them drawn as layers of their own without anything under them leaving the
+   page's drawing (names keep their sharpest rendering). */
+.gesture {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gestureLayer {
+  position: absolute;
+  display: block;
+  opacity: 0.004;
+  will-change: transform, opacity;
+}
+
+/* No fill strokes (the live borders draw them), and nothing animates: the copy
+   shows each colour's final state. */
+.gestureLayer .country,
+.gestureLayer .contextShape {
+  stroke: none;
+  transition: none;
+  animation: none;
+}
+
+.gestureLayer .toneReveal {
+  fill: var(--amber);
+}
+
+.gestureLayer .reliefTile {
+  transition: none;
+}
+
+/* While the map moves (and briefly after): the copy comes behind the names and
+   map controls, in place of the map, which is hidden (it still moves, for
+   taps). The names are then a light layer too, redrawn each frame. */
+.wrapper[data-gesture] .gesture {
+  z-index: 0;
+}
+
+.wrapper[data-gesture] .gestureLayer {
+  opacity: 1;
+}
+
+.wrapper[data-gesture]:not([data-gesture-mode="layer"]) .world {
+  opacity: 0;
+}
+
+/* Without the copy ("layer" mode, see liveView.ts): the map itself is the
+   moving layer, from the press until shortly after the gesture. */
+.wrapper[data-gesture][data-gesture-mode="layer"] .world,
+.wrapper[data-gesture] .overlayLayer {
   will-change: transform;
+}
+
+/* Map controls and the close-up: over the names, and over the gesture copy while the map moves. */
+.inset,
+.controls,
+.aboutButton {
+  z-index: 2;
 }
 
 /* The sea is the wrapper's gradient; the rect only gives the close-up's SVG a hit area. */

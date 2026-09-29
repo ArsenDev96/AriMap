@@ -24,6 +24,8 @@ interface Props {
   /** Screen areas kept clear: names, callouts, leader lines, markers, Luxembourg and map controls. */
   avoid: SceneryBox[];
   compact: boolean;
+  /** Drawn in the gesture copy of the map (see RegionMap): the same marks, without the attributes that identify them. */
+  copy?: boolean;
 }
 
 const overlaps = (a: SceneryBox, b: SceneryBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
@@ -50,7 +52,7 @@ function ArtLayers({ layers }: { layers: readonly ArtLayer[] }) {
  * size on screen, never cover a name, marker or map control (such marks are
  * simply left out), and never take pointer events.
  */
-export const Scenery = memo(function Scenery({ map, transform, viewport, avoid, compact }: Props) {
+export const Scenery = memo(function Scenery({ map, transform, viewport, avoid, compact, copy = false }: Props) {
   const id = useId().replace(/:/g, "");
   const { k, x, y } = transform;
 
@@ -74,7 +76,7 @@ export const Scenery = memo(function Scenery({ map, transform, viewport, avoid, 
   }, [map]);
 
   return (
-    <g className={styles.scenery} style={{ "--inv": 1 / k } as CSSProperties} aria-hidden="true" data-scenery="">
+    <g className={styles.scenery} style={{ "--inv": 1 / k } as CSSProperties} aria-hidden="true" data-scenery={copy ? undefined : ""}>
       <defs>
         <clipPath id={`${id}-sea`}>
           <path d={seaPath} clipRule="evenodd" />
@@ -85,7 +87,7 @@ export const Scenery = memo(function Scenery({ map, transform, viewport, avoid, 
       </defs>
       <g clipPath={`url(#${id}-sea)`}>
         {waves.map((w) => (
-          <g key={w.key} transform={`translate(${w.at[0]},${w.at[1]})`} data-sym="wave" data-key={w.key}>
+          <g key={w.key} transform={`translate(${w.at[0]},${w.at[1]})`} data-sym={copy ? undefined : "wave"} data-key={copy ? undefined : w.key}>
             <use href={`#${id}-wave`} className={styles.symbol} style={{ "--sx": w.flip ? -1 : 1, "--sy": 1 } as CSSProperties} />
           </g>
         ))}

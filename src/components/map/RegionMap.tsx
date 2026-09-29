@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
@@ -26,7 +27,7 @@ import { useI18n } from "../i18n";
 import { LandTexture, SeaTexture } from "./AtlasSurface";
 import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
 import { insideShape } from "./insideShape";
-import { createLiveView, placeLayer, type LiveView } from "./liveView";
+import { createLiveView, gestureModeFor, placeLayer, type LiveView } from "./liveView";
 import { Relief } from "./Relief";
 import { Scenery } from "./Scenery";
 import { useCountryTap } from "./useTap";
@@ -43,20 +44,51 @@ const INSET_TOGGLE_EXTENT = 8 + 44 + 4;
 /** Inset width before it shrinks to fit: at least 112px, 100px on narrow maps so it clears the Low Countries' names. */
 const INSET_WIDTH = { min: 112, compactMin: 100, max: 208 };
 /**
- * Dragging and zooming move the drawn map as one layer, which the browser
- * shifts and scales without drawing it again (see liveView.ts). The map is drawn
- * again for the new view once it settles: when the gesture ends, after this
- * pause (ms) in it, or at once if the layer would no longer cover the view.
+ * Dragging and zooming move a copy of the drawn landscape as one layer, which
+ * the browser shifts and scales without drawing it again (see liveView.ts and
+ * "The gesture copy" below). The map is drawn again for the new view once it
+ * settles: when the gesture ends, after this pause (ms) in it, or at once if the
+ * copy would no longer cover the view.
  */
 const SETTLE_MS = 150;
 /** The layer extends this share of the map's width and height past each edge, so a drag reveals map already drawn. */
 const OVERSCAN = 0.3;
 /**
- * The drawn layer and the names stay composited layers this long (ms) after a
- * gesture ends, so gestures in quick succession (or a wheel that pauses) reuse
- * them. Then the map is drawn with the page again, exactly as at rest.
+ * The gesture copy stays in front this long (ms) after a gesture ends, so
+ * gestures in quick succession (or a wheel that pauses) keep using it. Then the
+ * map as drawn with the page shows again, exactly as at rest.
  */
 const RELEASE_MS = 400;
+/**
+ * During a zoom the borders are drawn again for the live view once its scale
+ * differs from theirs by more than this share, so they keep their width on
+ * screen (within this share) instead of growing with the landscape.
+ */
+const BORDER_RESCALE = 0.06;
+
+/**
+ * Runs `task` once the browser is idle, at least `after` ms from now (or after a
+ * short delay where it can't tell); returns a cancel function.
+ */
+function whenIdle(task: () => void, after = 0): () => void {
+  const canTell = typeof window.requestIdleCallback === "function";
+  let idle = 0;
+  const timer = setTimeout(
+    () => {
+      if (canTell) idle = window.requestIdleCallback(task, { timeout: 1000 });
+      else task();
+    },
+    canTell ? after : Math.max(after, 200),
+  );
+  return () => {
+    clearTimeout(timer);
+    if (idle) window.cancelIdleCallback(idle);
+  };
+}
+/** How long new colours wait before reaching the gesture copy, so the change itself is drawn first. */
+const COPY_TONES_DELAY_MS = 300;
+
+const svgTransform = ({ k, x, y }: Transform) => `translate(${x},${y}) scale(${k})`;
 
 interface Props {
   lesson: LessonDefinition;
@@ -84,6 +116,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
+  const copyRef = useRef<SVGSVGElement>(null);
+  const bordersRef = useRef<SVGSVGElement>(null);
+  const bordersGroupRef = useRef<SVGGElement>(null);
   const insetRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
@@ -95,7 +130,17 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const drawnRef = useRef(transform);
   // The last view the player stopped at (not one the map was only redrawn for
   // mid-gesture): the landscape fetches sharper tiles for this view only.
+  // Names, callouts and marker names are placed for this view too (see layoutOverlay);
+  // during a gesture they follow the live view from it (see LiveOverlay).
   const [settledView, setSettledView] = useState<Transform>(transform);
+  // The view the gesture copy is drawn for, and the live borders' (see "The gesture copy").
+  // How the map moves in this browser (see gestureModeFor): with the gesture copy, or as itself.
+  const [gestureMode] = useState(() => gestureModeFor(navigator.userAgent));
+  const copyMode = gestureMode !== "layer";
+  const [copyView, setCopyView] = useState<Transform>(transform);
+  const copyViewRef = useRef(copyView);
+  const bordersViewRef = useRef(transform);
+  const syncCopyTonesRef = useRef(() => {});
   const [insetBox, setInsetBox] = useState<Box | null>(null);
   const [controlsBox, setControlsBox] = useState<Box | null>(null);
   // The player's open/closed choice, kept for the stage it was made in. Without
@@ -132,19 +177,57 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
 
   useEffect(() => {
     const stage = stageRef.current;
-    if (!stage || !limits) return;
+    const wrapper = wrapperRef.current;
+    if (!stage || !wrapper || !limits) return;
     let latest = live.get();
     let frame = 0;
     let idle: ReturnType<typeof setTimeout> | undefined;
     let release: ReturnType<typeof setTimeout> | undefined;
+    let cancelRefresh = () => {};
+    // True while the map is set to its first view: that is no gesture, and needs no copy in front.
+    let quiet = false;
+    // The live borders: moved with the view, and drawn again for it once its scale differs (see BORDER_RESCALE).
+    const placeBorders = (view: Transform) => {
+      const layer = bordersRef.current;
+      const group = bordersGroupRef.current;
+      if (!layer || !group) return;
+      const drawn = bordersViewRef.current;
+      if (Math.abs(view.k / drawn.k - 1) <= BORDER_RESCALE && placeLayer(layer, drawn, view, size, margin)) return;
+      bordersViewRef.current = view;
+      group.setAttribute("transform", svgTransform(view));
+      layer.style.transform = "";
+    };
+    // Moves everything drawn to the live view without drawing it again; false when what shows (the copy, or
+    // the map itself in "layer" mode) no longer covers it.
+    const follow = (view: Transform) => {
+      // With the copy, the map as drawn with the page is hidden during a gesture, but moves too, so taps find the country shown there.
+      const mapCovers = placeLayer(worldRef.current, drawnRef.current, view, size, margin);
+      if (!copyMode) return mapCovers;
+      placeBorders(view);
+      return placeLayer(copyRef.current, copyViewRef.current, view, size, margin);
+    };
     // Draw the map for the live view; `stopped` when the player has stopped there (the gesture ended or paused).
-    const settle = (stopped: boolean) => {
+    // The copy is drawn again only when it must be (see "The gesture copy").
+    const settle = (stopped: boolean, redrawCopy = false) => {
       cancelAnimationFrame(frame);
       frame = 0;
       clearTimeout(idle);
       live.set(latest);
+      const covers = follow(latest);
       setTransform(latest);
       if (stopped) setSettledView(latest);
+      if (copyMode && (redrawCopy || !covers)) setCopyView(latest);
+    };
+    // After a gesture: the map drawn with the page shows again, and once the
+    // browser is idle the copy is drawn again for this view, ready for the next.
+    const rest = () => {
+      wrapper.removeAttribute("data-gesture");
+      cancelRefresh();
+      if (!copyMode) return;
+      cancelRefresh = whenIdle(() => {
+        const view = drawnRef.current;
+        setCopyView((v) => (v.k === view.k && v.x === view.x && v.y === view.y ? v : view));
+      });
     };
     const behavior = d3zoom<HTMLDivElement, unknown>()
       .extent([
@@ -154,52 +237,74 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       // The base view is also the minimum zoom, so the view never extends past the data coverage.
       .scaleExtent([limits.base.k, limits.base.k * MAX_ZOOM])
       .translateExtent(limits.translateExtent as [[number, number], [number, number]])
-      // During a gesture (drag, pinch, wheel or zoom animation) and shortly
-      // after, the drawn layer and the names are composited layers (see CSS).
       .on("start", () => {
         clearTimeout(release);
-        stage.setAttribute("data-gesture", "");
+        cancelRefresh();
+        // Without the copy, the map becomes a layer from the press, so it is ready when it starts moving.
+        if (!copyMode && !quiet) wrapper.setAttribute("data-gesture", "");
       })
       .on("zoom", (event) => {
         const { k, x, y } = event.transform;
         latest = { k, x, y };
+        // The map starts moving (not on a press alone, so a tap still reaches the
+        // country): the gesture copy, already drawn, comes to the front (see CSS).
+        if (copyMode && !quiet && !wrapper.hasAttribute("data-gesture")) {
+          // New colours that haven't reached the copy yet (a tap just before) are
+          // drawn into it now, before it shows: never a frame of the old ones.
+          flushSync(() => syncCopyTonesRef.current());
+          wrapper.setAttribute("data-gesture", "");
+        }
         // The player is moving the map: no hover highlight until the gesture ends (see CSS).
         if (event.sourceEvent && !stage.hasAttribute("data-moving")) stage.setAttribute("data-moving", "");
         clearTimeout(idle);
         idle = setTimeout(() => settle(true), SETTLE_MS);
-        // At most once per frame: move the drawn layer and the names, without drawing the map again.
+        // At most once per frame: move the copy and the names, without drawing the map again.
         if (frame) return;
         frame = requestAnimationFrame(() => {
           frame = 0;
           live.set(latest);
-          if (!placeLayer(worldRef.current, drawnRef.current, latest, size, margin)) settle(false);
+          if (!follow(latest)) settle(false, true);
         });
       })
       .on("end", () => {
         stage.removeAttribute("data-moving");
-        settle(true);
+        settle(true, quiet);
         clearTimeout(release);
-        release = setTimeout(() => stage.removeAttribute("data-gesture"), RELEASE_MS);
+        release = setTimeout(rest, RELEASE_MS);
       });
     const selection = select(stage);
     selection.call(behavior).on("dblclick.zoom", null);
+    quiet = true;
     selection.call(behavior.transform, zoomIdentity.translate(limits.base.x, limits.base.y).scale(limits.base.k));
+    quiet = false;
     zoomRef.current = behavior;
     return () => {
       selection.on(".zoom", null);
       cancelAnimationFrame(frame);
       clearTimeout(idle);
       clearTimeout(release);
+      cancelRefresh();
       stage.removeAttribute("data-moving");
-      stage.removeAttribute("data-gesture");
+      wrapper.removeAttribute("data-gesture");
     };
-  }, [limits, size, margin, live]);
+  }, [limits, size, margin, live, copyMode]);
 
-  // Once the map is drawn for a view, place the layer for the live view (usually the same).
+  // Once the map (or its copy) is drawn for a view, place it for the live view (usually the same).
   useLayoutEffect(() => {
     drawnRef.current = transform;
     placeLayer(worldRef.current, transform, live.get(), size, margin);
-  }, [transform, live, size, margin]);
+  }, [transform, live, size, margin, base]);
+  useLayoutEffect(() => {
+    copyViewRef.current = copyView;
+    placeLayer(copyRef.current, copyView, live.get(), size, margin);
+  }, [copyView, live, size, margin, base]);
+  // The live borders start out drawn for the live view.
+  useLayoutEffect(() => {
+    const view = live.get();
+    bordersViewRef.current = view;
+    bordersGroupRef.current?.setAttribute("transform", svgTransform(view));
+    if (bordersRef.current) bordersRef.current.style.transform = "";
+  }, [live, size, margin, base]);
 
   const zoomBy = (factor: number) => {
     const stage = stageRef.current;
@@ -319,36 +424,46 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // countries' names are drawn only in the close-up, where they are large.
   const calloutsInInset = insetOpen && (!wideMap || crowded);
 
-  // Main-map overlay layout, shared with the scenery so it can keep clear of names and markers.
-  const mainLayout = ready
-    ? layoutOverlay({
-        map,
-        active: lesson.countries,
-        view,
-        route,
-        transform,
-        viewport: size,
-        textMode: calloutsInInset ? "noCallouts" : "all",
-        obstacles,
-        insetArea: insetOpen ? insetBounds : null,
-        l,
-        name,
-      })
-    : null;
+  // Main-map overlay layout, shared with the scenery so it can keep clear of names
+  // and markers. Made for the view the player stopped at: never mid-gesture, where
+  // the names follow it instead (see LiveOverlay).
+  const textMode: TextMode = calloutsInInset ? "noCallouts" : "all";
+  const mainInsetArea = insetOpen ? insetBounds : null;
+  const mainLayout = useMemo(
+    () =>
+      ready
+        ? layoutOverlay({ map, active: lesson.countries, view, route, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
+        : null,
+    [ready, map, lesson.countries, view, route, settledView, size, textMode, obstacles, mainInsetArea, l, name],
+  );
   // Wave marks: Discover only, on the main map only.
   const scenery = stage === "discover" && mainLayout !== null;
   // Lesson countries in a state colour (selection, Find answers, Travel): the
   // land texture is lighter over them, and the relief uses its neutral overlay.
   const tonedKey = lesson.countries.filter((id) => (view.tones[id] ?? "default") !== "default").join(",");
-  // Scenery also keeps 8px of room around the zoom controls and the close-up.
-  const sceneryAvoid = scenery
-    ? [...sceneryClearance(map, mainLayout, transform), ...obstacles.map((o) => ({ x0: o.x0 - 8, y0: o.y0 - 8, x1: o.x1 + 8, y1: o.y1 + 8 }))]
-    : [];
+  // The gesture copy's colours: brought up to date once the browser is idle, or
+  // as soon as the map starts moving (see "The gesture copy").
+  const [copyTones, setCopyTones] = useState({ tones: view.tones, key: tonedKey });
+  useEffect(() => {
+    const next = { tones: view.tones, key: tonedKey };
+    const sync = () => setCopyTones((c) => (c.tones === next.tones && c.key === next.key ? c : next));
+    syncCopyTonesRef.current = sync;
+    return copyMode ? whenIdle(sync, COPY_TONES_DELAY_MS) : undefined;
+  }, [view.tones, tonedKey, copyMode]);
+  // Scenery keeps clear of the names where they are for the view it is drawn
+  // for, and 8px of room around the zoom controls and the close-up.
+  const sceneryAvoid = (at: Transform) =>
+    scenery && mainLayout
+      ? [
+          ...sceneryClearance(map, followView(mainLayout, settledView, at), at),
+          ...obstacles.map((o) => ({ x0: o.x0 - 8, y0: o.y0 - 8, x1: o.x1 + 8, y1: o.y1 + 8 })),
+        ]
+      : [];
 
   return (
     // data-crowded: a small country's name has no nearby clear spot on the whole-map view.
     // The same illustrated landscape (atlas surface and relief) in every stage.
-    <div className={`${styles.wrapper} ${styles.atlas}`} ref={wrapperRef} data-crowded={crowded || undefined} data-map-style="atlas">
+    <div className={`${styles.wrapper} ${styles.atlas}`} ref={wrapperRef} data-crowded={crowded || undefined} data-map-style="atlas" data-gesture-mode={gestureMode}>
       {/* The stage takes the gestures and taps; taps reach the countries in the drawn layer. */}
       <div
         ref={stageRef}
@@ -383,7 +498,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                     map={map}
                     transform={transform}
                     viewport={size}
-                    avoid={sceneryAvoid}
+                    avoid={sceneryAvoid(transform)}
                     compact={size.width < COMPACT_MAP_WIDTH}
                   />
                 )}
@@ -399,11 +514,11 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 active={lesson.countries}
                 view={view}
                 route={route}
-                transform={transform}
+                transform={settledView}
                 viewport={size}
-                textMode={calloutsInInset ? "noCallouts" : "all"}
+                textMode={textMode}
                 obstacles={obstacles}
-                insetArea={insetOpen ? insetBounds : null}
+                insetArea={mainInsetArea}
                 motion={motion}
                 layout={mainLayout}
               />
@@ -498,9 +613,133 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
           </svg>
         </button>
       </div>
+
+      {ready && copyMode && (
+        // The gesture copy (see below): in front of everything but nearly
+        // transparent at rest, so the browser keeps it drawn; behind the names
+        // and map controls, in place of the map, while the map moves (see CSS).
+        <div className={styles.gesture} aria-hidden="true" inert>
+          <svg
+            ref={copyRef}
+            className={styles.gestureLayer}
+            width={size.width + 2 * margin.x}
+            height={size.height + 2 * margin.y}
+            viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
+            style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
+            data-gesture-copy=""
+          >
+            <g transform={svgTransform(copyView)}>
+              <SeaTexture map={map} />
+              <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
+              <LandTexture map={map} darkKey={copyTones.key} />
+              <Relief map={map} tones={copyTones.tones} transform={settledView} viewport={size} />
+              {scenery && (
+                <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
+              )}
+              {gestureMode === "copyWithBorders" && <BorderLayer map={map} active={lesson.countries} />}
+            </g>
+          </svg>
+          {gestureMode === "copy" && (
+            <svg
+              ref={bordersRef}
+              className={styles.gestureLayer}
+              width={size.width + 2 * margin.x}
+              height={size.height + 2 * margin.y}
+              viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
+              style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
+              data-live-borders=""
+            >
+              <LiveBorders map={map} active={lesson.countries} groupRef={bordersGroupRef} />
+            </svg>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
+/*
+ * The gesture copy.
+ *
+ * At rest the map is drawn with the page, so the names over it get the
+ * browser's sharpest text rendering. Moving it as a layer would need that layer
+ * drawn first, which takes a long pause on the first move (and the names over a
+ * separate layer are drawn less sharply). So a copy of the landscape is kept
+ * drawn as its own layer, in front of everything but nearly transparent
+ * (0.4%: fully transparent layers are not kept drawn), where it changes nothing
+ * visible and nothing under it stops being drawn with the page. When the map
+ * starts moving, the copy moves behind the names and map controls and shows,
+ * in place of the map, which is hidden but moves along for taps.
+ *
+ * The copy has no borders: they are a separate light layer, drawn again during
+ * a zoom so they keep their width (the soft coastline stays in the copy). The
+ * copy is drawn again for a new view when it would no longer cover the view,
+ * and otherwise once the browser is idle after a gesture. New colours (a
+ * selection, an answer) reach it once the browser is idle too, so a tap's
+ * response is drawn first, or at once if the map starts moving before that.
+ * Its tiles and scenery always come from the same state as the map's.
+ *
+ * This depends on the browser engine (see gestureModeFor): in Firefox the
+ * borders are drawn in the copy (they then grow with it during a zoom), and in
+ * WebKit (every browser on iOS) there is no copy: the map itself becomes a
+ * layer from the press, as it did before.
+ */
+
+/** Coastline and country fills for the gesture copy: without fill strokes, ids or interaction. */
+const CountryFills = memo(function CountryFills({
+  map,
+  active,
+  tones,
+}: {
+  map: RegionMapData;
+  active: readonly CountryId[];
+  tones: MapView["tones"];
+}) {
+  return (
+    <>
+      <g className={styles.coast}>
+        {map.shapes.map((s) => (
+          <path key={s.id} d={s.d} />
+        ))}
+      </g>
+      <g className={styles.context}>
+        {map.shapes
+          .filter((s) => !active.includes(s.id))
+          .map((s) => (
+            <path key={s.id} d={s.d} className={styles.contextShape} />
+          ))}
+      </g>
+      {/* data-tone (colour only, no country) lets tests check the copy never shows stale colours. */}
+      <g data-copy-fills="">
+        {map.shapes
+          .filter((s) => active.includes(s.id))
+          .map((s) => (
+            <path key={s.id} d={s.d} className={`${styles.country} ${TONE_CLASS[tones[s.id] ?? "default"]}`} data-tone={tones[s.id] ?? "default"} />
+          ))}
+      </g>
+    </>
+  );
+});
+
+/**
+ * Borders over the gesture copy, light to draw again. Its group's transform is
+ * set directly, frame by frame (see placeBorders).
+ */
+const LiveBorders = memo(function LiveBorders({
+  map,
+  active,
+  groupRef,
+}: {
+  map: RegionMapData;
+  active: readonly CountryId[];
+  groupRef: RefObject<SVGGElement | null>;
+}) {
+  return (
+    <g ref={groupRef}>
+      <BorderLayer map={map} active={active} />
+    </g>
+  );
+});
 
 // --- Country shapes ----------------------------------------------------------
 
@@ -1319,9 +1558,10 @@ interface OverlayProps extends Omit<LayoutInput, "l" | "name"> {
 /**
  * A layout moved from the view it was made for to another view, without placing
  * anything again: every route point, marker and name anchor goes to its new
- * screen position, and names, callouts and marker names keep their offset from
- * their anchor and their size. Used during a gesture, so names stay on their
- * countries; the layout is made again once the view settles.
+ * screen position. Country names stay on the same spot of their country;
+ * callouts and marker names keep their offset from their anchor. Everything
+ * keeps its size. Used during a gesture, so names stay on their countries; the
+ * layout is made again once the view settles.
  */
 function followView(layout: OverlayLayout, from: Transform, to: Transform): OverlayLayout {
   if (from.k === to.k && from.x === to.x && from.y === to.y) return layout;
@@ -1355,16 +1595,109 @@ function followView(layout: OverlayLayout, from: Transform, to: Transform): Over
     }),
     labels: layout.labels.map((label) => {
       const a = at(label.anchor);
-      const d = moved(label.anchor, a);
-      return { ...label, anchor: a, box: label.box && shift(label.box, d), callout: label.callout && shift(label.callout, d) };
+      if (label.callout) return { ...label, anchor: a, callout: shift(label.callout, moved(label.anchor, a)) };
+      // A name moved inside its country (dx, dy) stays on that spot of the country.
+      const [dx, dy] = [label.dx * s, label.dy * s];
+      const d: Point = [a[0] + dx - label.anchor[0] - label.dx, a[1] + dy - label.anchor[1] - label.dy];
+      return { ...label, anchor: a, dx, dy, box: label.box && shift(label.box, d) };
     }),
   };
 }
 
-/** The main map's overlay, following the live view during a gesture (see followView). */
+/**
+ * Inexpensive checks on a layout followed during a gesture (see followView),
+ * instead of placing everything again on every frame. A country name pushed past
+ * the edge of the view moves back in, if only a little and still over its own
+ * country; a callout slides back along the edge while its country's dot is in
+ * view; a capital or landmark name tries the other side of its marker. Anything
+ * still off screen, under the map controls or the close-up, or over a name kept
+ * before it is left out until the view settles and the full layout runs again.
+ * Only ever leaves names out: never shows one the layout left out.
+ */
+function keepInView(layout: OverlayLayout, map: RegionMapData, view: Transform, viewport: { width: number; height: number }, obstacles: Box[]): OverlayLayout {
+  const { width, height } = viewport;
+  const kept: Box[] = [];
+  const clear = (b: Box, m: number) =>
+    b.x0 >= m && b.y0 >= m && b.x1 <= width - m && b.y1 <= height - m && !obstacles.some((o) => overlaps(b, o)) && !kept.some((o) => overlaps(b, o));
+  const inView = ([x, y]: Point) => x >= 0 && y >= 0 && x <= width && y <= height;
+  const omitted = (label: Label): Label => ({ ...label, inline: false, callout: null, box: null });
+
+  const labels = [...layout.labels];
+  // Callouts first (small countries have the least room), then names on their countries.
+  labels.forEach((label, i) => {
+    const c = label.callout;
+    if (!c) return;
+    if (!inView(label.anchor) || obstacles.some((o) => inBox(label.anchor, o))) {
+      labels[i] = omitted(label);
+      return;
+    }
+    const [w, h] = [c.x1 - c.x0, c.y1 - c.y0];
+    const x0 = clamp(c.x0, 4, width - 4 - w);
+    const y0 = clamp(c.y0, 4, height - 4 - h);
+    const callout = { x0, y0, x1: x0 + w, y1: y0 + h };
+    if (!clear(callout, 2)) {
+      labels[i] = omitted(label);
+      return;
+    }
+    kept.push(callout);
+    labels[i] = { ...label, callout };
+  });
+  labels.forEach((label, i) => {
+    const b = label.box;
+    if (label.callout || !label.inline || !b) return;
+    const m = 2;
+    const ox = b.x0 < m ? m - b.x0 : b.x1 > width - m ? width - m - b.x1 : 0;
+    const oy = b.y0 < m ? m - b.y0 : b.y1 > height - m ? height - m - b.y1 : 0;
+    if (ox !== 0 || oy !== 0) {
+      const [cx, cy] = [label.anchor[0] + label.dx + ox, label.anchor[1] + label.dy + oy];
+      const shape = map.shapes.find((s) => s.id === label.id);
+      const onCountry = shape && insideShape(shape, [(cx - view.x) / view.k, (cy - view.y) / view.k]);
+      if (Math.abs(ox) > (b.x1 - b.x0) / 2 || Math.abs(oy) > b.y1 - b.y0 || !onCountry) {
+        labels[i] = omitted(label);
+        return;
+      }
+    }
+    const box = { x0: b.x0 + ox, y0: b.y0 + oy, x1: b.x1 + ox, y1: b.y1 + oy };
+    if (!clear(box, m)) {
+      labels[i] = omitted(label);
+      return;
+    }
+    kept.push(box);
+    labels[i] = { ...label, dx: label.dx + ox, dy: label.dy + oy, box };
+  });
+
+  const markerTexts = layout.markerTexts.map((m) => {
+    if (m.hidden) return m;
+    const w = textWidth(m.text, layout.markerFont, MARKER_WEIGHT);
+    const boxOf = (x: number, anchor: "start" | "end"): Box => {
+      const x0 = anchor === "start" ? x : x - w;
+      return { x0, y0: m.y - layout.markerFont - 2, x1: x0 + w, y1: m.y + 5 };
+    };
+    const other = m.anchor === "start" ? "end" : "start";
+    for (const [x, anchor] of [
+      [m.x, m.anchor],
+      [2 * m.at[0] - m.x, other],
+    ] as const) {
+      const b = boxOf(x, anchor);
+      if (clear(b, 0)) {
+        kept.push(b);
+        return { ...m, x, anchor };
+      }
+    }
+    return { ...m, hidden: true };
+  });
+
+  return { ...layout, labels, markerTexts };
+}
+
+/** The main map's overlay, following the live view during a gesture (see followView and keepInView). */
 function LiveOverlay({ live, layout, ...props }: OverlayProps & { live: LiveView; layout: OverlayLayout }) {
   const view = useSyncExternalStore(live.subscribe, live.get, live.get);
-  const followed = useMemo(() => followView(layout, props.transform, view), [layout, props.transform, view]);
+  const { map, viewport, obstacles, transform } = props;
+  const followed = useMemo(() => {
+    const moved = followView(layout, transform, view);
+    return moved === layout ? layout : keepInView(moved, map, view, viewport, obstacles);
+  }, [layout, transform, view, map, viewport, obstacles]);
   return <Overlay {...props} layout={followed} />;
 }
 

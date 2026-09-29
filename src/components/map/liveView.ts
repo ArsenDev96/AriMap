@@ -6,6 +6,27 @@ import type { Transform } from "@/geo/regionMap";
  * new view once it settles (see RegionMap).
  */
 
+/**
+ * How the map moves during a gesture, by browser engine (see "The gesture copy"
+ * in RegionMap.tsx). Chosen from measurements, as no feature test tells whether
+ * an engine keeps a nearly transparent layer drawn, or how cheaply it moves one:
+ * - "copy" (Blink: Chrome, Edge, Android): a copy of the landscape kept drawn,
+ *   with the borders on a light layer drawn again during a zoom.
+ * - "copyWithBorders" (Gecko: Firefox): the same copy, with the borders drawn in
+ *   it (moving a separate borders layer cost Firefox more per frame than it saved).
+ * - "layer" (WebKit, including every browser on iOS, and any other engine): the
+ *   map itself becomes a layer from the press, as before the copy (in WebKit the
+ *   copy made dragging slower).
+ */
+export type GestureMode = "copy" | "copyWithBorders" | "layer";
+
+export function gestureModeFor(userAgent: string): GestureMode {
+  // Also "HeadlessChrome/". Chrome on iOS ("CriOS") and Firefox on iOS ("FxiOS") are WebKit, and don't name Chrome/ or Firefox/.
+  if (/(Chrome|Chromium)\/\d/.test(userAgent)) return "copy";
+  if (/Firefox\/\d/.test(userAgent)) return "copyWithBorders";
+  return "layer";
+}
+
 /** Magnification of the layer during a gesture beyond which it is drawn again, so it never looks soft for long. */
 export const MAX_LAYER_SCALE = 2;
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLiveView, layerMove, MAX_LAYER_SCALE } from "./liveView";
+import { createLiveView, gestureModeFor, layerMove, MAX_LAYER_SCALE } from "./liveView";
 
 const viewport = { width: 400, height: 300 };
 const margin = { x: 200, y: 150 };
@@ -46,6 +46,28 @@ describe("moving the drawn layer during a gesture", () => {
     const zoom = (s: number) => layerMove(drawn, { k: drawn.k * s, x: 200 - (200 - drawn.x) * s, y: 150 - (150 - drawn.y) * s }, viewport, margin).covers;
     expect(zoom(MAX_LAYER_SCALE)).toBe(true);
     expect(zoom(MAX_LAYER_SCALE * 1.01)).toBe(false);
+  });
+});
+
+describe("how the map moves in each browser engine", () => {
+  const ua = {
+    chrome: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+    edge: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/154.0.0.0 Safari/537.36 Edg/154.0.0.0",
+    androidChrome: "Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36",
+    headlessChrome: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+    firefox: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:155.0) Gecko/20100101 Firefox/155.0",
+    androidFirefox: "Mozilla/5.0 (Android 14; Mobile; rv:155.0) Gecko/155.0 Firefox/155.0",
+    safari: "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+    iosSafari: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+    iosChrome: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/153.0.0.0 Mobile/15E148 Safari/604.1",
+    iosFirefox: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/155.0 Mobile/15E148 Safari/605.1.15",
+  };
+
+  it("moves a kept copy in Blink, with the borders drawn in it in Gecko, and the map itself in WebKit", () => {
+    expect([ua.chrome, ua.edge, ua.androidChrome, ua.headlessChrome].map(gestureModeFor)).toEqual(["copy", "copy", "copy", "copy"]);
+    expect([ua.firefox, ua.androidFirefox].map(gestureModeFor)).toEqual(["copyWithBorders", "copyWithBorders"]);
+    // Every browser on iOS is WebKit, whatever its name.
+    expect([ua.safari, ua.iosSafari, ua.iosChrome, ua.iosFirefox, ""].map(gestureModeFor)).toEqual(["layer", "layer", "layer", "layer", "layer"]);
   });
 });
 
