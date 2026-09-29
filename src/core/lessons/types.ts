@@ -17,7 +17,6 @@ export interface LessonDefinition {
   countries: readonly CountryId[];
   /** Land borders between the active countries only (checked against the map data in tests). */
   borders: BorderGraph;
-  find: { rounds: number };
   travel: { mission: TravelMission };
   map: {
     /**

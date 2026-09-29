@@ -1,5 +1,5 @@
 import { DEFAULT_LOCALE, type Locale } from "../i18n/locales";
-import { createRoundOrders } from "../game/find";
+import { createFindOrder } from "../game/find";
 import type { RandomSource } from "../game/random";
 import { DEFAULT_LESSON_ID, getLesson } from "../lessons";
 import type { LessonDefinition } from "../lessons/types";
@@ -37,9 +37,9 @@ export function activeProgress(state: AppState): LessonProgress {
   return state.lessons[lesson.id] ?? createLessonProgress(lesson);
 }
 
-/** Creates the action that starts (or restarts) the Find activity with fresh random orders. */
+/** Creates the action that starts (or restarts) the Find activity with a fresh random order. */
 export function startFindingAction(lesson: LessonDefinition, random: RandomSource = Math.random): LessonAction {
-  return { type: "startFinding", orders: createRoundOrders(lesson.countries, lesson.find.rounds, random) };
+  return { type: "startFinding", order: createFindOrder(lesson.countries, random) };
 }
 
 function withProgress(state: AppState, progress: LessonProgress): AppState {

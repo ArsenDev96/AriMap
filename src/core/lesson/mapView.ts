@@ -105,7 +105,7 @@ export function buildMapView(lesson: LessonDefinition, progress: LessonProgress,
         tones[q.target] = "reveal";
       }
       const session = progress.find;
-      const key = `${session?.round}.${session?.index}.${q.wrongGuesses.length}.${q.solved}`;
+      const key = `${session?.index}.${q.wrongGuesses.length}.${q.solved}`;
       const feedback: MapView["feedback"] =
         q.feedback?.kind === "correct" || q.feedback?.kind === "wrong" ? { country: q.feedback.country, kind: q.feedback.kind, key } : null;
       return {
@@ -117,9 +117,6 @@ export function buildMapView(lesson: LessonDefinition, progress: LessonProgress,
         feedback,
       };
     }
-
-    case "findSummary":
-      return EMPTY;
 
     case "travel":
     case "results": {

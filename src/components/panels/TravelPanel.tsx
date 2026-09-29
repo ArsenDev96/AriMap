@@ -44,10 +44,14 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
           </span>
           <span className={`${styles.chip} ${styles.chipEnd}`}>
             <span className="visually-hidden">{t("travel.to")}: </span>
+            {/* A destination flag: the map shows the destination in the same gold. */}
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 21V4M6 4h11l-2.5 4L17 12H6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
             {name(attempt.to)}
           </span>
         </h1>
-        <p className={styles.lead}>{tp("travel.mission", attempt.budget)}</p>
+        <p className={`${styles.lead} ${styles.travelLead}`}>{tp("travel.mission", attempt.budget)}</p>
       </div>
 
       <div className={styles.crossings}>
@@ -61,7 +65,7 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
 
       <div role="status" aria-live="polite">
         {!stuck && (
-          <p className={`${styles.feedback} ${hasMoved ? styles.feedbackCorrect : styles.feedbackInfo}`}>
+          <p className={`${styles.feedback} ${styles.travelStatus} ${hasMoved ? styles.feedbackCorrect : styles.feedbackInfo}`}>
             {hasMoved ? t("travel.moved", countryParams(here)) : t("travel.current", countryParams(here))}
           </p>
         )}
@@ -95,7 +99,10 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
                 data-testid={`move-${id}`}
                 onClick={() => act({ type: "travelMove", country: id })}
               >
-                {name(id)}
+                <span>{name(id)}</span>
+                <svg className={styles.neighborArrow} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h13M13 6.5 18.5 12 13 17.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
               </button>
             ))}
           </div>

@@ -25,14 +25,10 @@ const findAsking = (target: string, feedback: object | null = null, wrongGuesses
   stage: "find",
   discover: { selected: null, explored: ["FRA", "BEL", "NLD", "LUX", "DEU"] },
   find: {
-    orders: [
-      [target, ...["FRA", "BEL", "NLD", "LUX", "DEU"].filter((c) => c !== target)],
-      ["LUX", "DEU", "FRA", "NLD", "BEL"],
-    ],
-    round: 0,
+    order: [target, ...["FRA", "BEL", "NLD", "LUX", "DEU"].filter((c) => c !== target)],
     index: 0,
     question: { target, wrongGuesses, hintLevel: 0, solved: false, feedback },
-    results: [[], []],
+    results: [],
     status: "asking",
   },
 });
@@ -247,6 +243,54 @@ test("during a wheel zoom, names keep their size and borders their width while t
   }
 });
 
+/**
+ * On-screen stroke widths (px) of the coast and borders, on the map and in the
+ * gesture copy (or its live borders), for the view each is drawn for; and
+ * whether any stroke in the copy is non-scaling (see .gestureLayer in the CSS).
+ */
+async function copyStrokes(page: Page) {
+  return page.evaluate(() => {
+    const onScreen = (sel: string) => {
+      const el = document.querySelector<SVGGraphicsElement>(sel);
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      const w = parseFloat(cs.strokeWidth);
+      // A non-scaling stroke is its width on screen; otherwise it scales with the element's transform.
+      return Math.round((cs.vectorEffect === "non-scaling-stroke" ? w : w * el.getScreenCTM()!.a) * 100) / 100;
+    };
+    const copy = "[data-gesture-copy]";
+    const borders = document.querySelector("[data-live-borders]") ? "[data-live-borders]" : copy;
+    return {
+      map: {
+        coast: onScreen('[data-testid="map-main"] [class*="coast"] path'),
+        border: onScreen('[data-testid="map-main"] [class*="borderActive"]'),
+        context: onScreen('[data-testid="map-main"] [class*="borderContext"]'),
+      },
+      copy: {
+        coast: onScreen(`${copy} [class*="coast"] path`),
+        border: onScreen(`${borders} [class*="borderActive"]`),
+        context: onScreen(`${borders} [class*="borderContext"]`),
+      },
+      nonScaling: [...document.querySelectorAll(`${copy} *, [data-live-borders] *`)].filter(
+        (el) => el instanceof SVGGeometryElement && getComputedStyle(el).vectorEffect === "non-scaling-stroke",
+      ).length,
+    };
+  });
+}
+
+test("the copy's strokes scale with it (Firefox draws non-scaling ones again every frame) yet match the map's widths at rest", async ({ page }) => {
+  await openLesson(page, discover());
+  for (let zoom = 0; zoom < 3; zoom++) {
+    const s = await copyStrokes(page);
+    expect(s.nonScaling).toBe(0);
+    expect(s.map.coast).not.toBeNull();
+    expect(s.copy.coast).toBe(s.map.coast);
+    // The live borders may be moved up to 6% past the scale they were drawn for (BORDER_RESCALE), as during a zoom.
+    for (const k of ["border", "context"] as const) expect(Math.abs(s.copy[k]! / s.map[k]! - 1), k).toBeLessThanOrEqual(0.061);
+    await zoomIn(page, 2);
+  }
+});
+
 test("while dragging, names are never cut by the view's edge or drawn under the map controls or the close-up", async ({ page }) => {
   await openLesson(page, discover("BEL"));
   await zoomIn(page, 2);
@@ -415,6 +459,14 @@ test.describe("Firefox: the copy draws its own borders", () => {
     expect(moving.length).toBeGreaterThan(5);
     for (const f of moving) expect(f.copyTones).toBe(f.worldTones);
     await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "DEU");
+  });
+
+  test("the borders in the copy scale with it and match the map's widths at rest", async ({ page }) => {
+    await openLesson(page, discover());
+    await zoomIn(page, 2);
+    const s = await copyStrokes(page);
+    expect(s.nonScaling).toBe(0);
+    expect(s.copy).toEqual(s.map);
   });
 });
 

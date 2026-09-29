@@ -31,79 +31,47 @@ export interface FindAnswer {
   independent: boolean;
 }
 
-export type FindStatus = "asking" | "roundComplete" | "complete";
+/** "asking" until the player moves on to Travel after the last answer. */
+export type FindStatus = "asking" | "complete";
 
+/** One question per lesson country, each asked exactly once, in `order`. */
 export interface FindSession {
-  /** One order of target countries per round. */
-  orders: CountryId[][];
-  round: number;
+  order: CountryId[];
   index: number;
   question: FindQuestion;
-  /** Answers per round, appended when a question is solved. */
-  results: FindAnswer[][];
+  /** Answers in order, appended when a question is solved. */
+  results: FindAnswer[];
   status: FindStatus;
 }
 
 export type GuessOutcome = "correct" | "wrong" | "outside" | "ignored";
 
-/**
- * Builds `rounds` shuffled orders of the given countries. Consecutive rounds use
- * different orders, and no target is asked twice in a row across a round boundary.
- */
-export function createRoundOrders(
-  countries: readonly CountryId[],
-  rounds: number,
-  random: RandomSource,
-): CountryId[][] {
-  const orders: CountryId[][] = [];
-  for (let r = 0; r < rounds; r++) {
-    const previous = orders[r - 1];
-    let order = shuffle(countries, random);
-    for (let attempt = 0; previous && attempt < 50 && !isGoodNextOrder(previous, order); attempt++) {
-      order = shuffle(countries, random);
-    }
-    if (previous && !isGoodNextOrder(previous, order)) {
-      // Deterministic fallback: rotate the previous order by one.
-      order = [...previous.slice(1), previous[0]];
-    }
-    orders.push(order);
-  }
-  return orders;
+/** A random order of the lesson's countries, each exactly once. */
+export function createFindOrder(countries: readonly CountryId[], random: RandomSource): CountryId[] {
+  return shuffle(countries, random);
 }
 
-function isGoodNextOrder(previous: readonly CountryId[], next: readonly CountryId[]): boolean {
-  if (next.length < 2) return true;
-  const differs = next.some((id, i) => id !== previous[i]);
-  return differs && next[0] !== previous[previous.length - 1];
-}
-
-/** True when the orders are usable for a session over exactly these countries. */
-export function areValidOrders(orders: unknown, countries: readonly CountryId[], rounds: number): orders is CountryId[][] {
-  if (!Array.isArray(orders) || orders.length !== rounds) return false;
-  const expected = [...countries].sort().join(",");
-  const flat: unknown[] = orders.flat();
-  if (!orders.every((o) => Array.isArray(o) && [...o].sort().join(",") === expected)) return false;
-  return flat.every((id, i) => i === 0 || id !== flat[i - 1]);
+/** True when `order` asks each of these countries exactly once. */
+export function isValidOrder(order: unknown, countries: readonly CountryId[]): order is CountryId[] {
+  return Array.isArray(order) && order.length === countries.length && [...order].sort().join(",") === [...countries].sort().join(",");
 }
 
 function newQuestion(target: CountryId): FindQuestion {
   return { target, wrongGuesses: [], hintLevel: 0, solved: false, feedback: null };
 }
 
-export function createFindSession(orders: CountryId[][]): FindSession {
-  if (orders.length === 0 || orders[0].length === 0) throw new Error("Find session needs at least one target");
-  return {
-    orders,
-    round: 0,
-    index: 0,
-    question: newQuestion(orders[0][0]),
-    results: orders.map(() => []),
-    status: "asking",
-  };
+export function createFindSession(order: CountryId[]): FindSession {
+  if (order.length === 0) throw new Error("Find session needs at least one target");
+  return { order, index: 0, question: newQuestion(order[0]), results: [], status: "asking" };
 }
 
 export function isIndependent(question: Pick<FindQuestion, "wrongGuesses" | "hintLevel">): boolean {
   return question.wrongGuesses.length === 0 && question.hintLevel === 0;
+}
+
+/** True once the last question has been answered: the player can move on to Travel. */
+export function isLastAnswered(session: FindSession): boolean {
+  return session.question.solved && session.index === session.order.length - 1;
 }
 
 /** Handles a tap on a country. `active` lists the countries playable in this lesson. */
@@ -141,8 +109,7 @@ export function guess(
     hintLevel: question.hintLevel,
     independent: isIndependent(question),
   };
-  const results = session.results.map((r, i) => (i === session.round ? [...r, answer] : r));
-  return { session: { ...session, question: solved, results }, outcome: "correct" };
+  return { session: { ...session, question: solved, results: [...session.results, answer] }, outcome: "correct" };
 }
 
 export function requestHint(session: FindSession): FindSession {
@@ -151,21 +118,17 @@ export function requestHint(session: FindSession): FindSession {
   return { ...session, question: { ...question, hintLevel: (question.hintLevel + 1) as HintLevel } };
 }
 
-/** Moves on after a solved question: next question, or marks the round complete. */
+/** Moves on after a solved question. The last question stays answered until `completeFind`. */
 export function nextQuestion(session: FindSession): FindSession {
-  if (session.status !== "asking" || !session.question.solved) return session;
-  const order = session.orders[session.round];
+  if (session.status !== "asking" || !session.question.solved || isLastAnswered(session)) return session;
   const index = session.index + 1;
-  if (index >= order.length) return { ...session, status: "roundComplete" };
-  return { ...session, index, question: newQuestion(order[index]) };
+  return { ...session, index, question: newQuestion(session.order[index]) };
 }
 
-/** Starts the next round after a round summary, or completes the session. */
-export function nextRound(session: FindSession): FindSession {
-  if (session.status !== "roundComplete") return session;
-  const round = session.round + 1;
-  if (round >= session.orders.length) return { ...session, status: "complete" };
-  return { ...session, round, index: 0, question: newQuestion(session.orders[round][0]), status: "asking" };
+/** Ends the session once every question is answered. */
+export function completeFind(session: FindSession): FindSession {
+  if (session.status !== "asking" || !isLastAnswered(session)) return session;
+  return { ...session, status: "complete" };
 }
 
 export function countIndependent(answers: readonly FindAnswer[]): number {

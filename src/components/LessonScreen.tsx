@@ -6,10 +6,10 @@ import { buildMapView } from "@/core/lesson/mapView";
 import type { LessonAction, LessonProgress } from "@/core/lesson/progress";
 import type { LessonDefinition } from "@/core/lessons/types";
 import type { AppAction } from "@/core/progress/appState";
-import { Header } from "./Header";
+import { accentFor, Header } from "./Header";
 import { RegionMap } from "./map/RegionMap";
 import { DiscoverPanel } from "./panels/DiscoverPanel";
-import { FindPanel, FindSummaryPanel } from "./panels/FindPanels";
+import { FindPanel } from "./panels/FindPanels";
 import { ResultsPanel } from "./panels/ResultsPanel";
 import { TravelPanel } from "./panels/TravelPanel";
 import styles from "./LessonScreen.module.css";
@@ -65,7 +65,8 @@ export function LessonScreen({ lesson, progress, dispatch }: Props) {
   const panelProps: PanelProps = { lesson, progress, act, dispatch };
 
   return (
-    <div className={styles.screen}>
+    // The stage colour (teal Discover, golden Find, sky-blue Travel) for the header and panel accents.
+    <div className={styles.screen} data-stage={accentFor(progress.stage)}>
       <Header progress={progress} dispatch={dispatch} />
       <main className={styles.main}>
         <div className={styles.mapArea}>
@@ -74,7 +75,6 @@ export function LessonScreen({ lesson, progress, dispatch }: Props) {
         <section ref={panelRef} className={styles.panel} data-testid="panel">
           {progress.stage === "discover" && <DiscoverPanel {...panelProps} />}
           {progress.stage === "find" && <FindPanel {...panelProps} />}
-          {progress.stage === "findSummary" && <FindSummaryPanel {...panelProps} />}
           {progress.stage === "travel" && (
             <TravelPanel
               {...panelProps}

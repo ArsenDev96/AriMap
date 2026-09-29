@@ -1,5 +1,5 @@
 import type { CountryId } from "../content/types";
-import { areValidOrders, MAX_HINT_LEVEL, type FindAnswer, type FindFeedback, type FindQuestion, type FindSession, type HintLevel } from "../game/find";
+import { isValidOrder, MAX_HINT_LEVEL, type FindAnswer, type FindFeedback, type FindQuestion, type FindSession, type HintLevel } from "../game/find";
 import { crossingBudget, type TravelAttempt, type TravelStatus } from "../game/travel";
 import { isConnectedRoute } from "../game/graph";
 import { isLocale } from "../i18n/locales";
@@ -8,6 +8,7 @@ import type { LessonDefinition } from "../lessons/types";
 import {
   createLessonProgress,
   EMPTY_RECORDS,
+  findScore,
   type FindScore,
   type LessonProgress,
   type LessonRecords,
@@ -49,7 +50,7 @@ export function saveAppState(storage: KeyValueStorage | null, state: AppState): 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 const isInt = (v: unknown): v is number => Number.isInteger(v);
-const STAGES: readonly LessonStage[] = ["discover", "find", "findSummary", "travel", "results"];
+const STAGES: readonly LessonStage[] = ["discover", "find", "travel", "results"];
 
 export function parseSavedState(raw: string | null): AppState {
   if (!raw) return createInitialState();
@@ -79,7 +80,7 @@ export function parseSavedState(raw: string | null): AppState {
 
 export function parseLessonProgress(lesson: LessonDefinition, value: unknown): LessonProgress | null {
   if (!isObj(value)) return null;
-  const progress = createLessonProgress(lesson, parseRecords(value.records));
+  const progress = createLessonProgress(lesson, parseRecords(lesson, value.records));
   progress.started = value.started === true;
 
   const isActive = (v: unknown): v is CountryId => typeof v === "string" && lesson.countries.includes(v);
@@ -90,11 +91,21 @@ export function parseLessonProgress(lesson: LessonDefinition, value: unknown): L
       explored: Array.isArray(d.explored) ? [...new Set(d.explored.filter(isActive))] : [],
     };
   }
-  progress.find = parseFindSession(lesson, value.find);
+  progress.find = parseFindSession(lesson, isLegacyFind(value.find) ? migrateLegacyFind(value.find) : value.find);
   progress.travel = parseTravelAttempt(lesson, value.travel);
   progress.lastTravelResult = parseTravelResult(lesson, value.lastTravelResult);
 
-  const stage = STAGES.includes(value.stage as LessonStage) ? (value.stage as LessonStage) : "discover";
+  // A completed Find whose score was dropped (an old two-round score, see parseScore)
+  // is scored again from its answers.
+  if (progress.records.findDone && progress.find?.status === "complete") {
+    const score = findScore(progress.find);
+    progress.records.lastFindScore ??= score;
+    progress.records.bestFindScore ??= score;
+  }
+
+  // The old round summary ("findSummary") resumes as Find, on its last answered question.
+  const saved = value.stage === "findSummary" ? "find" : value.stage;
+  const stage = STAGES.includes(saved as LessonStage) ? (saved as LessonStage) : "discover";
   progress.stage = stageIsConsistent(stage, progress) ? stage : "discover";
   return progress;
 }
@@ -105,8 +116,6 @@ function stageIsConsistent(stage: LessonStage, p: LessonProgress): boolean {
       return true;
     case "find":
       return p.find?.status === "asking";
-    case "findSummary":
-      return p.find?.status === "roundComplete";
     case "travel":
       return p.travel !== null && p.travel.status !== "arrived";
     case "results":
@@ -114,20 +123,21 @@ function stageIsConsistent(stage: LessonStage, p: LessonProgress): boolean {
   }
 }
 
-function parseScore(v: unknown): FindScore | null {
-  if (!isObj(v) || !isInt(v.independent) || !isInt(v.total)) return null;
-  if (v.total <= 0 || v.independent < 0 || v.independent > v.total) return null;
+/** A Find score is out of the lesson's countries; others (from the old two-round Find, out of twice as many) are dropped. */
+function parseScore(lesson: LessonDefinition, v: unknown): FindScore | null {
+  if (!isObj(v) || !isInt(v.independent) || v.total !== lesson.countries.length) return null;
+  if (v.independent < 0 || v.independent > v.total) return null;
   return { independent: v.independent, total: v.total };
 }
 
-function parseRecords(v: unknown): LessonRecords {
-  if (!isObj(v)) return EMPTY_RECORDS;
+function parseRecords(lesson: LessonDefinition, v: unknown): LessonRecords {
+  if (!isObj(v)) return { ...EMPTY_RECORDS };
   return {
     discoverDone: v.discoverDone === true,
     findDone: v.findDone === true,
     travelDone: v.travelDone === true,
-    lastFindScore: parseScore(v.lastFindScore),
-    bestFindScore: parseScore(v.bestFindScore),
+    lastFindScore: parseScore(lesson, v.lastFindScore),
+    bestFindScore: parseScore(lesson, v.bestFindScore),
     travelWithoutHelp: v.travelWithoutHelp === true,
   };
 }
@@ -137,13 +147,44 @@ function parseHintLevel(v: unknown): HintLevel {
   return isInt(v) && v >= 0 && v <= MAX_HINT_LEVEL ? (v as HintLevel) : MAX_HINT_LEVEL;
 }
 
+/**
+ * Saves from before Find became one round of five hold two rounds: `orders`
+ * (two orders of the five countries), `round`, and `results` per round, with a
+ * round summary ("roundComplete") after each. Only the first round is kept:
+ * - still in the first round (or its summary): the same question, answers and hints;
+ * - in the second round (or after it): the first round, all five answered, is
+ *   the completed Find, and play resumes on its last answer, ready to continue
+ *   to Travel (or stays in Travel or Results if the player was already there).
+ *   Answers from the unfinished second round are dropped.
+ */
+function isLegacyFind(v: unknown): v is Obj {
+  return isObj(v) && Array.isArray(v.orders) && !("order" in v);
+}
+
+function migrateLegacyFind(v: Obj): Obj | null {
+  const { orders, round, results } = v;
+  if (!Array.isArray(orders) || !Array.isArray(results) || !isInt(round) || round < 0 || round >= orders.length) return null;
+  if (round === 0) return { order: orders[0], index: v.index, question: v.question, results: results[0], status: "asking" };
+  const order = orders[0];
+  const answers = results[0];
+  if (!Array.isArray(order) || !Array.isArray(answers) || answers.length !== order.length || order.length === 0) return null;
+  const last = answers[answers.length - 1];
+  if (!isObj(last)) return null;
+  return {
+    order,
+    index: order.length - 1,
+    // Which wrong countries were tapped isn't needed once answered: the answer keeps their number.
+    question: { target: order[order.length - 1], wrongGuesses: [], hintLevel: last.hintLevel, solved: true, feedback: { kind: "correct", country: order[order.length - 1] } },
+    results: answers,
+    status: v.status === "complete" ? "complete" : "asking",
+  };
+}
+
 function parseFindSession(lesson: LessonDefinition, v: unknown): FindSession | null {
-  if (!isObj(v) || !areValidOrders(v.orders, lesson.countries, lesson.find.rounds)) return null;
-  const orders = v.orders;
-  const { round, index } = v;
-  if (!isInt(round) || !isInt(index) || round < 0 || round >= orders.length) return null;
-  const order = orders[round];
-  if (index < 0 || index >= order.length) return null;
+  if (!isObj(v) || !isValidOrder(v.order, lesson.countries)) return null;
+  const order = v.order;
+  const { index } = v;
+  if (!isInt(index) || index < 0 || index >= order.length) return null;
 
   const q = v.question;
   if (!isObj(q) || q.target !== order[index] || !Array.isArray(q.wrongGuesses)) return null;
@@ -158,32 +199,25 @@ function parseFindSession(lesson: LessonDefinition, v: unknown): FindSession | n
     feedback: parseFeedback(lesson, q.feedback),
   };
 
-  if (!Array.isArray(v.results) || v.results.length !== orders.length) return null;
-  const results: FindAnswer[][] = [];
-  for (let r = 0; r < orders.length; r++) {
-    const expected = r < round ? orders[r].length : r === round ? index + (question.solved ? 1 : 0) : 0;
-    const list = v.results[r];
-    if (!Array.isArray(list) || list.length !== expected) return null;
-    const answers: FindAnswer[] = [];
-    for (let i = 0; i < list.length; i++) {
-      const a = list[i];
-      if (!isObj(a) || a.target !== orders[r][i] || !isInt(a.wrongGuesses) || a.wrongGuesses < 0) return null;
-      const hintLevel = parseHintLevel(a.hintLevel);
-      answers.push({
-        target: orders[r][i],
-        wrongGuesses: a.wrongGuesses,
-        hintLevel,
-        independent: a.wrongGuesses === 0 && hintLevel === 0,
-      });
-    }
-    results.push(answers);
+  // One answer per question asked so far.
+  const list = v.results;
+  if (!Array.isArray(list) || list.length !== index + (question.solved ? 1 : 0)) return null;
+  const results: FindAnswer[] = [];
+  for (let i = 0; i < list.length; i++) {
+    const a = list[i];
+    if (!isObj(a) || a.target !== order[i] || !isInt(a.wrongGuesses) || a.wrongGuesses < 0) return null;
+    const hintLevel = parseHintLevel(a.hintLevel);
+    results.push({
+      target: order[i],
+      wrongGuesses: a.wrongGuesses,
+      hintLevel,
+      independent: a.wrongGuesses === 0 && hintLevel === 0,
+    });
   }
 
-  const lastOfRound = index === order.length - 1 && question.solved;
-  let status: FindSession["status"] = "asking";
-  if (v.status === "roundComplete" && lastOfRound) status = "roundComplete";
-  if (v.status === "complete" && lastOfRound && round === orders.length - 1) status = "complete";
-  return { orders, round, index, question, results, status };
+  const lastAnswered = index === order.length - 1 && question.solved;
+  const status: FindSession["status"] = v.status === "complete" && lastAnswered ? "complete" : "asking";
+  return { order, index, question, results, status };
 }
 
 function parseFeedback(lesson: LessonDefinition, v: unknown): FindFeedback | null {

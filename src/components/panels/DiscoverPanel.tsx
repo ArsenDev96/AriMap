@@ -43,6 +43,11 @@ export function DiscoverPanel({ lesson, progress, act }: PanelProps) {
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>{l(country.name)}</h2>
               <p className={styles.fact} data-testid="country-capital">
+                {/* The map's capital marker: a light ring with a coral centre. */}
+                <svg className={styles.capitalIcon} width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                  <circle cx="8" cy="8" r="6.5" fill="#fff" stroke="rgba(31, 58, 95, 0.55)" strokeWidth="1.5" />
+                  <circle cx="8" cy="8" r="3" fill="var(--coral)" />
+                </svg>
                 <span className={styles.factLabel}>{t("discover.capital")}</span>
                 <span className={styles.factValue}>{l(country.capital.name)}</span>
               </p>

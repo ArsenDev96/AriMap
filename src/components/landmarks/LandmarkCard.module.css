@@ -8,6 +8,13 @@
   background: var(--bg);
 }
 
+/* The illustration sits on a soft sky-to-mint tile. */
+.stage {
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, var(--sky-soft), var(--mint-soft));
+}
+
 /* Every illustration gets the same box; the trimmed artwork is scaled to fit
    it whole (object-fit: contain), so tall towers and wide bridges get the same
    visual weight and nothing is cropped. */
@@ -69,8 +76,6 @@
     width: clamp(112px, 33vw, 132px);
     height: clamp(112px, 33vw, 132px);
     padding: 6px;
-    border-radius: var(--radius-sm);
-    background: var(--bg);
   }
 
   .text {

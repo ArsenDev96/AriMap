@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type RefObject } from "react";
+import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { select } from "d3-selection";
 import "d3-transition";
@@ -89,6 +89,11 @@ function whenIdle(task: () => void, after = 0): () => void {
 const COPY_TONES_DELAY_MS = 300;
 
 const svgTransform = ({ k, x, y }: Transform) => `translate(${x},${y}) scale(${k})`;
+/** Draws the live borders for a view, strokes at their on-screen width for it (see .gestureLayer in the CSS). */
+function drawBordersFor(group: SVGGElement, view: Transform) {
+  group.setAttribute("transform", svgTransform(view));
+  group.style.setProperty("--inv", String(1 / view.k));
+}
 
 interface Props {
   lesson: LessonDefinition;
@@ -194,7 +199,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       const drawn = bordersViewRef.current;
       if (Math.abs(view.k / drawn.k - 1) <= BORDER_RESCALE && placeLayer(layer, drawn, view, size, margin)) return;
       bordersViewRef.current = view;
-      group.setAttribute("transform", svgTransform(view));
+      drawBordersFor(group, view);
       layer.style.transform = "";
     };
     // Moves everything drawn to the live view without drawing it again; false when what shows (the copy, or
@@ -302,7 +307,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   useLayoutEffect(() => {
     const view = live.get();
     bordersViewRef.current = view;
-    bordersGroupRef.current?.setAttribute("transform", svgTransform(view));
+    if (bordersGroupRef.current) drawBordersFor(bordersGroupRef.current, view);
     if (bordersRef.current) bordersRef.current.style.transform = "";
   }, [live, size, margin, base]);
 
@@ -628,7 +633,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
             style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
             data-gesture-copy=""
           >
-            <g transform={svgTransform(copyView)}>
+            <g transform={svgTransform(copyView)} style={{ "--inv": 1 / copyView.k } as CSSProperties}>
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />

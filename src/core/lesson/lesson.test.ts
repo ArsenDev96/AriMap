@@ -5,10 +5,7 @@ import { parseSavedState } from "../progress/storage";
 import { buildMapView } from "./mapView";
 import type { LessonAction } from "./progress";
 
-const ORDERS = [
-  ["FRA", "BEL", "NLD", "LUX", "DEU"],
-  ["LUX", "FRA", "DEU", "NLD", "BEL"],
-];
+const ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const NO_UI = { travelHintVisible: false };
 
 function run(state: AppState, ...actions: (AppAction | LessonAction)[]): AppState {
@@ -20,33 +17,36 @@ function run(state: AppState, ...actions: (AppAction | LessonAction)[]): AppStat
 
 const progressOf = (s: AppState) => s.lessons[lesson.id];
 
-function toTravel(): AppState {
-  let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", orders: ORDERS });
-  for (const order of ORDERS) {
-    for (const target of order) s = run(s, { type: "findGuess", country: target }, { type: "findNext" });
-    s = run(s, { type: "findContinue" });
-  }
+/** Answers all five Find questions (the last stays answered, ready to continue to Travel). */
+function findAll(s: AppState): AppState {
+  for (const target of ORDER) s = run(s, { type: "findGuess", country: target }, { type: "findNext" });
   return s;
+}
+
+function toTravel(): AppState {
+  return run(findAll(run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER })), { type: "findToTravel" });
 }
 
 /** Round-trips through JSON the way localStorage does on refresh. */
 const refresh = (s: AppState) => parseSavedState(JSON.stringify(s));
 
 describe("lesson flow", () => {
-  it("goes Discover → Find → summary → Find → summary → Travel → Results", () => {
+  it("goes Discover → Find (five questions) → Travel → Results", () => {
     let s = run(createInitialState(), { type: "openLesson" });
     expect(progressOf(s).stage).toBe("discover");
-    s = run(s, { type: "startFinding", orders: ORDERS });
+    s = run(s, { type: "startFinding", order: ORDER });
     expect(progressOf(s).stage).toBe("find");
-    for (const target of ORDERS[0]) s = run(s, { type: "findGuess", country: target }, { type: "findNext" });
-    expect(progressOf(s).stage).toBe("findSummary");
-    s = run(s, { type: "findContinue" });
+    // Not before the last answer.
+    expect(run(s, { type: "findToTravel" })).toBe(s);
+    s = findAll(s);
+    // After the fifth answer the player stays on it until choosing to continue.
     expect(progressOf(s).stage).toBe("find");
-    expect(progressOf(s).find?.question.target).toBe("LUX");
-    for (const target of ORDERS[1]) s = run(s, { type: "findGuess", country: target }, { type: "findNext" });
-    s = run(s, { type: "findContinue" });
+    expect(progressOf(s).find).toMatchObject({ index: 4, status: "asking", question: { target: "DEU", solved: true } });
+    expect(progressOf(s).find?.results).toHaveLength(5);
+    s = run(s, { type: "findToTravel" });
     expect(progressOf(s).stage).toBe("travel");
-    expect(progressOf(s).records.lastFindScore).toEqual({ independent: 10, total: 10 });
+    expect(progressOf(s).find?.status).toBe("complete");
+    expect(progressOf(s).records).toMatchObject({ findDone: true, lastFindScore: { independent: 5, total: 5 }, bestFindScore: { independent: 5, total: 5 } });
 
     s = run(s, { type: "travelMove", country: "DEU" }, { type: "travelMove", country: "NLD" });
     expect(progressOf(s).stage).toBe("results");
@@ -73,6 +73,37 @@ describe("lesson flow", () => {
     expect(hy.screen).toBe("lesson");
   });
 
+  it("scores help: hints and wrong taps count against the first-try score", () => {
+    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER });
+    s = run(s, { type: "findHint" }, { type: "findGuess", country: "FRA" }, { type: "findNext" });
+    s = run(s, { type: "findGuess", country: "DEU" }, { type: "findGuess", country: "BEL" }, { type: "findNext" });
+    for (const target of ORDER.slice(2)) s = run(s, { type: "findGuess", country: target }, { type: "findNext" });
+    s = run(s, { type: "findToTravel" });
+    expect(progressOf(s).records.lastFindScore).toEqual({ independent: 3, total: 5 });
+    expect(progressOf(s).find?.results.map((a) => a.independent)).toEqual([false, false, true, true, true]);
+  });
+
+  it("Home keeps the lesson exactly as it was, and Continue resumes it", () => {
+    const states = [
+      run(createInitialState(), { type: "openLesson" }, { type: "discoverSelect", country: "BEL" }),
+      run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" }, { type: "findHint" }),
+      findAll(run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER })),
+      run(toTravel(), { type: "travelHint" }, { type: "travelMove", country: "BEL" }),
+      run(toTravel(), { type: "travelMove", country: "BEL" }, { type: "travelMove", country: "NLD" }),
+      // A completed lesson being replayed.
+      run(toTravel(), { type: "travelMove", country: "BEL" }, { type: "travelMove", country: "NLD" }, { type: "replayTravel" }, { type: "travelMove", country: "DEU" }),
+    ];
+    for (const s of states) {
+      const home = run(s, { type: "goHome" });
+      expect(home.screen).toBe("welcome");
+      expect(home.lessons).toBe(s.lessons);
+      // Also across a refresh while on the home screen.
+      const back = run(refresh(home), { type: "openLesson" });
+      expect(back.screen).toBe("lesson");
+      expect(progressOf(back)).toEqual(progressOf(s));
+    }
+  });
+
   it("start over keeps achievements and language", () => {
     let s = run(toTravel(), { type: "setLocale", locale: "hy" }, { type: "startOver" });
     expect(s.locale).toBe("hy");
@@ -85,13 +116,13 @@ describe("lesson flow", () => {
 
 describe("map view", () => {
   it("hides names, capitals and the target in Find", () => {
-    const s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", orders: ORDERS });
+    const s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER });
     const view = buildMapView(lesson, progressOf(s), NO_UI);
     expect(view).toMatchObject({ labels: [], markers: [], tones: {}, areaHint: null, interactive: true, namesPublic: false });
   });
 
   it("identifies a wrong tap, reveals the target when solved, and clears both on the next question", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", orders: ORDERS }, { type: "findGuess", country: "DEU" });
+    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" });
     let view = buildMapView(lesson, progressOf(s), NO_UI);
     expect(view.tones).toEqual({ DEU: "wrong" });
     expect(view.labels).toEqual(["DEU"]);
@@ -109,7 +140,7 @@ describe("map view", () => {
   });
 
   it("shows hint area then reveal", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", orders: ORDERS }, { type: "findHint" });
+    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findHint" });
     expect(buildMapView(lesson, progressOf(s), NO_UI).areaHint).toBeNull();
     s = run(s, { type: "findHint" });
     expect(buildMapView(lesson, progressOf(s), NO_UI).areaHint).toBe("FRA");
@@ -130,12 +161,12 @@ describe("map view", () => {
   it("marks explored countries in Discover only", () => {
     let s = run(createInitialState(), { type: "openLesson" }, { type: "discoverSelect", country: "BEL" }, { type: "discoverSelect", country: "LUX" });
     expect(buildMapView(lesson, progressOf(s), NO_UI).explored.sort()).toEqual(["BEL", "LUX"]);
-    s = run(s, { type: "startFinding", orders: ORDERS });
+    s = run(s, { type: "startFinding", order: ORDER });
     expect(buildMapView(lesson, progressOf(s), NO_UI).explored).toEqual([]);
   });
 
   it("gives each Find answer its own feedback key, and none before an answer", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", orders: ORDERS });
+    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER });
     expect(buildMapView(lesson, progressOf(s), NO_UI).feedback).toBeNull();
     s = run(s, { type: "findGuess", country: "DEU" });
     const wrong = buildMapView(lesson, progressOf(s), NO_UI).feedback;
@@ -171,13 +202,13 @@ describe("map view", () => {
 
 describe("saved state", () => {
   it("resumes Find mid-question including assistance", () => {
-    const s = run(createInitialState(), { type: "setLocale", locale: "hy" }, { type: "openLesson" }, { type: "startFinding", orders: ORDERS }, { type: "findHint" });
+    const s = run(createInitialState(), { type: "setLocale", locale: "hy" }, { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findHint" });
     const restored = refresh(s);
     expect(restored.locale).toBe("hy");
     expect(restored.screen).toBe("lesson");
     expect(progressOf(restored)).toEqual(progressOf(s));
     const solved = run(restored, { type: "findGuess", country: "FRA" });
-    expect(progressOf(solved).find?.results[0][0].independent).toBe(false);
+    expect(progressOf(solved).find?.results[0].independent).toBe(false);
   });
 
   it("resumes an in-progress journey", () => {
@@ -210,10 +241,114 @@ describe("saved state", () => {
   });
 
   it("recomputes independent Find answers instead of trusting saved flags", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", orders: ORDERS }, { type: "findGuess", country: "DEU" }, { type: "findGuess", country: "FRA" });
+    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" }, { type: "findGuess", country: "FRA" });
     const raw = JSON.parse(JSON.stringify(s));
-    raw.lessons[lesson.id].find.results[0][0].independent = true;
+    raw.lessons[lesson.id].find.results[0].independent = true;
     s = parseSavedState(JSON.stringify(raw));
-    expect(progressOf(s).find?.results[0][0].independent).toBe(false);
+    expect(progressOf(s).find?.results[0].independent).toBe(false);
+  });
+});
+
+/*
+ * Saves from the old two-round Find (see migrateLegacyFind in storage.ts): only
+ * the first round is kept, and it is the five-question Find.
+ */
+describe("saves from the two-round Find", () => {
+  const ORDERS = [ORDER, ["LUX", "FRA", "DEU", "NLD", "BEL"]];
+  /** Old-format answers to the first `n` questions of `order`; `assisted` ones had a wrong tap. */
+  const answers = (order: string[], n: number, assisted: number[] = []) =>
+    order.slice(0, n).map((target, i) => ({ target, wrongGuesses: assisted.includes(i) ? 1 : 0, hintLevel: 0, independent: !assisted.includes(i) }));
+  const question = (target: string, extra: object = {}) => ({ target, wrongGuesses: [], hintLevel: 0, solved: false, feedback: null, ...extra });
+  const load = (lessonSave: object) =>
+    parseSavedState(JSON.stringify({ version: 1, locale: "en", screen: "lesson", lessons: { [lesson.id]: { started: true, discover: { selected: null, explored: [] }, ...lessonSave } } }));
+
+  it("in the first round: the same question, hints and answers", () => {
+    const s = load({
+      stage: "find",
+      find: { orders: ORDERS, round: 0, index: 2, question: question("NLD", { wrongGuesses: ["DEU"], hintLevel: 1, feedback: { kind: "wrong", country: "DEU" } }), results: [answers(ORDER, 2, [1]), []], status: "asking" },
+    });
+    expect(s.screen).toBe("lesson");
+    const p = progressOf(s);
+    expect(p.stage).toBe("find");
+    expect(p.find).toMatchObject({ order: ORDER, index: 2, status: "asking", question: { target: "NLD", wrongGuesses: ["DEU"], hintLevel: 1, solved: false } });
+    expect(p.find?.results.map((a) => a.independent)).toEqual([true, false]);
+    // Play goes on to the fifth question, then Travel.
+    let next = run(s, { type: "findGuess", country: "NLD" }, { type: "findNext" });
+    for (const target of ["LUX", "DEU"]) next = run(next, { type: "findGuess", country: target }, { type: "findNext" });
+    next = run(next, { type: "findToTravel" });
+    expect(progressOf(next).stage).toBe("travel");
+    expect(progressOf(next).records.lastFindScore).toEqual({ independent: 3, total: 5 });
+  });
+
+  it("at the first round's summary: the fifth answer, ready to continue to Travel", () => {
+    const s = load({
+      stage: "findSummary",
+      find: { orders: ORDERS, round: 0, index: 4, question: question("DEU", { solved: true, feedback: { kind: "correct", country: "DEU" } }), results: [answers(ORDER, 5, [0]), []], status: "roundComplete" },
+    });
+    const p = progressOf(s);
+    expect(p.stage).toBe("find");
+    expect(p.find).toMatchObject({ index: 4, status: "asking", question: { target: "DEU", solved: true } });
+    const next = run(s, { type: "findToTravel" });
+    expect(progressOf(next).stage).toBe("travel");
+    expect(progressOf(next).records.lastFindScore).toEqual({ independent: 4, total: 5 });
+  });
+
+  for (const [where, status, stage, index, secondRound] of [
+    ["in the second round", "asking", "find", 2, 2],
+    ["at the second round's summary", "roundComplete", "findSummary", 4, 5],
+  ] as const) {
+    it(`${where}: the completed first round is the Find, on its last answer; second-round answers are dropped`, () => {
+      const s = load({
+        stage,
+        find: {
+          orders: ORDERS,
+          round: 1,
+          index,
+          question: question(ORDERS[1][index], status === "roundComplete" ? { solved: true } : {}),
+          results: [answers(ORDER, 5, [1, 3]), answers(ORDERS[1], secondRound)],
+          status,
+        },
+      });
+      const p = progressOf(s);
+      expect(p.stage).toBe("find");
+      expect(p.find).toMatchObject({ order: ORDER, index: 4, status: "asking", question: { target: "DEU", solved: true, feedback: { kind: "correct", country: "DEU" } } });
+      expect(p.find?.results.map((a) => a.target)).toEqual(ORDER);
+      // Nothing is left to answer; Next does nothing, and the player moves on to Travel.
+      expect(run(s, { type: "findNext" })).toBe(s);
+      expect(run(s, { type: "findGuess", country: "FRA" })).toBe(s);
+      const next = run(s, { type: "findToTravel" });
+      expect(progressOf(next).stage).toBe("travel");
+      expect(progressOf(next).records.lastFindScore).toEqual({ independent: 3, total: 5 });
+    });
+  }
+
+  for (const stage of ["travel", "results"] as const) {
+    it(`in ${stage === "travel" ? "Travel" : "Results"} after both rounds: stays there, scored out of five from the first round`, () => {
+      const s = load({
+        stage,
+        find: { orders: ORDERS, round: 1, index: 4, question: question("BEL", { solved: true }), results: [answers(ORDER, 5, [0]), answers(ORDERS[1], 5)], status: "complete" },
+        travel: { missionId: "fra-to-nld", path: stage === "travel" ? ["FRA", "BEL"] : ["FRA", "BEL", "NLD"], hintUsed: false, undoUsed: false },
+        lastTravelResult: stage === "results" ? { missionId: "fra-to-nld", route: ["FRA", "BEL", "NLD"], hintUsed: false, undoUsed: false } : null,
+        records: { discoverDone: true, findDone: true, travelDone: stage === "results", lastFindScore: { independent: 9, total: 10 }, bestFindScore: { independent: 10, total: 10 }, travelWithoutHelp: false },
+      });
+      const p = progressOf(s);
+      expect(p.stage).toBe(stage);
+      expect(p.find).toMatchObject({ order: ORDER, status: "complete" });
+      expect(p.records).toMatchObject({ findDone: true, lastFindScore: { independent: 4, total: 5 }, bestFindScore: { independent: 4, total: 5 } });
+    });
+  }
+
+  it("drops old scores it cannot rescore, keeping the completed steps", () => {
+    const s = load({ stage: "discover", records: { discoverDone: true, findDone: true, travelDone: true, lastFindScore: { independent: 9, total: 10 }, bestFindScore: { independent: 10, total: 10 }, travelWithoutHelp: true } });
+    expect(progressOf(s).records).toEqual({ discoverDone: true, findDone: true, travelDone: true, lastFindScore: null, bestFindScore: null, travelWithoutHelp: true });
+  });
+
+  it("drops an inconsistent old session and resumes at Discover", () => {
+    const s = load({
+      stage: "find",
+      find: { orders: ORDERS, round: 1, index: 0, question: question("LUX"), results: [answers(ORDER, 3), []], status: "asking" },
+    });
+    expect(progressOf(s).find).toBeNull();
+    expect(progressOf(s).stage).toBe("discover");
   });
 });

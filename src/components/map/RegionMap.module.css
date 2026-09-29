@@ -21,6 +21,10 @@
   --map-control-radius: 12px;
   --map-route: var(--ink);
   --map-glow: rgba(255, 187, 69, 0.85);
+  /* Stroke widths on screen, shared by the map and the gesture copy (see .gestureLayer). */
+  --coast-width: 3.5px;
+  --border-width: 1.2px;
+  --context-border-width: 0.7px;
 
   position: relative;
   width: 100%;
@@ -106,6 +110,29 @@
   transition: none;
 }
 
+/* Strokes scale with the layer here, drawn at their on-screen width for the
+   view the layer is drawn for (--inv is 1/k of that view): Firefox draws a
+   moving layer again on every frame if it holds non-scaling strokes (even
+   unstroked ones, such as the fills). */
+.gestureLayer .coast path,
+.gestureLayer .country,
+.gestureLayer .contextShape,
+.gestureLayer .borders path {
+  vector-effect: none;
+}
+
+.gestureLayer .coast path {
+  stroke-width: calc(var(--coast-width) * var(--inv));
+}
+
+.gestureLayer .borderActive {
+  stroke-width: calc(var(--border-width) * var(--inv));
+}
+
+.gestureLayer .borderContext {
+  stroke-width: calc(var(--context-border-width) * var(--inv));
+}
+
 /* While the map moves (and briefly after): the copy comes behind the names and
    map controls, in place of the map, which is hidden (it still moves, for
    taps). The names are then a light layer too, redrawn each frame. */
@@ -155,7 +182,7 @@
 .coast path {
   fill: none;
   stroke: var(--map-coast);
-  stroke-width: 3.5px;
+  stroke-width: var(--coast-width);
 }
 
 .contextShape,
@@ -167,13 +194,13 @@
 .contextShape {
   fill: var(--map-context);
   stroke: var(--map-context-border);
-  stroke-width: 0.7px;
+  stroke-width: var(--context-border-width);
 }
 
 /* One border colour for every tone, so borders never shift during fill transitions. */
 .country {
   stroke: var(--map-land-border);
-  stroke-width: 1.2px;
+  stroke-width: var(--border-width);
   transition: fill 180ms ease-out;
 }
 
@@ -654,12 +681,12 @@
 
 .borderActive {
   stroke: var(--map-land-border);
-  stroke-width: 1.2px;
+  stroke-width: var(--border-width);
 }
 
 .borderContext {
   stroke: var(--map-context-border);
-  stroke-width: 0.7px;
+  stroke-width: var(--context-border-width);
 }
 
 /* --- Illustrated atlas surface (Discover) ------------------------------------
@@ -678,27 +705,10 @@
   /* Selected: a teal clearly greener and deeper than the sea. */
   --map-selected: #15a597;
   --map-label-on-dark-halo: rgba(6, 70, 62, 0.6);
-}
-
-/* Shallow-water edge: a wide light band under the land, showing only at sea. */
-.atlas .coast path {
-  stroke-width: 5.5px;
-}
-
-.atlas .country {
-  stroke-width: 1.4px;
-}
-
-.atlas .contextShape {
-  stroke-width: 1px;
-}
-
-.atlas .borderActive {
-  stroke-width: 1.4px;
-}
-
-.atlas .borderContext {
-  stroke-width: 1px;
+  /* Shallow-water edge: a wide light band under the land, showing only at sea. */
+  --coast-width: 5.5px;
+  --border-width: 1.4px;
+  --context-border-width: 1px;
 }
 
 .atlas .toneSelected {

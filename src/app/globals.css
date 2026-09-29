@@ -1,11 +1,30 @@
 :root {
-  /* Playful palette */
-  --bg: #fff7ec;
-  --surface: #ffffff;
-  --surface-warm: #fff0dc;
+  /* "Colourful travel notebook": warm ivory pages, cream cards, navy ink,
+     restrained peach, pale blue and mint accents. The map keeps its own
+     palette (RegionMap.module.css); the tokens it shares (ink, coral, teal,
+     amber, wrong) keep their values. */
+  --bg: #fffaf0;
+  --surface: #fffdf8;
+  --surface-warm: #fff1e2;
   --ink: #1f3a5f;
   --ink-soft: #52627f;
-  --line: #eadfcb;
+  --line: #efe2cb;
+  --peach: #ffe4d1;
+  --sky-soft: #e3f2fc;
+  --mint-soft: #e0f4ea;
+
+  /* Stage accents, always paired with a name or an icon: teal Discover,
+     golden Find, sky-blue Travel. `-ink` is the text-safe shade on `-soft`
+     and on the page (at least 4.5:1). */
+  --discover: #149486;
+  --discover-ink: #0d6f65;
+  --discover-soft: #daf3ed;
+  --find: #f2b233;
+  --find-ink: #7a4f00;
+  --find-soft: #fff0c8;
+  --travel: #3592d2;
+  --travel-ink: #15609a;
+  --travel-soft: #e0f0fc;
 
   --coral: #e85b45;
   --coral-dark: #cf4633;
@@ -28,7 +47,9 @@
 
   --radius: 18px;
   --radius-sm: 12px;
-  --shadow: 0 4px 16px rgba(31, 58, 95, 0.1);
+  /* Cards: cream, a subtle border and a gentle, low shadow. */
+  --card-border: 1.5px solid var(--line);
+  --shadow: 0 1px 0 rgba(31, 58, 95, 0.04), 0 6px 16px rgba(31, 58, 95, 0.07);
   --tap: 48px;
 
   --font: var(--font-latin), var(--font-armenian), "Nunito", "Noto Sans Armenian", system-ui, sans-serif;
@@ -85,12 +106,13 @@ button {
   line-height: 1.2;
   text-align: center;
   cursor: pointer;
-  transition: transform 120ms ease, background-color 120ms ease;
+  transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Subtle press feedback: the button settles onto its edge. */
 .btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: translateY(2px);
 }
 
 .btn:disabled {
@@ -102,16 +124,26 @@ button {
   background: var(--coral-strong);
   color: #fff;
   font-size: 1.1rem;
+  box-shadow: 0 3px 0 #9a2d1c;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--coral-strong-hover);
 }
 
+.btn-primary:active:not(:disabled) {
+  box-shadow: 0 1px 0 #9a2d1c;
+}
+
 .btn-secondary {
   background: var(--surface);
   border-color: var(--ink);
   color: var(--ink);
+  box-shadow: 0 2px 0 rgba(31, 58, 95, 0.18);
+}
+
+.btn-secondary:active:not(:disabled) {
+  box-shadow: 0 0 0 rgba(31, 58, 95, 0.18);
 }
 
 .btn-secondary:hover:not(:disabled) {

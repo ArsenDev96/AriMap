@@ -13,7 +13,7 @@ import styles from "./LandmarkCard.module.css";
 // AI-generated stylised illustrations, trimmed to their artwork by
 // scripts/prepare-landmarks.mjs (originals in public/images/landmarks/).
 // Provenance is documented in docs/CONTENT.md, not shown to players.
-const IMAGES: Readonly<Record<string, StaticImageData>> = {
+export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
   "eiffel-tower": eiffelTower,
   atomium,
   "amsterdam-canal-houses": amsterdamCanalHouses,
@@ -25,7 +25,7 @@ const IMAGES: Readonly<Record<string, StaticImageData>> = {
  *  On phones its parts are laid out by the country card's grid (display: contents). */
 export function LandmarkCard({ landmark }: { landmark: Landmark }) {
   const { t, l } = useI18n();
-  const image = landmark.illustration ? IMAGES[landmark.illustration] : undefined;
+  const image = landmark.illustration ? LANDMARK_IMAGES[landmark.illustration] : undefined;
   return (
     <figure className={styles.landmark} data-testid="landmark-card" data-landmark={landmark.id}>
       {image && (

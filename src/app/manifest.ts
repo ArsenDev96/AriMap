@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Discover the world. · Բացահայտիր աշխարհը",
     start_url: "/",
     display: "standalone",
-    background_color: "#fff7ec",
-    theme_color: "#fff7ec",
+    background_color: "#fffaf0",
+    theme_color: "#fffaf0",
     icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml" }],
   };
 }

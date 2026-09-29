@@ -1,11 +1,32 @@
+/* One screen: the content scrolls when it doesn't fit, and the main action has
+   its own area below it, so it never covers anything. When everything fits, the
+   action follows the content directly. */
 .page {
-  min-height: 100dvh;
-  max-width: 520px;
-  margin: 0 auto;
-  padding: 12px 16px 32px;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+}
+
+.scroll {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.content {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.actionBar {
+  flex: none;
+  padding: 10px max(16px, calc((100% - 508px) / 2)) calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1.5px solid var(--line);
+  background: var(--bg);
 }
 
 .top {
@@ -18,14 +39,125 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 6px;
+  gap: 4px;
+}
+
+/* Wraps (mark above the name) rather than squeezing, with very large text. */
+.titleRow > svg {
+  flex-shrink: 0;
+}
+
+.titleRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
 }
 
 .title {
   font-size: 2.4rem;
   font-weight: 900;
   line-height: 1.1;
-  margin-top: 6px;
+}
+
+/* The adventure's opening page: the five landmarks as stickers along a dashed
+   route, on a pale-blue notebook page with a light dot grid. Static: no animation. */
+.art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: clamp(96px, 30vw, 150px);
+  padding: 0 8px;
+  border-radius: var(--radius);
+  border: var(--card-border);
+  background:
+    radial-gradient(circle, rgba(59, 155, 220, 0.18) 1.2px, transparent 1.6px) 0 0 / 16px 16px,
+    linear-gradient(160deg, var(--sky-soft), var(--mint-soft) 60%, var(--peach));
+}
+
+.artRoute {
+  position: absolute;
+  inset: 12% 4%;
+  width: 92%;
+  height: 76%;
+}
+
+.artRoute path {
+  stroke: var(--ink);
+  stroke-opacity: 0.45;
+  stroke-width: 2.5px;
+  stroke-dasharray: 2 7;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sticker {
+  position: relative;
+  flex: 0 1 auto;
+  width: clamp(54px, 17vw, 92px);
+  aspect-ratio: 1;
+  margin: 0 -3px;
+  border-radius: 16px;
+  border: 3px solid #fff;
+  background: var(--surface);
+  box-shadow: 0 3px 8px rgba(31, 58, 95, 0.14);
+}
+
+/* A playful, uneven line of stickers. */
+.sticker:nth-of-type(1) {
+  transform: translateY(8%) rotate(-7deg);
+}
+.sticker:nth-of-type(2) {
+  transform: translateY(-10%) rotate(5deg);
+}
+.sticker:nth-of-type(3) {
+  transform: translateY(6%) rotate(-3deg);
+}
+.sticker:nth-of-type(4) {
+  transform: translateY(-8%) rotate(6deg);
+}
+.sticker:nth-of-type(5) {
+  transform: translateY(7%) rotate(-5deg);
+}
+
+.stickerImage {
+  object-fit: contain;
+  padding: 5px;
+}
+
+/* Short screens: the illustration and spacing shrink first; text keeps its size. */
+@media (max-height: 700px) {
+  .content {
+    gap: 12px;
+    padding-top: 8px;
+  }
+  .art {
+    height: clamp(72px, 22vw, 110px);
+  }
+  .sticker {
+    width: clamp(46px, 13vw, 70px);
+    border-width: 2px;
+  }
+  .titleRow {
+    margin-top: 2px;
+  }
+}
+
+@media (max-height: 600px) {
+  .art {
+    height: 64px;
+  }
+  .sticker {
+    width: 42px;
+    border-radius: 12px;
+  }
+  .content .card {
+    padding: 16px;
+  }
 }
 
 .tagline {
@@ -43,6 +175,7 @@
 
 .card {
   background: var(--surface);
+  border: var(--card-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 20px;
@@ -78,7 +211,12 @@
   list-style: none;
 }
 
+/* Lesson steps in their stage colours (as in the lesson header): a check when done, otherwise the number. */
 .steps li {
+  --accent: var(--discover);
+  --accent-soft: var(--discover-soft);
+  --accent-fill: var(--discover-ink);
+  --accent-on: #fff;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -88,29 +226,91 @@
   font-weight: 800;
 }
 
+.steps li[data-accent="find"] {
+  --accent: var(--find);
+  --accent-soft: var(--find-soft);
+  --accent-fill: var(--find);
+  --accent-on: var(--ink);
+}
+
+.steps li[data-accent="travel"] {
+  --accent: var(--travel);
+  --accent-soft: var(--travel-soft);
+  --accent-fill: var(--travel-ink);
+}
+
 .stepNumber {
   display: grid;
   place-items: center;
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 2px solid var(--coral);
+  border: 2px solid var(--accent);
+  background: var(--surface);
   font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.stepDone {
+  background: var(--accent-soft) !important;
 }
 
 .stepDone .stepNumber {
-  background: var(--coral);
-  color: #fff;
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--accent-on);
 }
 
+/* "Lesson complete": a small gold ribbon. */
 .complete {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--find-soft);
+  color: var(--find-ink);
   font-weight: 900;
-  color: var(--amber-dark);
 }
 
-.actions {
+.startOver {
+  font-size: 1rem;
+}
+
+/* Start over confirmation. */
+.dialog {
+  width: min(400px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  color: var(--ink);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--bg);
+  box-shadow: 0 12px 40px rgba(31, 58, 95, 0.25);
+}
+
+.dialog::backdrop {
+  background: rgba(31, 58, 95, 0.35);
+}
+
+.dialogBody {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 8px;
+  padding: 20px;
+  line-height: 1.45;
+}
+
+.dialogTitle {
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.dialogActions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
 }

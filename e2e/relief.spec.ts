@@ -17,12 +17,11 @@ const findAsking = (target: string) => ({
   stage: "find",
   discover: { selected: null, explored: ["FRA", "BEL", "NLD", "LUX", "DEU"] },
   find: {
-    // The question asked is the first of the round.
-    orders: [[target, ...["BEL", "FRA", "NLD", "LUX", "DEU"].filter((c) => c !== target)], ["FRA", "LUX", "DEU", "NLD", "BEL"]],
-    round: 0,
+    // The question asked is the first.
+    order: [target, ...["BEL", "FRA", "NLD", "LUX", "DEU"].filter((c) => c !== target)],
     index: 0,
     question: { target, wrongGuesses: [], hintLevel: 0, solved: false, feedback: null },
-    results: [[], []],
+    results: [],
     status: "asking",
   },
 });

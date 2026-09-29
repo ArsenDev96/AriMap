@@ -259,9 +259,12 @@ test("complete lesson flow", async ({ page }) => {
 
   await page.getByRole("button", { name: "Start finding" }).click();
 
-  // --- Find round 1 -------------------------------------------------------
+  // --- Find: five questions, each lesson country once --------------------
+  const asked: string[] = [];
   for (let q = 0; q < 5; q++) {
     const target = await currentTarget(page);
+    asked.push(target);
+    await expect(page.getByTestId("find-progress")).toHaveText(`Question ${q + 1} of 5`);
     // Fresh question: no names, markers, badges, highlights or feedback on the map.
     expect(await mapLabels(page)).toEqual([]);
     await expect(page.locator("[data-explored-badge], [data-flash], [data-callout]")).toHaveCount(0);
@@ -323,44 +326,46 @@ test("complete lesson flow", async ({ page }) => {
       await expect(page.locator(`[data-testid="map-main"] path[data-country="${target}"]`)).toHaveAttribute("data-tone", "reveal");
       await shot(page, "find-reveal");
     }
+    if (q === 2) {
+      // Home in the middle of a question keeps it exactly: the wrong tap, the hint, the question number.
+      const wrong = target === "DEU" ? "FRA" : "DEU";
+      await tapActive(page, wrong);
+      await page.getByRole("button", { name: "Hint" }).click();
+      await page.getByRole("button", { name: "Home" }).click();
+      await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
+      await page.reload();
+      await page.getByRole("button", { name: "Continue" }).click();
+      expect(await currentTarget(page)).toBe(target);
+      await expect(page.getByTestId("find-progress")).toHaveText("Question 3 of 5");
+      await expect(page.getByText(/Its capital is/)).toBeVisible();
+      await expect(page.getByTestId("find-feedback")).toContainText("Try again.");
+    }
 
     await tapActive(page, target);
     await expect(page.getByTestId("find-feedback")).toBeVisible();
     await expect(page.locator(`[data-testid="map-main"] path[data-country="${target}"]`)).toHaveAttribute("data-tone", "correct");
     await expect(page.locator(`[data-testid="map-main"] [data-flash="correct"]`)).toHaveCount(1);
-    if (q === 2) await shot(page, "find-correct");
-    await page.getByRole("button", { name: "Next" }).click();
-  }
-
-  await expect(page.getByTestId("round-summary")).toHaveText("You found 3 of 5 countries on the first try without hints.");
-  await shot(page, "find-summary");
-  await checkArmenian(page, "find-summary");
-
-  // Refresh mid-lesson resumes the same screen.
-  await page.reload();
-  await expect(page.getByTestId("round-summary")).toHaveText("You found 3 of 5 countries on the first try without hints.");
-  await page.getByRole("button", { name: "Next round" }).click();
-
-  // --- Find round 2 -------------------------------------------------------
-  const round1Last = "";
-  const seen: string[] = [];
-  for (let q = 0; q < 5; q++) {
-    const target = await currentTarget(page);
-    seen.push(target);
-    expect(await mapLabels(page)).toEqual([]);
-    await tapActive(page, target);
-    await expect(page.getByTestId("find-feedback")).toContainText("Correct!");
-    if (q === 2) {
+    if (q === 3) {
+      await expect(page.getByTestId("find-feedback")).toContainText("Correct!");
+      await shot(page, "find-correct");
       // Refresh on a solved question keeps it solved and independent, without replaying the feedback.
       await page.reload();
       await expect(page.getByTestId("find-feedback")).toContainText("Correct!");
       await expect(page.locator("[data-flash]")).toHaveCount(0);
     }
-    await page.getByRole("button", { name: "Next" }).click();
+    if (q < 4) await page.getByRole("button", { name: "Next" }).click();
   }
-  expect(new Set(seen).size).toBe(5);
-  expect(round1Last).toBe("");
-  await expect(page.getByTestId("round-summary")).toHaveText("You found 5 of 5 countries on the first try without hints.");
+  expect(new Set(asked).size).toBe(5);
+
+  // After the fifth answer: no round summary or second round, just an explicit way on to Travel.
+  await expect(page.getByTestId("find-progress")).toHaveText("Question 5 of 5");
+  await expect(page.getByRole("button", { name: "Next" })).toHaveCount(0);
+  await expect(page.getByTestId("panel")).not.toContainText(/round/i);
+  await shot(page, "find-done");
+  await checkArmenian(page, "find-done");
+  // Refresh mid-lesson resumes the same screen.
+  await page.reload();
+  await expect(page.getByTestId("find-progress")).toHaveText("Question 5 of 5");
   await page.getByRole("button", { name: "Continue to Travel" }).click();
 
   // --- Travel -------------------------------------------------------------
@@ -424,6 +429,13 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*Undo/);
   await expect(page.getByTestId("badge")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Next level/i })).toHaveCount(0);
+  // Find: the five questions just played, two found first try without hints (hints on three).
+  await expect(page.getByTestId("result-find")).toContainText("2/5");
+  const findAnswers = page.getByTestId("result-find-answers").locator("li");
+  await expect(findAnswers).toHaveCount(5);
+  expect(await findAnswers.evaluateAll((els) => els.map((e) => e.getAttribute("data-country")))).toEqual(asked);
+  await expect(findAnswers.filter({ hasText: "With help" })).toHaveCount(3);
+  await expect(findAnswers.filter({ hasText: "First try" })).toHaveCount(2);
 
   // Replay: France → Germany → Netherlands without help earns the badge.
   await page.getByRole("button", { name: "Replay journey" }).click();
@@ -459,12 +471,16 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("badge")).toHaveCount(0);
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*Hint/);
 
-  // Return to lesson → Welcome shows completion and no accidental reset.
-  await page.getByRole("button", { name: "Return to lesson" }).click();
-  await expect(page.getByText("Lesson complete")).toBeVisible();
+  // Home → Welcome shows completion and no accidental reset; Continue returns to these results.
+  await page.getByRole("button", { name: "Home" }).click();
+  await expect(page.getByText("All steps done")).toBeVisible();
   await page.reload();
-  await expect(page.getByText("Lesson complete")).toBeVisible();
+  await expect(page.getByText("All steps done")).toBeVisible();
   await shot(page, "welcome-complete");
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
+  await expect(page.getByTestId("result-help")).toHaveText(/Help useds*Hint/);
+  await expect(page.getByTestId("result-find")).toContainText("2/5");
 
   expect(errors).toEqual([]);
 });
@@ -622,8 +638,8 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
   await page.goto("/");
 
   // Find: a wrong answer, then Luxembourg as the answer, never open the close-up.
-  const orders = [["LUX", "FRA", "NLD", "BEL", "DEU"], ["BEL", "DEU", "FRA", "NLD", "LUX"]];
-  await save({ started: true, stage: "find", find: { orders, round: 0, index: 0, question: { target: "LUX", wrongGuesses: [], hintLevel: 0, solved: false, feedback: null }, results: [[], []], status: "asking" } });
+  const order = ["LUX", "FRA", "NLD", "BEL", "DEU"];
+  await save({ started: true, stage: "find", find: { order, index: 0, question: { target: "LUX", wrongGuesses: [], hintLevel: 0, solved: false, feedback: null }, results: [], status: "asking" } });
   await page.reload();
   await expect(page.getByTestId("find-prompt")).toBeVisible();
   await expect(page.locator('[data-testid="map-main"] path[data-country="DEU"]')).toBeVisible();

@@ -67,11 +67,10 @@ test("scenery is Discover only", async ({ page }) => {
     stage: "find",
     discover: { selected: null, explored: ["FRA", "BEL", "NLD", "LUX", "DEU"] },
     find: {
-      orders: [["BEL", "FRA", "NLD", "LUX", "DEU"], ["LUX", "DEU", "FRA", "NLD", "BEL"]],
-      round: 0,
+      order: ["BEL", "FRA", "NLD", "LUX", "DEU"],
       index: 0,
       question: { target: "BEL", wrongGuesses: [], hintLevel: 0, solved: false, feedback: null },
-      results: [[], []],
+      results: [],
       status: "asking",
     },
   });

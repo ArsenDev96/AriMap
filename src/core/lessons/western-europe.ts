@@ -20,7 +20,6 @@ export const westernEuropeLesson: LessonDefinition = {
     LUX: ["FRA", "BEL", "DEU"],
     DEU: ["FRA", "BEL", "NLD", "LUX"],
   },
-  find: { rounds: 2 },
   travel: { mission: { id: "fra-to-nld", from: "FRA", to: "NLD" } },
   map: {
     inset: {

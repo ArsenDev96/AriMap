@@ -6,17 +6,52 @@
   min-height: 56px;
   background: var(--bg);
   border-bottom: 2px solid var(--line);
+  /* A soft peach edge under the header, like a notebook page. */
+  box-shadow: 0 2px 0 rgba(255, 228, 209, 0.7);
+}
+
+/* Too little room for the steps between Home and the language toggle (see useStacked in
+   Header.tsx): Home and the toggle keep the first row, the steps get a compact row below. */
+.stacked {
+  flex-wrap: wrap;
+  row-gap: 4px;
+  padding-bottom: 8px;
+}
+
+.stacked .steps {
+  order: 1;
+  flex-basis: 100%;
+}
+
+.stacked .lang {
+  margin-left: auto;
+}
+
+/* Even Home and the toggle would not share a row (the narrowest phones with the largest
+   text): Home keeps its name but drops its icon, and the padding is trimmed. Switched off
+   while the header measures its natural sizes. */
+.tight:not([data-measuring]) {
+  gap: 6px;
+  padding-inline: 8px;
+}
+
+.tight:not([data-measuring]) .home {
+  padding: 0 10px;
+}
+
+.tight:not([data-measuring]) .home svg {
+  display: none;
+}
+
+.tight:not([data-measuring]) .langButton {
+  padding: 0 6px;
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: var(--tap);
   padding: 0 6px 0 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
   flex-shrink: 0;
 }
 
@@ -25,61 +60,184 @@
   font-size: 1.15rem;
 }
 
+/* Home: an icon and its name, a full touch target, styled like the language toggle. */
+.home {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: var(--tap);
+  min-height: var(--tap);
+  padding: 0 14px 0 12px;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.home:hover {
+  background: var(--surface-warm);
+}
+
+.home svg {
+  flex-shrink: 0;
+}
+
 .steps {
   display: flex;
   flex: 1;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
   min-width: 0;
+  /* For the query below: how much room the steps have beside Home and the language toggle. */
+  container-type: inline-size;
 }
 
+/* Each step in its own colour, paired with an icon or number: done (a check
+   on the step's colour), current (its number, on a soft pill with its name when
+   there is room), upcoming (its number, outlined). */
 .step {
+  --accent: var(--discover);
+  --accent-ink: var(--discover-ink);
+  --accent-soft: var(--discover-soft);
+  /* Filled dots: the text-safe shade, so the white number or check reads clearly (6:1). */
+  --accent-fill: var(--discover-ink);
+  --accent-on: #fff;
   display: flex;
   align-items: center;
   gap: 5px;
+  flex-shrink: 0;
+  border-radius: 999px;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--ink-soft);
-  min-width: 0;
+}
+
+.step[data-accent="find"] {
+  --accent: var(--find);
+  --accent-ink: var(--find-ink);
+  --accent-soft: var(--find-soft);
+  /* Navy on gold: white would be too faint. */
+  --accent-fill: var(--find);
+  --accent-on: var(--ink);
+}
+
+.step[data-accent="travel"] {
+  --accent: var(--travel);
+  --accent-ink: var(--travel-ink);
+  --accent-soft: var(--travel-soft);
+  --accent-fill: var(--travel-ink);
 }
 
 .stepDot {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  border: 2px solid var(--coral);
+  display: grid;
+  place-items: center;
   flex-shrink: 0;
+  /* In rem, so the number inside keeps room when the text is enlarged (20px at the default size). */
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  border: 2px solid #7c879c;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
-.stepDone .stepDot {
-  background: var(--coral);
+.stepDone .stepDot,
+.stepCurrent .stepDot {
+  border-color: var(--accent-fill);
+  background: var(--accent-fill);
+  color: var(--accent-on);
 }
 
 .stepCurrent {
+  flex-shrink: 1;
+  min-width: 0;
+  padding: 3px 10px 3px 3px;
+  background: var(--accent-soft);
   color: var(--ink);
-}
-
-.stepCurrent .stepDot {
-  background: var(--coral);
-  box-shadow: 0 0 0 3px var(--coral-soft);
 }
 
 .stepLabel {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* On narrow phones show only the current step name; dots show progress. */
+/* On narrow phones show only the current step name; the numbered dots show
+   progress, and every step stays named for screen readers (visually hidden text). */
 @media (max-width: 520px) {
-  .brandName {
+  .brand {
     display: none;
   }
   .step:not(.stepCurrent) .stepLabel {
     display: none;
+  }
+}
+
+/* The narrowest phones: a little less padding, so the steps keep room between Home and the language toggle. */
+@media (max-width: 360px) {
+  .header {
+    gap: 6px;
+    padding: 6px 10px;
+  }
+  .home {
+    padding: 0 10px 0 8px;
+  }
+}
+
+/* Too little room for every step's name (about 219px in English and 300px in Armenian at the
+   default text size, and in rem so the limits grow with the text): only the current one keeps
+   its name. */
+@container (max-width: 14.5rem) {
+  .step:not(.stepCurrent) .stepLabel {
+    display: none;
+  }
+}
+
+@container (max-width: 19.5rem) {
+  :lang(hy) .step:not(.stepCurrent) .stepLabel {
+    display: none;
+  }
+}
+
+/* Too little room for the current step's name: its dot alone, rather than a cut name. */
+@container (max-width: 9.375rem) {
+  .stepCurrent .stepLabel {
+    display: none;
+  }
+  .stepCurrent {
+    padding-right: 3px;
+  }
+}
+
+/* The narrowest (Armenian at 320px): slightly smaller dots, so the three never touch. */
+@container (max-width: 5rem) {
+  .stepDot {
+    width: 1.125rem;
+    height: 1.125rem;
+    font-size: 0.68rem;
+  }
+  .step {
+    margin: 0 -1px;
+  }
+}
+
+/* Armenian names are longer ("Բացահայտիր"). */
+@container (max-width: 11.25rem) {
+  :lang(hy) .stepCurrent .stepLabel {
+    display: none;
+  }
+  :lang(hy) .stepCurrent {
+    padding-right: 3px;
   }
 }
 

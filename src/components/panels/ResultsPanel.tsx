@@ -4,7 +4,7 @@ import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
 import styles from "../LessonScreen.module.css";
 
-export function ResultsPanel({ progress, act, dispatch }: PanelProps) {
+export function ResultsPanel({ progress, act }: PanelProps) {
   const { t, name } = useI18n();
   const result = progress.lastTravelResult;
   if (!result) return null;
@@ -12,11 +12,14 @@ export function ResultsPanel({ progress, act, dispatch }: PanelProps) {
   const last = result.route.length - 1;
   const help = [result.hintUsed && t("results.helpHint"), result.undoUsed && t("results.helpUndo")].filter(Boolean);
   const findScore = progress.records.lastFindScore;
+  // Each of the five questions of the Find just played (the score above counts the same answers).
+  const findAnswers = progress.find?.status === "complete" ? progress.find.results : [];
 
   return (
     <>
-      <div className={styles.heading}>
-        <p className={styles.eyebrow}>{t("travel.title")}</p>
+      {/* A cheerful arrival: a star and confetti pop in once (not with reduced motion). */}
+      <div className={styles.celebration} data-testid="celebration">
+        <CelebrationArt />
         <h1 className={styles.title}>{t("results.title")}</h1>
       </div>
 
@@ -76,17 +79,46 @@ export function ResultsPanel({ progress, act, dispatch }: PanelProps) {
             </span>
             <span>{t("results.find", { count: findScore.independent, total: findScore.total })}</span>
           </div>
+          {findAnswers.length > 0 && (
+            <ul className={styles.resultList} data-testid="result-find-answers">
+              {findAnswers.map((a) => (
+                <li key={a.target} data-country={a.target}>
+                  <span>{name(a.target)}</span>
+                  <span className={`${styles.tag} ${a.independent ? styles.tagGood : styles.tagHelp}`}>
+                    {t(a.independent ? "find.resultIndependent" : "find.resultAssisted")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 
-      <div className={`${styles.footer} ${styles.footerSticky} ${styles.footerRow}`}>
+      {/* Home is in the header; the lesson overview is one tap away there. */}
+      <div className={`${styles.footer} ${styles.footerSticky}`}>
         <button type="button" className="btn btn-primary btn-block" onClick={() => act({ type: "replayTravel" })}>
           {t("results.replay")}
         </button>
-        <button type="button" className="btn btn-secondary btn-block" onClick={() => dispatch({ type: "goHome" })}>
-          {t("results.return")}
-        </button>
       </div>
     </>
+  );
+}
+
+function CelebrationArt() {
+  return (
+    <svg className={styles.celebrationArt} width="76" height="76" viewBox="0 0 76 76" aria-hidden="true">
+      <circle className={styles.confetti} cx="10" cy="18" r="4" fill="var(--discover)" />
+      <circle className={styles.confetti} cx="66" cy="12" r="3.5" fill="var(--travel)" />
+      <rect className={styles.confetti} x="60" y="56" width="8" height="8" rx="2" fill="var(--coral)" />
+      <rect className={styles.confetti} x="6" y="52" width="7" height="7" rx="2" fill="var(--find)" />
+      <path
+        className={styles.celebrationStar}
+        d="M38 12l7.6 15.4 17 2.5-12.3 12 2.9 16.9L38 50.8l-15.2 8 2.9-16.9-12.3-12 17-2.5z"
+        fill="var(--amber)"
+        stroke="var(--ink)"
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { getCountry } from "@/core/content/countries";
-import { countIndependent } from "@/core/game/find";
+import { isLastAnswered } from "@/core/game/find";
 import type { MessageKey } from "@/core/i18n/translate";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
@@ -22,12 +22,13 @@ export function FindPanel({ progress, act }: PanelProps) {
   }, [solved]);
 
   if (!session) return null;
-  const { question, round, index } = session;
-  const total = session.orders[round].length;
+  const { question, index } = session;
+  const total = session.order.length;
   const target = getCountry(question.target);
-  const answer = session.results[round][index];
+  const answer = session.results[index];
   const feedback = question.feedback;
   const done = index + (question.solved ? 1 : 0);
+  const last = isLastAnswered(session);
 
   let feedbackText = "";
   let feedbackClass = "";
@@ -45,36 +46,41 @@ export function FindPanel({ progress, act }: PanelProps) {
   return (
     <>
       <div className={styles.heading}>
-        <p className={styles.eyebrow}>
-          {t("find.round", { round: round + 1, rounds: session.orders.length })} ·{" "}
+        <p className={styles.eyebrow} data-testid="find-progress">
           {t("find.question", { current: index + 1, total })}
         </p>
+        {/* One segment per question: answered, the current one, still to come. */}
         <div
-          className={styles.progressBar}
+          className={styles.pips}
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={done}
           aria-label={t("find.question", { current: index + 1, total })}
         >
-          <div className={styles.progressFill} style={{ width: `${(done / total) * 100}%` }} />
+          {session.order.map((id, i) => (
+            <span key={id} className={`${styles.pip} ${i < done ? styles.pipDone : i === index ? styles.pipCurrent : ""}`} />
+          ))}
         </div>
       </div>
 
       <div className={styles.heading}>
-        <h1 className={styles.title} data-testid="find-prompt">
-          {t("find.prompt", countryParams(question.target))}
+        <h1 className={`${styles.title} ${styles.questionTitle}`} data-testid="find-prompt">
+          <Emphasized text={t("find.prompt", countryParams(question.target))} part={countryParams(question.target).country} />
         </h1>
         {!question.solved && <p className={styles.lead}>{t("find.instructions")}</p>}
       </div>
 
       <div role="status" aria-live="polite">
         {feedbackText && (
-          <p className={`${styles.feedback} ${feedbackClass}`} data-testid="find-feedback">
-            {feedbackText}
-            {feedback?.kind === "correct" && (
-              <span className={styles.feedbackDetail}>{t(answer?.independent ? "find.firstTry" : "find.withHelp")}</span>
-            )}
+          <p className={`${styles.feedback} ${styles.feedbackWithIcon} ${feedbackClass}`} data-testid="find-feedback">
+            <FeedbackIcon correct={feedback?.kind === "correct"} />
+            <span>
+              {feedbackText}
+              {feedback?.kind === "correct" && (
+                <span className={styles.feedbackDetail}>{t(answer?.independent ? "find.firstTry" : "find.withHelp")}</span>
+              )}
+            </span>
           </p>
         )}
       </div>
@@ -106,8 +112,13 @@ export function FindPanel({ progress, act }: PanelProps) {
           </button>
         )}
         {question.solved && (
-          <button ref={nextRef} type="button" className="btn btn-primary btn-block" onClick={() => act({ type: "findNext" })}>
-            {t("find.next")}
+          <button
+            ref={nextRef}
+            type="button"
+            className="btn btn-primary btn-block"
+            onClick={() => act({ type: last ? "findToTravel" : "findNext" })}
+          >
+            {t(last ? "find.toTravel" : "find.next")}
           </button>
         )}
       </div>
@@ -115,37 +126,29 @@ export function FindPanel({ progress, act }: PanelProps) {
   );
 }
 
-export function FindSummaryPanel({ progress, act }: PanelProps) {
-  const { t, name } = useI18n();
-  const session = progress.find;
-  if (!session) return null;
-  const answers = session.results[session.round];
-  const lastRound = session.round === session.orders.length - 1;
-
+/** `text` with `part` (the country asked for) emphasized, whatever the word order of the language. */
+function Emphasized({ text, part }: { text: string; part: string }) {
+  const at = text.indexOf(part);
+  if (at < 0) return <>{text}</>;
   return (
     <>
-      <div className={styles.heading}>
-        <p className={styles.eyebrow}>{t("steps.find")}</p>
-        <h1 className={styles.title}>{t("find.roundDone", { round: session.round + 1 })}</h1>
-      </div>
-      <p className={styles.feedback + " " + styles.feedbackCorrect} data-testid="round-summary">
-        {t("find.roundSummary", { count: countIndependent(answers), total: answers.length })}
-      </p>
-      <ul className={styles.resultList}>
-        {answers.map((a) => (
-          <li key={a.target}>
-            <span>{name(a.target)}</span>
-            <span className={`${styles.tag} ${a.independent ? styles.tagGood : styles.tagHelp}`}>
-              {t(a.independent ? "find.resultIndependent" : "find.resultAssisted")}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <div className={`${styles.footer} ${styles.footerSticky}`}>
-        <button type="button" className="btn btn-primary btn-block" onClick={() => act({ type: "findContinue" })}>
-          {t(lastRound ? "find.toTravel" : "find.nextRound")}
-        </button>
-      </div>
+      {text.slice(0, at)}
+      <span className={styles.questionTarget}>{part}</span>
+      {text.slice(at + part.length)}
     </>
+  );
+}
+
+/** A check for a correct answer; a curved "try again" arrow otherwise. */
+function FeedbackIcon({ correct }: { correct: boolean }) {
+  return (
+    <svg className={styles.feedbackIcon} width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="11" fill="currentColor" />
+      {correct ? (
+        <path d="M7 12.5l3.3 3.3L17 9" fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+      ) : (
+        <path d="M16.5 9.5A5 5 0 1 0 17 14M16.8 6.3v3.4h-3.4" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      )}
+    </svg>
   );
 }

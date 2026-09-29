@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#fff7ec",
+  themeColor: "#fffaf0",
 };
 
 // Applies the saved language to <html lang> before first paint (see
