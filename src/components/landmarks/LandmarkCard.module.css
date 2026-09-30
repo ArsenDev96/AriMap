@@ -101,6 +101,31 @@
     font-size: 1.05rem;
   }
 
+  /* Wide art (WIDE_ART_ASPECT in LandmarkCard.tsx): a shallow tile across the card, under the
+     name and capital (the country card's grid, LessonScreen.module.css), then the landmark's
+     name and fact. Its height follows the art's own proportions (--art-aspect, from the image's
+     size, so nothing moves when it loads), up to a share of the screen's height, so the name,
+     capital and whole artwork fit above the pinned button on short phones. When capped, the
+     ratio narrows the box to match, and it is centred in the tile: whole and unstretched. */
+  .wide .stage {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: auto;
+    height: auto;
+    padding: 5px;
+  }
+
+  .wide .frame {
+    height: auto;
+    aspect-ratio: var(--art-aspect);
+    max-height: max(56px, 11svh);
+    margin-inline: auto;
+  }
+
+  .wide .text {
+    grid-row: 3;
+  }
+
   /* Without art the figure stays one block under the name and capital. */
   .textOnly {
     display: flex;

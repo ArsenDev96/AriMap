@@ -135,7 +135,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
         hy: "Լյուցեռնի ծածկած փայտե կամուրջը կառուցվել է 1300-ական թվականներին, իսկ 1993 թվականի հրդեհից հետո վերակառուցվել է ընդամենը ութ ամսում։",
       },
       coordinates: [8.3075, 47.0517],
-      // No illustration yet: the card shows the landmark as text (docs/CONTENT.md, "Missing illustrations").
+      illustration: "chapel-bridge",
     },
   },
   AUT: {
@@ -157,6 +157,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
         hy: "Հաբսբուրգ կայսրերի ամառային պալատը Վիեննայում։ Նրա կենդանաբանական այգին, որը բացվել է 1752 թվականին, աշխարհի ամենահին գործող կենդանաբանական այգին է։",
       },
       coordinates: [16.3119, 48.1845],
+      illustration: "schonbrunn-palace",
     },
   },
   ITA: {
@@ -178,6 +179,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
         hy: "Բացվել է մ.թ. 80 թվականին։ Հռոմեական այս ամֆիթատրոնը կարող էր տեղավորել մոտ 50 000 հանդիսատես։",
       },
       coordinates: [12.4922, 41.8903],
+      illustration: "colosseum",
     },
   },
 };

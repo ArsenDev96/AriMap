@@ -305,6 +305,21 @@
     font-size: 0.95rem;
     line-height: 1.45;
   }
+
+  /* Very wide art (Schönbrunn Palace): the name and capital get the card's width as a compact
+     heading, the art a shallow tile below it (LandmarkCard.module.css), the clue after the landmark. */
+  .countryCardWide {
+    row-gap: 8px;
+  }
+
+  .countryCardWide > .cardHead {
+    grid-column: 1 / -1;
+    gap: 2px;
+  }
+
+  .countryCardWide .countryHint {
+    grid-row: 4;
+  }
 }
 
 /* Narrow phones: a smaller name keeps the longest (Նիդեռլանդներ, 133px at 320px wide) on one line beside the art. */

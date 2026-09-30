@@ -524,6 +524,9 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
         const image = page.getByTestId("landmark-image");
         await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
         expect(await panel.evaluate((el) => el.scrollTop), `${width}×${height} ${locale} ${id}: card opened scrolled`).toBe(0);
+        // Level 1's art, the Adolphe Bridge (1.71:1) included, is under the wide-art threshold (2:1):
+        // the square tile beside the name.
+        await expect(page.getByTestId("landmark-card")).toHaveAttribute("data-shape", "ordinary");
         // Without scrolling: name, capital and the whole drawn artwork sit between the panel top and the pinned button.
         const where = `${width}×${height} ${locale} ${id}`;
         const top = (await panel.boundingBox())!.y;
@@ -536,8 +539,12 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
         const drawn = await image.evaluate((img: HTMLImageElement) => {
           const r = img.getBoundingClientRect();
           const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
-          return { top: r.top + (r.height - img.naturalHeight * s) / 2, bottom: r.top + (r.height + img.naturalHeight * s) / 2, width: img.naturalWidth * s };
+          const tile = img.closest("figure")!.querySelector("div")!.getBoundingClientRect();
+          const left = r.left + (r.width - img.naturalWidth * s) / 2;
+          return { top: r.top + (r.height - img.naturalHeight * s) / 2, bottom: r.top + (r.height + img.naturalHeight * s) / 2, width: img.naturalWidth * s, left, right: left + img.naturalWidth * s, tile: [tile.left, tile.right] };
         });
+        expect(drawn.left, `${where}: art cut on the left`).toBeGreaterThanOrEqual(drawn.tile[0] - 0.5);
+        expect(drawn.right, `${where}: art cut on the right`).toBeLessThanOrEqual(Math.min(drawn.tile[1], width) + 0.5);
         expect(drawn.top, `${where}: art above the panel`).toBeGreaterThanOrEqual(top);
         expect(drawn.bottom, `${where}: art under the button`).toBeLessThanOrEqual(fold + 1);
         expect(Math.max(drawn.width, drawn.bottom - drawn.top), `${where}: art too small`).toBeGreaterThanOrEqual(96);

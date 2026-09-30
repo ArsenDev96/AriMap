@@ -3,7 +3,7 @@
 import { countryHint, getCountry } from "@/core/content/countries";
 import { startFindingAction } from "@/core/progress/appState";
 import { useI18n } from "../i18n";
-import { LandmarkCard } from "../landmarks/LandmarkCard";
+import { LandmarkCard, landmarkArtShape } from "../landmarks/LandmarkCard";
 import type { PanelProps } from "../LessonScreen";
 import styles from "../LessonScreen.module.css";
 
@@ -39,7 +39,12 @@ export function DiscoverPanel({ lesson, progress, act }: PanelProps) {
       {/* Keyed by country so details are replaced, not merged, on a new selection. */}
       <div aria-live="polite">
         {country ? (
-          <article key={country.id} className={`${styles.card} ${styles.countryCard}`} data-testid="country-card" data-country={country.id}>
+          <article
+            key={country.id}
+            className={`${styles.card} ${styles.countryCard} ${landmarkArtShape(country.landmark) === "wide" ? styles.countryCardWide : ""}`}
+            data-testid="country-card"
+            data-country={country.id}
+          >
             <div className={styles.cardHead}>
               <h2 className={styles.cardTitle}>{l(country.name)}</h2>
               <p className={styles.fact} data-testid="country-capital">

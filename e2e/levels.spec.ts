@@ -12,6 +12,10 @@ const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const NAMES: Record<string, string> = { France: "FRA", Switzerland: "CHE", Germany: "DEU", Austria: "AUT", Italy: "ITA" };
 const LANDMARKS: Record<string, string> = { FRA: "Eiffel Tower", CHE: "Chapel Bridge", DEU: "Brandenburg Gate", AUT: "Schönbrunn Palace", ITA: "Colosseum" };
 
+/** The landmark as the illustration's alt text names it (its in-sentence form), in each language. */
+const ALT_EN: Record<string, string> = { FRA: "the Eiffel Tower", CHE: "the Chapel Bridge", DEU: "the Brandenburg Gate", AUT: "Schönbrunn Palace", ITA: "the Colosseum" };
+const ALT_HY: Record<string, string> = { CHE: "Մատուռի կամուրջը", AUT: "Շյոնբրունի պալատը", ITA: "Կոլիզեումը" };
+
 const answers = (order: string[]) => order.map((target) => ({ target, wrongGuesses: 0, hintLevel: 0 }));
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
 
@@ -229,10 +233,12 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
     await expect(cardEl).toHaveAttribute("data-country", id);
     const landmark = page.getByTestId("landmark-card");
     await expect(landmark).toContainText(LANDMARKS[id]);
-    // France and Germany keep their illustrations; the new landmarks are text-only for now, with no empty frame.
-    const illustrated = id === "FRA" || id === "DEU";
-    await expect(landmark).toHaveAttribute("data-art", illustrated ? "illustration" : "none");
-    await expect(page.getByTestId("landmark-image")).toHaveCount(illustrated ? 1 : 0);
+    // Every landmark has its own illustration, loaded and named for screen readers.
+    await expect(landmark).toHaveAttribute("data-art", "illustration");
+    const image = page.getByTestId("landmark-image");
+    await expect(image).toHaveCount(1);
+    await expect(image).toHaveAttribute("alt", `Illustration of ${ALT_EN[id]}`);
+    await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
     await expect(page.locator('[data-testid="map-main"] [data-marker-text]').first()).toBeAttached();
     await expectMapTextClear(page);
     // Germany's hint fits this level's region.
@@ -679,4 +685,145 @@ test.describe("confirmations", () => {
     await expect(page.getByTestId("discover-progress")).toContainText("0/5");
     expect((await saved(page)).levels[L1].records).toMatchObject({ travelDone: true });
   });
+});
+
+/* Level 2's landmark cards, on phones and on desktop, in both languages: every illustration
+   whole and in view. Very wide art (Schönbrunn Palace; WIDE_ART_ASPECT in LandmarkCard.tsx)
+   gets a shallow tile across the card on phones, under the name and capital; the rest keep
+   the square tile beside the name. */
+const WIDE = ["AUT"];
+
+/** The artwork as drawn (object-fit: contain), not its box: where it is, its size and proportions. */
+async function drawnArt(page: Page) {
+  return page.getByTestId("landmark-image").evaluate((img: HTMLImageElement) => {
+    const r = img.getBoundingClientRect();
+    const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const [w, h] = [img.naturalWidth * s, img.naturalHeight * s];
+    const tile = img.closest("figure")!.querySelector("div")!.getBoundingClientRect();
+    return {
+      left: r.left + (r.width - w) / 2,
+      right: r.left + (r.width + w) / 2,
+      top: r.top + (r.height - h) / 2,
+      bottom: r.top + (r.height + h) / 2,
+      width: w,
+      height: h,
+      naturalRatio: img.naturalWidth / img.naturalHeight,
+      fit: getComputedStyle(img).objectFit,
+      tile: { left: tile.left, right: tile.right, top: tile.top, bottom: tile.bottom },
+    };
+  });
+}
+
+test("Level 2's landmark cards: each illustration whole, in view and named; very wide art across the card on phones", async ({ page }) => {
+  const project = test.info().project.name;
+  test.skip(project === "mobile", "Runs across phone sizes (small-phone) and on desktop.");
+  test.setTimeout(240_000);
+  const phone = project !== "desktop";
+  const sizes = phone ? [[320, 568], [320, 640], [390, 664], [390, 844]] : [[1366, 800]];
+  const panel = page.getByTestId("panel");
+  const box = async (testId: string) => (await page.getByTestId(testId).boundingBox())!;
+  for (const [width, height] of sizes) {
+    await page.setViewportSize({ width, height });
+    // The art's width in the square tile beside the name (clamp(112px, 33vw, 132px), 6px padding):
+    // what very wide art had before, and still what ordinary art gets.
+    const squareArt = Math.min(Math.max(112, 0.33 * width), 132) - 12;
+    for (const locale of ["en", "hy"] as const) {
+      await saveV2(page, { [L1]: LEVEL1_DONE, [L2]: { started: true, stage: "discover" } }, { locale, screen: "lesson", levelId: L2, recent: [L2, L1] });
+      // The countries themselves, not only the map's frame: they are drawn once the map has its size.
+      for (const id of L2_COUNTRIES) await expect(page.locator(`[data-testid="map-main"] path[data-country="${id}"]`)).toBeVisible();
+      for (const id of ["CHE", "AUT", "ITA", "FRA", "DEU"]) {
+        const where = `${width}×${height} ${locale} ${id}`;
+        await tapCountry(page, id);
+        await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
+        const figure = page.getByTestId("landmark-card");
+        await expect(figure).toHaveAttribute("data-art", "illustration");
+        await expect(figure).toHaveAttribute("data-shape", WIDE.includes(id) ? "wide" : "ordinary");
+        const image = page.getByTestId("landmark-image");
+        if (ALT_HY[id]) await expect(image).toHaveAttribute("alt", locale === "en" ? `Illustration of ${ALT_EN[id]}` : `Նկարազարդում՝ ${ALT_HY[id]}`);
+        await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+        // A new country's card opens at its top (the previous one was left scrolled to its end).
+        expect(await panel.evaluate((el) => el.scrollTop), `${where}: card opened scrolled`).toBe(0);
+
+        // Without scrolling: the name, the capital and the whole drawn artwork, above the pinned button.
+        const art = await drawnArt(page);
+        const panelBox = (await panel.boundingBox())!;
+        const fold = (await box("sticky-actions")).y;
+        expect(art.fit).toBe("contain");
+        // Its own proportions (contain never stretches), inside its tile, the panel and the screen.
+        expect(Math.abs(art.width / art.height - art.naturalRatio), `${where}: art stretched`).toBeLessThan(0.02);
+        expect(art.left, `${where}: art cut on the left`).toBeGreaterThanOrEqual(Math.max(art.tile.left, panelBox.x, 0) - 0.5);
+        expect(art.right, `${where}: art cut on the right`).toBeLessThanOrEqual(Math.min(art.tile.right, panelBox.x + panelBox.width, width) + 0.5);
+        expect(art.top, `${where}: art above its tile`).toBeGreaterThanOrEqual(Math.max(art.tile.top, panelBox.y) - 0.5);
+        expect(art.bottom, `${where}: art under its tile`).toBeLessThanOrEqual(art.tile.bottom + 0.5);
+        expect(art.bottom, `${where}: art under the button`).toBeLessThanOrEqual(fold + 1);
+        const head = page.getByTestId("country-card").locator("h2");
+        const capital = page.getByTestId("country-capital");
+        for (const part of [head, capital]) {
+          const b = (await part.boundingBox())!;
+          expect(b.y, `${where}: ${await part.textContent()} above the panel`).toBeGreaterThanOrEqual(panelBox.y);
+          expect(b.y + b.height, `${where}: ${await part.textContent()} under the button`).toBeLessThanOrEqual(fold + 1);
+        }
+        const caption = (await figure.locator("figcaption").boundingBox())!;
+        const capitalBox = (await capital.boundingBox())!;
+        if (phone && WIDE.includes(id)) {
+          // Across the card, under the name and capital, before the landmark's name, centred in its tile,
+          // and about twice the width it had in the square tile.
+          expect(art.tile.top, `${where}: tile beside the name`).toBeGreaterThanOrEqual(capitalBox.y + capitalBox.height - 0.5);
+          expect(caption.y, `${where}: text beside the art`).toBeGreaterThanOrEqual(art.tile.bottom - 0.5);
+          const card = await box("country-card");
+          expect(art.tile.right - art.tile.left, `${where}: tile not across the card`).toBeGreaterThanOrEqual(card.width * 0.8);
+          expect(Math.abs((art.left + art.right) / 2 - (art.tile.left + art.tile.right) / 2), `${where}: art off centre`).toBeLessThan(2);
+          expect(art.width, `${where}: art ${art.width}px wide, square tile gave ${squareArt}px`).toBeGreaterThanOrEqual(1.9 * squareArt);
+        } else {
+          // The approved layouts: on phones the square tile beside the name and capital; on desktop,
+          // the panel-wide tile above the landmark's name.
+          if (phone) {
+            expect(art.tile.left, `${where}: tile not beside the name`).toBeGreaterThanOrEqual(capitalBox.x + 0.5);
+            expect(Math.round(art.tile.right - art.tile.left), `${where}: square tile`).toBe(Math.round(art.tile.bottom - art.tile.top));
+          }
+          expect(Math.max(art.width, art.height), `${where}: art too small`).toBeGreaterThanOrEqual(phone ? squareArt - 0.5 : 96);
+          const b = await box("landmark-image");
+          expect(b.x + b.width <= caption.x + 1 || b.y + b.height <= caption.y + 1, `${where}: art overlaps the text`).toBe(true);
+        }
+        if (ALT_HY[id]) await page.screenshot({ path: `screenshots/${project}/levels-art-${id}-${locale}-${width}x${height}.png` });
+
+        // Scrolled to its end, the whole card (artwork and text) sits above the pinned button.
+        await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+        const card = await box("country-card");
+        expect(card.y + card.height, `${where}: card bottom`).toBeLessThanOrEqual((await box("sticky-actions")).y + 1);
+        await expectNoHorizontalOverflow(page);
+        // Left scrolled: the next country's card must still open at its top.
+      }
+    }
+  }
+
+  // Enlarged text (phones): the text keeps its size and the card scrolls fully above the pinned
+  // button; nothing is squeezed to fit above the fold.
+  if (!phone) return;
+  for (const [width, height] of [[320, 568], [390, 844]]) {
+    await page.setViewportSize({ width, height });
+    for (const locale of ["en", "hy"] as const) {
+      await saveV2(page, { [L1]: LEVEL1_DONE, [L2]: { started: true, stage: "discover", discover: { selected: "AUT", explored: ["AUT"] } } }, { locale, screen: "lesson", levelId: L2, recent: [L2, L1] });
+      await expect(page.getByTestId("landmark-card")).toHaveAttribute("data-shape", "wide");
+      for (const size of [150, 200]) {
+        const where = `${width}×${height} ${locale} ${size}%`;
+        await page.evaluate((s) => (document.documentElement.style.fontSize = `${s}%`), size);
+        const fonts = await page.getByTestId("country-card").evaluate((card) => ({
+          title: parseFloat(getComputedStyle(card.querySelector("h2")!).fontSize),
+          fact: parseFloat(getComputedStyle(card.querySelector("figcaption span:last-child")!).fontSize),
+        }));
+        expect(fonts.title, where).toBeGreaterThanOrEqual(((width < 420 ? 1.2 : 1.45) * 16 * size) / 100 - 0.5);
+        expect(fonts.fact, where).toBeGreaterThanOrEqual((0.95 * 16 * size) / 100 - 0.5);
+        const art = await drawnArt(page);
+        expect(Math.abs(art.width / art.height - art.naturalRatio), `${where}: art stretched`).toBeLessThan(0.02);
+        expect(art.right - art.left, `${where}: art`).toBeGreaterThan(0);
+        await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+        const card = await box("country-card");
+        expect(card.y + card.height, `${where}: card bottom`).toBeLessThanOrEqual((await box("sticky-actions")).y + 1);
+        await expectNoHorizontalOverflow(page);
+        await panel.evaluate((el) => el.scrollTo(0, 0));
+      }
+      await page.evaluate(() => (document.documentElement.style.fontSize = ""));
+    }
+  }
 });

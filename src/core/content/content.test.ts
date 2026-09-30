@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { en } from "../i18n/messages.en";
 import { hy } from "../i18n/messages.hy";
@@ -88,23 +89,32 @@ describe("country content", () => {
     expect(COUNTRIES.NLD.landmark!.coordinates).toBeUndefined();
   });
 
-  it("gives Level 2's new countries a localized landmark with a map location, shown as text until artwork exists", () => {
-    const expected: Record<string, [string, string, string]> = {
-      CHE: ["Chapel Bridge", "Մատուռի կամուրջ", "Bern"],
-      AUT: ["Schönbrunn Palace", "Շյոնբրունի պալատ", "Vienna"],
-      ITA: ["Colosseum", "Կոլիզեում", "Rome"],
+  it("gives Level 2's new countries a localized, illustrated landmark with a map location", () => {
+    const expected: Record<string, [string, string, string, string]> = {
+      CHE: ["Chapel Bridge", "Մատուռի կամուրջ", "Bern", "chapel-bridge"],
+      AUT: ["Schönbrunn Palace", "Շյոնբրունի պալատ", "Vienna", "schonbrunn-palace"],
+      ITA: ["Colosseum", "Կոլիզեում", "Rome", "colosseum"],
     };
-    for (const [id, [en, hy, capital]] of Object.entries(expected)) {
+    for (const [id, [en, hy, capital, illustration]] of Object.entries(expected)) {
       const c = COUNTRIES[id];
       expect(c.capital.name.en).toBe(capital);
       const landmark = c.landmark!;
       expect(landmark.name).toEqual({ en, hy });
-      // No other country's artwork stands in for it.
-      expect(landmark.illustration, id).toBeUndefined();
+      // Its own artwork (no other country's stands in for it).
+      expect(landmark.illustration, id).toBe(illustration);
       expect(landmark.coordinates, id).toBeDefined();
       expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+    }
+  });
+
+  it("has the supplied original and its prepared display copy for every illustration", () => {
+    const keys = Object.values(COUNTRIES).flatMap((c) => (c.landmark?.illustration ? [c.landmark.illustration] : []));
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const key of keys) {
+      expect(existsSync(`public/images/landmarks/${key}.png`), key).toBe(true);
+      expect(existsSync(`src/assets/landmarks/${key}.webp`), key).toBe(true);
     }
   });
 
