@@ -172,7 +172,9 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page).toHaveTitle("ԱրիՄապ — Բացահայտիր աշխարհը");
   await shot(page, "welcome-hy");
   await setLanguage(page, "English");
-  await page.getByRole("button", { name: "Start" }).click();
+  // A new player's main action starts Level 1.
+  await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Start\s*Level 1 · France and its neighbours$/);
+  await page.getByTestId("welcome-actions").getByRole("button").click();
 
   // --- Discover: every country can be selected ------------------------------
   await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeVisible();
@@ -332,9 +334,10 @@ test("complete lesson flow", async ({ page }) => {
       await tapActive(page, wrong);
       await page.getByRole("button", { name: "Hint" }).click();
       await page.getByRole("button", { name: "Home" }).click();
-      await expect(page.getByRole("button", { name: "Continue" })).toBeVisible();
+      const main = page.getByTestId("welcome-actions").getByRole("button");
+      await expect(main).toHaveText(/^Continue/);
       await page.reload();
-      await page.getByRole("button", { name: "Continue" }).click();
+      await main.click();
       expect(await currentTarget(page)).toBe(target);
       await expect(page.getByTestId("find-progress")).toHaveText("Question 3 of 5");
       await expect(page.getByText(/Its capital is/)).toBeVisible();
@@ -471,13 +474,19 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("badge")).toHaveCount(0);
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*Hint/);
 
-  // Home → Welcome shows completion and no accidental reset; Continue returns to these results.
+  // Home → Welcome shows completion and no accidental reset, and Level 2 unlocked;
+  // Level 1's Continue returns to these results.
   await page.getByRole("button", { name: "Home" }).click();
-  await expect(page.getByText("All steps done")).toBeVisible();
+  const level1 = page.getByTestId("level-western-europe-1");
+  await expect(level1.getByTestId("level-status")).toHaveText("Completed");
   await page.reload();
-  await expect(page.getByText("All steps done")).toBeVisible();
+  await expect(level1.getByTestId("level-status")).toHaveText("Completed");
+  await expect(page.getByTestId("level-around-the-alps").getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Start\s*Level 2 · Around the Alps$/);
   await shot(page, "welcome-complete");
-  await page.getByRole("button", { name: "Continue" }).click();
+  // Completed: a one-line summary for a returning player, opened to show its buttons.
+  await level1.getByTestId("level-details-toggle").click();
+  await level1.getByRole("button", { name: /^Continue/ }).click();
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
   await expect(page.getByTestId("result-help")).toHaveText(/Help useds*Hint/);
   await expect(page.getByTestId("result-find")).toContainText("2/5");

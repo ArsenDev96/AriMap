@@ -3,8 +3,9 @@ import { en } from "../i18n/messages.en";
 import { hy } from "../i18n/messages.hy";
 import { LOCALES } from "../i18n/locales";
 import { translate, translatePlural } from "../i18n/translate";
-import { LESSONS } from "../lessons";
+import { LESSONS, LEVELS } from "../lessons";
 import { COUNTRIES } from "./countries";
+import { countryName } from "./names";
 
 describe("translations", () => {
   it("Armenian has exactly the English keys, all non-empty", () => {
@@ -85,5 +86,35 @@ describe("country content", () => {
     }
     // The canal houses are a group of buildings: no invented single location.
     expect(COUNTRIES.NLD.landmark!.coordinates).toBeUndefined();
+  });
+
+  it("gives Level 2's new countries a localized landmark with a map location, shown as text until artwork exists", () => {
+    const expected: Record<string, [string, string, string]> = {
+      CHE: ["Chapel Bridge", "Մատուռի կամուրջ", "Bern"],
+      AUT: ["Schönbrunn Palace", "Շյոնբրունի պալատ", "Vienna"],
+      ITA: ["Colosseum", "Կոլիզեում", "Rome"],
+    };
+    for (const [id, [en, hy, capital]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.capital.name.en).toBe(capital);
+      const landmark = c.landmark!;
+      expect(landmark.name).toEqual({ en, hy });
+      // No other country's artwork stands in for it.
+      expect(landmark.illustration, id).toBeUndefined();
+      expect(landmark.coordinates, id).toBeDefined();
+      expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+    }
+  });
+
+  it("names every country of every level, playable or not, in both languages", () => {
+    for (const level of LEVELS) {
+      expect(level.title.en && level.title.hy && level.description.en && level.description.hy, level.id).toBeTruthy();
+      for (const id of level.countries) for (const locale of LOCALES) expect(countryName(id)[locale], `${level.id} ${id}`).toBeTruthy();
+    }
+    // No player-facing "lesson" wording.
+    for (const level of LEVELS) for (const text of [level.title, level.description]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    for (const value of [...Object.values(en), ...Object.values(hy)]) expect(value).not.toMatch(/lesson|դաս/iu);
   });
 });

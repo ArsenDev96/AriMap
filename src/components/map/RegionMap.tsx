@@ -13,8 +13,8 @@ import type { LessonDefinition } from "@/core/lessons/types";
 import {
   applyTransform,
   fitTransform,
-  getRegionMap,
   projectBounds,
+  regionMapFor,
   viewLimits,
   type Bounds,
   type CountryShape,
@@ -22,7 +22,7 @@ import {
   type RegionMap as RegionMapData,
   type Transform,
 } from "@/geo/regionMap";
-import { routeLine } from "@/geo/route";
+import { routePoints, routeSettings } from "@/geo/route";
 import { useI18n } from "../i18n";
 import { LandTexture, SeaTexture } from "./AtlasSurface";
 import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
@@ -117,7 +117,9 @@ function prefersReducedMotion() {
 
 export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const { t, l, name, countryParams } = useI18n();
-  const map = useMemo(() => getRegionMap(lesson.countries), [lesson.countries]);
+  const map = useMemo(() => regionMapFor(lesson), [lesson]);
+  // Countries named in a callout until zoomed in (Level 1's Luxembourg); none in most levels.
+  const small = useMemo(() => new Set(lesson.map.smallCountries ?? []), [lesson]);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -326,10 +328,10 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   };
 
   // Route line in projected world coordinates, shared by the main map and the inset.
-  const route = useMemo(
-    () => routeLine(view.route, lesson.map.routeCrossings ?? {}).map(map.project),
-    [view.route, lesson.map.routeCrossings, map],
-  );
+  const { route, routeStops } = useMemo(() => {
+    const { points, stops } = routePoints(view.route, routeSettings(lesson));
+    return { route: points.map(map.project), routeStops: stops };
+  }, [view.route, lesson, map]);
 
   const inset = lesson.map.inset;
   const insetBounds = useMemo(() => (inset ? projectBounds(map, inset.bounds) : null), [map, inset]);
@@ -408,6 +410,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       active: lesson.countries,
       view,
       route,
+      routeStops,
+      small,
       transform: base,
       viewport: size,
       textMode: "all",
@@ -417,7 +421,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, lesson.countries, obstacles, wideMap, map, view, route, l, name]);
+  }, [base, size, lesson.map.inset, lesson.countries, obstacles, wideMap, map, view, route, routeStops, small, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -437,9 +441,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const mainLayout = useMemo(
     () =>
       ready
-        ? layoutOverlay({ map, active: lesson.countries, view, route, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
+        ? layoutOverlay({ map, active: lesson.countries, view, route, routeStops, small, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
         : null,
-    [ready, map, lesson.countries, view, route, settledView, size, textMode, obstacles, mainInsetArea, l, name],
+    [ready, map, lesson.countries, view, route, routeStops, small, settledView, size, textMode, obstacles, mainInsetArea, l, name],
   );
   // Wave marks: Discover only, on the main map only.
   const scenery = stage === "discover" && mainLayout !== null;
@@ -460,7 +464,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const sceneryAvoid = (at: Transform) =>
     scenery && mainLayout
       ? [
-          ...sceneryClearance(map, followView(mainLayout, settledView, at), at),
+          ...sceneryClearance(map, small, followView(mainLayout, settledView, at), at),
           ...obstacles.map((o) => ({ x0: o.x0 - 8, y0: o.y0 - 8, x1: o.x1 + 8, y1: o.y1 + 8 })),
         ]
       : [];
@@ -497,7 +501,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 <SeaTexture map={map} />
                 <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                <Relief map={map} tones={view.tones} transform={settledView} viewport={size} />
+                <Relief map={map} level={lesson.id} tones={view.tones} transform={settledView} viewport={size} />
                 {scenery && (
                   <Scenery
                     map={map}
@@ -519,6 +523,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 active={lesson.countries}
                 view={view}
                 route={route}
+                routeStops={routeStops}
+                small={small}
                 transform={settledView}
                 viewport={size}
                 textMode={textMode}
@@ -578,7 +584,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   <SeaTexture map={map} />
                   <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
                   <LandTexture map={map} darkKey={tonedKey} />
-                  <Relief map={map} tones={view.tones} transform={insetTransform} viewport={insetSize} />
+                  <Relief map={map} level={lesson.id} tones={view.tones} transform={insetTransform} viewport={insetSize} />
                   <BorderLayer map={map} active={lesson.countries} />
                   <FlashLayer map={map} flash={flash} />
                 </g>
@@ -587,6 +593,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   active={lesson.countries}
                   view={view}
                   route={route}
+                  routeStops={routeStops}
+                  small={small}
                   transform={insetTransform}
                   viewport={insetSize}
                   textMode={calloutsInInset ? "callouts" : "none"}
@@ -637,7 +645,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              <Relief map={map} tones={copyTones.tones} transform={settledView} viewport={size} />
+              <Relief map={map} level={lesson.id} tones={copyTones.tones} transform={settledView} viewport={size} />
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}
@@ -1101,6 +1109,10 @@ interface LayoutInput {
   view: MapView;
   /** Route line in projected world coordinates. */
   route: Point[];
+  /** Index in `route` of each country's capital (see routePoints). */
+  routeStops: number[];
+  /** Countries named in a callout until zooming makes them large enough (the level's `smallCountries`). */
+  small: ReadonlySet<CountryId>;
   transform: Transform;
   viewport: { width: number; height: number };
   /**
@@ -1138,7 +1150,7 @@ interface OverlayLayout {
  * measuring, so the map can also ask how the base view would look (see
  * RegionMap: a crowded Luxembourg label moves into the close-up).
  */
-function layoutOverlay({ map, active, view, route: routeWorld, transform, viewport, textMode, obstacles, insetArea, l, name }: LayoutInput): OverlayLayout {
+function layoutOverlay({ map, active, view, route: routeWorld, small, transform, viewport, textMode, obstacles, insetArea, l, name }: LayoutInput): OverlayLayout {
   const showText = textMode === "all" || textMode === "noCallouts";
   const toScreen = (p: Point) => applyTransform(transform, p);
   const toWorld = ([x, y]: Point): Point => [(x - transform.x) / transform.k, (y - transform.y) / transform.k];
@@ -1208,7 +1220,7 @@ function layoutOverlay({ map, active, view, route: routeWorld, transform, viewpo
 
   const explored = new Set(view.explored);
   const labels: Label[] = (textMode === "none" ? [] : view.labels)
-    .filter((id) => (textMode === "callouts" ? getCountry(id).label.small : textMode === "noCallouts" ? !getCountry(id).label.small : true))
+    .filter((id) => (textMode === "callouts" ? small.has(id) : textMode === "noCallouts" ? !small.has(id) : true))
     .map((id) => {
       const c = getCountry(id);
       const text = name(id);
@@ -1276,7 +1288,7 @@ function layoutOverlay({ map, active, view, route: routeWorld, transform, viewpo
   const labelAvoid = [...obstacles, ...markerPoints];
   const leaderZones: Box[] = [];
   for (const label of labels) {
-    if (!getCountry(label.id).label.small) continue;
+    if (!small.has(label.id)) continue;
     const [[x0, y0], [x1, y1]] = shapeById(label.id).bounds;
     const sw = (x1 - x0) * transform.k;
     const sh = (y1 - y0) * transform.k;
@@ -1499,7 +1511,7 @@ const SCENERY_CLEARANCE = { text: 6, marker: 4, small: 12 };
  * leader line and marker, and small countries (Luxembourg) with a margin.
  * Scenery gives way; names never move for it.
  */
-function sceneryClearance(map: RegionMapData, layout: OverlayLayout, transform: Transform): Box[] {
+function sceneryClearance(map: RegionMapData, small: ReadonlySet<CountryId>, layout: OverlayLayout, transform: Transform): Box[] {
   const pad = (b: Box, p: number): Box => ({ x0: b.x0 - p, y0: b.y0 - p, x1: b.x1 + p, y1: b.y1 + p });
   const boxes: Box[] = [];
   for (const label of layout.labels) {
@@ -1510,7 +1522,7 @@ function sceneryClearance(map: RegionMapData, layout: OverlayLayout, transform: 
       const [ex, ey] = nearestOn(label.callout, label.anchor);
       boxes.push(pad({ x0: Math.min(ax, ex), y0: Math.min(ay, ey), x1: Math.max(ax, ex), y1: Math.max(ay, ey) }, SCENERY_CLEARANCE.marker + 2));
     }
-    if (getCountry(label.id).label.small) {
+    if (small.has(label.id)) {
       const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === label.id)!.bounds;
       boxes.push(pad({ x0: x0 * transform.k + transform.x, y0: y0 * transform.k + transform.y, x1: x1 * transform.k + transform.x, y1: y1 * transform.k + transform.y }, SCENERY_CLEARANCE.small));
     }
@@ -1713,11 +1725,13 @@ function Overlay({ motion, layout: given, ...input }: OverlayProps) {
   const { view } = input;
   const { route, labels, labelFont, markerFont, calloutHeight, badge } = layout;
 
-  // The newest move (capital → border crossing → capital) is drawn separately and revealed along its path.
-  const growing = motion?.grewFrom != null && route.length >= 2 * motion.grewFrom + 3;
-  const split = growing ? 2 * (motion?.grewFrom as number) : route.length - 1;
+  // The newest move (capital → border crossing → capital, with any turning points) is drawn separately and revealed along its path.
+  const { routeStops } = input;
+  const from = motion?.grewFrom;
+  const growing = from != null && routeStops[from + 1] !== undefined && route.length > routeStops[from + 1];
+  const split = growing ? routeStops[from] : route.length - 1;
   const settled = route.slice(0, split + 1);
-  const fresh = growing ? route.slice(split, split + 3) : [];
+  const fresh = growing ? route.slice(split, routeStops[from + 1] + 1) : [];
   const points = (pts: Point[]) => pts.map((p) => p.join(",")).join(" ");
 
   return (

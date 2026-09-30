@@ -2,9 +2,19 @@
 
 *Discover the world.* · *Բացահայտիր աշխարհը*
 
-A mobile-first geography learning game. This is the first playable prototype: one lesson (France, Belgium, the Netherlands, Luxembourg and Germany) in English and Eastern Armenian.
+A mobile-first geography learning game in English and Eastern Armenian, with five levels of five countries each:
 
-**Flow:** Welcome → Discover → Find (five questions, one per country) → Travel → Results. Home (in the lesson header) returns to Welcome at any point with progress kept; Continue there resumes exactly where the player left, and Start over (after a confirmation) goes back to Discover.
+| # | Level | Countries | State |
+|---|---|---|---|
+| 1 | France and its neighbours | France, Belgium, Netherlands, Luxembourg, Germany | Playable |
+| 2 | Around the Alps | France, Switzerland, Germany, Austria, Italy | Playable, unlocked by completing Level 1 |
+| 3 | Central Europe | Germany, Poland, Czechia, Slovakia, Austria | Coming soon (metadata only) |
+| 4 | Along the Adriatic | Italy, Slovenia, Croatia, Bosnia and Herzegovina, Montenegro | Coming soon (metadata only) |
+| 5 | Towards Greece | Hungary, Romania, Serbia, Bulgaria, Greece | Coming soon (metadata only) |
+
+**Flow:** Level selection → Discover → Find (five questions, one per country) → Travel → Results. Each level card shows its number, name, countries and status in words (Ready to play, In progress: *step*, Completed, Locked, Coming soon) as well as colour and an icon. Locked and coming-soon cards have no buttons. A playable card offers Start, or Continue and Start over (Play again once completed). Start and Continue open the level at once; Start over, and Play again whenever it would clear a saved place (the last Results or a replay under way), ask first, naming the level. Cancelling changes nothing, and confirming changes only that level's place, never its completion, the levels it unlocked or any other level. The main action at the bottom continues the most recently active unfinished level, or starts the next level not yet started. Home (in the level header) returns to the level selection with progress kept.
+
+**Returning players** (any level started): the introduction gives way to the levels. AriMap, the tagline and the language switch share one row, and the artwork is a slim ribbon, left out on screens under 700 px high. The card the main action opens is ringed and marked "Up next". Completed levels are one line (number, status, name) that opens to show their details, Continue and Play again. The five levels stay in numerical order. With enlarged text, the main action shows only the level's number, so the levels keep room to scroll.
 
 ## Run it
 
@@ -46,14 +56,16 @@ Lesson content, translations, game rules and progress logic are plain TypeScript
 ```
 src/core/                  framework-independent
   i18n/                    locales, EN + HY message catalogs, translate()
-  content/                 country data (names, in-sentence forms, capitals, hints, landmarks)
-  lessons/                 lesson definitions (countries, border graph, mission, inset)
+  content/                 country data (names, in-sentence forms, capitals, hints, landmarks);
+                           names.ts: names only, for the countries of levels not playable yet
+  lessons/                 levels.ts (the five levels: ids, names, countries, unlocks) and each playable
+                           level's definition (border graph, mission, map settings: coverage, close-up, route)
   game/graph.ts            border graph validation + BFS shortest paths
   game/find.ts             Find rules: question order, guesses, hints, assisted vs independent
   game/travel.ts           Travel rules: BFS budget, moves, undo, restart, hint
   lesson/progress.ts       lesson state machine (reducer) and achievements
   lesson/mapView.ts        what the map may show per stage (tones, labels, markers, route)
-  progress/appState.ts     app reducer (language, screen, lessons)
+  progress/appState.ts     app reducer (language, screen, levels), level status, unlocks, main action
   progress/storage.ts      versioned save format, defensive parsing, storage adapter
 src/geo/regionMap.ts       d3-geo projection, projected shapes, fit transforms, view limits
 src/geo/route.ts           Travel route line through shared-border crossings
@@ -67,13 +79,24 @@ src/assets/landmarks/      landmark display copies (see docs/CONTENT.md)
 e2e/                       Playwright end-to-end tests
 ```
 
-To add a lesson, add country entries to `src/core/content/countries.ts` and a `LessonDefinition` in `src/core/lessons/`, then register it in `src/core/lessons/index.ts`. The test in `src/geo/regionMap.test.ts` checks every lesson's border graph against the map data.
+To make a coming-soon level playable: add its countries' content to `src/core/content/countries.ts` (and remove them from `names.ts`), write a `LessonDefinition` (see `src/core/lessons/alps.ts`) and set it as the level's `lesson` in `src/core/lessons/levels.ts`. Then add the level to `LEVEL_AREAS` in `scripts/generate-relief.mjs` and rerun it. The tests check the new level's border graph against the map data, its route crossings, its coverage against the prepared data, and that the relief covers it; the level stays "Coming soon" until `lesson` is set. Levels 3–5 will also need a larger map-data clip box (Levels 4–5 reach Greece and the Black Sea), and possibly a projection of their own (see docs/DATA.md, "Levels 3–5").
 
 ## Saved progress
 
-Progress is saved in `localStorage` under `arimap:state` (version 1). The saved state includes the language, the current screen and activity, the Find session with hint and attempt state, the in-progress journey with its assistance flags, and completion records. On load, the data is validated. Budgets, statuses and "independent" flags are recomputed from game rules rather than trusted. Malformed parts are dropped, and an unknown version keeps only the language.
+Progress is saved in `localStorage` under `arimap:state`, version 2:
 
-"Start over" discards the lesson's current place (Discover selection, Find session, journey) but keeps the completion records, so completed steps stay ticked on Welcome.
+- the language;
+- the screen, and the level being played or last played (`levelId`, kept by Home);
+- `recent`: the levels in the order they were last active, which chooses what the main Continue opens;
+- `levels`: each level's own progress, by its stable id. This is the Discover selection and explored countries, the Find session with hints and attempts, the journey with its assistance flags, the last result, and completion records.
+
+On load everything is validated, level by level: budgets, statuses and "independent" flags are recomputed from game rules rather than trusted, and malformed parts are dropped without touching other levels. A level opens only if it is playable and unlocked. Level 2 unlocks once Level 1's journey has been finished (`records.travelDone`); records are never cleared, so starting over or replaying never locks it again.
+
+"Start over" (or "Play again" for a completed level) discards that level's current place (Discover selection, Find session, journey) but keeps its completion records. It asks first and changes no other level. "Replay journey" changes only that level's Travel.
+
+### Saves from before there were levels (version 1)
+
+A version 1 save held one level: `lessonId` and `lessons["western-europe-1"]`. It is read as Level 1's progress, which it always was. Level 1 keeps the id `western-europe-1`. The player resumes at the same place and stage, in the same language. A completed old save shows Level 1 as completed and Level 2 unlocked. Before the first save in the new format replaces it, the old save is copied to `arimap:state:backup`. A save from an unknown (newer) version keeps only the language, and is also copied there, so it is never silently lost.
 
 ### Saves from the two-round Find
 
@@ -93,5 +116,5 @@ Old Find scores were out of ten. A score is now always out of the lesson's five 
 - Map: Natural Earth 1:10m Admin 0 Countries v5.1.1 (public domain). See [docs/DATA.md](docs/DATA.md).
 - Relief: Terrain Tiles by Mapzen, from the Registry of Open Data on AWS. SRTM and GMTED2010 terrain data courtesy of the U.S. Geological Survey. Global ETOPO1 terrain data U.S. National Oceanic and Atmospheric Administration. These credits are also shown in the app ("About the map"). See [docs/TERRAIN.md](docs/TERRAIN.md).
 - Forests: © ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium (CC BY 4.0; Zanaga et al., 2022, ESA WorldCover 10 m 2021 v200, doi:10.5281/zenodo.7254221). Also shown in "About the map".
-- Landmark illustrations: five **AI-generated stylised illustrations** (not photographs). The originals are in `public/images/landmarks/`; trimmed display copies made by `scripts/prepare-landmarks.mjs` are in `src/assets/landmarks/`. Provenance, image mapping, and sources for landmark facts and locations are in [docs/CONTENT.md](docs/CONTENT.md). The player interface shows no provenance notice.
+- Landmark illustrations: five **AI-generated stylised illustrations** (not photographs). The originals are in `public/images/landmarks/`; trimmed display copies made by `scripts/prepare-landmarks.mjs` are in `src/assets/landmarks/`. Provenance, image mapping, and sources for landmark facts and locations are in [docs/CONTENT.md](docs/CONTENT.md). The player interface shows no provenance notice. Level 2's three new landmarks (Chapel Bridge, Schönbrunn Palace, Colosseum) have no illustration yet and are shown as text; briefs for the missing artwork are in docs/CONTENT.md.
 - Fonts: Nunito (Latin) and Noto Sans Armenian, self-hosted at build time via `next/font` (both SIL Open Font License).

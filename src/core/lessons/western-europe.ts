@@ -1,11 +1,8 @@
 import type { LessonDefinition } from "./types";
 
 export const westernEuropeLesson: LessonDefinition = {
+  // Level 1's id from before there were several levels: saved progress is keyed by it.
   id: "western-europe-1",
-  title: {
-    en: "France and its neighbours",
-    hy: "Ֆրանսիան և իր հարևանները",
-  },
   regionName: {
     en: "Western Europe",
     hy: "Արևմտյան Եվրոպա",
@@ -22,6 +19,8 @@ export const westernEuropeLesson: LessonDefinition = {
   },
   travel: { mission: { id: "fra-to-nld", from: "FRA", to: "NLD" } },
   map: {
+    // Luxembourg is named in a callout, and shown in the close-up.
+    smallCountries: ["LUX"],
     inset: {
       bounds: [
         [4.9, 49.05],

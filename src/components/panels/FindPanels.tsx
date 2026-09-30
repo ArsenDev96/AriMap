@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { getCountry } from "@/core/content/countries";
+import { countryHint, getCountry } from "@/core/content/countries";
 import { isLastAnswered } from "@/core/game/find";
 import type { MessageKey } from "@/core/i18n/translate";
 import { useI18n } from "../i18n";
@@ -10,7 +10,7 @@ import styles from "../LessonScreen.module.css";
 
 const HINT_BUTTON: Record<number, MessageKey> = { 0: "find.hint", 1: "find.hintMore", 2: "find.hintReveal" };
 
-export function FindPanel({ progress, act }: PanelProps) {
+export function FindPanel({ lesson, progress, act }: PanelProps) {
   const { t, l, countryParams } = useI18n();
   const nextRef = useRef<HTMLButtonElement>(null);
   const session = progress.find;
@@ -93,7 +93,7 @@ export function FindPanel({ progress, act }: PanelProps) {
           </li>
           {question.hintLevel >= 2 && (
             <li>
-              {l(target.hint)} {question.hintLevel === 2 && t("find.hintArea")}
+              {l(countryHint(lesson, target.id))} {question.hintLevel === 2 && t("find.hintArea")}
             </li>
           )}
           {question.hintLevel >= 3 && <li>{t("find.hintRevealed")}</li>}

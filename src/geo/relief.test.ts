@@ -3,66 +3,98 @@ import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import relief from "@/assets/map/relief.json";
 import type { LonLat } from "@/core/content/types";
-import { getRegionMap, viewLimits } from "./regionMap";
+import { LESSONS } from "@/core/lessons";
+import { regionMapFor, viewLimits, type RegionMap } from "./regionMap";
 import { FORESTS, MOUNTAIN_RANGES } from "./terrain";
 
-const LESSON = ["FRA", "BEL", "NLD", "LUX", "DEU"];
-const map = getRegionMap(LESSON);
+type Overview = (typeof relief.overviews)["western-europe-1"];
+const overviews = relief.overviews as Record<string, Overview | undefined>;
+const lessons = Object.values(LESSONS);
+
+/** Strongest relief opacity (0–255) within `r` pixels of a point, in a level's land overview. */
+async function alphaSampler(levelId: string, map: RegionMap) {
+  const { data, info } = await sharp(`src/assets/map/relief/${levelId}-land.webp`).raw().toBuffer({ resolveWithObject: true });
+  const o = overviews[levelId]!.land;
+  return (p: LonLat, r = 2) => {
+    const [x, y] = map.project(p);
+    const [i, j] = [Math.floor(x - o.x), Math.floor(y - o.y)];
+    let m = 0;
+    for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) m = Math.max(m, data[((j + dj) * info.width + i + di) * info.channels + 3]);
+    return m;
+  };
+}
 
 describe("painted relief", () => {
-  it("was generated with the map's own projection", () => {
-    for (const { lonLat, world } of relief.check) {
-      const [x, y] = map.project(lonLat as unknown as LonLat);
-      expect(Math.abs(x - world[0]), String(lonLat)).toBeLessThan(0.01);
-      expect(Math.abs(y - world[1]), String(lonLat)).toBeLessThan(0.01);
+  it("was generated with the map's own projection (shared by every level)", () => {
+    for (const lesson of lessons) {
+      const map = regionMapFor(lesson);
+      for (const { lonLat, world } of relief.check) {
+        const [x, y] = map.project(lonLat as unknown as LonLat);
+        expect(Math.abs(x - world[0]), `${lesson.id} ${lonLat}`).toBeLessThan(0.01);
+        expect(Math.abs(y - world[1]), `${lesson.id} ${lonLat}`).toBeLessThan(0.01);
+      }
     }
   });
 
-  it("covers everything the map can show, and every country that can take a state colour", () => {
-    const { land, tone } = relief.overview;
-    const [[c0x, c0y], [c1x, c1y]] = map.coverage;
-    expect(land.x).toBeLessThanOrEqual(c0x);
-    expect(land.y).toBeLessThanOrEqual(c0y);
-    expect(land.x + land.width).toBeGreaterThanOrEqual(c1x - 1);
-    expect(land.y + land.height).toBeGreaterThanOrEqual(c1y - 1);
-    for (const id of LESSON) {
-      const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === id)!.bounds;
-      expect(x0, id).toBeGreaterThanOrEqual(tone.x);
-      expect(y0, id).toBeGreaterThanOrEqual(tone.y);
-      expect(x1, id).toBeLessThanOrEqual(tone.x + tone.width);
-      expect(y1, id).toBeLessThanOrEqual(tone.y + tone.height);
-    }
-  });
+  for (const lesson of lessons) {
+    it(`${lesson.id}: its overview covers everything its map can show, and every country that can take a state colour`, () => {
+      const map = regionMapFor(lesson);
+      const o = overviews[lesson.id];
+      expect(o, "overview in relief.json").toBeDefined();
+      expect(existsSync(`src/assets/map/relief/${lesson.id}-land.webp`)).toBe(true);
+      expect(existsSync(`src/assets/map/relief/${lesson.id}-tone.webp`)).toBe(true);
+      const { land, tone } = o!;
+      const [[c0x, c0y], [c1x, c1y]] = map.coverage;
+      expect(land.x).toBeLessThanOrEqual(c0x);
+      expect(land.y).toBeLessThanOrEqual(c0y);
+      expect(land.x + land.width).toBeGreaterThanOrEqual(c1x - 1);
+      expect(land.y + land.height).toBeGreaterThanOrEqual(c1y - 1);
+      for (const id of lesson.countries) {
+        const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === id)!.bounds;
+        expect(x0, id).toBeGreaterThanOrEqual(tone.x);
+        expect(y0, id).toBeGreaterThanOrEqual(tone.y);
+        expect(x1, id).toBeLessThanOrEqual(tone.x + tone.width);
+        expect(y1, id).toBeLessThanOrEqual(tone.y + tone.height);
+      }
+    });
 
-  it("has zoomed tiles only where the map can be zoomed and panned, and every listed tile exists", () => {
-    const [[e0x, e0y], [e1x, e1y]] = viewLimits(map, 390, 400, 16).translateExtent;
+    it(`${lesson.id}: zoomed tiles cover everywhere its map can be zoomed and panned to`, () => {
+      const [[e0x, e0y], [e1x, e1y]] = viewLimits(regionMapFor(lesson), 390, 400, 16).translateExtent;
+      for (const level of relief.levels) {
+        expect(level.origin[0]).toBeLessThanOrEqual(e0x);
+        expect(level.origin[1]).toBeLessThanOrEqual(e0y);
+        expect(level.origin[0] + level.cols * level.tileWorld).toBeGreaterThanOrEqual(e1x);
+        expect(level.origin[1] + level.rows * level.tileWorld).toBeGreaterThanOrEqual(e1y);
+      }
+    });
+  }
+
+  it("has one tile grid for all levels, no larger than their pan areas need, and every listed tile exists", () => {
+    const extents = lessons.map((lesson) => viewLimits(regionMapFor(lesson), 390, 400, 16).translateExtent);
+    const x1 = Math.max(...extents.map((e) => e[1][0]));
+    const y1 = Math.max(...extents.map((e) => e[1][1]));
     let previous = 0;
     for (const level of relief.levels) {
       expect(level.minDensity).toBeGreaterThan(previous);
       previous = level.minDensity;
-      // The tile grid spans the pan area, and not much more.
-      expect(level.origin[0]).toBeLessThanOrEqual(e0x);
-      expect(level.origin[1]).toBeLessThanOrEqual(e0y);
-      expect(level.origin[0] + level.cols * level.tileWorld).toBeGreaterThanOrEqual(e1x);
-      expect(level.origin[1] + level.rows * level.tileWorld).toBeGreaterThanOrEqual(e1y);
-      expect(level.origin[0] + (level.cols - 1) * level.tileWorld).toBeLessThan(e1x);
-      expect(level.origin[1] + (level.rows - 1) * level.tileWorld).toBeLessThan(e1y);
+      // Anchored where Level 1's grid began, so its tiles keep their pixels as levels are added.
+      expect(Math.abs((level.origin[0] + 216) % level.tileWorld)).toBe(0);
+      expect(Math.abs((level.origin[1] + 250) % level.tileWorld)).toBe(0);
+      expect(level.origin[0] + (level.cols - 1) * level.tileWorld).toBeLessThan(x1);
+      expect(level.origin[1] + (level.rows - 1) * level.tileWorld).toBeLessThan(y1);
       for (const family of ["land", "tone"] as const)
         for (const tile of level[family]) expect(existsSync(`public/relief/${relief.version}/${level.name}/${family}/${tile}.webp`), `${level.name} ${family} ${tile}`).toBe(true);
     }
   });
 
-  it("shows mountains and upland ranges where they are, and leaves open lowlands flat", async () => {
-    const { data, info } = await sharp("src/assets/map/relief/overview-land.webp").raw().toBuffer({ resolveWithObject: true });
-    const o = relief.overview.land;
-    /** Strongest relief opacity (0–255) within a few km of a point. */
-    const alphaNear = (p: LonLat, r = 2) => {
-      const [x, y] = map.project(p);
-      const [i, j] = [Math.floor(x - o.x), Math.floor(y - o.y)];
-      let m = 0;
-      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) m = Math.max(m, data[((j + dj) * info.width + i + di) * info.channels + 3]);
-      return m;
-    };
+  it("uses only elevation sources the credits name (SRTM, GMTED2010, ETOPO1)", () => {
+    const sources = Object.keys(relief.elevationSources);
+    expect(sources.length).toBeGreaterThan(0);
+    for (const source of sources) expect(["srtm", "gmted", "etopo1"], source).toContain(source);
+  });
+
+  it("Level 1: shows mountains and upland ranges where they are, and leaves open lowlands flat", async () => {
+    const alphaNear = await alphaSampler("western-europe-1", regionMapFor(LESSONS["western-europe-1"]));
     // Every named range (independent crest data through real summits, see terrain.ts) is visible along its crest.
     for (const range of MOUNTAIN_RANGES) {
       const strongest = Math.max(...range.crests.flat().map((p) => alphaNear(p)));
@@ -83,21 +115,44 @@ describe("painted relief", () => {
     expect(alphaNear([-3.7, 40.42], 3), "Madrid").toBeLessThanOrEqual(40);
   });
 
-  it("paints forests where WorldCover has tree cover, not on open farmland", async () => {
-    const { data, info } = await sharp("src/assets/map/relief/overview-land.webp").raw().toBuffer({ resolveWithObject: true });
-    const o = relief.overview.land;
-    const alphaNear = (p: LonLat, r: number) => {
-      const [x, y] = map.project(p);
-      const [i, j] = [Math.floor(x - o.x), Math.floor(y - o.y)];
-      let m = 0;
-      for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) m = Math.max(m, data[((j + dj) * info.width + i + di) * info.channels + 3]);
-      return m;
-    };
+  it("Level 1: paints forests where WorldCover has tree cover, not on open farmland", async () => {
+    const alphaNear = await alphaSampler("western-europe-1", regionMapFor(LESSONS["western-europe-1"]));
     // Named forests (independent reference points: the Wikipedia articles'
     // coordinates), including lowland ones where only forest can paint the land.
     for (const f of FORESTS) expect(alphaNear(f.center, 2), f.id).toBeGreaterThanOrEqual(40);
     // Large open farmland with no woods: nothing painted.
     for (const p of [[1.6, 48.3], [4.2, 48.9], [5.6, 52.5], [11.6, 52.0]] as LonLat[]) expect(alphaNear(p, 0), String(p)).toBeLessThanOrEqual(10);
   });
-});
 
+  // Level 2 reaches south to Sicily and east to Vienna. Reference points: the
+  // Wikipedia articles' coordinates (checked 2026-09-30; see docs/TERRAIN.md).
+  it("Level 2: shows the Alps, the Apennines and Etna, and forests from Vienna to Calabria; open farmland stays bare", async () => {
+    const alphaNear = await alphaSampler("around-the-alps", regionMapFor(LESSONS["around-the-alps"]));
+    const summits: Record<string, [LonLat, number]> = {
+      "Gran Paradiso": [[7.27, 45.514], 200],
+      Finsteraarhorn: [[8.126, 46.537], 200],
+      Grossglockner: [[12.695, 47.075], 200],
+      Dachstein: [[13.606, 47.475], 150],
+      Säntis: [[9.343, 47.249], 150],
+      "Monte Cimone": [[10.701, 44.194], 45],
+      "Corno Grande": [[13.566, 42.469], 45],
+      "Mount Etna": [[14.995, 37.755], 45],
+    };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    for (const range of MOUNTAIN_RANGES.filter((r) => ["alps", "apennines", "jura", "black-forest"].includes(r.id))) {
+      expect(Math.max(...range.crests.flat().map((p) => alphaNear(p))), range.id).toBeGreaterThanOrEqual(range.id === "alps" ? 200 : 45);
+    }
+    const forests: Record<string, LonLat> = {
+      "Vienna Woods": [16.0, 48.167],
+      Sila: [16.5, 39.367],
+      "Foresta Umbra": [16.012, 41.821],
+      "Casentino Forests": [11.779, 43.868],
+      "Black Forest": [8.05, 48.25],
+    };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    // Rice fields of the Lomellina (Po valley) and the Marchfeld east of Vienna: open, flat farmland.
+    for (const [name, p] of Object.entries({ Lomellina: [8.66, 45.28], Marchfeld: [16.64, 48.23] } as Record<string, LonLat>)) {
+      expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+    }
+  });
+});

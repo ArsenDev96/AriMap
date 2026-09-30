@@ -22,12 +22,25 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
 };
 
 /** Landmark illustration, name and fact. The same component serves every country.
- *  On phones its parts are laid out by the country card's grid (display: contents). */
+ *  On phones its parts are laid out by the country card's grid (display: contents).
+ *  A landmark without an illustration yet is shown as text: the map's landmark
+ *  mark beside its name and fact, across the card (no empty picture frame). */
 export function LandmarkCard({ landmark }: { landmark: Landmark }) {
   const { t, l } = useI18n();
   const image = landmark.illustration ? LANDMARK_IMAGES[landmark.illustration] : undefined;
   return (
-    <figure className={styles.landmark} data-testid="landmark-card" data-landmark={landmark.id}>
+    <figure
+      className={`${styles.landmark} ${image ? "" : styles.textOnly}`}
+      data-testid="landmark-card"
+      data-landmark={landmark.id}
+      data-art={image ? "illustration" : "none"}
+    >
+      {!image && (
+        // The amber diamond of the map's landmark pin.
+        <svg className={styles.mark} width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
+          <rect x="8" y="8" width="14" height="14" rx="2.5" transform="rotate(45 15 15)" fill="var(--amber)" stroke="var(--ink)" strokeWidth="2" />
+        </svg>
+      )}
       {image && (
         <div className={styles.stage}>
           <div className={styles.frame}>

@@ -1,6 +1,6 @@
 "use client";
 
-import { getCountry } from "@/core/content/countries";
+import { countryHint, getCountry } from "@/core/content/countries";
 import { startFindingAction } from "@/core/progress/appState";
 import { useI18n } from "../i18n";
 import { LandmarkCard } from "../landmarks/LandmarkCard";
@@ -53,7 +53,7 @@ export function DiscoverPanel({ lesson, progress, act }: PanelProps) {
               </p>
             </div>
             {country.landmark && <LandmarkCard landmark={country.landmark} />}
-            <p className={`${styles.muted} ${styles.countryHint}`}>{l(country.hint)}</p>
+            <p className={`${styles.muted} ${styles.countryHint}`}>{l(countryHint(lesson, country.id))}</p>
           </article>
         ) : (
           <p className={styles.placeholder}>{t("discover.empty")}</p>

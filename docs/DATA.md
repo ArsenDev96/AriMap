@@ -36,25 +36,37 @@ npm run prepare:geo -- path/to/ne_10m_admin_0_countries.shp
 - Shared TopoJSON arcs (`topojson.neighbors`) give exactly the lesson border graph among the five active countries:
   France: Belgium, Luxembourg, Germany · Belgium: France, Netherlands, Luxembourg, Germany · Netherlands: Belgium, Germany · Luxembourg: France, Belgium, Germany · Germany: France, Belgium, Netherlands, Luxembourg.
   This matches the real land borders. The game graph deliberately leaves out borders with countries outside the practice region, such as France–Switzerland or Germany–Poland.
+- The same for Level 2 (Around the Alps): France: Switzerland, Germany, Italy · Switzerland: France, Germany, Austria, Italy · Germany: France, Switzerland, Austria · Austria: Switzerland, Germany, Italy · Italy: France, Switzerland, Austria. Germany–Italy and France–Austria do not meet. Borders with Liechtenstein, Slovenia and others are left out. France → Austria takes two crossings, by three equally short routes (through Switzerland, Germany or Italy), and all three are accepted.
+- Levels 3–5 are not playable yet, but their proposed groups are checked too: every country is in the data, and each group is connected by shared boundaries, with at least one pair two or more crossings apart. Central Europe is dense (Germany–Slovakia and Poland–Austria need two crossings). Along the Adriatic is a chain: Italy's only neighbour in the group is Slovenia, and Italy–Montenegro takes three. Towards Greece: Greece's only neighbour in the group is Bulgaria, and Hungary–Greece takes three.
+- The Level 2 border arcs are at full detail (2.2–3.0 km per vertex, as for Level 1's borders), including those with neighbours drawn at 1.5 km elsewhere (Austria–Hungary, Austria–Slovenia, Italy–Slovenia).
 - Every capital and landmark coordinate lies inside its country's polygon (`d3.geoContains`).
 - France's projected bounds lie inside the regional focus area, so no overseas geometry remains.
 
+## One projection for every level
+
+Every level is drawn in the same projected "world" coordinates: `d3.geoAzimuthalEqualArea`, rotated to 8°E 50°N and fitted to Level 1's countries (`PROJECTION_FIT` in `src/geo/regionMap.ts`). The painted landscape is rendered in these coordinates (see TERRAIN.md), so it lines up with every level's map, and Level 1 looks exactly as before. A level only chooses which countries are the focus (the initial view and pan limits) and its coverage. Level 2 lies within about 12° of the projection's centre, so its shapes are barely distorted: Italy's heel turns by about 7°.
+
 ## Coverage and view limits
 
-`src/geo/regionMap.ts` defines a projected **coverage rectangle** centred on the lesson countries (±1150 × ±900 world units, with the lesson fitted to 1000). Every point of it lies inside the clip box, which `regionMap.test.ts` checks along its whole outline. `MAP_DATA_CLIP` in the same file must match `BBOX` in the script. A test checks it against the data's extent.
+`src/geo/regionMap.ts` defines a projected **coverage rectangle** centred on each level's countries. For Level 1 it is ±1150 × ±900 world units (the default), with Level 1 fitted to 1000. Level 2's countries span 1221 × 1420 units (Lampedusa to the Baltic coast). The prepared data allows at most about ±1100 × ±845 around them, so its coverage is ±1090 × ±840 (`map.coverageHalf` in `src/core/lessons/alps.ts`). Every point of it lies inside the clip box, which `regionMap.test.ts` checks along its whole outline for every playable level. `MAP_DATA_CLIP` in the same file must match `BBOX` in the script. A test checks it against the data's extent.
 
 `viewLimits()` derives the zoom/pan limits from it:
 
-- **Initial view and "show the whole map"**: the lesson countries fitted with padding, centred. If the map is so wide or tall that this would show beyond the coverage (aspect ratio outside about 1:1.9…2.2:1, e.g. a phone in landscape), it zooms in just enough to stay inside instead.
+- **Initial view and "show the whole map"**: the level's countries fitted with padding, centred. If the map is so wide or tall that this would show beyond the coverage, it zooms in just enough to stay inside instead. For Level 1 that happens beyond about 1:1.9 to 2.2:1 (e.g. a phone in landscape). Level 2 still shows all five countries whole on maps from about 1:1.37 (tall) to 1.53:1 (wide). Measured with `viewLimits`' rule, that covers phones in portrait, tablets in landscape, and desktops up to 1920×1080 and 2560×1440, which get slightly less padding. A tablet in portrait (a 1.6:1 map) shows 96% of the height, so Lampedusa or the Baltic coast is just outside the view until the player pans. An ultra-wide 2.15:1 map shows 71%.
 - **Minimum zoom** equals that initial view, so zooming out can never reveal the data edge.
-- **Panning** (when zoomed in) is limited to the lesson area plus 25% on each side, clamped to the coverage.
+- **Panning** (when zoomed in) is limited to the level's area plus 25% on each side, clamped to the coverage.
 
-Tests check that the base view and pan limits stay inside the coverage for phone, tablet, desktop and ultra-wide sizes.
+Tests check that the base view and pan limits stay inside the coverage for phone, tablet, desktop and ultra-wide sizes, and that typical phone and desktop maps (304×294 to 1464×1000) show every country of each level whole.
+
+### Levels 3–5
+
+They are not playable yet, and no data was prepared for them. Level 3 (Central Europe) lies inside the current clip box. Levels 4 and 5 reach the southern Balkans and Greece (to about 29.6°E with Rhodes and Kastellorizo). Their coverage would need the clip box extended east and south (Turkey, the Black Sea, Crete), which means rerunning `scripts/prepare-geo.mjs` with a larger `BBOX`. Greece is about 20° from the projection's centre, so Levels 4–5 may also want a projection centred on them, with their own relief.
 
 ## Rendering
 
-- Projection: `d3.geoAzimuthalEqualArea`, rotated to 8°E 50°N and fitted to the five active countries (`src/geo/regionMap.ts`).
+- Projection: `d3.geoAzimuthalEqualArea`, rotated to 8°E 50°N and fitted to Level 1's five countries, for every level (`src/geo/regionMap.ts`, see *One projection for every level*).
 - Shapes, labels, capital markers, landmark pins, the route line and the hint circle all use this same projection. They are placed with the same `d3-zoom` transform; the inset reuses the same projected paths with a fixed magnifying transform.
+- **Small countries and the close-up are set per level** (`map.smallCountries`, `map.inset`). Level 1 names Luxembourg in a callout and has the close-up described below. Level 2 has neither: Switzerland and Austria are large enough to tap at the whole-map view, and it inherits no inset, caption or Luxembourg rule. (On a 320px map Switzerland's name gets the general "no room inside its country" callout, as Belgium's does in Level 1.)
 - Luxembourg is never enlarged. It is made selectable through zoom (pinch, wheel or +/−) and through the magnified inset, which uses the true geometry, so taps resolve to the correct country. There are no invisible hit areas.
 - The area shown in the inset is outlined (dashed) on the main map while the inset is open, and the inset's caption ("Close-up" / «Խոշորացում») carries the same dashed key. The caption never names a country. The inset's accessible label names Luxembourg only while its name is already visible on the map, so the Find answer and hidden Travel countries are never revealed.
 - The inset is at least 112px wide (100px on maps narrower than 420px), and shrinks further when needed to fit on short maps. On wide maps (600×420px and up) it sits top-left and starts open. On smaller maps it sits bottom-left, opposite the zoom controls, and opens upwards over western France, which keeps the crowded Low Countries clear.
@@ -79,7 +91,7 @@ Map feedback (`src/components/map/RegionMap.tsx`), played only for changes made 
 - **Find:** a correct answer briefly outlines the country in teal and a wrong one in coral. The outline fades out over the unchanged border, and nothing moves or shakes.
 - **Reduced motion:** every one of these shows its final state immediately. None of them delays input or advances the lesson.
 
-The crossing for each lesson border is stored in the lesson definition (`map.routeCrossings` in `src/core/lessons/western-europe.ts`). Each is a vertex of the two countries' shared border in the prepared TopoJSON: the vertex nearest the middle of the longest shared border line (by length) from which straight lines to both capitals stay inside their own country.
+The crossing for each border is stored in the level's definition (`map.routeCrossings` in `src/core/lessons/western-europe.ts` and `alps.ts`). Each is a vertex of the two countries' shared border in the prepared TopoJSON: the vertex nearest the middle of the longest shared border line (by length) from which straight lines to both capitals stay inside their own country.
 
 | Border | Crossing (lon, lat) | Distance from border middle |
 |---|---|---|
@@ -106,6 +118,29 @@ The Belgium–Germany crossing sits 4.8 km from the middle of the border because
 
 If the map data or a capital changes, rerun the tests. If a crossing fails, pick another vertex of that shared border using the rule above.
 
+### Level 2
+
+In the Alps a straight line from a capital to a border often leaves its country. Rome to the French Alps runs along the Ligurian coast and out to sea. Berlin to the Inn cuts through Czechia. Vienna to the west crosses Germany's Berchtesgaden salient or the narrow Tyrol. So a leg may turn at points inside its country (`map.routeVia`, keyed "country@border", listed from the capital towards the crossing), still as straight lines with no smoothing. Level 2's crossings and turning points were chosen by the same rule, extended:
+
+1. The vertex nearest the middle of the longest shared border line from which straight lines to both capitals stay inside their countries **and at least 10 km from any coast or other border**. The first 10 km around a capital and the 15 km around the crossing are exempt, because a line must reach the border there, and Rome surrounds the Vatican.
+2. If none works, the vertex among the 30 nearest the middle that needs the fewest turning points. Turning points are chosen from a 12 km grid at least 10–20 km inside the country, taking the shortest leg.
+3. In the narrow Alpine countries the clearance is 5 km where 10 km finds no route or needs more turning points (Switzerland–Italy, Austria–Italy, Switzerland–Austria, France–Italy).
+
+France–Germany keeps Level 1's crossing (same capitals, and it passes the same checks).
+
+| Border | Crossing (lon, lat) | From border middle | Turning points |
+|---|---|---|---|
+| France–Switzerland | 6.1104, 46.5209 | 7.0 km | none |
+| France–Germany | 8.0906, 48.9791 | 0.6 km | none (Level 1's) |
+| France–Italy | 6.6400, 45.0503 | 38 km | Italy: 10.13, 44.18 (Lunigiana, inland of La Spezia) |
+| Switzerland–Germany | 8.1221, 47.5922 | 70 km | none |
+| Switzerland–Austria | 9.8703, 46.9928 | 25 km | Austria: 12.92, 47.36 (Pinzgau, south of the Berchtesgaden salient) |
+| Switzerland–Italy | 9.1632, 46.1723 | 23 km | none |
+| Germany–Austria | 12.1820, 47.6921 | 0.1 km | Germany: 11.90, 50.51 (west of the Czech border); Austria: 12.92, 47.25 |
+| Austria–Italy | 11.5962, 47.0003 | 51 km (near the Brenner Pass) | none |
+
+`src/geo/route.test.ts` runs the same checks for Level 2's 16 directed moves, with every leg (capital → turning points → crossing → turning points → capital) inside its own country. It also checks that turning points exist only for the level's borders, and that all three shortest routes (France → Switzerland/Germany/Italy → Austria) never enter another country of the level. The drawn line is inside land throughout, so no journey crosses the sea: the Travel e2e test checks France → Italy is drawn with its turning point (four points).
+
 ## Content coordinates
 
-Capital and landmark positions (WGS84, `src/core/content/countries.ts`) are city-centre or monument coordinates, rounded to about 4 decimals: Paris 48.8566, 2.3522 · Brussels 50.8503, 4.3517 · Amsterdam 52.3676, 4.9041 · Luxembourg City 49.6116, 6.1319 · Berlin 52.5200, 13.4050. They match commonly published values (Wikipedia/GeoNames). Landmark positions and their sources are listed in [CONTENT.md](CONTENT.md). The tests above confirm each point falls inside its country.
+Capital and landmark positions (WGS84, `src/core/content/countries.ts`) are city-centre or monument coordinates, rounded to about 4 decimals: Paris 48.8566, 2.3522 · Brussels 50.8503, 4.3517 · Amsterdam 52.3676, 4.9041 · Luxembourg City 49.6116, 6.1319 · Berlin 52.5200, 13.4050 · Bern 46.9481, 7.4475 · Vienna 48.2083, 16.3725 · Rome 41.8933, 12.4828. They match commonly published values (Wikipedia/GeoNames). Landmark positions and their sources are listed in [CONTENT.md](CONTENT.md). The tests above confirm each point falls inside its country.

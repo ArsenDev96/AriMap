@@ -35,7 +35,7 @@ export default function Game() {
     <I18nProvider locale={state.locale}>
       <title>{`${translate(state.locale, "app.name")} — ${translate(state.locale, "app.tagline")}`}</title>
       {state.screen === "welcome" ? (
-        <WelcomeScreen lesson={lesson} progress={progress} dispatch={dispatch} />
+        <WelcomeScreen state={state} dispatch={dispatch} />
       ) : (
         <LessonScreen lesson={lesson} progress={progress} dispatch={dispatch} />
       )}

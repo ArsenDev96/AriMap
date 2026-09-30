@@ -15,9 +15,17 @@ import {
   type LessonStage,
   type TravelResult,
 } from "../lesson/progress";
-import { createInitialState, STATE_VERSION, type AppState } from "./appState";
+import { canPlay, createInitialState, STATE_VERSION, type AppState } from "./appState";
 
 export const STORAGE_KEY = "arimap:state";
+/**
+ * Where a save in another format (version 1, or a newer version this build
+ * cannot read) is copied before it is replaced, so it is never lost silently.
+ */
+export const BACKUP_KEY = "arimap:state:backup";
+
+/** Level 1's id, the only level in version 1 saves. */
+const V1_LEVEL_ID = "western-europe-1";
 
 /** Minimal storage interface so web (localStorage) and future native stores can plug in. */
 export interface KeyValueStorage {
@@ -28,9 +36,21 @@ export interface KeyValueStorage {
 export function loadAppState(storage: KeyValueStorage | null): AppState {
   if (!storage) return createInitialState();
   try {
-    return parseSavedState(storage.getItem(STORAGE_KEY));
+    const raw = storage.getItem(STORAGE_KEY);
+    backUpOtherVersion(storage, raw);
+    return parseSavedState(raw);
   } catch {
     return createInitialState();
+  }
+}
+
+function backUpOtherVersion(storage: KeyValueStorage, raw: string | null) {
+  if (!raw) return;
+  try {
+    const version = (JSON.parse(raw) as { version?: unknown } | null)?.version;
+    if (version !== STATE_VERSION && storage.getItem(BACKUP_KEY) === null) storage.setItem(BACKUP_KEY, raw);
+  } catch {
+    // Not JSON, or storage full: nothing worth keeping, or no room to keep it.
   }
 }
 
@@ -46,12 +66,21 @@ export function saveAppState(storage: KeyValueStorage | null, state: AppState): 
 // Saved data is untrusted: anything missing or inconsistent is dropped or
 // rebuilt from game rules. Derived values (budgets, statuses, "independent"
 // flags) are recomputed, never read, so bad data cannot grant achievements.
+// Each level is parsed on its own, so a malformed level never costs another
+// level its progress.
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 const isInt = (v: unknown): v is number => Number.isInteger(v);
 const STAGES: readonly LessonStage[] = ["discover", "find", "travel", "results"];
 
+/**
+ * Reads a save. Version 2 holds every level's progress (`levels`), the level
+ * being played (`levelId`) and the order the levels were last active in
+ * (`recent`). Version 1 held one level (`lessonId`, `lessons`): its progress
+ * becomes Level 1's, which it always was. Saves from the two-round Find are
+ * converted as before (see migrateLegacyFind).
+ */
 export function parseSavedState(raw: string | null): AppState {
   if (!raw) return createInitialState();
   let data: unknown;
@@ -63,18 +92,32 @@ export function parseSavedState(raw: string | null): AppState {
   if (!isObj(data)) return createInitialState();
 
   const locale = isLocale(data.locale) ? data.locale : undefined;
-  // Unknown (e.g. future) versions: keep only the language preference.
-  if (data.version !== STATE_VERSION) return createInitialState(locale);
-
   const state = createInitialState(locale);
-  if (typeof data.lessonId === "string" && data.lessonId in LESSONS) state.lessonId = data.lessonId;
-  if (isObj(data.lessons)) {
+  let levels: unknown;
+  let levelId: unknown;
+  let recent: unknown;
+  if (data.version === STATE_VERSION) {
+    ({ levels, levelId, recent } = data);
+  } else if (data.version === 1) {
+    levels = isObj(data.lessons) ? { [V1_LEVEL_ID]: data.lessons[V1_LEVEL_ID] } : undefined;
+    levelId = V1_LEVEL_ID;
+  } else {
+    // Unknown (e.g. future) versions: keep only the language preference (the save itself is backed up on load).
+    return state;
+  }
+
+  if (isObj(levels)) {
     for (const [id, lesson] of Object.entries(LESSONS)) {
-      const progress = parseLessonProgress(lesson, data.lessons[id]);
-      if (progress) state.lessons[id] = progress;
+      const progress = parseLessonProgress(lesson, levels[id]);
+      if (progress) state.levels[id] = progress;
     }
   }
-  if (data.screen === "lesson" && state.lessons[state.lessonId]?.started) state.screen = "lesson";
+  if (typeof levelId === "string" && levelId in LESSONS) state.levelId = levelId;
+  // Most recent first, playable levels only, each once; a level with progress but missing here goes last.
+  const listed = Array.isArray(recent) ? recent.filter((id): id is string => typeof id === "string" && id in LESSONS) : [];
+  const started = Object.keys(state.levels).filter((id) => state.levels[id].started);
+  state.recent = [...new Set([...(state.levels[state.levelId]?.started ? [state.levelId] : []), ...listed, ...started])];
+  if (data.screen === "lesson" && state.levels[state.levelId]?.started && canPlay(state, state.levelId)) state.screen = "lesson";
   return state;
 }
 

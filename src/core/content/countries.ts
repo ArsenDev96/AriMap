@@ -1,3 +1,4 @@
+import type { LocalizedText } from "../i18n/locales";
 import type { CountryContent, CountryId } from "./types";
 
 // Capital and landmark coordinates are rounded city-centre / monument
@@ -78,8 +79,8 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       en: "A tiny landlocked country where France, Belgium and Germany meet.",
       hy: "Փոքրիկ երկիր առանց ծովի, որտեղ հանդիպում են Ֆրանսիան, Բելգիան և Գերմանիան։",
     },
-    // Too small for an in-place label: drawn beside the country with a leader line.
-    label: { coordinates: [6.1, 49.72], small: true },
+    // Too small for an in-place label in Level 1 (its `smallCountries`): drawn beside the country with a leader line.
+    label: { coordinates: [6.1, 49.72] },
     landmark: {
       id: "adolphe-bridge",
       name: { en: "Adolphe Bridge", hy: "Ադոլֆի կամուրջ" },
@@ -114,7 +115,77 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "brandenburg-gate",
     },
   },
+  CHE: {
+    id: "CHE",
+    name: { en: "Switzerland", hy: "Շվեյցարիա" },
+    nameInText: { en: "Switzerland", hy: "Շվեյցարիան" },
+    // Officially the "federal city", Bern is Switzerland's de facto capital (docs/CONTENT.md).
+    capital: { name: { en: "Bern", hy: "Բեռն" }, coordinates: [7.4475, 46.9481] },
+    hint: {
+      en: "A small mountain country in the Alps, with no coast, between France, Germany, Austria and Italy.",
+      hy: "Փոքր լեռնային երկիր Ալպերում՝ առանց ծովի, Ֆրանսիայի, Գերմանիայի, Ավստրիայի և Իտալիայի միջև։",
+    },
+    label: { coordinates: [8.2, 46.8] },
+    landmark: {
+      id: "chapel-bridge",
+      name: { en: "Chapel Bridge", hy: "Մատուռի կամուրջ" },
+      nameInText: { en: "the Chapel Bridge", hy: "Մատուռի կամուրջը" },
+      fact: {
+        en: "A covered wooden bridge from the 1300s in Lucerne, rebuilt in just eight months after a fire in 1993.",
+        hy: "Լյուցեռնի ծածկած փայտե կամուրջը կառուցվել է 1300-ական թվականներին, իսկ 1993 թվականի հրդեհից հետո վերակառուցվել է ընդամենը ութ ամսում։",
+      },
+      coordinates: [8.3075, 47.0517],
+      // No illustration yet: the card shows the landmark as text (docs/CONTENT.md, "Missing illustrations").
+    },
+  },
+  AUT: {
+    id: "AUT",
+    name: { en: "Austria", hy: "Ավստրիա" },
+    nameInText: { en: "Austria", hy: "Ավստրիան" },
+    capital: { name: { en: "Vienna", hy: "Վիեննա" }, coordinates: [16.3725, 48.2083] },
+    hint: {
+      en: "A mountain country with no coast in the east of this region, just south of Germany.",
+      hy: "Լեռնային երկիր առանց ծովի՝ տարածաշրջանի արևելքում, Գերմանիայից անմիջապես հարավ։",
+    },
+    label: { coordinates: [14.4, 47.6] },
+    landmark: {
+      id: "schonbrunn-palace",
+      name: { en: "Schönbrunn Palace", hy: "Շյոնբրունի պալատ" },
+      nameInText: { en: "Schönbrunn Palace", hy: "Շյոնբրունի պալատը" },
+      fact: {
+        en: "The Habsburg emperors' summer palace in Vienna. Its zoo, opened in 1752, is the oldest still open.",
+        hy: "Հաբսբուրգ կայսրերի ամառային պալատը Վիեննայում։ Նրա կենդանաբանական այգին, որը բացվել է 1752 թվականին, աշխարհի ամենահին գործող կենդանաբանական այգին է։",
+      },
+      coordinates: [16.3119, 48.1845],
+    },
+  },
+  ITA: {
+    id: "ITA",
+    name: { en: "Italy", hy: "Իտալիա" },
+    nameInText: { en: "Italy", hy: "Իտալիան" },
+    capital: { name: { en: "Rome", hy: "Հռոմ" }, coordinates: [12.4828, 41.8933] },
+    hint: {
+      en: "A long, boot-shaped peninsula reaching into the Mediterranean Sea, south of the Alps.",
+      hy: "Երկար, կոշիկաձև թերակղզի, որը ձգվում է Միջերկրական ծովի մեջ՝ Ալպերից հարավ։",
+    },
+    label: { coordinates: [13.0, 42.6] },
+    landmark: {
+      id: "colosseum",
+      name: { en: "Colosseum", hy: "Կոլիզեում" },
+      nameInText: { en: "the Colosseum", hy: "Կոլիզեումը" },
+      fact: {
+        en: "Opened in AD 80, this Roman amphitheatre could hold about 50,000 spectators.",
+        hy: "Բացվել է մ.թ. 80 թվականին։ Հռոմեական այս ամֆիթատրոնը կարող էր տեղավորել մոտ 50 000 հանդիսատես։",
+      },
+      coordinates: [12.4922, 41.8903],
+    },
+  },
 };
+
+/** A country's hint in a level: the level's own wording for its region, or the country's. */
+export function countryHint(lesson: { hints?: Partial<Readonly<Record<CountryId, LocalizedText>>> }, id: CountryId): LocalizedText {
+  return lesson.hints?.[id] ?? getCountry(id).hint;
+}
 
 export function getCountry(id: CountryId): CountryContent {
   const country = COUNTRIES[id];

@@ -3,6 +3,7 @@ import { feature } from "topojson-client";
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import type { CountryId, LonLat } from "@/core/content/types";
+import type { LessonDefinition } from "@/core/lessons/types";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 
 export type Point = readonly [number, number];
@@ -43,39 +44,60 @@ const WORLD = 1000;
 export const MAP_DATA_CLIP = [-27, 32, 36, 62] as const;
 
 /**
- * Half-size of the coverage rectangle around the focus centre, in world units.
- * With the focus fitted to WORLD, this shows the whole lesson without cropping
+ * Countries the shared projection is fitted to (Level 1's). Every level is drawn
+ * in the same projected "world" coordinates, so the painted landscape
+ * (scripts/generate-relief.mjs, which uses the same projection) lines up with
+ * every level's map.
+ */
+export const PROJECTION_FIT: readonly CountryId[] = ["FRA", "BEL", "NLD", "LUX", "DEU"];
+
+/**
+ * Default half-size of the coverage rectangle around the focus centre, in world
+ * units (a level may set its own: `map.coverageHalf`). For Level 1, whose
+ * countries are fitted to WORLD, this shows the whole level without cropping
  * on maps from about 1:1.9 (tall) to 2.2:1 (wide); more extreme maps zoom in
  * slightly instead of revealing the data edge.
  */
-const COVERAGE_HALF: Point = [1.15 * WORLD, 0.9 * WORLD];
+export const DEFAULT_COVERAGE_HALF: Point = [1.15 * WORLD, 0.9 * WORLD];
 
 /** Pan margin beyond the focus area when zoomed in, as a fraction of its size. */
 const PAN_MARGIN = 0.25;
 
 const cache = new Map<string, RegionMap>();
 
+let shared: { projection: GeoProjection; features: Feature<Polygon | MultiPolygon, CountryProps>[] } | null = null;
+
+/** The projection shared by every level: equal-area azimuthal, centred at 8°E 50°N, fitted to PROJECTION_FIT. */
+function sharedProjection() {
+  if (!shared) {
+    const collection = feature(topology, topology.objects.countries) as FeatureCollection<Polygon | MultiPolygon, CountryProps>;
+    const features = collection.features.filter((f) => f.geometry);
+    const fit: FeatureCollection = { type: "FeatureCollection", features: features.filter((f) => PROJECTION_FIT.includes(String(f.id))) };
+    shared = { projection: geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([WORLD, WORLD], fit), features };
+  }
+  return shared;
+}
+
 /**
- * Projects the prepared Natural Earth data for a lesson. The projection is an
- * equal-area azimuthal projection centred on the active countries, and is shared
- * by shapes, labels, markers and routes.
+ * Projects the prepared Natural Earth data for a level. The projection is
+ * shared by every level (see PROJECTION_FIT) and by shapes, labels, markers
+ * and routes; the level's countries set the focus area and, with
+ * `coverageHalf`, the area the map may ever show.
  */
-export function getRegionMap(activeIds: readonly CountryId[]): RegionMap {
-  const key = activeIds.join(",");
+export function getRegionMap(activeIds: readonly CountryId[], coverageHalf: readonly [number, number] = DEFAULT_COVERAGE_HALF): RegionMap {
+  const key = `${activeIds.join(",")}|${coverageHalf.join(",")}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const collection = feature(topology, topology.objects.countries) as FeatureCollection<Polygon | MultiPolygon, CountryProps>;
-  const features = collection.features.filter((f) => f.geometry);
+  const { projection, features } = sharedProjection();
   const active: FeatureCollection = {
     type: "FeatureCollection",
     features: features.filter((f) => activeIds.includes(String(f.id))),
   };
   if (active.features.length !== activeIds.length) {
-    throw new Error(`Map data is missing some lesson countries: ${activeIds.join(", ")}`);
+    throw new Error(`Map data is missing some level countries: ${activeIds.join(", ")}`);
   }
 
-  const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([WORLD, WORLD], active);
   const path = geoPath(projection);
   const shapes: CountryShape[] = features.map((f: Feature<Polygon | MultiPolygon, CountryProps>) => ({
     id: String(f.id),
@@ -90,13 +112,18 @@ export function getRegionMap(activeIds: readonly CountryId[]): RegionMap {
     shapes,
     focusBounds,
     coverage: [
-      [cx - COVERAGE_HALF[0], cy - COVERAGE_HALF[1]],
-      [cx + COVERAGE_HALF[0], cy + COVERAGE_HALF[1]],
+      [cx - coverageHalf[0], cy - coverageHalf[1]],
+      [cx + coverageHalf[0], cy + coverageHalf[1]],
     ],
     project: (point) => (projection([point[0], point[1]]) ?? [0, 0]) as Point,
   };
   cache.set(key, map);
   return map;
+}
+
+/** The map of a level: its countries and its coverage. */
+export function regionMapFor(lesson: Pick<LessonDefinition, "countries" | "map">): RegionMap {
+  return getRegionMap(lesson.countries, lesson.map.coverageHalf);
 }
 
 export interface Transform {

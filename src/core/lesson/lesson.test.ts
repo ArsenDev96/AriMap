@@ -10,12 +10,13 @@ const NO_UI = { travelHintVisible: false };
 
 function run(state: AppState, ...actions: (AppAction | LessonAction)[]): AppState {
   return actions.reduce<AppState>(
-    (s, a) => appReducer(s, "action" in a || a.type === "setLocale" || a.type === "openLesson" || a.type === "goHome" || a.type === "startOver" ? (a as AppAction) : { type: "lesson", action: a as LessonAction }),
+    (s, a) => appReducer(s, "action" in a || a.type === "setLocale" || a.type === "openLevel" || a.type === "goHome" || a.type === "restartLevel" ? (a as AppAction) : { type: "lesson", action: a as LessonAction }),
     state,
   );
 }
 
-const progressOf = (s: AppState) => s.lessons[lesson.id];
+const OPEN: AppAction = { type: "openLevel", levelId: lesson.id };
+const progressOf = (s: AppState) => s.levels[lesson.id];
 
 /** Answers all five Find questions (the last stays answered, ready to continue to Travel). */
 function findAll(s: AppState): AppState {
@@ -24,7 +25,7 @@ function findAll(s: AppState): AppState {
 }
 
 function toTravel(): AppState {
-  return run(findAll(run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER })), { type: "findToTravel" });
+  return run(findAll(run(createInitialState(), OPEN, { type: "startFinding", order: ORDER })), { type: "findToTravel" });
 }
 
 /** Round-trips through JSON the way localStorage does on refresh. */
@@ -32,7 +33,7 @@ const refresh = (s: AppState) => parseSavedState(JSON.stringify(s));
 
 describe("lesson flow", () => {
   it("goes Discover → Find (five questions) → Travel → Results", () => {
-    let s = run(createInitialState(), { type: "openLesson" });
+    let s = run(createInitialState(), OPEN);
     expect(progressOf(s).stage).toBe("discover");
     s = run(s, { type: "startFinding", order: ORDER });
     expect(progressOf(s).stage).toBe("find");
@@ -69,12 +70,12 @@ describe("lesson flow", () => {
     const s = run(toTravel(), { type: "travelMove", country: "LUX" });
     const hy = run(s, { type: "setLocale", locale: "hy" });
     expect(hy.locale).toBe("hy");
-    expect(hy.lessons).toBe(s.lessons);
+    expect(hy.levels).toBe(s.levels);
     expect(hy.screen).toBe("lesson");
   });
 
   it("scores help: hints and wrong taps count against the first-try score", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER });
+    let s = run(createInitialState(), OPEN, { type: "startFinding", order: ORDER });
     s = run(s, { type: "findHint" }, { type: "findGuess", country: "FRA" }, { type: "findNext" });
     s = run(s, { type: "findGuess", country: "DEU" }, { type: "findGuess", country: "BEL" }, { type: "findNext" });
     for (const target of ORDER.slice(2)) s = run(s, { type: "findGuess", country: target }, { type: "findNext" });
@@ -85,9 +86,9 @@ describe("lesson flow", () => {
 
   it("Home keeps the lesson exactly as it was, and Continue resumes it", () => {
     const states = [
-      run(createInitialState(), { type: "openLesson" }, { type: "discoverSelect", country: "BEL" }),
-      run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" }, { type: "findHint" }),
-      findAll(run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER })),
+      run(createInitialState(), OPEN, { type: "discoverSelect", country: "BEL" }),
+      run(createInitialState(), OPEN, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" }, { type: "findHint" }),
+      findAll(run(createInitialState(), OPEN, { type: "startFinding", order: ORDER })),
       run(toTravel(), { type: "travelHint" }, { type: "travelMove", country: "BEL" }),
       run(toTravel(), { type: "travelMove", country: "BEL" }, { type: "travelMove", country: "NLD" }),
       // A completed lesson being replayed.
@@ -96,16 +97,16 @@ describe("lesson flow", () => {
     for (const s of states) {
       const home = run(s, { type: "goHome" });
       expect(home.screen).toBe("welcome");
-      expect(home.lessons).toBe(s.lessons);
+      expect(home.levels).toBe(s.levels);
       // Also across a refresh while on the home screen.
-      const back = run(refresh(home), { type: "openLesson" });
+      const back = run(refresh(home), OPEN);
       expect(back.screen).toBe("lesson");
       expect(progressOf(back)).toEqual(progressOf(s));
     }
   });
 
   it("start over keeps achievements and language", () => {
-    let s = run(toTravel(), { type: "setLocale", locale: "hy" }, { type: "startOver" });
+    let s = run(toTravel(), { type: "setLocale", locale: "hy" }, { type: "restartLevel", levelId: lesson.id });
     expect(s.locale).toBe("hy");
     expect(progressOf(s).stage).toBe("discover");
     expect(progressOf(s).records.findDone).toBe(true);
@@ -116,13 +117,13 @@ describe("lesson flow", () => {
 
 describe("map view", () => {
   it("hides names, capitals and the target in Find", () => {
-    const s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER });
+    const s = run(createInitialState(), OPEN, { type: "startFinding", order: ORDER });
     const view = buildMapView(lesson, progressOf(s), NO_UI);
     expect(view).toMatchObject({ labels: [], markers: [], tones: {}, areaHint: null, interactive: true, namesPublic: false });
   });
 
   it("identifies a wrong tap, reveals the target when solved, and clears both on the next question", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" });
+    let s = run(createInitialState(), OPEN, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" });
     let view = buildMapView(lesson, progressOf(s), NO_UI);
     expect(view.tones).toEqual({ DEU: "wrong" });
     expect(view.labels).toEqual(["DEU"]);
@@ -140,7 +141,7 @@ describe("map view", () => {
   });
 
   it("shows hint area then reveal", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findHint" });
+    let s = run(createInitialState(), OPEN, { type: "startFinding", order: ORDER }, { type: "findHint" });
     expect(buildMapView(lesson, progressOf(s), NO_UI).areaHint).toBeNull();
     s = run(s, { type: "findHint" });
     expect(buildMapView(lesson, progressOf(s), NO_UI).areaHint).toBe("FRA");
@@ -159,14 +160,14 @@ describe("map view", () => {
   });
 
   it("marks explored countries in Discover only", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "discoverSelect", country: "BEL" }, { type: "discoverSelect", country: "LUX" });
+    let s = run(createInitialState(), OPEN, { type: "discoverSelect", country: "BEL" }, { type: "discoverSelect", country: "LUX" });
     expect(buildMapView(lesson, progressOf(s), NO_UI).explored.sort()).toEqual(["BEL", "LUX"]);
     s = run(s, { type: "startFinding", order: ORDER });
     expect(buildMapView(lesson, progressOf(s), NO_UI).explored).toEqual([]);
   });
 
   it("gives each Find answer its own feedback key, and none before an answer", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER });
+    let s = run(createInitialState(), OPEN, { type: "startFinding", order: ORDER });
     expect(buildMapView(lesson, progressOf(s), NO_UI).feedback).toBeNull();
     s = run(s, { type: "findGuess", country: "DEU" });
     const wrong = buildMapView(lesson, progressOf(s), NO_UI).feedback;
@@ -202,7 +203,7 @@ describe("map view", () => {
 
 describe("saved state", () => {
   it("resumes Find mid-question including assistance", () => {
-    const s = run(createInitialState(), { type: "setLocale", locale: "hy" }, { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findHint" });
+    const s = run(createInitialState(), { type: "setLocale", locale: "hy" }, OPEN, { type: "startFinding", order: ORDER }, { type: "findHint" });
     const restored = refresh(s);
     expect(restored.locale).toBe("hy");
     expect(restored.screen).toBe("lesson");
@@ -222,12 +223,13 @@ describe("saved state", () => {
     expect(parseSavedState("[]")).toEqual(createInitialState());
     expect(parseSavedState(JSON.stringify({ version: 99, locale: "hy" }))).toEqual(createInitialState("hy"));
     expect(parseSavedState(JSON.stringify({ version: 1, locale: "fr" })).locale).toBe("en");
+    expect(parseSavedState(JSON.stringify({ version: 2, locale: "fr" })).locale).toBe("en");
   });
 
   it("rejects tampered journeys and recomputes derived values", () => {
     const s = toTravel();
     const raw = JSON.parse(JSON.stringify(s));
-    const p = raw.lessons[lesson.id];
+    const p = raw.levels[lesson.id];
     p.travel.path = ["FRA", "NLD"]; // not neighbours
     p.travel.budget = 5;
     const restored = progressOf(parseSavedState(JSON.stringify(raw)));
@@ -241,9 +243,9 @@ describe("saved state", () => {
   });
 
   it("recomputes independent Find answers instead of trusting saved flags", () => {
-    let s = run(createInitialState(), { type: "openLesson" }, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" }, { type: "findGuess", country: "FRA" });
+    let s = run(createInitialState(), OPEN, { type: "startFinding", order: ORDER }, { type: "findGuess", country: "DEU" }, { type: "findGuess", country: "FRA" });
     const raw = JSON.parse(JSON.stringify(s));
-    raw.lessons[lesson.id].find.results[0].independent = true;
+    raw.levels[lesson.id].find.results[0].independent = true;
     s = parseSavedState(JSON.stringify(raw));
     expect(progressOf(s).find?.results[0].independent).toBe(false);
   });

@@ -10,40 +10,41 @@
   box-shadow: 0 2px 0 rgba(255, 228, 209, 0.7);
 }
 
-/* Too little room for the steps between Home and the language toggle (see useStacked in
-   Header.tsx): Home and the toggle keep the first row, the steps get a compact row below. */
-.stacked {
+/* Too little room for the steps between Home and the language toggle (data-layout, set by
+   useHeaderLayout in Header.tsx): Home and the toggle keep the first row, the steps get a
+   compact row below. */
+.header:where([data-layout="stacked"], [data-layout="tight"]) {
   flex-wrap: wrap;
   row-gap: 4px;
   padding-bottom: 8px;
 }
 
-.stacked .steps {
+.header:where([data-layout="stacked"], [data-layout="tight"]) .steps {
   order: 1;
   flex-basis: 100%;
 }
 
-.stacked .lang {
+.header:where([data-layout="stacked"], [data-layout="tight"]) .lang {
   margin-left: auto;
 }
 
 /* Even Home and the toggle would not share a row (the narrowest phones with the largest
    text): Home keeps its name but drops its icon, and the padding is trimmed. Switched off
    while the header measures its natural sizes. */
-.tight:not([data-measuring]) {
+.header:where([data-layout="tight"]):not([data-measuring]) {
   gap: 6px;
   padding-inline: 8px;
 }
 
-.tight:not([data-measuring]) .home {
+.header:where([data-layout="tight"]):not([data-measuring]) .home {
   padding: 0 10px;
 }
 
-.tight:not([data-measuring]) .home svg {
+.header:where([data-layout="tight"]):not([data-measuring]) .home svg {
   display: none;
 }
 
-.tight:not([data-measuring]) .langButton {
+.header:where([data-layout="tight"]):not([data-measuring]) .langButton {
   padding: 0 6px;
 }
 

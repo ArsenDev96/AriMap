@@ -73,13 +73,13 @@ Code:
   - Drawn after the land texture and before wave marks, borders, the Find answer outline, routes, names and markers.
 - **Taps.** No pointer events: taps and gestures reach the country underneath. Country geometry, the projection and hit testing are unchanged.
 - **Levels of detail.**
-  - **Overview:** one image over everything the map can show, loaded with the page. The neutral overlay's overview covers only the lesson countries, which are the only ones that take state colours; it is loaded only once one does.
-  - **Zoomed levels:** 512px tiles over the area the map can be panned in when zoomed, fetched only for the visible part plus a quarter-screen margin.
+  - **Overview, one per game level:** one image over everything that level's map can show, loaded when the level is opened (`src/assets/map/relief/<level id>-land.webp`). Importing an image only gives its URL, so a level never fetches another level's overview. The neutral overlay's overview (`<level id>-tone.webp`) covers only that level's countries, which are the only ones that take state colours; it is loaded only once one does. Every level uses the same projection (DATA.md, "One projection for every level"), so the images line up with every level's map.
+  - **Zoomed levels:** 512px tiles over the area the map can be panned in when zoomed, fetched only for the visible part plus a quarter-screen margin. There is one grid for all game levels, over all their pan areas: France and Germany use the same tiles in Levels 1 and 2. It is anchored where Level 1's grid began, and grows by whole tiles, so adding Level 2 kept Level 1's tiles (below).
   - **Choosing a level:** by screen density (zoom × `devicePixelRatio`): level 2 from 1.4 device pixels per world unit, level 3 from 2.8. A phone and a desktop fetch what their screens can show.
   - **Settled views only.** Tiles are chosen from the view the player stopped at (a gesture ended, or paused for 150 ms), so zoom and pan animations, redraws in the middle of a gesture, and the first layout don't fetch tiles for the views they pass through.
   - **While loading.** Each tile fades in over 250 ms (instantly with reduced motion). Where a level-3 tile is still loading, the level-2 tile under it stands in. The overview is always underneath, so nothing goes blank.
   - **Tile files.** Tiles live in `public/relief/<content hash>/`, and are served with `Cache-Control: public, max-age=31536000, immutable` (`next.config.ts`). A new generation writes a new folder.
-- **Close-up.** It draws the same landscape at its own zoom, so it picks the detailed level for the few tiles around Luxembourg.
+- **Close-up.** It draws the same landscape at its own zoom, so it picks the detailed level for the few tiles around Luxembourg (Level 1; Level 2 has no close-up).
 
 ## Forests
 
@@ -110,7 +110,14 @@ Also `scripts/generate-relief.mjs`, into the same rasters and tiles as the relie
    - So at the whole-map level (about 1.5 km per pixel) small woods fade into gentle shading and large forests stay. Zoomed in (about 760 m and 470 m per pixel) smaller woods and clearings reappear.
 4. **Canopy.** Value noise anchored to world coordinates, so the texture is continuous across tiles, and finer levels add octaves to the same coarse pattern.
 
-### Geographic check
+### Geographic check (Level 2)
+
+The same test reads Level 2's overview (reference points: Wikipedia article coordinates, checked 2026-09-30):
+- **Relief** is at least 200/255 at Gran Paradiso, the Finsteraarhorn and the Grossglockner, and 150 at the Dachstein and the Säntis. It is at least 45 at Monte Cimone, Corno Grande (Gran Sasso) and Mount Etna, and along the Alps, Apennines, Jura and Black Forest crests.
+- **Forests** are at least 40/255 in the Vienna Woods (16.000, 48.167), the Sila (16.500, 39.367), the Foresta Umbra (16.012, 41.821), the Casentino Forests (11.779, 43.868) and the Black Forest.
+- **Farmland stays bare** (at most 10/255): the Lomellina rice fields west of Mortara (8.66, 45.28; a rice paddy on OpenStreetMap, no wood within 1.5 km) and the Marchfeld near Raasdorf (16.64, 48.23; only farmland within 500 m).
+
+### Geographic check (Level 1)
 
 `src/geo/relief.test.ts` reads the land overview and checks two things:
 - **Named forests show.** At all 20 named forests (`FORESTS` in `src/geo/terrain.ts`: the Wikipedia articles' coordinates, an independent reference, not drawn), the painted forest is visible.
@@ -122,10 +129,14 @@ Also `scripts/generate-relief.mjs`, into the same rasters and tiles as the relie
 
 | Asset | Size | When it loads |
 |---|---|---|
-| Land overview (`overview-land.webp`, 2300×1801), relief and forests | 421 KB | With the page (every stage) |
-| Neutral overlay overview (`overview-tone.webp`) | 131 KB | Once a lesson country has a state colour |
-| Level 2 tiles (59 files) | 2.5 MB in all, about 44 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop |
-| Level 3 tiles (131 files) | 5.9 MB in all, about 45 KB each | Zoomed in further |
+| Game Level 1 land overview (`western-europe-1-land.webp`, 2300×1801), relief and forests | 421 KB | With Level 1 (every stage) |
+| Game Level 1 neutral overlay overview (`western-europe-1-tone.webp`, 962×1008) | 131 KB | Once a Level 1 country has a state colour |
+| Game Level 2 land overview (`around-the-alps-land.webp`, 2181×1681) | 449 KB | With Level 2 (every stage) |
+| Game Level 2 neutral overlay overview (`around-the-alps-tone.webp`, 1229×1428) | 227 KB | Once a Level 2 country has a state colour |
+| Detail level 2 tiles (60 land + 41 tone) | 4.1 MB in all, about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
+| Detail level 3 tiles (138 land + 85 tone) | 10.1 MB in all, about 47 KB each | Zoomed in further |
+
+The overviews of game Level 1 are byte-for-byte the files they were before Level 2 was added. Of Level 1's 190 tiles, 159 are byte-identical in the new grid. The other 31 lie along the old grid's outer edge, where the smoothing now has real terrain beyond the edge instead of a repeated edge pixel. There, 0.01–1.5% of a tile's pixels changed, in the strip at the old pan limit. Level 1's downloads are unchanged, except that it may fetch those edge tiles again.
 
 Measured downloads of landscape files (isolated build, Chromium, empty cache), with forests and, in brackets, before forests:
 
@@ -153,7 +164,7 @@ So forests add about 54 KB to the first load (46 KB with a state colour), and a 
 ### Attribution
 
 Which sources the elevation tiles use depends on the zoom (https://github.com/tilezen/joerd/blob/master/docs/data-sources.md): at zooms 7 and 8, SRTM on land (GMTED2010 above 60°N) and ETOPO1 at sea. EU-DEM and national models only start at zooms 9–10.
-- **Checked:** the `x-amz-meta-x-imagery-sources` header of every one of the 1,260 tiles used lists only `srtm`, `gmted` and `etopo1`.
+- **Checked:** the `x-amz-meta-x-imagery-sources` header of every one of the 1,560 tiles used (Levels 1 and 2; 1,260 for Level 1 before) lists only `srtm`, `gmted` and `etopo1`. The generator now records these headers and writes the sources to `relief.json` (`elevationSources`), and a test fails if any other source appears. Level 2's area adds no credit: Italy, Switzerland and Austria at zooms 7–8 come from SRTM, like the rest.
 - **Required credits** (from https://github.com/tilezen/joerd/blob/master/docs/attribution.md), shown verbatim in "About the map":
 
 > Terrain Tiles by Mapzen, from the Registry of Open Data on AWS.
@@ -249,5 +260,5 @@ Result:
     - Pixel 7 size (412×915, 2.6× pixels, touch): at rest 487 MB (before: 458, +29 MB, mostly GPU memory for the copy); after the gestures 429 MB (before: 486).
     - The copy adds about 240 elements (829 against 587 on desktop) and 1.7 MB of JavaScript heap. Neither grows with repeated gestures: after 40 and 60 gestures back at the same view, the element count is unchanged.
     - Not measured in Firefox or WebKit, or on physical phones.
-- **Repository size.** The committed landscape is about 9.5 MB (556 KB overviews, 8.9 MB tiles).
+- **Repository size.** The committed landscape is about 16 MB (1.2 MB overviews for two game levels, 14.9 MB tiles), against 9.5 MB for Level 1 alone.
 - **Generator dependency.** Reading WorldCover needs `geotiff` (a dev dependency, used only by the script).

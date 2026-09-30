@@ -24,6 +24,8 @@
 
 .actionBar {
   flex: none;
+  /* For the query below: how much room the main action has, in rem (so it follows the text size). */
+  container-type: inline-size;
   padding: 10px max(16px, calc((100% - 508px) / 2)) calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1.5px solid var(--line);
   background: var(--bg);
@@ -57,7 +59,8 @@
 }
 
 .title {
-  font-size: 2.4rem;
+  /* Enlarged with the text, up to what the narrowest screens fit (the name is never broken). */
+  font-size: min(2.4rem, 16vw);
   font-weight: 900;
   line-height: 1.1;
 }
@@ -155,8 +158,91 @@
     width: 42px;
     border-radius: 12px;
   }
-  .content .card {
-    padding: 16px;
+  .levels .levelCard {
+    padding: 14px 16px 16px;
+  }
+}
+
+/* Returning players --------------------------------------------------- */
+/* The name, tagline and language share one row (wrapping with very large text), and the
+   artwork becomes a slim ribbon, left out on short screens: the levels come first. */
+.compactHero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.compactTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.compactTop > [role="group"] {
+  margin-left: auto;
+}
+
+.compactBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.compactBrand > svg {
+  flex-shrink: 0;
+}
+
+.compactTitle {
+  font-size: 1.5rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.compactTagline {
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.25;
+  color: var(--coral-dark);
+}
+
+/* Narrow phones: the tagline runs under the mark and the name (a logo lockup), so the
+   language toggle still fits beside them. */
+@media (max-width: 380px) {
+  .compactTop {
+    column-gap: 8px;
+  }
+  .compactBrand {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+  .compactBrand > div {
+    display: contents;
+  }
+  .compactTagline {
+    grid-column: 1 / -1;
+    font-size: 0.9rem;
+  }
+}
+
+.art.artCompact {
+  height: 60px;
+}
+
+.artCompact .sticker {
+  width: 46px;
+  border-width: 2px;
+  border-radius: 12px;
+}
+
+@media (max-height: 700px) {
+  .art.artCompact {
+    display: none;
   }
 }
 
@@ -173,45 +259,355 @@
   max-width: 34ch;
 }
 
-.card {
-  background: var(--surface);
-  border: var(--card-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 20px;
+/* Level selection ------------------------------------------------------ */
+.levelsSection {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.region {
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: var(--teal-dark);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.lessonTitle {
-  font-size: 1.4rem;
+.levelsTitle {
+  font-size: 1.25rem;
   font-weight: 900;
   line-height: 1.2;
 }
 
-.countries {
+.levels {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 14px;
+}
+
+/* A card never widens its column past the screen (its own text wraps instead). */
+.levels > li {
+  min-width: 0;
+}
+
+/* One card per level, as a page of the notebook. The status is always written
+   out (with its own icon); colour only adds to it. */
+.levelCard {
+  --badge: var(--sky-soft);
+  --badge-ink: var(--ink);
+  --badge-border: var(--ink);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px 18px;
+  background: var(--surface);
+  border: var(--card-border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.levelCard[data-status="completed"] {
+  --badge: var(--discover-ink);
+  --badge-ink: #fff;
+  --badge-border: var(--discover-ink);
+}
+
+.levelCard[data-status="inProgress"] {
+  --badge: var(--find-soft);
+}
+
+.levelCard[data-status="locked"] {
+  --badge: var(--surface-warm);
+  --badge-ink: var(--ink-soft);
+  --badge-border: var(--ink-soft);
+}
+
+/* Not prepared yet: a pencilled page, flat, with a dashed outline. */
+.levelCard[data-status="comingSoon"] {
+  --badge: transparent;
+  --badge-ink: var(--ink-soft);
+  --badge-border: var(--ink-soft);
+  background: var(--bg);
+  border: 1.5px dashed var(--context-border);
+  box-shadow: none;
+}
+
+/* The level the main action opens (returning players): ringed in the main action's colour, and named "Up next". */
+.levelCard[data-up-next] {
+  border: 2.5px solid var(--coral-strong);
+  box-shadow: 0 0 0 4px var(--coral-soft), var(--shadow);
+}
+
+.upNext {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--coral-soft);
+  color: var(--coral-strong-hover);
+  vertical-align: 1px;
+}
+
+/* Completed, for a returning player: one line (number, status and name) that opens to show the rest. */
+.levelCard[data-compact] {
+  height: auto;
+  gap: 0;
+  padding: 0;
+}
+
+.levels .levelCard[data-compact] {
+  padding: 0;
+}
+
+.summaryHeading {
+  min-width: 0;
+  font: inherit;
+}
+
+/* With very large text a single word can be wider than the room left beside the badge and
+   the chevron: only then is it broken, rather than the card growing wider than the screen. */
+.summary .levelNumber,
+.summary .status {
+  overflow-wrap: anywhere;
+}
+
+.summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 12px 14px 12px 16px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.summary:hover {
+  background: var(--surface-warm);
+}
+
+.summary .levelBadge {
+  width: 40px;
+  height: 40px;
+}
+
+/* Enlarged text on a phone (from about 150%): the badge makes way, so the status and name keep
+   whole words; the status still says "Completed", with its star. */
+.levelCard[data-compact] {
+  container-type: inline-size;
+}
+
+@container (max-width: 17rem) {
+  .summary .levelBadge {
+    display: none;
+  }
+}
+
+.summary .levelHeading {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.summaryLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+}
+
+.summary .status {
+  align-self: auto;
+  gap: 6px;
+  padding: 1px 8px;
+  font-size: 0.85rem;
+}
+
+.chevron {
+  flex: none;
+  transition: transform 0.2s ease;
+}
+
+.summary[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 18px 18px;
+}
+
+.details[hidden] {
+  display: none;
+}
+
+.levelHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.levelBadge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  /* 44px at the default text size, growing with enlarged text so the number keeps its room. */
+  width: max(44px, 1.9em);
+  height: max(44px, 1.9em);
+  border-radius: 50%;
+  border: 2.5px solid var(--badge-border);
+  background: var(--badge);
+  color: var(--badge-ink);
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.levelCard[data-status="comingSoon"] .levelBadge {
+  border-style: dashed;
+}
+
+.levelHeading {
+  min-width: 0;
+}
+
+.levelNumber {
+  font-size: 0.8rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: var(--teal-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.levelTitle {
+  font-size: 1.2rem;
+  font-weight: 900;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.levelDescription {
   color: var(--ink-soft);
+}
+
+.countries {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.status {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--sky-soft);
+  color: var(--travel-ink);
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.levelCard[data-status="inProgress"] .status {
+  background: var(--find-soft);
+  color: var(--find-ink);
+}
+
+.levelCard[data-status="completed"] .status {
+  background: var(--discover-soft);
+  color: var(--discover-ink);
+}
+
+.levelCard[data-status="locked"] .status,
+.levelCard[data-status="comingSoon"] .status {
+  background: var(--surface-warm);
+  color: var(--ink-soft);
+}
+
+.statusIcon {
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  margin-top: 0.1em;
+}
+
+.statusText {
+  display: block;
+}
+
+.statusDetail {
+  display: block;
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+
+.levelActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.levelActions .btn {
+  font-size: 1rem;
+}
+
+/* The main action names the level it opens, on a second line. */
+.mainAction {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mainActionLevel {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* Enlarged text on a phone (about 150% at 320px, 180% at 390px): the level's number only, so
+   the action area stays small and the levels keep room to scroll. The name stays in the
+   button's accessible name, and the "Up next" card shows it. */
+@container (max-width: 14rem) {
+  .mainActionTitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Every level that is ready has been completed: said in words, where the main action would be. */
+.allDone {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--discover-soft);
+  color: var(--discover-ink);
+  font-weight: 800;
+  line-height: 1.35;
 }
 
 .steps {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 6px 0 0;
+  margin: 2px 0 0;
   padding: 0;
   list-style: none;
 }
 
-/* Lesson steps in their stage colours (as in the lesson header): a check when done, otherwise the number. */
+/* Level steps in their stage colours (as in the level header): a check when done, otherwise the number. */
 .steps li {
   --accent: var(--discover);
   --accent-soft: var(--discover-soft);
@@ -220,9 +616,10 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px 6px 6px;
+  padding: 4px 10px 4px 4px;
   border-radius: 999px;
   background: var(--surface-warm);
+  font-size: 0.92rem;
   font-weight: 800;
 }
 
@@ -242,12 +639,12 @@
 .stepNumber {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 2px solid var(--accent);
   background: var(--surface);
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 900;
 }
 
@@ -261,21 +658,19 @@
   color: var(--accent-on);
 }
 
-/* "Lesson complete": a small gold ribbon. */
-.complete {
-  align-self: flex-start;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border-radius: 999px;
-  background: var(--find-soft);
-  color: var(--find-ink);
-  font-weight: 900;
-}
-
-.startOver {
-  font-size: 1rem;
+/* Wider screens: the cards side by side. */
+@media (min-width: 720px) {
+  .content {
+    max-width: 1080px;
+  }
+  .hero {
+    max-width: 540px;
+    width: 100%;
+    margin: 0 auto;
+  }
+  .levels {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
 }
 
 /* Start over confirmation. */

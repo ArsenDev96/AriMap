@@ -61,6 +61,20 @@
   margin-top: 2px;
 }
 
+/* No illustration yet: the landmark's mark, name and fact in one row, a note
+   across the card rather than a picture frame left empty. */
+.textOnly {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  border-left: 4px solid var(--amber);
+}
+
+.mark {
+  flex: none;
+  margin-top: 2px;
+}
+
 /* Phones: the figure's parts join the country card's grid (LessonScreen.module.css).
    The art becomes a square tile beside the country name and capital; the
    landmark's name and fact run full width beneath them. */
@@ -85,6 +99,13 @@
 
   .name {
     font-size: 1.05rem;
+  }
+
+  /* Without art the figure stays one block under the name and capital. */
+  .textOnly {
+    display: flex;
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 

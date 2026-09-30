@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type Dispatch, type RefObject } from "react";
+import { useLayoutEffect, useRef, type Dispatch, type RefObject } from "react";
 import { LOCALE_META, LOCALES } from "@/core/i18n/locales";
 import type { MessageKey } from "@/core/i18n/translate";
 import type { LessonProgress, LessonStage } from "@/core/lesson/progress";
@@ -64,9 +64,14 @@ type HeaderLayout = "row" | "stacked" | "tight";
  * so the room is worked out from their natural sizes, read with the tight rules switched
  * off (data-measuring). Checked again whenever the header, Home or the toggle changes size:
  * screen width, text size or language.
+ *
+ * Decided before the browser paints, so the header never shows a frame in the wrong layout
+ * (e.g. the toggle wrapped under Home) and then jumps: the layout is written straight to the
+ * header's data-layout attribute (the CSS follows it), first in a layout effect and then from
+ * a ResizeObserver, whose callbacks run after layout but before paint. A React state update
+ * there would only be applied after that frame had been painted.
  */
 function useHeaderLayout(header: RefObject<HTMLElement | null>, steps: RefObject<HTMLElement | null>) {
-  const [layout, setLayout] = useState<HeaderLayout>("row");
   useLayoutEffect(() => {
     const h = header.current!;
     const measure = () => {
@@ -78,13 +83,14 @@ function useHeaderLayout(header: RefObject<HTMLElement | null>, steps: RefObject
       const used = others.reduce((w, el) => w + el.getBoundingClientRect().width, 0) + gap * (others.length - 1);
       h.removeAttribute("data-measuring");
       const stepsMin = STEPS_MIN_REM * parseFloat(getComputedStyle(document.documentElement).fontSize);
-      setLayout(inner - used - gap >= stepsMin ? "row" : used <= inner ? "stacked" : "tight");
+      const layout: HeaderLayout = inner - used - gap >= stepsMin ? "row" : used <= inner ? "stacked" : "tight";
+      h.setAttribute("data-layout", layout);
     };
+    measure();
     const observer = new ResizeObserver(measure);
     for (const el of [h, ...h.children]) if (el !== steps.current) observer.observe(el);
     return () => observer.disconnect();
   }, [header, steps]);
-  return layout;
 }
 
 export function Header({ progress, dispatch }: { progress: LessonProgress; dispatch: Dispatch<AppAction> }) {
@@ -92,12 +98,13 @@ export function Header({ progress, dispatch }: { progress: LessonProgress; dispa
   const headerRef = useRef<HTMLElement>(null);
   const stepsRef = useRef<HTMLOListElement>(null);
   // Too little room (narrow screens with enlarged text): the steps get a row of their own.
-  const layout = useHeaderLayout(headerRef, stepsRef);
+  useHeaderLayout(headerRef, stepsRef);
   // In Results the journey is finished: every step is done and none is current. Replay
   // journey returns to the Travel stage, which makes Travel current again.
   const current = progress.stage === "results" ? STEPS.length : STEPS.findIndex((s) => s.stages.includes(progress.stage));
   return (
-    <header ref={headerRef} className={`${styles.header} ${layout !== "row" ? styles.stacked : ""} ${layout === "tight" ? styles.tight : ""}`} data-layout={layout}>
+    // data-layout is set by useHeaderLayout, not by React.
+    <header ref={headerRef} className={styles.header}>
       {/* Wider screens only; on phones the Home button stands for it. */}
       <div className={styles.brand}>
         <BrandMark />

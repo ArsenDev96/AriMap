@@ -4,10 +4,22 @@ import { memo, useEffect, useId, useMemo, useState, useSyncExternalStore } from 
 import type { CountryId } from "@/core/content/types";
 import type { CountryTone } from "@/core/lesson/mapView";
 import type { RegionMap, Transform } from "@/geo/regionMap";
+import type { StaticImageData } from "next/image";
 import relief from "@/assets/map/relief.json";
-import overviewLand from "@/assets/map/relief/overview-land.webp";
-import overviewTone from "@/assets/map/relief/overview-tone.webp";
+import alpsLand from "@/assets/map/relief/around-the-alps-land.webp";
+import alpsTone from "@/assets/map/relief/around-the-alps-tone.webp";
+import westernEuropeLand from "@/assets/map/relief/western-europe-1-land.webp";
+import westernEuropeTone from "@/assets/map/relief/western-europe-1-tone.webp";
 import styles from "./RegionMap.module.css";
+
+/**
+ * Each level's overview images. Importing them only gives their URLs: a level's
+ * images are fetched when its map is drawn, never for the other levels.
+ */
+const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: StaticImageData }>> = {
+  "western-europe-1": { land: westernEuropeLand, tone: westernEuropeTone },
+  "around-the-alps": { land: alpsLand, tone: alpsTone },
+};
 
 /**
  * The painted landscape for the whole map: relief from real elevation data and
@@ -18,9 +30,10 @@ import styles from "./RegionMap.module.css";
  * fills, under borders, routes, names and markers, and never takes pointer
  * events, so taps reach the country underneath.
  *
- * - A light overview covers everything the map can show; it is loaded with the page.
- * - Zoomed in, sharper tiles for the visible part only are fetched and drawn
- *   over it, chosen by screen density (zoom × devicePixelRatio), so a phone
+ * - A light overview covers everything the level's map can show; it is loaded
+ *   with the level. Each level has its own.
+ * - Zoomed in, sharper tiles (one grid shared by every level) for the visible
+ *   part only are fetched and drawn over it, chosen by screen density (zoom × devicePixelRatio), so a phone
  *   and a desktop fetch what their screens can show.
  * - Two families: "land" is painted in the atlas palette over countries in
  *   their normal colour; "tone" is a neutral light, shade and snow overlay for
@@ -121,6 +134,8 @@ function tilesFor(family: Family, density: number, view: readonly number[], area
 
 interface Props {
   map: RegionMap;
+  /** The level whose overview to draw (see relief.overviews). */
+  level: string;
   /** Lesson countries' tones; any tone other than "default" gets the "tone" family. */
   tones: Partial<Record<CountryId, CountryTone>>;
   /** The view to fetch sharper tiles for: the last one the player stopped at, not one passed through mid-gesture. */
@@ -128,7 +143,9 @@ interface Props {
   viewport: { width: number; height: number };
 }
 
-export const Relief = memo(function Relief({ map, tones, transform, viewport }: Props) {
+export const Relief = memo(function Relief({ map, level, tones, transform, viewport }: Props) {
+  const overviews = (relief.overviews as Record<string, typeof relief.overviews["western-europe-1"] | undefined>)[level];
+  const images = OVERVIEW_IMAGES[level];
   const id = useId().replace(/:/g, "");
   const dpr = useSyncExternalStore(subscribeDpr, getDpr, getServerDpr);
   // Re-render when a tile arrives, so its coarser stand-in can go.
@@ -193,7 +210,7 @@ export const Relief = memo(function Relief({ map, tones, transform, viewport }: 
       />
     );
   };
-  const overview = (o: typeof relief.overview.land, href: string) => (
+  const overview = (o: (typeof relief.overviews)["western-europe-1"]["land"], href: string) => (
     <image href={href} x={o.x} y={o.y} width={o.width} height={o.height} preserveAspectRatio="none" data-level="overview" />
   );
 
@@ -210,12 +227,12 @@ export const Relief = memo(function Relief({ map, tones, transform, viewport }: 
         )}
       </defs>
       <g clipPath={`url(#${id}-plain)`} data-family="land">
-        {overview(relief.overview.land, overviewLand.src)}
+        {overviews && images && overview(overviews.land, images.land.src)}
         {landTiles.map(image)}
       </g>
       {toned && (
         <g clipPath={`url(#${id}-toned)`} data-family="tone">
-          {overview(relief.overview.tone, overviewTone.src)}
+          {overviews && images && overview(overviews.tone, images.tone.src)}
           {toneTiles.map(image)}
         </g>
       )}

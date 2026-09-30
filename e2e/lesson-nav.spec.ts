@@ -8,10 +8,79 @@ import { expect, test, type Page } from "@playwright/test";
 const LESSON = "western-europe-1";
 const ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 
+/**
+ * Waits until the game has mounted: it saves the state it loaded when it mounts,
+ * which would otherwise overwrite a save written by the test just before.
+ */
+async function appReady(page: Page) {
+  await expect(page.locator(".splash")).toHaveCount(0);
+  await expect(page.locator("main").first()).toBeVisible();
+}
+
+/**
+ * Sets the text size (every size here is in rem, as a browser's text size setting gives it)
+ * and returns once the layout has settled.
+ */
+async function setTextSize(page: Page, percent: number) {
+  await page.evaluate(async (s) => {
+    document.documentElement.style.fontSize = `${s}%`;
+    // The first callback runs before that frame's layout and paint; the second, once they are done.
+    for (let i = 0; i < 2; i++) await new Promise((done) => requestAnimationFrame(done));
+  }, percent);
+}
+
+/**
+ * Like setTextSize, for the lesson header, and also returns the header as it was painted in
+ * the first frame after the change, to compare with its settled layout: a header that only
+ * corrects itself a frame later (a visible jump) shows a different first frame.
+ *
+ * The first frame is read in a ResizeObserver created here, so after the game's own: its
+ * callbacks run once that frame's layout is done, just before it is painted, after the
+ * game's header has responded to the new sizes (the last reading of the frame is what is painted).
+ */
+async function setHeaderTextSize(page: Page, percent: number) {
+  return page.evaluate(async (s) => {
+    const header = document.querySelector("header")!;
+    const layout = () =>
+      JSON.stringify([
+        header.dataset.layout,
+        ...['[data-testid="home"]', "ol", "[role=group]"].map((q) => {
+          const b = header.querySelector(q)!.getBoundingClientRect();
+          return [b.left, b.top, b.width, b.height].map(Math.round);
+        }),
+      ]);
+    let firstFrame = "";
+    let painted = false;
+    const observer = new ResizeObserver(() => {
+      if (!painted) firstFrame = layout();
+    });
+    for (const el of [header, ...header.children]) observer.observe(el);
+    document.documentElement.style.fontSize = `${s}%`;
+    await new Promise((done) => requestAnimationFrame(done));
+    // The next frame begins: the first one has been painted.
+    await new Promise((done) => requestAnimationFrame(done));
+    painted = true;
+    observer.disconnect();
+    for (let i = 0; i < 2; i++) await new Promise((done) => requestAnimationFrame(done));
+    return { firstFrame, settled: layout() };
+  }, percent);
+}
+
 async function save(page: Page, lesson: object, { locale = "en", screen = "lesson" } = {}) {
   await page.goto("/");
+  await appReady(page);
   await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 1, locale, screen, lessons: { [LESSON]: lesson } }));
   await page.reload();
+}
+
+/** Level 1's own Continue on the level selection (the main action may point at Level 2 once Level 1 is complete). */
+const continueLevel1 = (page: Page) => page.getByTestId(`level-${LESSON}`).getByRole("button", { name: /^(Continue|Շարունակել)/ });
+
+/** Opens Level 1's card when it is shown as a completed level's one-line summary, so its details and buttons show. */
+async function showLevel1(page: Page) {
+  const toggle = page.getByTestId(`level-${LESSON}`).getByTestId("level-details-toggle");
+  await expect(page.getByTestId(`level-${LESSON}`)).toBeVisible();
+  if ((await toggle.count()) > 0 && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
 }
 
 const answers = (order: string[], n: number, assisted: number[] = []) =>
@@ -97,8 +166,9 @@ test.describe("Home", () => {
       await page.getByTestId("home").click();
       await expect(page.getByRole("heading", { name: "AriMap" })).toBeVisible();
       await page.reload();
-      await expect(page.getByRole("button", { name: "Start over" })).toBeVisible();
-      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await showLevel1(page);
+      await expect(page.getByRole("button", { name: stage.name === "Results" ? /^Play again/ : /^Start over/ })).toBeVisible();
+      await continueLevel1(page).click();
       await stage.ready(page);
       expect(await page.getByTestId("panel").innerText()).toBe(panel);
     });
@@ -111,7 +181,7 @@ test.describe("Home", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByTestId("home")).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeVisible();
+    await expect(continueLevel1(page)).toBeVisible();
   });
 });
 
@@ -129,7 +199,7 @@ test.describe("Start over", () => {
     // Cancel (the focused default), Escape and the backdrop all keep the journey.
     await startOver.click();
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("heading", { name: "Start over?" })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Start “France and its neighbours” over?" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Keep my progress" })).toBeFocused();
     for (const b of await dialog.getByRole("button").all()) {
       const box = (await b.boundingBox())!;
@@ -145,14 +215,14 @@ test.describe("Start over", () => {
     await startOver.click();
     await page.mouse.click(5, 5);
     await expect(dialog).toBeHidden();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await continueLevel1(page).click();
     await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
 
     // Armenian, then confirm.
     await page.getByTestId("home").click();
     await page.getByRole("button", { name: "Հայերեն" }).click();
     await page.getByRole("button", { name: "Սկսել նորից" }).click();
-    await expect(dialog.getByRole("heading", { name: "Սկսե՞լ նորից" })).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "Սկսե՞լ «Ֆրանսիան և իր հարևանները» մակարդակը նորից" })).toBeVisible();
     await expect(dialog.getByRole("button", { name: "Պահել առաջընթացը" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
     await dialog.getByRole("button", { name: "Սկսել նորից" }).click();
@@ -234,8 +304,9 @@ test.describe("saves from the two-round Find", () => {
     await expect(page.getByTestId("result-find")).not.toContainText("/10");
     await expect(page.getByTestId("result-find-answers").locator("li")).toHaveCount(5);
     await page.getByTestId("home").click();
-    await expect(page.getByText("All steps done")).toBeVisible();
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(page.getByTestId(`level-${LESSON}`).getByTestId("level-status")).toHaveText("Completed");
+    await showLevel1(page);
+    await continueLevel1(page).click();
     await expect(page.getByTestId("result-find")).toContainText("4/5");
   });
 });
@@ -254,11 +325,12 @@ test.describe("interface", () => {
       for (const locale of ["en", "hy"]) {
         for (const lesson of [null, STAGES[1].lesson]) {
           await page.goto("/");
+          await appReady(page);
           await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 1, locale, screen: "welcome", lessons: lesson ? { [LESSON]: lesson } : {} }));
           await page.reload();
           const where = `${width}×${height} ${locale} ${lesson ? "in progress" : "new"}`;
           const main = page.getByTestId("welcome-actions").getByRole("button");
-          await expect(main).toHaveText(lesson ? (locale === "en" ? "Continue" : "Շարունակել") : locale === "en" ? "Start" : "Սկսել");
+          await expect(main).toHaveText(lesson ? (locale === "en" ? /^Continue\s*Level 1/ : /^Շարունակել\s*Մակարդակ 1/) : locale === "en" ? /^Start\s*Level 1/ : /^Սկսել\s*Մակարդակ 1/);
           await expect(main).toHaveClass(/btn-primary/);
           // On screen without scrolling, and not covered.
           const b = (await main.boundingBox())!;
@@ -269,18 +341,20 @@ test.describe("interface", () => {
           const [content, bar] = await Promise.all([page.getByTestId("welcome-scroll").boundingBox(), page.getByTestId("welcome-actions").boundingBox()]);
           expect(bar!.y, `${where}: action area over the content`).toBeGreaterThanOrEqual(content!.y + content!.height - 0.5);
           expect(bar!.y + bar!.height).toBeLessThanOrEqual(height + 0.5);
-          // Scrolled to the end: the step chips and Start over are fully visible above the action area, and tappable.
+          // The last level card (scrolled to the end), and Level 1's step chips and Start over (scrolled to them),
+          // show fully above the action area, and are tappable.
           await page.getByTestId("welcome-scroll").evaluate((el) => el.scrollTo(0, el.scrollHeight));
-          const targets = [page.locator("main ol li").last()];
-          if (lesson) targets.push(page.getByRole("button", { name: locale === "en" ? "Start over" : "Սկսել նորից" }));
+          const targets = [page.getByTestId("levels").locator(":scope > li").last()];
+          if (lesson) targets.push(page.getByTestId(`level-${LESSON}`).locator("ol li").last(), page.getByRole("button", { name: locale === "en" ? "Start over" : "Սկսել նորից" }));
           for (const target of targets) {
+            if (target !== targets[0]) await target.evaluate((el) => el.scrollIntoView({ block: "nearest" }));
             const t = (await target.boundingBox())!;
             expect(t.y, `${where}: ${await target.textContent()} hidden above`).toBeGreaterThanOrEqual(content!.y - 0.5);
             expect(t.y + t.height, `${where}: ${await target.textContent()} under the action area`).toBeLessThanOrEqual(bar!.y + 0.5);
           }
           if (lesson) {
             const startOver = page.getByRole("button", { name: locale === "en" ? "Start over" : "Սկսել նորից" });
-            await expect(startOver).toHaveClass(/btn-secondary/);
+            await expect(startOver).toHaveClass(/btn-ghost/);
             await startOver.click();
             await expect(page.getByTestId("start-over-dialog")).toBeVisible();
             await page.keyboard.press("Escape");
@@ -464,10 +538,10 @@ test.describe("header", () => {
           await save(page, stage.lesson, { locale });
           await expect(page.getByTestId("home")).toBeVisible();
           for (const size of [100, 150, 200]) {
-            // Enlarged text, as a browser's text size setting gives it (every size here is in rem).
-            await page.evaluate((s) => (document.documentElement.style.fontSize = `${s}%`), size);
-            await page.waitForTimeout(100);
+            const frames = await setHeaderTextSize(page, size);
             const where = `${width}px ${stage.name} ${locale} ${size}%`;
+            // The layout checked below is already the one painted in the first frame: no jump.
+            expect(frames.firstFrame, `${where}: first frame`).toBe(frames.settled);
             const m = await page.evaluate(() => {
               const r = (e: Element) => e.getBoundingClientRect();
               const visible = (e: Element) => getComputedStyle(e).display !== "none" && !e.classList.contains("visually-hidden") && r(e).width > 0;
@@ -527,6 +601,45 @@ test.describe("header", () => {
   });
 });
 
+test.describe("header, opened with the text already enlarged", () => {
+  test("shows its final layout from the first frame: no jump after it appears", async ({ context }) => {
+    test.skip(test.info().project.name !== "small-phone", "Runs once, at 320px.");
+    // Home and the toggle only fit side by side without Home's icon ("tight"): the case that
+    // used to be painted first as one row, then as the toggle wrapped below Home.
+    const cases = [
+      { locale: "hy", size: 200, layout: "tight" },
+      { locale: "en", size: 150, layout: "stacked" },
+      { locale: "en", size: 100, layout: "row" },
+    ] as const;
+    for (const { locale, size, layout } of cases) {
+      // A page of its own for each case, so each has only its own start-up script.
+      const page = await context.newPage();
+      await save(page, STAGES[0].lesson, { locale });
+      // From the very start of the page: the enlarged text, and the header's layout as it is
+      // before each frame (so as the previous frame was painted), from the frame it first appears in.
+      await page.addInitScript((s) => {
+        const seen: string[] = [];
+        (window as unknown as { headerLayouts: string[] }).headerLayouts = seen;
+        // The script can run before the page's <html> element exists.
+        const enlarge = () => document.documentElement && (document.documentElement.style.fontSize = `${s}%`);
+        if (!enlarge()) new MutationObserver((_, o) => enlarge() && o.disconnect()).observe(document, { childList: true });
+        const record = () => {
+          const layout = document.querySelector("header")?.getAttribute("data-layout");
+          if (layout && seen.at(-1) !== layout) seen.push(layout);
+          if (seen.length < 20) requestAnimationFrame(record);
+        };
+        requestAnimationFrame(record);
+      }, size);
+      await page.reload();
+      await expect(page.getByTestId("home")).toBeVisible();
+      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+      const seen = await page.evaluate(() => (window as unknown as { headerLayouts: string[] }).headerLayouts);
+      expect(seen, `${locale} ${size}%`).toEqual([layout]);
+      await page.close();
+    }
+  });
+});
+
 test.describe("Find heading", () => {
   test("the country asked for is never clipped: whole when it fits, broken inside only when one word cannot fit", async ({ page }) => {
     test.skip(test.info().project.name !== "small-phone", "Runs once, across phone widths.");
@@ -538,8 +651,7 @@ test.describe("Find heading", () => {
           await save(page, { started: true, stage: "find", find: { order: [target, ...ORDER.filter((c) => c !== target)], index: 0, question: question(target), results: [], status: "asking" } }, { locale });
           await expect(page.getByTestId("find-prompt")).toBeVisible();
           for (const size of [100, 150, 200]) {
-            await page.evaluate((s) => (document.documentElement.style.fontSize = `${s}%`), size);
-            await page.waitForTimeout(100);
+            await setTextSize(page, size);
             const where = `${width}px ${locale} ${target} ${size}%`;
             const m = await page.getByTestId("find-prompt").evaluate((h1) => {
               const r = (e: Element) => e.getBoundingClientRect();

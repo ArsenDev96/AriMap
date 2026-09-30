@@ -5,8 +5,9 @@ import type { Feature, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
-import { LESSONS } from "@/core/lessons";
-import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, viewLimits, type Bounds } from "./regionMap";
+import { LESSONS, LEVELS } from "@/core/lessons";
+import { shortestDistance, validateGraph, type BorderGraph } from "@/core/game/graph";
+import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds } from "./regionMap";
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
 const geometries = topology.objects.countries.geometries;
@@ -40,6 +41,33 @@ describe("prepared map data", () => {
         expect(geoContains(shapeOf(id), [...c.capital.coordinates]), `${id} capital`).toBe(true);
         if (c.landmark?.coordinates) expect(geoContains(shapeOf(id), [...c.landmark.coordinates]), `${id} landmark`).toBe(true);
       }
+    });
+  }
+
+  it("draws every level in the same projection, so the painted landscape lines up with each", () => {
+    const [l1, l2] = [regionMapFor(LESSONS["western-europe-1"]), regionMapFor(LESSONS["around-the-alps"])];
+    expect(PROJECTION_FIT).toEqual(LESSONS["western-europe-1"].countries);
+    for (const p of [[6.865, 45.833], [12.4828, 41.8933], [16.3725, 48.2083]] as const) expect(l2.project(p)).toEqual(l1.project(p));
+    expect(l2.shapes.find((s) => s.id === "FRA")!.d).toBe(l1.shapes.find((s) => s.id === "FRA")!.d);
+  });
+
+  // Levels 3–5 are not playable yet, but their proposed country groups are checked
+  // now: every country is in the map data, and the group is connected by real land
+  // borders, with at least one pair two crossings apart (a real Travel puzzle).
+  for (const level of LEVELS.filter((l) => !l.lesson)) {
+    it(`${level.id} (coming soon): its countries form a connected group of real neighbours`, () => {
+      const adjacency = neighbors(geometries);
+      const graph: BorderGraph = Object.fromEntries(
+        level.countries.map((id) => {
+          const index = geometries.findIndex((g) => g.id === id);
+          expect(index, id).toBeGreaterThanOrEqual(0);
+          return [id, adjacency[index].map((i) => String(geometries[i].id)).filter((n) => level.countries.includes(n))];
+        }),
+      );
+      expect(validateGraph(graph)).toEqual([]);
+      const distances = level.countries.flatMap((a) => level.countries.map((b) => shortestDistance(graph, a, b)));
+      expect(distances.every((d) => d !== null)).toBe(true);
+      expect(Math.max(...(distances as number[]))).toBeGreaterThanOrEqual(2);
     });
   }
 
@@ -96,7 +124,7 @@ describe("map coverage", () => {
   });
 
   for (const lesson of lessons) {
-    const map = getRegionMap(lesson.countries);
+    const map = regionMapFor(lesson);
 
     it(`${lesson.id}: the coverage area lies inside the clipped data`, () => {
       const [w, s, e, n] = MAP_DATA_CLIP;

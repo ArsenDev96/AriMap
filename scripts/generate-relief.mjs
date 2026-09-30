@@ -1,7 +1,7 @@
 // Generates the map's painted landscape (relief and forests) from real data:
-//   src/assets/map/relief/overview-land.webp, overview-tone.webp  (whole map, loaded with the page)
-//   public/relief/<hash>/<level>/<family>/<col>-<row>.webp         (zoomed tiles, loaded only when needed)
-//   src/assets/map/relief.json                                     (placement and tile manifest)
+//   src/assets/map/relief/<level id>-land.webp, <level id>-tone.webp  (one level's whole map, loaded with that level)
+//   public/relief/<hash>/<lod>/<family>/<col>-<row>.webp               (zoomed tiles, shared by all levels, loaded only when needed)
+//   src/assets/map/relief.json                                         (placement and tile manifest)
 //
 //   node scripts/generate-relief.mjs
 //
@@ -28,24 +28,56 @@ const root = new URL("..", import.meta.url);
 const file = (rel) => new URL(rel, root).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 
 // --- The map projection and areas, exactly as src/geo/regionMap.ts builds them.
-const LESSON = ["FRA", "BEL", "NLD", "LUX", "DEU"];
+// One projection for every level (PROJECTION_FIT in regionMap.ts: Level 1's countries).
+const PROJECTION_FIT = ["FRA", "BEL", "NLD", "LUX", "DEU"];
+/**
+ * The playable levels: their countries and coverage half-size (`map.coverageHalf`,
+ * default [1150, 900]), as in src/core/lessons/. src/geo/relief.test.ts checks
+ * the manifest against every playable level, so a level added there without
+ * rerunning this script fails the tests.
+ */
+const LEVEL_AREAS = [
+  { id: "western-europe-1", countries: ["FRA", "BEL", "NLD", "LUX", "DEU"], coverageHalf: [1150, 900] },
+  { id: "around-the-alps", countries: ["FRA", "CHE", "DEU", "AUT", "ITA"], coverageHalf: [1090, 840] },
+];
+/**
+ * Where the zoomed tile grids are anchored: the corner of Level 1's pan area,
+ * where the first grid began. Grids grow by whole tiles from here, so Level 1's
+ * tiles keep their pixels when levels are added.
+ */
+const GRID_ANCHOR = [-216, -250];
 const topology = JSON.parse(readFileSync(file("src/data/geo/europe-west.topo.json"), "utf8"));
 const countries = feature(topology, topology.objects.countries);
-const active = { type: "FeatureCollection", features: countries.features.filter((f) => f.geometry && LESSON.includes(String(f.id))) };
-const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([1000, 1000], active);
-const [[fx0, fy0], [fx1, fy1]] = geoPath(projection).bounds(active);
-const [cx, cy] = [(fx0 + fx1) / 2, (fy0 + fy1) / 2];
-/** Everything the map can ever show (COVERAGE_HALF in regionMap.ts). */
-const coverage = { x0: cx - 1150, y0: cy - 900, x1: cx + 1150, y1: cy + 900 };
-/** Where the map can be panned when zoomed in (PAN_MARGIN 0.25 in regionMap.ts). */
-const panArea = {
-  x0: Math.max(coverage.x0, fx0 - (fx1 - fx0) * 0.25),
-  y0: Math.max(coverage.y0, fy0 - (fy1 - fy0) * 0.25),
-  x1: Math.min(coverage.x1, fx1 + (fx1 - fx0) * 0.25),
-  y1: Math.min(coverage.y1, fy1 + (fy1 - fy0) * 0.25),
-};
-/** Lesson countries: the only ones that ever take a state colour (selection, answers, Travel). */
-const lessonArea = { x0: fx0 - 4, y0: fy0 - 4, x1: fx1 + 4, y1: fy1 + 4 };
+const collection = (ids) => ({ type: "FeatureCollection", features: countries.features.filter((f) => f.geometry && ids.includes(String(f.id))) });
+const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([1000, 1000], collection(PROJECTION_FIT));
+
+/**
+ * A level's areas: `coverage`, everything its map can ever show (coverage in
+ * regionMap.ts); `panArea`, where it can be panned when zoomed in (PAN_MARGIN
+ * 0.25 in regionMap.ts); `lessonArea`, its countries, the only ones that ever
+ * take a state colour (selection, answers, Travel).
+ */
+function levelAreas({ id, countries: ids, coverageHalf: [hx, hy] }) {
+  const [[fx0, fy0], [fx1, fy1]] = geoPath(projection).bounds(collection(ids));
+  const [cx, cy] = [(fx0 + fx1) / 2, (fy0 + fy1) / 2];
+  const coverage = { x0: cx - hx, y0: cy - hy, x1: cx + hx, y1: cy + hy };
+  const panArea = {
+    x0: Math.max(coverage.x0, fx0 - (fx1 - fx0) * 0.25),
+    y0: Math.max(coverage.y0, fy0 - (fy1 - fy0) * 0.25),
+    x1: Math.min(coverage.x1, fx1 + (fx1 - fx0) * 0.25),
+    y1: Math.min(coverage.y1, fy1 + (fy1 - fy0) * 0.25),
+  };
+  const lessonArea = { x0: fx0 - 4, y0: fy0 - 4, x1: fx1 + 4, y1: fy1 + 4 };
+  return { id, coverage, panArea, lessonArea };
+}
+const AREAS = LEVEL_AREAS.map(levelAreas);
+const union = (boxes) => ({
+  x0: Math.min(...boxes.map((b) => b.x0)),
+  y0: Math.min(...boxes.map((b) => b.y0)),
+  x1: Math.max(...boxes.map((b) => b.x1)),
+  y1: Math.max(...boxes.map((b) => b.y1)),
+});
+const overlaps = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 
 /** World units per km, near the projection centre. */
 const perKm = (() => {
@@ -59,17 +91,30 @@ const TILE = 256;
 const CACHE = file("node_modules/.cache/arimap-terrain/");
 mkdirSync(CACHE, { recursive: true });
 
+/** Elevation sources named by the tiles used (their x-amz-meta-x-imagery-sources header), for the attribution check. */
+const imagerySources = new Map();
+const tilesSeen = new Set();
+
 async function fetchTile(z, x, y) {
   const path = `${CACHE}${z}-${x}-${y}.png`;
-  if (!existsSync(path)) {
+  const meta = `${CACHE}${z}-${x}-${y}.sources`;
+  if (!existsSync(path) || !existsSync(meta)) {
     for (let attempt = 0; ; attempt++) {
       const res = await fetch(`https://s3.amazonaws.com/elevation-tiles-prod/terrarium/${z}/${x}/${y}.png`);
       if (res.ok) {
         writeFileSync(path, Buffer.from(await res.arrayBuffer()));
+        writeFileSync(meta, res.headers.get("x-amz-meta-x-imagery-sources") ?? "");
         break;
       }
       if (attempt === 3) throw new Error(`tile ${z}/${x}/${y}: ${res.status}`);
     }
+  }
+  // Entries look like "srtm/N45E007.hgt": the source is the part before the slash. Each tile counts once.
+  if (tilesSeen.has(meta)) return path;
+  tilesSeen.add(meta);
+  for (const entry of readFileSync(meta, "utf8").split(",").filter(Boolean)) {
+    const source = entry.trim().split("/")[0];
+    imagerySources.set(source, (imagerySources.get(source) ?? 0) + 1);
   }
   return path;
 }
@@ -512,44 +557,53 @@ const maxAlpha = (rgba) => {
   return m;
 };
 
-const manifest = { levels: [] };
+const manifest = { levels: [], overviews: {} };
 const outputs = []; // [relative public path, buffer]
+const RELIEF_ASSETS = file("src/assets/map/relief/");
+rmSync(RELIEF_ASSETS, { recursive: true, force: true });
+mkdirSync(RELIEF_ASSETS, { recursive: true });
 
-// --- Overview: the land over the whole coverage, the tone over the lesson countries.
-{
+// --- Overviews, one per level: the land over the level's whole coverage, the tone over its countries.
+for (const { id, coverage, lessonArea } of AREAS) {
   const level = LEVELS[0];
   const area = { x0: Math.floor(coverage.x0), y0: Math.floor(coverage.y0), x1: Math.ceil(coverage.x1), y1: Math.ceil(coverage.y1) };
   const painted = paintLevel(level, area, await elevationSource(7, area), await treeSource(level.wcOverview, area));
   const land = block(painted, 0, 0, painted.W, painted.H).land;
-  mkdirSync(file("src/assets/map/relief"), { recursive: true });
   const landBuf = await encode(painted.W, painted.H, land);
-  writeFileSync(file("src/assets/map/relief/overview-land.webp"), landBuf);
+  writeFileSync(`${RELIEF_ASSETS}${id}-land.webp`, landBuf);
   const t = { x0: Math.floor(lessonArea.x0), y0: Math.floor(lessonArea.y0), x1: Math.ceil(lessonArea.x1), y1: Math.ceil(lessonArea.y1) };
   const [ti, tj, tw, th] = [(t.x0 - area.x0) * level.px, (t.y0 - area.y0) * level.px, (t.x1 - t.x0) * level.px, (t.y1 - t.y0) * level.px];
   const toneBuf = await encode(tw, th, block(painted, ti, tj, tw, th).tone);
-  writeFileSync(file("src/assets/map/relief/overview-tone.webp"), toneBuf);
-  manifest.overview = {
+  writeFileSync(`${RELIEF_ASSETS}${id}-tone.webp`, toneBuf);
+  manifest.overviews[id] = {
     land: { x: area.x0, y: area.y0, width: painted.W / level.px, height: painted.H / level.px, bytes: landBuf.length },
     tone: { x: t.x0, y: t.y0, width: tw / level.px, height: th / level.px, bytes: toneBuf.length },
   };
-  console.log(`overview: land ${landBuf.length} B, tone ${toneBuf.length} B`);
+  console.log(`${id} overview: land ${landBuf.length} B, tone ${toneBuf.length} B`);
 }
 
-// --- Zoomed levels: 512px tiles over the pan area; tone tiles only over the lesson countries.
-const detailSource = await elevationSource(8, { x0: panArea.x0 - 20, y0: panArea.y0 - 20, x1: panArea.x1 + 20, y1: panArea.y1 + 20 });
+// --- Zoomed levels: 512px tiles over every level's pan area, in one grid shared by
+// all levels; tone tiles only over the levels' countries. The whole area is painted
+// at once, so tiles match where two levels' areas meet.
+const panUnion = union(AREAS.map((a) => a.panArea));
+const detailSource = await elevationSource(8, { x0: panUnion.x0 - 20, y0: panUnion.y0 - 20, x1: panUnion.x1 + 20, y1: panUnion.y1 + 20 });
 for (const level of LEVELS.slice(1)) {
   const tileWorld = TILE_PX / level.px;
-  const origin = [Math.floor(panArea.x0), Math.floor(panArea.y0)];
-  const cols = Math.ceil((panArea.x1 - origin[0]) / tileWorld);
-  const rows = Math.ceil((panArea.y1 - origin[1]) / tileWorld);
+  const start = [panUnion.x0, panUnion.y0];
+  const origin = GRID_ANCHOR.map((a, k) => a - Math.max(0, Math.ceil((a - start[k]) / tileWorld)) * tileWorld);
+  const cols = Math.ceil((panUnion.x1 - origin[0]) / tileWorld);
+  const rows = Math.ceil((panUnion.y1 - origin[1]) / tileWorld);
   const area = { x0: origin[0], y0: origin[1], x1: origin[0] + cols * tileWorld, y1: origin[1] + rows * tileWorld };
   const painted = paintLevel(level, area, detailSource, await treeSource(level.wcOverview, area));
   const entry = { name: level.name, minDensity: level.minDensity, px: level.px, tileWorld, origin, cols, rows, land: [], tone: [], bytes: { land: 0, tone: 0 } };
   for (let row = 0; row < rows; row++)
     for (let col = 0; col < cols; col++) {
-      const tile = block(painted, col * TILE_PX, row * TILE_PX, TILE_PX, TILE_PX);
       const [wx0, wy0] = [origin[0] + col * tileWorld, origin[1] + row * tileWorld];
-      const toneWanted = wx0 < lessonArea.x1 && wx0 + tileWorld > lessonArea.x0 && wy0 < lessonArea.y1 && wy0 + tileWorld > lessonArea.y0;
+      const box = { x0: wx0, y0: wy0, x1: wx0 + tileWorld, y1: wy0 + tileWorld };
+      // Only where some level can be panned to when zoomed in.
+      if (!AREAS.some((a) => overlaps(box, a.panArea))) continue;
+      const tile = block(painted, col * TILE_PX, row * TILE_PX, TILE_PX, TILE_PX);
+      const toneWanted = AREAS.some((a) => overlaps(box, a.panArea) && overlaps(box, a.lessonArea));
       for (const family of ["land", "tone"]) {
         if (family === "tone" && !toneWanted) continue;
         // Tiles with no visible relief (sea, flat lowland) are left out.
@@ -586,5 +640,8 @@ manifest.check = [
 });
 manifest.source =
   "Elevation: Terrain Tiles (Mapzen/Tilezen Terrarium), zoom 7 (overview) and 8 (zoomed levels). Forests: ESA WorldCover 2021 v200 tree cover, overviews 5 (overview, l2) and 4 (l3).";
+// Attribution check: the elevation sources named by the tiles used (see docs/TERRAIN.md, "Attribution").
+manifest.elevationSources = Object.fromEntries([...imagerySources].sort());
+console.log("elevation sources:", manifest.elevationSources);
 writeFileSync(file("src/assets/map/relief.json"), JSON.stringify(manifest, null, 2) + "\n");
 console.log(`relief.json (version ${manifest.version})`);
