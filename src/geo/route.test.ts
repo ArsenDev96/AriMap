@@ -118,6 +118,10 @@ for (const lesson of Object.values(LESSONS)) {
       if (lesson.id === "around-the-alps") {
         expect(paths.map((p) => p.join("→")).sort()).toEqual(["FRA→CHE→AUT", "FRA→DEU→AUT", "FRA→ITA→AUT"]);
       }
+      // Through Czechia or Slovakia, and through Germany too: Germany borders both Poland and Austria.
+      if (lesson.id === "central-europe") {
+        expect(paths.map((p) => p.join("→")).sort()).toEqual(["POL→CZE→AUT", "POL→DEU→AUT", "POL→SVK→AUT"]);
+      }
       for (const path of paths) {
         const line = routeLine(path, settings);
         const others = lesson.countries.filter((id) => !path.includes(id));
@@ -141,5 +145,15 @@ describe("western-europe-1 regression: France → Germany", () => {
         expect(geoContains(shapeOf("LUX"), [...p])).toBe(false);
       }
     }
+  });
+});
+
+describe("central-europe: reuses Level 2's Germany–Austria line", () => {
+  it("has the same crossing and turning points, so the same move is drawn the same in both levels", () => {
+    const [alps, central] = [LESSONS["around-the-alps"], LESSONS["central-europe"]];
+    expect(routeLine(["DEU", "AUT"], routeSettings(central))).toEqual(routeLine(["DEU", "AUT"], routeSettings(alps)));
+    expect(routeLine(["DEU", "AUT"], routeSettings(central))).toHaveLength(5);
+    // Level 3's other legs need no turning points.
+    expect(Object.keys(central.map.routeVia ?? {}).sort()).toEqual(["AUT@AUT-DEU", "DEU@AUT-DEU"]);
   });
 });

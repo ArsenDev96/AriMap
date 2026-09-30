@@ -39,6 +39,7 @@ const PROJECTION_FIT = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const LEVEL_AREAS = [
   { id: "western-europe-1", countries: ["FRA", "BEL", "NLD", "LUX", "DEU"], coverageHalf: [1150, 900] },
   { id: "around-the-alps", countries: ["FRA", "CHE", "DEU", "AUT", "ITA"], coverageHalf: [1090, 840] },
+  { id: "central-europe", countries: ["DEU", "POL", "CZE", "SVK", "AUT"], coverageHalf: [715, 760] },
 ];
 /**
  * Where the zoomed tile grids are anchored: the corner of Level 1's pan area,

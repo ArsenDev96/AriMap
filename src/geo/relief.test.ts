@@ -155,4 +155,38 @@ describe("painted relief", () => {
       expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
     }
   });
+
+  // Level 3 reaches east to Poland's border with Belarus and Ukraine. Reference points: the
+  // Wikipedia articles' coordinates (checked 2026-09-30; see docs/TERRAIN.md).
+  it("Level 3: shows the Tatras, the Sudetes and the Carpathians, forests from Lusatia to Białowieża; the plains stay bare", async () => {
+    const alphaNear = await alphaSampler("central-europe", regionMapFor(LESSONS["central-europe"]));
+    const summits: Record<string, [LonLat, number]> = {
+      "Gerlachovský štít (High Tatras)": [[20.134, 49.164], 200],
+      "Low Tatras": [[19.5, 48.95], 200],
+      "Sněžka (Sudetes)": [[15.74, 50.736], 200],
+      Grossglockner: [[12.695, 47.075], 200],
+      "Babia Góra (Beskids)": [[19.533, 49.583], 150],
+      "Bohemian Forest": [[13.383, 49.0], 150],
+      "Bieszczady Mountains": [[22.483, 49.283], 45],
+      "Fichtelberg (Ore Mountains)": [[12.955, 50.429], 45],
+    };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    for (const range of MOUNTAIN_RANGES.filter((r) => ["ore", "bohemian-forest", "sudetes", "harz"].includes(r.id))) {
+      expect(Math.max(...range.crests.flat().map((p) => alphaNear(p))), range.id).toBeGreaterThanOrEqual(45);
+    }
+    const forests: Record<string, LonLat> = {
+      "Białowieża Forest": [23.95, 52.75],
+      "Tuchola Forest": [18.0, 53.6],
+      Lusatia: [14.726, 51.545],
+      "Vienna Woods": [16.0, 48.167],
+    };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    // Farmland of Žitný ostrov (the Danubian Lowland) and Kuyavia's black earth, and the Marchfeld; Warsaw and Berlin on low ground.
+    for (const [name, p] of Object.entries({ "Žitný ostrov": [17.65, 47.95], Kuyavia: [18.55, 52.7], Marchfeld: [16.64, 48.23] } as Record<string, LonLat>)) {
+      expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+    }
+    for (const [name, p] of Object.entries({ "Warsaw centre": [21.0111, 52.23], "Berlin centre": [13.405, 52.52] } as Record<string, LonLat>)) {
+      expect(alphaNear(p, 1), name).toBeLessThanOrEqual(25);
+    }
+  });
 });

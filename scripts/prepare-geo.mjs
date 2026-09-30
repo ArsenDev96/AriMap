@@ -28,10 +28,12 @@ mkdirSync(dirname(output), { recursive: true });
 // the viewport or create border shortcuts.
 const BBOX = "-27,32,36,62";
 
-// Countries kept at full (~400 m) detail.
+// Countries kept at full (~400 m) detail: every playable country, and the
+// neighbours visible when zoomed in. Slovakia was added with Level 3 (Central
+// Europe); it changed only its borders with Hungary and Ukraine.
 const DETAIL_IDS = [
   "FRA", "BEL", "NLD", "LUX", "DEU",
-  "GBR", "IRL", "ESP", "AND", "MCO", "ITA", "SMR", "VAT", "CHE", "LIE", "AUT", "CZE", "POL", "DNK",
+  "GBR", "IRL", "ESP", "AND", "MCO", "ITA", "SMR", "VAT", "CHE", "LIE", "AUT", "CZE", "POL", "DNK", "SVK",
 ];
 
 const commands = [

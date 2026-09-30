@@ -79,7 +79,7 @@ Code:
   - **Settled views only.** Tiles are chosen from the view the player stopped at (a gesture ended, or paused for 150 ms), so zoom and pan animations, redraws in the middle of a gesture, and the first layout don't fetch tiles for the views they pass through.
   - **While loading.** Each tile fades in over 250 ms (instantly with reduced motion). Where a level-3 tile is still loading, the level-2 tile under it stands in. The overview is always underneath, so nothing goes blank.
   - **Tile files.** Tiles live in `public/relief/<content hash>/`, and are served with `Cache-Control: public, max-age=31536000, immutable` (`next.config.ts`). A new generation writes a new folder.
-- **Close-up.** It draws the same landscape at its own zoom, so it picks the detailed level for the few tiles around Luxembourg (Level 1; Level 2 has no close-up).
+- **Close-up.** It draws the same landscape at its own zoom, so it picks the detailed level for the few tiles around Luxembourg (Level 1; Levels 2 and 3 have no close-up).
 
 ## Forests
 
@@ -110,6 +110,13 @@ Also `scripts/generate-relief.mjs`, into the same rasters and tiles as the relie
    - So at the whole-map level (about 1.5 km per pixel) small woods fade into gentle shading and large forests stay. Zoomed in (about 760 m and 470 m per pixel) smaller woods and clearings reappear.
 4. **Canopy.** Value noise anchored to world coordinates, so the texture is continuous across tiles, and finer levels add octaves to the same coarse pattern.
 
+### Geographic check (Level 3)
+
+The same test reads Level 3's overview (reference points: Wikipedia article coordinates, checked 2026-09-30):
+- **Relief** is at least 200/255 at Gerlachovský štít (High Tatras), the Low Tatras, Sněžka (Sudetes) and the Grossglockner, and 150 at Babia Góra (Beskids) and the Bohemian Forest. It is at least 45 at the Bieszczady and along the Ore Mountains, Bohemian Forest, Sudetes and Harz crests. Measured: 252 at the Tatras and the Grossglockner, 229 at Sněžka, 182 at Babia Góra and the Bohemian Forest, 133 at the Bieszczady.
+- **Forests** are at least 40/255 in the Białowieża Forest, the Tuchola Forest, Lusatia and the Vienna Woods (measured 74–109).
+- **Farmland stays bare** (at most 10/255; measured 0): Žitný ostrov (the Danubian Lowland's farmland island), Kuyavia's black-earth farmland and the Marchfeld. Warsaw and Berlin centres stay at most 25 (measured 22).
+
 ### Geographic check (Level 2)
 
 The same test reads Level 2's overview (reference points: Wikipedia article coordinates, checked 2026-09-30):
@@ -133,8 +140,12 @@ The same test reads Level 2's overview (reference points: Wikipedia article coor
 | Game Level 1 neutral overlay overview (`western-europe-1-tone.webp`, 962×1008) | 131 KB | Once a Level 1 country has a state colour |
 | Game Level 2 land overview (`around-the-alps-land.webp`, 2181×1681) | 449 KB | With Level 2 (every stage) |
 | Game Level 2 neutral overlay overview (`around-the-alps-tone.webp`, 1229×1428) | 227 KB | Once a Level 2 country has a state colour |
-| Detail level 2 tiles (60 land + 41 tone) | 4.1 MB in all, about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
-| Detail level 3 tiles (138 land + 85 tone) | 10.1 MB in all, about 47 KB each | Zoomed in further |
+| Game Level 3 land overview (`central-europe-land.webp`, 1431×1521) | 291 KB | With Level 3 (every stage) |
+| Game Level 3 neutral overlay overview (`central-europe-tone.webp`, 849×645) | 85 KB | Once a Level 3 country has a state colour |
+| Detail level 2 tiles (65 land + 45 tone) | 4.7 MB in all, about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
+| Detail level 3 tiles (138 land + 90 tone) | 10.4 MB in all, about 47 KB each | Zoomed in further |
+
+**Adding Level 3** (2026-09-30). The overviews of Levels 1 and 2 are byte-for-byte the files they were. Level 3's pan area reaches a little further east than Level 2's, so the level-2 grid grew by one column (8 → 9) and the level-3 grid kept its size. Of the 324 existing tiles, 316 are byte-identical and 14 are new (5 land and 4 tone in level 2, 5 tone in level 3; 0.98 MB). The other 8 lie along the old grids' east edge (level-2 column 7, level-3 tile 12-0), 1320–1704 world units east, beyond Level 1's pan area and at the east end of Level 2's. Before, the elevation there ended at the old pan limit and its last row was repeated; now there is real terrain. So in the strip past the old limit up to 0.5–2.7% of a tile's pixels changed by more than 8/255. Elsewhere in those tiles the differences are the WebP encoder's (mean 0.1–2.2/255). Levels 1 and 2 download the same overviews as before, and fetch those 8 tiles again only when zoomed onto Austria's or Poland's east.
 
 The overviews of game Level 1 are byte-for-byte the files they were before Level 2 was added. Of Level 1's 190 tiles, 159 are byte-identical in the new grid. The other 31 lie along the old grid's outer edge, where the smoothing now has real terrain beyond the edge instead of a repeated edge pixel. There, 0.01–1.5% of a tile's pixels changed, in the strip at the old pan limit. Level 1's downloads are unchanged, except that it may fetch those edge tiles again.
 
@@ -164,7 +175,7 @@ So forests add about 54 KB to the first load (46 KB with a state colour), and a 
 ### Attribution
 
 Which sources the elevation tiles use depends on the zoom (https://github.com/tilezen/joerd/blob/master/docs/data-sources.md): at zooms 7 and 8, SRTM on land (GMTED2010 above 60°N) and ETOPO1 at sea. EU-DEM and national models only start at zooms 9–10.
-- **Checked:** the `x-amz-meta-x-imagery-sources` header of every one of the 1,560 tiles used (Levels 1 and 2; 1,260 for Level 1 before) lists only `srtm`, `gmted` and `etopo1`. The generator now records these headers and writes the sources to `relief.json` (`elevationSources`), and a test fails if any other source appears. Level 2's area adds no credit: Italy, Switzerland and Austria at zooms 7–8 come from SRTM, like the rest.
+- **Checked:** the `x-amz-meta-x-imagery-sources` header of every tile used for Levels 1–3 (1,590 tiles; 1,560 for Levels 1 and 2, 1,260 for Level 1 before) lists only `srtm`, `gmted` and `etopo1`. The generator now records these headers and writes the sources to `relief.json` (`elevationSources`), and a test fails if any other source appears. Level 2's area adds no credit: Italy, Switzerland and Austria at zooms 7–8 come from SRTM, like the rest. Nor does Level 3's: Poland, Czechia, Slovakia and their neighbours come from SRTM (GMTED2010 north of 60°N), and the sea from ETOPO1.
 - **Required credits** (from https://github.com/tilezen/joerd/blob/master/docs/attribution.md), shown verbatim in "About the map":
 
 > Terrain Tiles by Mapzen, from the Registry of Open Data on AWS.
@@ -260,5 +271,5 @@ Result:
     - Pixel 7 size (412×915, 2.6× pixels, touch): at rest 487 MB (before: 458, +29 MB, mostly GPU memory for the copy); after the gestures 429 MB (before: 486).
     - The copy adds about 240 elements (829 against 587 on desktop) and 1.7 MB of JavaScript heap. Neither grows with repeated gestures: after 40 and 60 gestures back at the same view, the element count is unchanged.
     - Not measured in Firefox or WebKit, or on physical phones.
-- **Repository size.** The committed landscape is about 16 MB (1.2 MB overviews for two game levels, 14.9 MB tiles), against 9.5 MB for Level 1 alone.
+- **Repository size.** The committed landscape is about 17 MB (1.6 MB overviews for three game levels, 15.8 MB tiles), against 16 MB for Levels 1 and 2 and 9.5 MB for Level 1 alone.
 - **Generator dependency.** Reading WorldCover needs `geotiff` (a dev dependency, used only by the script).

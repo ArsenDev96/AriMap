@@ -182,6 +182,72 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "colosseum",
     },
   },
+  // Level 3's new countries. Their illustrations are not supplied yet, so they have no
+  // `illustration` and their cards show the landmark as text (filenames and briefs: docs/CONTENT.md).
+  POL: {
+    id: "POL",
+    name: { en: "Poland", hy: "Լեհաստան" },
+    nameInText: { en: "Poland", hy: "Լեհաստանը" },
+    capital: { name: { en: "Warsaw", hy: "Վարշավա" }, coordinates: [21.0111, 52.23] },
+    hint: {
+      en: "A large, mostly flat country in the north-east of this region, with a coast on the Baltic Sea.",
+      hy: "Մեծ, հիմնականում հարթ երկիր տարածաշրջանի հյուսիս-արևելքում՝ Բալթիկ ծովի ափով։",
+    },
+    label: { coordinates: [19.4, 52.1] },
+    landmark: {
+      id: "wawel-castle",
+      name: { en: "Wawel Castle", hy: "Վավելի ամրոց" },
+      nameInText: { en: "Wawel Castle", hy: "Վավելի ամրոցը" },
+      fact: {
+        en: "For centuries the home of Poland's kings, it stands on a hill above the Vistula River in Kraków.",
+        hy: "Դարեր շարունակ եղել է Լեհաստանի թագավորների նստավայրը։ Այն կանգնած է Կրակովում՝ Վիսլա գետի ափին գտնվող բլրի վրա։",
+      },
+      // In Kraków, not the capital.
+      coordinates: [19.9347, 50.0539],
+    },
+  },
+  CZE: {
+    id: "CZE",
+    name: { en: "Czechia", hy: "Չեխիա" },
+    nameInText: { en: "Czechia", hy: "Չեխիան" },
+    capital: { name: { en: "Prague", hy: "Պրահա" }, coordinates: [14.4214, 50.0875] },
+    hint: {
+      en: "A country with no coast in the middle of this region, almost ringed by low mountains.",
+      hy: "Երկիր առանց ծովի՝ տարածաշրջանի կենտրոնում, գրեթե ամբողջությամբ շրջապատված ցածր լեռներով։",
+    },
+    label: { coordinates: [15.4, 49.8] },
+    landmark: {
+      id: "charles-bridge",
+      name: { en: "Charles Bridge", hy: "Կառլի կամուրջ" },
+      nameInText: { en: "the Charles Bridge", hy: "Կառլի կամուրջը" },
+      fact: {
+        en: "Begun in 1357, this stone bridge was Prague's only way across the Vltava River until 1841.",
+        hy: "Կառուցումը սկսվել է 1357 թվականին։ Մինչև 1841 թվականը այս քարե կամուրջը Պրահայում Վլտավա գետն անցնելու միակ ճանապարհն էր։",
+      },
+      coordinates: [14.4119, 50.0864],
+    },
+  },
+  SVK: {
+    id: "SVK",
+    name: { en: "Slovakia", hy: "Սլովակիա" },
+    nameInText: { en: "Slovakia", hy: "Սլովակիան" },
+    capital: { name: { en: "Bratislava", hy: "Բրատիսլավա" }, coordinates: [17.1097, 48.1439] },
+    hint: {
+      en: "A small mountain country with no coast in the south-east of this region, just south of Poland.",
+      hy: "Փոքր լեռնային երկիր առանց ծովի՝ տարածաշրջանի հարավ-արևելքում, Լեհաստանից անմիջապես հարավ։",
+    },
+    label: { coordinates: [19.5, 48.75] },
+    landmark: {
+      id: "bratislava-castle",
+      name: { en: "Bratislava Castle", hy: "Բրատիսլավայի ամրոց" },
+      nameInText: { en: "Bratislava Castle", hy: "Բրատիսլավայի ամրոցը" },
+      fact: {
+        en: "This rectangular castle with four corner towers stands on a rocky hill above the Danube.",
+        hy: "Չորս անկյունային աշտարակներով այս ուղղանկյուն ամրոցը կանգնած է ժայռոտ բլրի վրա՝ Դանուբ գետի վերևում։",
+      },
+      coordinates: [17.1, 48.1422],
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

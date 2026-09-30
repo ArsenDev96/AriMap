@@ -7,7 +7,9 @@ import { expect, test, type Page } from "@playwright/test";
 
 const L1 = "western-europe-1";
 const L2 = "around-the-alps";
+const L3 = "central-europe";
 const L1_ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
+const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
 const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const NAMES: Record<string, string> = { France: "FRA", Switzerland: "CHE", Germany: "DEU", Austria: "AUT", Italy: "ITA" };
 const LANDMARKS: Record<string, string> = { FRA: "Eiffel Tower", CHE: "Chapel Bridge", DEU: "Brandenburg Gate", AUT: "Schönbrunn Palace", ITA: "Colosseum" };
@@ -143,8 +145,8 @@ test.describe("level selection", () => {
         const statuses = await page.getByTestId("level-status").allTextContents();
         const expected =
           locale === "en"
-            ? [state ? "Completed" : "Ready to play", state ? "Ready to play" : "Locked", "Coming soon", "Coming soon", "Coming soon"]
-            : [state ? "Ավարտված է" : "Պատրաստ է խաղալու", state ? "Պատրաստ է խաղալու" : "Փակ է", "Շուտով", "Շուտով", "Շուտով"];
+            ? [state ? "Completed" : "Ready to play", state ? "Ready to play" : "Locked", "Locked", "Coming soon", "Coming soon"]
+            : [state ? "Ավարտված է" : "Պատրաստ է խաղալու", state ? "Պատրաստ է խաղալու" : "Փակ է", "Փակ է", "Շուտով", "Շուտով"];
         statuses.forEach((text, i) => expect(text.startsWith(expected[i]), `${label} ${locale} card ${i + 1}: ${text}`).toBe(true));
         // Number and name on every card, and its countries.
         for (const [i, id] of [L1, L2, "central-europe", "along-the-adriatic", "towards-greece"].entries()) {
@@ -154,6 +156,9 @@ test.describe("level selection", () => {
         await expect(card(page, "towards-greece")).toContainText(locale === "en" ? "Hungary · Romania · Serbia · Bulgaria · Greece" : "Հունգարիա · Ռումինիա · Սերբիա · Բուլղարիա · Հունաստան");
         // Coming soon: says so, and has no action at all. Locked: names what unlocks it, and no action either.
         for (const id of ["central-europe", "along-the-adriatic", "towards-greece"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
+        // Level 3 opens after Level 2, not Level 1.
+        await expect(card(page, "central-europe")).toContainText(locale === "en" ? "Complete “Around the Alps” to unlock it." : "Բացելու համար ավարտիր «Ալպերի շուրջը» մակարդակը։");
+        await expect(card(page, "central-europe")).toContainText(locale === "en" ? "Germany · Poland · Czechia · Slovakia · Austria" : "Գերմանիա · Լեհաստան · Չեխիա · Սլովակիա · Ավստրիա");
         if (!state) {
           await expect(card(page, L2).getByRole("button")).toHaveCount(0);
           await expect(card(page, L2)).toContainText(locale === "en" ? "Complete “France and its neighbours” to unlock it." : "Բացելու համար ավարտիր «Ֆրանսիան և իր հարևանները» մակարդակը։");
@@ -339,9 +344,10 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   await page.getByTestId("home").click();
   await expect(card(page, L2).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L1).getByTestId("level-status")).toHaveText("Completed");
-  await expect(card(page, "central-europe").getByRole("button")).toHaveCount(0);
-  // Every playable level is completed: no main action is offered.
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
+  // Completing Level 2 unlocks Level 3: the main action starts it; Levels 4–5 stay out of reach.
+  await expect(card(page, "central-europe").getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 3 · Central Europe$/);
+  for (const id of ["along-the-adriatic", "towards-greece"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
   await shot(page, "levels-both-completed-en");
   expect(errors).toEqual([]);
 });
@@ -422,12 +428,27 @@ const L2_DONE = {
   travel: { missionId: "fra-to-aut", path: ["FRA", "DEU", "AUT"], hintUsed: false, undoUsed: false },
   lastTravelResult: { missionId: "fra-to-aut", route: ["FRA", "DEU", "AUT"], hintUsed: false, undoUsed: false },
 };
+const L3_IN_FIND = {
+  ...L1_IN_FIND,
+  discover: { selected: null, explored: L3_COUNTRIES },
+  find: { order: L3_COUNTRIES, index: 1, question: { target: "POL", wrongGuesses: [], hintLevel: 0, solved: false, feedback: null }, results: answers(L3_COUNTRIES.slice(0, 1)), status: "asking" },
+};
+const L3_DONE = {
+  ...LEVEL1_DONE,
+  find: { order: L3_COUNTRIES, index: 4, question: { target: "AUT", wrongGuesses: [], hintLevel: 0, solved: true, feedback: null }, results: answers(L3_COUNTRIES), status: "complete" },
+  travel: { missionId: "pol-to-aut", path: ["POL", "SVK", "AUT"], hintUsed: false, undoUsed: false },
+  lastTravelResult: { missionId: "pol-to-aut", route: ["POL", "SVK", "AUT"], hintUsed: false, undoUsed: false },
+};
 const RETURNING: { name: string; levels: Record<string, object>; recent: string[]; next: string | null; compact: string[] }[] = [
   { name: "Level 1 in progress", levels: { [L1]: L1_IN_FIND }, recent: [L1], next: L1, compact: [] },
   { name: "Level 1 completed, Level 2 ready", levels: { [L1]: LEVEL1_DONE }, recent: [L1], next: L2, compact: [L1] },
   { name: "Level 2 in progress", levels: { [L1]: LEVEL1_DONE, [L2]: L2_IN_FIND }, recent: [L2, L1], next: L2, compact: [L1] },
-  { name: "both levels completed", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE }, recent: [L2, L1], next: null, compact: [L1, L2] },
+  { name: "Levels 1 and 2 completed, Level 3 ready", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE }, recent: [L2, L1], next: L3, compact: [L1, L2] },
+  { name: "Level 3 in progress", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_IN_FIND }, recent: [L3, L2, L1], next: L3, compact: [L1, L2] },
+  { name: "all three playable levels completed", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, recent: [L3, L2, L1], next: null, compact: [L1, L2, L3] },
 ];
+/** The first country each level's card lists. */
+const FIRST_COUNTRY: Record<string, [string, string]> = { [L1]: ["France ·", "Ֆրանսիա ·"], [L2]: ["France ·", "Ֆրանսիա ·"], [L3]: ["Germany ·", "Գերմանիա ·"] };
 
 /** The part of a box inside the scrolling area and above the action area: what shows without scrolling. */
 async function shownWithoutScrolling(page: Page, locator: ReturnType<Page["locator"]>) {
@@ -480,7 +501,15 @@ test.describe("returning players", () => {
             await expect(next).toHaveAttribute("data-up-next", "true");
             await expect(next.getByTestId("up-next")).toHaveText(locale === "en" ? "Up next" : "Հաջորդը");
             // Found at once, without scrolling: its number, name and status (and at 390×844, its own button too).
-            expect(await page.getByTestId("welcome-scroll").evaluate((el) => el.scrollTop)).toBe(0);
+            // At the top, unless completed levels above it would push its status under the action area:
+            // then scrolled just enough (its status right above the action area), never past the card's top.
+            const scrollTop = await page.getByTestId("welcome-scroll").evaluate((el) => el.scrollTop);
+            if (s.compact.length < 2) expect(scrollTop, where).toBe(0);
+            if (scrollTop > 0) {
+              const status = (await next.getByTestId("level-status").boundingBox())!;
+              const scrollBox = (await page.getByTestId("welcome-scroll").boundingBox())!;
+              expect(scrollBox.y + scrollBox.height - (status.y + status.height), `${where}: scrolled further than needed`).toBeLessThanOrEqual(13);
+            }
             for (const part of [next.getByRole("heading"), next.getByTestId("level-status"), ...(height >= 800 ? [next.getByRole("button").first()] : [])]) {
               expect(await shownWithoutScrolling(page, part), `${where}: ${await part.textContent()} shows without scrolling`).toBe(true);
             }
@@ -497,7 +526,7 @@ test.describe("returning players", () => {
             await expect(c.getByTestId("level-status")).toHaveText(locale === "en" ? "Completed" : "Ավարտված է");
             await expect(c.getByText(locale === "en" ? "Play again" : "Խաղալ նորից")).toBeHidden();
             await expand(page, id);
-            await expect(c).toContainText(locale === "en" ? "France ·" : "Ֆրանսիա ·");
+            await expect(c).toContainText(FIRST_COUNTRY[id][locale === "en" ? 0 : 1]);
             for (const button of [c.getByRole("button", { name: locale === "en" ? /^Continue/ : /^Շարունակել/ }), c.getByRole("button", { name: locale === "en" ? /^Play again/ : /^Խաղալ նորից/ })]) {
               await button.scrollIntoViewIfNeeded();
               const b = (await button.boundingBox())!;

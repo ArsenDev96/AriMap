@@ -5,7 +5,7 @@ import { hy } from "../i18n/messages.hy";
 import { LOCALES } from "../i18n/locales";
 import { translate, translatePlural } from "../i18n/translate";
 import { LESSONS, LEVELS } from "../lessons";
-import { COUNTRIES } from "./countries";
+import { COUNTRIES, countryHint } from "./countries";
 import { countryName } from "./names";
 
 describe("translations", () => {
@@ -51,7 +51,7 @@ describe("country content", () => {
         }
         const [lon, lat] = c.capital.coordinates;
         expect(lon).toBeGreaterThan(-10);
-        expect(lon).toBeLessThan(20);
+        expect(lon).toBeLessThan(25);
         expect(lat).toBeGreaterThan(40);
         expect(lat).toBeLessThan(58);
       }
@@ -107,6 +107,48 @@ describe("country content", () => {
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
     }
+  });
+
+  it("gives Level 3's new countries their capital and a localized landmark with a map location, shown as text until their art arrives", () => {
+    // Names as in the English and Armenian Wikipedia article titles (docs/CONTENT.md).
+    const expected: Record<string, [string, string, string, string, string, string]> = {
+      POL: ["Poland", "Լեհաստան", "Warsaw", "Վարշավա", "Wawel Castle", "Վավելի ամրոց"],
+      CZE: ["Czechia", "Չեխիա", "Prague", "Պրահա", "Charles Bridge", "Կառլի կամուրջ"],
+      SVK: ["Slovakia", "Սլովակիա", "Bratislava", "Բրատիսլավա", "Bratislava Castle", "Բրատիսլավայի ամրոց"],
+    };
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      // In-sentence forms, with the Armenian definite article (-ը after a consonant, -ն after a vowel).
+      expect(landmark.nameInText.hy, id).toBe(`${landmarkHy}ը`);
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      expect(landmark.coordinates, id).toBeDefined();
+      expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // No artwork yet: no illustration key, so the card shows the landmark as text (no empty frame, no stand-in).
+      expect(landmark.illustration, id).toBeUndefined();
+    }
+    // Wawel Castle is in Kraków, not the capital.
+    expect(COUNTRIES.POL.landmark!.fact.en).toContain("Kraków");
+    // Germany and Austria are shared with earlier levels: same content and artwork.
+    expect(COUNTRIES.DEU.landmark!.illustration).toBe("brandenburg-gate");
+    expect(COUNTRIES.AUT.landmark!.illustration).toBe("schonbrunn-palace");
+  });
+
+  it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {
+    const [l1, l2, l3] = [LESSONS["western-europe-1"], LESSONS["around-the-alps"], LESSONS["central-europe"]];
+    expect(countryHint(l1, "DEU").en).toContain("in the east of this region");
+    expect(countryHint(l2, "DEU").en).toContain("in the north of this region");
+    expect(countryHint(l3, "DEU").en).toContain("in the west of this region");
+    expect(countryHint(l2, "AUT").en).toContain("in the east of this region");
+    expect(countryHint(l3, "AUT").en).toContain("in the south of this region");
+    // Every Level 3 country has one hint per language, and no two are the same.
+    const hints = l3.countries.map((id) => countryHint(l3, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
   });
 
   it("has the supplied original and its prepared display copy for every illustration", () => {

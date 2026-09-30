@@ -1,6 +1,7 @@
 import type { CountryId } from "../content/types";
 import type { LocalizedText } from "../i18n/locales";
 import { alpsLesson } from "./alps";
+import { centralEuropeLesson } from "./central-europe";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
 
@@ -46,20 +47,21 @@ export const LEVELS: readonly LevelInfo[] = [
     lesson: alpsLesson,
     unlockedBy: westernEuropeLesson.id,
   },
-  // Levels 3–5: metadata only. Their country groups are connected by real land
-  // borders (checked against the map data in src/geo/regionMap.test.ts), but
-  // their content, journeys and map coverage are not prepared yet.
   {
-    id: "central-europe",
+    id: centralEuropeLesson.id,
     number: 3,
     title: { en: "Central Europe", hy: "Կենտրոնական Եվրոպա" },
     description: {
       en: "Plains, rivers and old cities in the middle of Europe.",
       hy: "Հարթավայրեր, գետեր և հին քաղաքներ Եվրոպայի կենտրոնում։",
     },
-    countries: ["DEU", "POL", "CZE", "SVK", "AUT"],
+    countries: centralEuropeLesson.countries,
+    lesson: centralEuropeLesson,
     unlockedBy: alpsLesson.id,
   },
+  // Levels 4–5: metadata only. Their country groups are connected by real land
+  // borders (checked against the map data in src/geo/regionMap.test.ts), but
+  // their content, journeys and map coverage are not prepared yet.
   {
     id: "along-the-adriatic",
     number: 4,

@@ -43,11 +43,11 @@ France and Germany reuse Level 1's capitals and landmarks. Capital and landmark 
 
 ## Names in Armenian
 
-Country, capital and landmark names follow the Armenian Wikipedia article titles (checked 2026-09-30): Շվեյցարիա, Ավստրիա, Իտալիա, Բեռն, Վիեննա, Հռոմ, Կոլիզեում, and «Շյոնբրունի պալատ» (the lead of the article Շյոնբրուն). The Levels 3–5 country names (`src/core/content/names.ts`) come from the same source. **Chapel Bridge has no Armenian article or standard name.** «Մատուռի կամուրջ» ("the chapel's bridge", a translation of *Kapellbrücke*) is our own rendering and should be checked by a native speaker.
+Country, capital and landmark names follow the Armenian Wikipedia article titles (checked 2026-09-30): Շվեյցարիա, Ավստրիա, Իտալիա, Բեռն, Վիեննա, Հռոմ, Կոլիզեում, and «Շյոնբրունի պալատ» (the lead of the article Շյոնբրուն). The Levels 4–5 country names (`src/core/content/names.ts`) come from the same source. Level 3's names are listed in its own section below. **Chapel Bridge has no Armenian article or standard name.** «Մատուռի կամուրջ» ("the chapel's bridge", a translation of *Kapellbrücke*) is our own rendering and should be checked by a native speaker.
 
 ## Level-specific hints
 
-A country's hint describes it within its level's region. Where Level 1's hint would be wrong in Level 2, the level has its own (`hints` in `src/core/lessons/alps.ts`): Germany is "in the north of this region" in Level 2, not "in the east". France's hint (the largest country, coasts on the Atlantic and the Mediterranean) is true in both.
+A country's hint describes it within its level's region. Where Level 1's hint would be wrong in Level 2, the level has its own (`hints` in `src/core/lessons/alps.ts`): Germany is "in the north of this region" in Level 2, not "in the east". France's hint (the largest country, coasts on the Atlantic and the Mediterranean) is true in both. Level 3 has its own hints for Germany ("in the west") and Austria ("in the south"); see its section below.
 
 ## Level 2 illustrations
 
@@ -80,6 +80,91 @@ Style paragraph (shared):
 
 3. **`colosseum.png`**
    > [style paragraph] Subject: the Colosseum in Rome, Italy, from outside at a slight angle. The oval Roman amphitheatre in warm cream and honey-coloured travertine. On the left, the taller intact outer wall: three tiers of round arches framed by half-columns, topped by a solid storey with small rectangular windows. Towards the right, the lower, broken side reveals the inner rings of arches. A little stone paving and a few tufts of grass at its base. Wide, landscape-shaped artwork within the square.
+
+## Level 3: Central Europe
+
+Germany and Austria reuse their shared content and illustrations (the Brandenburg Gate, Schönbrunn Palace). Poland, Czechia and Slovakia are new. Their content was checked on 2026-09-30.
+
+### Capitals and landmarks
+
+| Country | Capital | Capital (lat, lon) | Landmark | Landmark (lat, lon) | Fact (English) | Sources |
+|---|---|---|---|---|---|---|
+| Poland (Լեհաստան) | Warsaw (Վարշավա) | 52.2300, 21.0111 | Wawel Castle, Kraków (Վավելի ամրոց) | 50.0539, 19.9347 | For centuries the home of Poland's kings, it stands on a hill above the Vistula River in Kraków. | [Wikipedia: Wawel Castle](https://en.wikipedia.org/wiki/Wawel_Castle) ("For centuries the residence of the kings of Poland"; "atop a limestone outcrop on the left bank of the Vistula River"; 50.05389 N, 19.93472 E); [UNESCO World Heritage Centre: Historic Centre of Kraków](https://whc.unesco.org/en/list/29/) ("Wawel Hill … is a former royal residence and necropolis"; "the relationship between the River Vistula and the local hills and rock outcrops, best illustrated by the Wawel Hill complex"); [Wikipedia: Warsaw](https://en.wikipedia.org/wiki/Warsaw) (52.23 N, 21.01111 E) |
+| Czechia (Չեխիա) | Prague (Պրահա) | 50.0875, 14.4214 | Charles Bridge, Prague (Կառլի կամուրջ) | 50.0864, 14.4119 | Begun in 1357, this stone bridge was Prague's only way across the Vltava River until 1841. | [Britannica: Charles Bridge](https://www.britannica.com/topic/Charles-Bridge) ("stone arch bridge built between 1357 and 1402 over the Vltava River"; "The cornerstone for the new bridge was laid in 1357"; "It was the only bridge over the Vltava in Prague until 1841"); [Wikipedia: Charles Bridge](https://en.wikipedia.org/wiki/Charles_Bridge) ("Its construction started in 1357"; "the only means of crossing the river Vltava until 1841"; 50.08639 N, 14.41194 E); [UNESCO: Historic Centre of Prague](https://whc.unesco.org/en/list/616/) ("the Gothic Charles Bridge"); [Wikipedia: Prague](https://en.wikipedia.org/wiki/Prague) (50.0875 N, 14.42139 E) |
+| Slovakia (Սլովակիա) | Bratislava (Բրատիսլավա) | 48.1439, 17.1097 | Bratislava Castle (Բրատիսլավայի ամրոց) | 48.1422, 17.1000 | This rectangular castle with four corner towers stands on a rocky hill above the Danube. | [Wikipedia: Bratislava Castle](https://en.wikipedia.org/wiki/Bratislava_Castle) ("The massive rectangular building with four corner towers stands on an isolated rocky hill of the Little Carpathians, directly above the Danube river"; 48.14222 N, 17.1 E); [Britannica: Bratislava](https://www.britannica.com/place/Bratislava) ("dominated by its enormous castle, which stands on a plateau 300 feet (100 meters) above the Danube"); [Wikipedia: Bratislava](https://en.wikipedia.org/wiki/Bratislava) (48.14389 N, 17.10972 E) |
+
+Notes:
+
+- **Wawel Castle is in Kraków, not the capital.** The fact names Kraków, and its map pin is in Kraków, 250 km from the Warsaw capital marker. The Find hint says "You'll also find Wawel Castle there", "there" being the country.
+- **Charles Bridge**: "Begun in 1357" rather than "built in 1357": the foundation stone was laid in 1357 and the bridge was finished in the early 15th century (Britannica: 1402). Its 30 statues are left out because they are now all replicas. The pin is 700 m from Prague's capital marker, so at the whole-map view the map shows only the capital marker (the landmark pin is left out when it would sit on the capital marker, as for every level).
+- **Bratislava Castle**: its four corner towers are its best-known feature and what the artwork brief shows. Britannica says it burned in 1811 and has since been largely restored; that is left out to keep one fact. It is 700 m from the capital marker, like Charles Bridge.
+- Capital coordinates are the Wikipedia article coordinates, rounded to 4 decimals, like the other capitals.
+
+### Names in Armenian
+
+Every Level 3 name has an established form: each is the title of the Armenian Wikipedia article linked from the English one (checked 2026-09-30 through the MediaWiki API, `prop=langlinks`), and the article leads use the same forms:
+
+| English | Eastern Armenian | Armenian Wikipedia article |
+|---|---|---|
+| Poland / Warsaw | Լեհաստան / Վարշավա | Լեհաստան, Վարշավա |
+| Czechia / Prague | Չեխիա / Պրահա | Չեխիա, Պրահա |
+| Slovakia / Bratislava | Սլովակիա / Բրատիսլավա | Սլովակիա, Բրատիսլավա |
+| Wawel Castle | Վավելի ամրոց | Վավելի ամրոց (lead: «Վավելի թագավորական ամրոց») |
+| Charles Bridge | Կառլի կամուրջ | Կառլի կամուրջ |
+| Bratislava Castle | Բրատիսլավայի ամրոց | Բրատիսլավայի ամրոց |
+| Kraków, Vistula, Vltava, Danube (in the facts) | Կրակով, Վիսլա, Վլտավա, Դանուբ | the articles of those titles |
+
+Flagged for a native speaker's check (not presented as established usage):
+
+- **Կառլի, not Կարլի.** The article title spells Charles IV's name «Կառլ» (as in Russian-derived usage). «Կարլի կամուրջ» also occurs in Armenian texts; we follow the article.
+- **Վիսլա.** The Kraków article uses «Վիսլա», while the Wawel Castle article's lead says «Վիստուլա». The river's own article is «Վիսլա», which we use.
+- The in-sentence forms add the definite article (Լեհաստանը, Չեխիան, Սլովակիան; Վավելի ամրոցը, Կառլի կամուրջը, Բրատիսլավայի ամրոցը), following the pattern of the earlier levels. The Armenian facts and hints are our translations of the English ones.
+
+### Descriptions and Find hints
+
+A country's description is its hint (`hint`): the card shows it under the landmark in Discover, and Find's second hint repeats it ("More help"). Find's first hint names the capital and the landmark. The hints describe each country within this level's region:
+
+| Country | Hint (English) | Where it comes from |
+|---|---|---|
+| Germany | The large country in the west of this region, reaching both the North Sea and the Baltic Sea. | Level 3's own (`hints` in `src/core/lessons/central-europe.ts`): Level 1 says "east", Level 2 "north". |
+| Poland | A large, mostly flat country in the north-east of this region, with a coast on the Baltic Sea. | The country's own. |
+| Czechia | A country with no coast in the middle of this region, almost ringed by low mountains. | The country's own. |
+| Slovakia | A small mountain country with no coast in the south-east of this region, just south of Poland. | The country's own. |
+| Austria | A mountain country with no coast in the south of this region, south of Germany and Czechia. | Level 3's own: the shared hint ("in the east of this region, just south of Germany", used by Level 2) would be wrong here. |
+
+Levels 1 and 2 keep their hints unchanged (`src/core/content/content.test.ts` checks both).
+
+### Illustrations (not supplied yet)
+
+Wawel Castle, Charles Bridge and Bratislava Castle have no artwork yet. Until they arrive, their cards use the text-only layout: the map's amber landmark mark beside the landmark's name and fact, across the card. There is no empty picture frame and no other landmark's art in its place (`data-art="none"`; the e2e tests check both). Find never shows artwork.
+
+Generate them as described below, using the same style paragraph as Level 2's (see "Level 2 illustrations" above). Save each original under its filename, then:
+
+1. run `node scripts/prepare-landmarks.mjs` (it prepares every PNG in the folder, so `src/assets/landmarks/<key>.webp` appears);
+2. add `illustration: "<key>"` to the landmark in `src/core/content/countries.ts`;
+3. import the display copy into `LANDMARK_IMAGES` in `src/components/landmarks/LandmarkCard.tsx`;
+4. update the Level 3 expectations in `src/core/content/content.test.ts` and `e2e/level3.spec.ts` (they currently assert the text-only card).
+
+Art at least 2:1 (width ÷ height after trimming) gets the wide phone layout automatically (see "Very wide art on phones").
+
+| Landmark | Save the original to | Key | Content |
+|---|---|---|---|
+| Wawel Castle, Kraków | `public/images/landmarks/wawel-castle.png` | `wawel-castle` | The castle and cathedral complex on its hill above the river: pale limestone and brick walls, red-tiled roofs, the cathedral's golden Sigismund Chapel dome and green-copper spires. Wide composition. |
+| Charles Bridge, Prague | `public/images/landmarks/charles-bridge.png` | `charles-bridge` | The long medieval stone arch bridge across the river, with a dark Gothic bridge tower at one end and a few dark statues along its parapets. Wide composition. |
+| Bratislava Castle | `public/images/landmarks/bratislava-castle.png` | `bratislava-castle` | The white, rectangular castle with a red roof and four corner towers, on a green hill above the river. Wide composition. |
+
+#### Generation prompts
+
+Each starts with the shared style paragraph (Level 2's, above), then describes its landmark. Check each result as for Level 2: transparent background, the landmark whole inside the frame, no text, people, frame or shadow on the background.
+
+1. **`wawel-castle.png`**
+   > [style paragraph] Subject: Wawel Royal Castle and Wawel Cathedral in Kraków, Poland, seen from across the Vistula. On a gentle green hill with a stone retaining wall, a cluster of pale cream limestone and red-brick buildings with steep red-tiled roofs. At the centre, the cathedral's gleaming golden dome (the Sigismund Chapel) and its towers topped with green copper spires and small golden details; the castle's long Renaissance wings with rows of windows beside it. A narrow strip of calm blue river water at the base. Wide, landscape-shaped artwork within the square.
+
+2. **`charles-bridge.png`**
+   > [style paragraph] Subject: the Charles Bridge in Prague, Czechia. A long medieval stone bridge in warm grey-brown sandstone crossing the river from left to right on a row of round arches, with pointed stone cutwaters in the water. At the right end, the Old Town Bridge Tower: a tall dark Gothic tower with a steep dark slate roof and a pointed archway over the bridge. Along the parapets, a few small dark bronze-coloured statues on pedestals. Calm blue water under the arches forms the base. Wide, landscape-shaped artwork within the square.
+
+3. **`bratislava-castle.png`**
+   > [style paragraph] Subject: Bratislava Castle in Slovakia. A massive, simple rectangular white castle with a red-orange tiled roof and four square corner towers, each with its own red roof, rows of regular windows, on top of a green hill with a few trees and a stone terrace wall. At the foot of the hill, a narrow strip of the calm blue Danube. Wide, landscape-shaped artwork within the square.
 
 ## Landmark illustrations
 

@@ -8,6 +8,8 @@ import type { StaticImageData } from "next/image";
 import relief from "@/assets/map/relief.json";
 import alpsLand from "@/assets/map/relief/around-the-alps-land.webp";
 import alpsTone from "@/assets/map/relief/around-the-alps-tone.webp";
+import centralEuropeLand from "@/assets/map/relief/central-europe-land.webp";
+import centralEuropeTone from "@/assets/map/relief/central-europe-tone.webp";
 import westernEuropeLand from "@/assets/map/relief/western-europe-1-land.webp";
 import westernEuropeTone from "@/assets/map/relief/western-europe-1-tone.webp";
 import styles from "./RegionMap.module.css";
@@ -19,6 +21,7 @@ import styles from "./RegionMap.module.css";
 const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: StaticImageData }>> = {
   "western-europe-1": { land: westernEuropeLand, tone: westernEuropeTone },
   "around-the-alps": { land: alpsLand, tone: alpsTone },
+  "central-europe": { land: centralEuropeLand, tone: centralEuropeTone },
 };
 
 /**

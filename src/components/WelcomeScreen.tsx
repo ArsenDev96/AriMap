@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useId, useRef, useState, type Dispatch } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
 import { LEVELS, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
 import { levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
@@ -26,11 +26,26 @@ export function isReturning(state: AppState): boolean {
 export function WelcomeScreen({ state, dispatch }: Props) {
   const { t, l } = useI18n();
   const confirmRef = useRef<HTMLDialogElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const main = mainAction(state);
   // Known from the save on the first render (the game renders on the client only), so the
   // page never switches layout after it appears.
   const returning = isReturning(state);
+
+  // The "Up next" card's number, name and status are found at once. With several completed
+  // levels above it (one line each), a short phone can leave its status under the action area:
+  // the list then starts scrolled just enough to show it, never past the card's own top. Set
+  // before the first paint, so nothing moves after the page appears.
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    const status = scroll?.querySelector("[data-up-next] [data-testid='level-status']");
+    const card = status?.closest("[data-up-next]");
+    if (!scroll || !status || !card) return;
+    const view = scroll.getBoundingClientRect();
+    const bottom = status.getBoundingClientRect().bottom;
+    if (bottom > view.bottom) scroll.scrollTop = Math.min(bottom + 12 - view.bottom, card.getBoundingClientRect().top - view.top);
+  }, []);
 
   useEffect(() => {
     const dialog = confirmRef.current;
@@ -40,7 +55,7 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   return (
     <main className={styles.page} data-returning={returning} data-testid="welcome">
       {/* Everything but the main action scrolls here, above the action's own area: nothing is covered. */}
-      <div className={styles.scroll} data-testid="welcome-scroll">
+      <div ref={scrollRef} className={styles.scroll} data-testid="welcome-scroll">
         <div className={styles.content}>
           {returning ? (
             // Returning players: the name, tagline and language in one row, and the artwork as a
