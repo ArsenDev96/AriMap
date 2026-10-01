@@ -110,6 +110,13 @@ Also `scripts/generate-relief.mjs`, into the same rasters and tiles as the relie
    - So at the whole-map level (about 1.5 km per pixel) small woods fade into gentle shading and large forests stay. Zoomed in (about 760 m and 470 m per pixel) smaller woods and clearings reappear.
 4. **Canopy.** Value noise anchored to world coordinates, so the texture is continuous across tiles, and finer levels add octaves to the same coarse pattern.
 
+### Geographic check (Level 4)
+
+The same test reads Level 4's overview (reference points: Wikipedia article coordinates, checked 2026-10-01):
+- **Relief** is at least 200/255 at Triglav (Julian Alps), Bobotov Kuk (Durmitor), Maglić and Dinara, and 150 at Lovćen and Vaganski vrh (Velebit). Measured: 252 at all four, 229 at Lovćen, 206 at Velebit.
+- **Forests** are at least 40/255 at Kočevski Rog, Risnjak (Gorski kotar), the Perućica forest (Sutjeska) and Biogradska Gora (measured 135–252; the mountain ones also have relief).
+- **Farmland stays bare** (at most 10/255; measured 0): eastern Slavonia near Vukovar, the Po delta near Ferrara and the Lomellina.
+
 ### Geographic check (Level 3)
 
 The same test reads Level 3's overview (reference points: Wikipedia article coordinates, checked 2026-09-30):
@@ -142,8 +149,12 @@ The same test reads Level 2's overview (reference points: Wikipedia article coor
 | Game Level 2 neutral overlay overview (`around-the-alps-tone.webp`, 1229×1428) | 227 KB | Once a Level 2 country has a state colour |
 | Game Level 3 land overview (`central-europe-land.webp`, 1431×1521) | 291 KB | With Level 3 (every stage) |
 | Game Level 3 neutral overlay overview (`central-europe-tone.webp`, 849×645) | 85 KB | Once a Level 3 country has a state colour |
+| Game Level 4 land overview (`along-the-adriatic-land.webp`, 2001×1011) | 283 KB | With Level 4 (every stage) |
+| Game Level 4 neutral overlay overview (`along-the-adriatic-tone.webp`, 741×852) | 80 KB | Once a Level 4 country has a state colour |
 | Detail level 2 tiles (65 land + 45 tone) | 4.7 MB in all, about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
 | Detail level 3 tiles (138 land + 90 tone) | 10.4 MB in all, about 47 KB each | Zoomed in further |
+
+**Adding Level 4** (2026-10-01). Level 4 uses the shared projection (DATA.md), and its whole pan area already lies inside the tile grid: Level 2's pan area (Italy, plus 25% on each side) reached the Balkans. So the grids kept their size and every tile, and the tile folder's content hash is unchanged (`46f31f1777`): all 338 tiles, and the six overviews of Levels 1–3, are byte-for-byte the files they were. The only new files are Level 4's two overviews (363 KB together), loaded only with Level 4. The elevation sources are the same three (SRTM, GMTED2010, ETOPO1), so the credits are unchanged. Generating them read 170 elevation tiles at zoom 7 and 105 WorldCover tiles at overview 5 (most already cached from earlier levels).
 
 **Adding Level 3** (2026-09-30). The overviews of Levels 1 and 2 are byte-for-byte the files they were. Level 3's pan area reaches a little further east than Level 2's, so the level-2 grid grew by one column (8 → 9) and the level-3 grid kept its size. Of the 324 existing tiles, 316 are byte-identical and 14 are new (5 land and 4 tone in level 2, 5 tone in level 3; 0.98 MB). The other 8 lie along the old grids' east edge (level-2 column 7, level-3 tile 12-0), 1320–1704 world units east, beyond Level 1's pan area and at the east end of Level 2's. Before, the elevation there ended at the old pan limit and its last row was repeated; now there is real terrain. So in the strip past the old limit up to 0.5–2.7% of a tile's pixels changed by more than 8/255. Elsewhere in those tiles the differences are the WebP encoder's (mean 0.1–2.2/255). Levels 1 and 2 download the same overviews as before, and fetch those 8 tiles again only when zoomed onto Austria's or Poland's east.
 

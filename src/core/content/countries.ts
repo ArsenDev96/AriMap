@@ -250,6 +250,98 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "bratislava-castle",
     },
   },
+  // Level 4's new countries. Their landmarks have no illustration yet: the Discover
+  // card shows them as text (docs/CONTENT.md has the prompts and file names).
+  SVN: {
+    id: "SVN",
+    name: { en: "Slovenia", hy: "Սլովենիա" },
+    nameInText: { en: "Slovenia", hy: "Սլովենիան" },
+    capital: { name: { en: "Ljubljana", hy: "Լյուբլյանա" }, coordinates: [14.5061, 46.0514] },
+    hint: {
+      en: "A small country where the Alps meet the Adriatic, with a short coast just east of Italy.",
+      hy: "Փոքր երկիր, որտեղ Ալպերը հասնում են Ադրիատիկին՝ կարճ ծովափով, Իտալիայից անմիջապես արևելք։",
+    },
+    label: { coordinates: [14.85, 46.1] },
+    landmark: {
+      id: "bled-castle",
+      name: { en: "Bled Castle", hy: "Բլեդի ամրոց" },
+      nameInText: { en: "Bled Castle", hy: "Բլեդի ամրոցը" },
+      fact: {
+        en: "Perched on a 130-metre cliff above Lake Bled, it was first mentioned in writing in 1011.",
+        hy: "Կանգնած է Բլեդ լճի վերևում՝ 130 մետրանոց ժայռի վրա։ Առաջին անգամ գրավոր հիշատակվել է 1011 թվականին։",
+      },
+      // At Lake Bled, not the capital.
+      coordinates: [14.1005, 46.3697],
+    },
+  },
+  HRV: {
+    id: "HRV",
+    name: { en: "Croatia", hy: "Խորվաթիա" },
+    nameInText: { en: "Croatia", hy: "Խորվաթիան" },
+    capital: { name: { en: "Zagreb", hy: "Զագրեբ" }, coordinates: [15.9775, 45.8131] },
+    hint: {
+      en: "A crescent-shaped country with a long Adriatic coast and many islands, curving around Bosnia and Herzegovina.",
+      hy: "Մահիկաձև երկիր Ադրիատիկի երկար ափով և բազմաթիվ կղզիներով, որը աղեղով շրջապատում է Բոսնիա և Հերցեգովինան։",
+    },
+    label: { coordinates: [16.6, 45.45] },
+    landmark: {
+      id: "dubrovnik-city-walls",
+      name: { en: "City Walls of Dubrovnik", hy: "Դուբրովնիկի պարիսպներ" },
+      nameInText: { en: "the city walls of Dubrovnik", hy: "Դուբրովնիկի պարիսպները" },
+      fact: {
+        en: "Almost 2 kilometres long, with towers and fortresses, these walls ring Dubrovnik's old town.",
+        hy: "Մոտ 2 կիլոմետր երկարությամբ այս պարիսպներն իրենց աշտարակներով և ամրոցներով օղակում են Դուբրովնիկի հին քաղաքը։",
+      },
+      // In Dubrovnik, in Croatia's far south (cut off from the rest by Bosnia and
+      // Herzegovina's coast at Neum), not the capital. The point is the Minčeta Tower.
+      coordinates: [18.1084, 42.643],
+    },
+  },
+  BIH: {
+    id: "BIH",
+    name: { en: "Bosnia and Herzegovina", hy: "Բոսնիա և Հերցեգովինա" },
+    nameInText: { en: "Bosnia and Herzegovina", hy: "Բոսնիա և Հերցեգովինան" },
+    capital: { name: { en: "Sarajevo", hy: "Սարաևո" }, coordinates: [18.4131, 43.8564] },
+    hint: {
+      en: "A mountainous country between Croatia and Montenegro, whose only coast, at Neum, is about 20 km long.",
+      hy: "Լեռնային երկիր Խորվաթիայի և Չեռնոգորիայի միջև, որի միակ ծովափը՝ Նեումի մոտ, ընդամենը մոտ 20 կմ է։",
+    },
+    label: { coordinates: [17.85, 44.25] },
+    landmark: {
+      id: "stari-most",
+      name: { en: "Stari Most", hy: "Մոստարի կամուրջ" },
+      nameInText: { en: "Stari Most", hy: "Մոստարի կամուրջը" },
+      fact: {
+        en: "Mostar's “Old Bridge”, a stone arch over the Neretva from 1566, was destroyed in 1993 and rebuilt in 2004.",
+        hy: "Մոստարի «Հին կամուրջը»՝ Ներետվա գետի վրա 1566 թվականին կառուցված քարե կամարը, ավերվել է 1993-ին և վերակառուցվել 2004 թվականին։",
+      },
+      // In Mostar, not the capital.
+      coordinates: [17.8151, 43.3373],
+    },
+  },
+  MNE: {
+    id: "MNE",
+    name: { en: "Montenegro", hy: "Չեռնոգորիա" },
+    nameInText: { en: "Montenegro", hy: "Չեռնոգորիան" },
+    // Podgorica is the capital (Constitution, Art. 5); Cetinje is the "Old Royal Capital".
+    capital: { name: { en: "Podgorica", hy: "Պոդգորիցա" }, coordinates: [19.2628, 42.4414] },
+    hint: {
+      en: "A small mountainous country on the Adriatic in the south-east of this region, south of Bosnia and Herzegovina.",
+      hy: "Փոքր լեռնային երկիր Ադրիատիկի ափին՝ տարածաշրջանի հարավ-արևելքում, Բոսնիա և Հերցեգովինայից հարավ։",
+    },
+    label: { coordinates: [19.25, 42.85] },
+    landmark: {
+      id: "ostrog-monastery",
+      name: { en: "Ostrog Monastery", hy: "Օստրոգի վանք" },
+      nameInText: { en: "Ostrog Monastery", hy: "Օստրոգի վանքը" },
+      fact: {
+        en: "Founded in the 17th century, it is built into an almost vertical cliff 900 metres above sea level.",
+        hy: "Հիմնադրվել է 17-րդ դարում և կառուցված է գրեթե ուղղահայաց ժայռի մեջ՝ ծովի մակարդակից 900 մետր բարձրության վրա։",
+      },
+      // The upper monastery, north-west of Podgorica, not in the capital.
+      coordinates: [19.0306, 42.6747],
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

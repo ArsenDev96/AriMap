@@ -4,6 +4,7 @@ import { shortestDistance } from "../game/graph";
 import { seededRandom } from "../game/random";
 import { LESSONS, LEVELS } from "../lessons";
 import { alpsLesson as alps } from "../lessons/alps";
+import { adriaticLesson as adriatic } from "../lessons/adriatic";
 import { centralEuropeLesson as central } from "../lessons/central-europe";
 import { westernEuropeLesson as france } from "../lessons/western-europe";
 import { buildMapView } from "../lesson/mapView";
@@ -14,6 +15,7 @@ import { BACKUP_KEY, loadAppState, parseSavedState, saveAppState, STORAGE_KEY, t
 const L1 = france.id;
 const L2 = alps.id;
 const L3 = central.id;
+const L4 = adriatic.id;
 const NO_UI = { travelHintVisible: false };
 
 const open = (levelId: string): AppAction => ({ type: "openLevel", levelId });
@@ -35,6 +37,7 @@ function complete(s: AppState, route: string[]): AppState {
 
 const level1Done = () => complete(run(createInitialState(), open(L1)), ["FRA", "BEL", "NLD"]);
 const level2Done = () => complete(run(level1Done(), open(L2)), ["FRA", "CHE", "AUT"]);
+const level3Done = () => complete(run(level2Done(), open(L3)), ["POL", "CZE", "AUT"]);
 
 function memoryStorage(initial: Record<string, string> = {}): KeyValueStorage & { data: Record<string, string> } {
   const data = { ...initial };
@@ -42,20 +45,25 @@ function memoryStorage(initial: Record<string, string> = {}): KeyValueStorage & 
 }
 
 describe("levels", () => {
-  it("lists five levels with stable, unique ids; Levels 1–3 are playable, 4–5 are coming soon", () => {
+  it("lists five levels with stable, unique ids; Levels 1–4 are playable, Level 5 is coming soon", () => {
     expect(LEVELS.map((l) => l.number)).toEqual([1, 2, 3, 4, 5]);
     expect(new Set(LEVELS.map((l) => l.id)).size).toBe(5);
-    expect(LEVELS.map((l) => Boolean(l.lesson))).toEqual([true, true, true, false, false]);
+    expect(LEVELS.map((l) => Boolean(l.lesson))).toEqual([true, true, true, true, false]);
     expect(LEVELS.map((l) => l.id)).toEqual(["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece"]);
     for (const level of LEVELS) expect(level.countries).toHaveLength(5);
     expect(LEVELS[1].countries).toEqual(["FRA", "CHE", "DEU", "AUT", "ITA"]);
     expect(LEVELS[2].countries).toEqual(["DEU", "POL", "CZE", "SVK", "AUT"]);
     expect(LEVELS[2].unlockedBy).toBe(L2);
+    // Level 4 keeps the id its card had while it was coming soon.
+    expect(LEVELS[3].countries).toEqual(["ITA", "SVN", "HRV", "BIH", "MNE"]);
+    expect(LEVELS[3].unlockedBy).toBe(L3);
+    expect(LEVELS[4].unlockedBy).toBe(L4);
   });
 
-  it("a new player can start Level 1 only; Levels 2 and 3 are locked and Levels 4–5 are coming soon", () => {
+  it("a new player can start Level 1 only; Levels 2–4 are locked and Level 5 is coming soon", () => {
     const s = createInitialState();
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["ready", "locked", "locked", "comingSoon", "comingSoon"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["ready", "locked", "locked", "locked", "comingSoon"]);
+    expect(levelStatus(s, LEVELS[3])).toMatchObject({ kind: "locked", after: { id: L3 } });
     expect(levelStatus(s, LEVELS[2])).toMatchObject({ kind: "locked", after: { id: L2 } });
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L1 } });
   });
@@ -71,13 +79,15 @@ describe("levels", () => {
     const one = level1Done();
     expect(canPlay(one, L3)).toBe(false);
     expect(run(one, open(L3))).toBe(one);
-    // Even once everything playable is done.
-    const done = complete(run(level2Done(), open(L3)), ["POL", "CZE", "AUT"]);
-    for (const id of ["along-the-adriatic", "towards-greece"]) {
-      expect(levelStatus(done, LEVELS.find((l) => l.id === id)!).kind).toBe("comingSoon");
-      expect(run(done, open(id))).toBe(done);
-      expect(run(done, restart(id))).toBe(done);
-    }
+    // Level 4 stays locked until Level 3 is completed.
+    const two = level2Done();
+    expect(canPlay(two, L4)).toBe(false);
+    expect(run(two, open(L4))).toBe(two);
+    // Level 5 never starts, even once everything playable is done.
+    const done = complete(run(level3Done(), open(L4)), ["ITA", "SVN", "HRV", "MNE"]);
+    expect(levelStatus(done, LEVELS[4]).kind).toBe("comingSoon");
+    expect(run(done, open("towards-greece"))).toBe(done);
+    expect(run(done, restart("towards-greece"))).toBe(done);
     expect(mainAction(done)).toBeNull();
   });
 
@@ -282,7 +292,7 @@ describe("Level 3: Central Europe", () => {
 
   it("an existing save with Level 2 completed unlocks it; the main action starts it", () => {
     const s = parseSavedState(oldSave());
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "ready", "comingSoon", "comingSoon"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "ready", "locked", "comingSoon"]);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L3 } });
     const opened = run(s, open(L3));
     expect(opened).toMatchObject({ screen: "lesson", levelId: L3, recent: [L3, L2, L1] });
@@ -394,5 +404,126 @@ describe("Level 3: Central Europe", () => {
     s = run(s, play({ type: "replayTravel" }), play({ type: "travelHint" }), play({ type: "travelMove", country: "CZE" }), play({ type: "travelMove", country: "AUT" }));
     expect(s.levels[L3].lastTravelResult).toMatchObject({ route: ["POL", "CZE", "AUT"], hintUsed: true, independent: false });
     expect(levelStatus(refresh(s), LEVELS[2])).toMatchObject({ kind: "completed", stage: "results" });
+  });
+});
+
+describe("Level 4: Along the Adriatic", () => {
+  /** A save written before Level 4 was playable: Levels 1–3 completed, nothing for Level 4. */
+  const oldSave = () => {
+    const raw = JSON.parse(JSON.stringify(run(level3Done(), { type: "goHome" })));
+    expect(Object.keys(raw.levels).sort()).toEqual([L1, L2, L3].sort());
+    return JSON.stringify(raw);
+  };
+
+  it("an existing save with Level 3 completed unlocks it; the main action starts it", () => {
+    const s = parseSavedState(oldSave());
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "ready", "comingSoon"]);
+    expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L4 } });
+    const opened = run(s, open(L4));
+    expect(opened).toMatchObject({ screen: "lesson", levelId: L4, recent: [L4, L3, L2, L1] });
+    expect(opened.levels[L4]).toMatchObject({ started: true, stage: "discover", records: { travelDone: false } });
+    // Nothing else in the save changed.
+    for (const id of [L1, L2, L3]) expect(opened.levels[id]).toEqual(s.levels[id]);
+  });
+
+  it("keeps its unlock when Level 3 is replayed or started over, also after a refresh", () => {
+    let s = run(parseSavedState(oldSave()), open(L4), play({ type: "discoverSelect", country: "HRV" }));
+    const l4 = s.levels[L4];
+    s = run(s, open(L3), play({ type: "replayTravel" }), restart(L3), restart(L1), play({ type: "discoverSelect", country: "BEL" }));
+    s = refresh(s);
+    expect(canPlay(s, L4)).toBe(true);
+    expect(levelStatus(s, LEVELS[2])).toMatchObject({ kind: "completed", stage: "discover" });
+    expect(levelStatus(s, LEVELS[3])).toMatchObject({ kind: "inProgress", stage: "discover" });
+    expect(s.levels[L4]).toEqual(l4);
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L4 } });
+  });
+
+  it("keeps its progress apart: Home, Continue, a refresh, and starting it over", () => {
+    let s = run(level3Done(), open(L4), play({ type: "discoverSelect", country: "BIH" }), play(startFindingAction(adriatic, seededRandom(4))), play({ type: "findHint" }));
+    const [l1, l2, l3, inFind] = [s.levels[L1], s.levels[L2], s.levels[L3], s.levels[L4]];
+    expect(inFind).toMatchObject({ stage: "find", discover: { explored: ["BIH"] }, find: { question: { hintLevel: 1 } }, records: { discoverDone: true } });
+    s = refresh(run(s, { type: "goHome" }));
+    expect(s).toMatchObject({ screen: "welcome", levelId: L4 });
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L4 } });
+    // Visiting a completed level doesn't change which one Continue opens.
+    s = refresh(run(s, open(L3), { type: "goHome" }));
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L4 } });
+    s = run(s, open(L4));
+    expect(s.levels[L4]).toEqual(inFind);
+    for (const [id, before] of [[L1, l1], [L2, l2], [L3, l3]] as const) expect(s.levels[id]).toEqual(before);
+    // Starting Level 4 over clears only its place; its records and the other levels stay.
+    const again = run(s, restart(L4));
+    expect(again.levels[L4]).toMatchObject({ stage: "discover", find: null, discover: { explored: [] }, records: { discoverDone: true } });
+    for (const id of [L1, L2, L3]) expect(again.levels[id]).toBe(s.levels[id]);
+  });
+
+  it("asks five different questions, each country once, in a random order, scored out of five", () => {
+    const orders = new Set<string>();
+    for (let seed = 1; seed <= 40; seed++) {
+      const order = createFindOrder(adriatic.countries, seededRandom(seed));
+      expect([...order].sort()).toEqual([...adriatic.countries].sort());
+      orders.add(order.join(","));
+    }
+    expect(orders.size).toBeGreaterThan(20);
+    let s = run(level3Done(), open(L4), play(startFindingAction(adriatic, seededRandom(9))));
+    const asked: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const target = s.levels[L4].find!.question.target;
+      asked.push(target);
+      // First question: a wrong tap, then a hint; both count as help.
+      if (i === 0) s = run(s, play({ type: "findGuess", country: adriatic.countries.find((c) => c !== target)! }), play({ type: "findHint" }));
+      s = run(s, play({ type: "findGuess", country: target }), play({ type: "findNext" }));
+    }
+    expect(new Set(asked).size).toBe(5);
+    s = run(s, play({ type: "findToTravel" }));
+    expect(s.levels[L4].find!.results.map((r) => r.independent)).toEqual([false, true, true, true, true]);
+    expect(s.levels[L4].records).toMatchObject({ findDone: true, lastFindScore: { independent: 4, total: 5 } });
+  });
+
+  it("gives nothing away in Find: no names, markers, colours or badges before an answer, whatever is asked", () => {
+    let s = run(level3Done(), open(L4));
+    for (const id of adriatic.countries) s = run(s, play({ type: "discoverSelect", country: id }));
+    for (let seed = 1; seed <= 5; seed++) {
+      const t = run(s, play(startFindingAction(adriatic, seededRandom(seed))));
+      expect(buildMapView(adriatic, t.levels[L4], NO_UI)).toMatchObject({ labels: [], markers: [], tones: {}, explored: [], areaHint: null, namesPublic: false, feedback: null });
+    }
+    s = run(s, play(startFindingAction(adriatic, seededRandom(1))), play({ type: "findHint" }));
+    expect(buildMapView(adriatic, s.levels[L4], NO_UI)).toMatchObject({ labels: [], tones: {}, areaHint: null });
+  });
+
+  it("travels Italy → Montenegro in three crossings, by the one shortest route", () => {
+    expect(shortestDistance(adriatic.borders, "ITA", "MNE")).toBe(3);
+    const s = complete(run(level3Done(), open(L4)), ["ITA", "SVN", "HRV", "MNE"]);
+    expect(s.levels[L4].stage).toBe("results");
+    expect(s.levels[L4].lastTravelResult).toMatchObject({ route: ["ITA", "SVN", "HRV", "MNE"], budget: 3, independent: true });
+    expect(levelStatus(s, LEVELS[3]).kind).toBe("completed");
+    expect(s.levels[L4].records).toMatchObject({ travelDone: true, travelWithoutHelp: true, bestFindScore: { independent: 5, total: 5 } });
+  });
+
+  it("offers every real neighbour within the level, and only those; Hint, Undo and Restart count as help", () => {
+    let s = complete(run(level3Done(), open(L4)), ["ITA"]);
+    const moves = (st: AppState) => [...adriatic.borders[st.levels[L4].travel!.path.at(-1)!]].sort();
+    // Italy's only neighbour here is Slovenia: no sea crossings to Croatia or Montenegro.
+    expect(moves(s)).toEqual(["SVN"]);
+    for (const country of ["HRV", "BIH", "MNE"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
+    s = run(s, play({ type: "travelMove", country: "SVN" }));
+    expect(moves(s)).toEqual(["HRV", "ITA"]);
+    expect(run(s, play({ type: "travelMove", country: "BIH" }))).toBe(s);
+    s = run(s, play({ type: "travelMove", country: "HRV" }));
+    expect(moves(s)).toEqual(["BIH", "MNE", "SVN"]);
+    // Through Bosnia and Herzegovina takes four crossings: out of crossings there.
+    s = run(s, play({ type: "travelMove", country: "BIH" }));
+    expect(s.levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["ITA", "SVN", "HRV", "BIH"] });
+    s = run(s, play({ type: "travelUndo" }));
+    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["ITA", "SVN", "HRV"], undoUsed: true });
+    s = run(s, play({ type: "travelRestart" }));
+    expect(s.levels[L4].travel).toMatchObject({ path: ["ITA"], undoUsed: true });
+    s = run(s, play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "HRV" }), play({ type: "travelMove", country: "MNE" }));
+    expect(s.levels[L4].lastTravelResult).toMatchObject({ route: ["ITA", "SVN", "HRV", "MNE"], undoUsed: true, hintUsed: false, independent: false });
+    expect(s.levels[L4].records.travelWithoutHelp).toBe(false);
+    // A hint alone also counts as help; Replay journey starts Travel again and keeps the completion.
+    s = run(s, play({ type: "replayTravel" }), play({ type: "travelHint" }), play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "HRV" }), play({ type: "travelMove", country: "MNE" }));
+    expect(s.levels[L4].lastTravelResult).toMatchObject({ hintUsed: true, independent: false });
+    expect(levelStatus(refresh(s), LEVELS[3])).toMatchObject({ kind: "completed", stage: "results" });
   });
 });

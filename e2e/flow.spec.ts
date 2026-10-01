@@ -1,5 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
 
+/*
+ * The game saves the state it loaded once it has mounted: one write, a few milliseconds after the
+ * splash has gone. A saved state a test writes before then is overwritten by the one the page opened
+ * with. Each page counts the game's writes, so a test can wait for that one before writing its own.
+ */
+type Saves = { gameSaves?: number };
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key: string, value: string) {
+      setItem.call(this, key, value);
+      if (key === "arimap:state") (window as Saves).gameSaves = ((window as Saves).gameSaves ?? 0) + 1;
+    };
+  });
+});
+
+async function gameSaved(page: Page) {
+  await page.waitForFunction(() => ((window as Saves).gameSaves ?? 0) > 0);
+}
+
 const NAMES: Record<string, string> = {
   France: "FRA",
   Belgium: "BEL",
@@ -510,6 +531,7 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
     for (const locale of ["en", "hy"]) {
       // Discover with every country selected in turn.
       await page.goto("/");
+      await gameSaved(page);
       await page.evaluate(
         ([key, value]) => localStorage.setItem(key, value),
         ["arimap:state", JSON.stringify({ version: 1, locale, screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "discover" } } })],
@@ -608,6 +630,7 @@ test("Luxembourg's name stays close to Luxembourg on a 320px map", async ({ page
     });
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto("/");
+  await gameSaved(page);
   for (const selected of [null, "FRA", "BEL", "NLD", "LUX", "DEU"]) {
     await page.evaluate((v) => localStorage.setItem("arimap:state", v), lesson(selected));
     await page.reload();
@@ -733,6 +756,7 @@ test("reduced motion shows every map change in its final state", async ({ page }
   test.skip(test.info().project.name !== "desktop", "Runs once.");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await gameSaved(page);
   await page.evaluate(() =>
     localStorage.setItem(
       "arimap:state",
@@ -764,6 +788,7 @@ test("a large country's name stays inside it when its label point is under the c
   // callout over the close-up toggle, with its leader running behind the panel.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await gameSaved(page);
   await page.evaluate(() =>
     localStorage.setItem(
       "arimap:state",
@@ -821,6 +846,7 @@ test("malformed saved data falls back safely", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
+  await gameSaved(page);
   await page.evaluate(() => localStorage.setItem("arimap:state", '{"version":1,"locale":"hy","screen":"lesson","lessons":{"western-europe-1":{"started":true,"stage":"travel","travel":{"missionId":"fra-to-nld","path":["FRA","NLD"]}}}}'));
   await page.reload();
   // Invalid journey is dropped; language kept; lesson resumes at Discover.

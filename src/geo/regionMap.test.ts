@@ -17,6 +17,25 @@ function shapeOf(id: string) {
   return feature(topology, g) as Feature<Polygon | MultiPolygon>;
 }
 
+/**
+ * Landmarks on a coast that Natural Earth's 1:10m data draws coarser than the
+ * monument: its real position may lie this far off the country's land in the data.
+ * Dubrovnik's old town is about 0.5 km beyond the data's coastline (docs/DATA.md,
+ * "Level 4"); every other landmark must lie inside its country.
+ */
+const COAST_MARGIN_KM: Readonly<Record<string, number>> = { "dubrovnik-city-walls": 0.6 };
+
+/** Whether some point within `km` of `p` lies inside the country. */
+function withinKm(id: string, p: readonly [number, number], km: number) {
+  for (let d = 0.05; d <= km; d += 0.05)
+    for (let a = 0; a < 360; a += 10) {
+      const rad = (a * Math.PI) / 180;
+      const q: [number, number] = [p[0] + (d / (111.32 * Math.cos((p[1] * Math.PI) / 180))) * Math.cos(rad), p[1] + (d / 110.57) * Math.sin(rad)];
+      if (geoContains(shapeOf(id), q)) return true;
+    }
+  return false;
+}
+
 describe("prepared map data", () => {
   it("has unique country ids", () => {
     const ids = geometries.map((g) => g.id);
@@ -39,7 +58,12 @@ describe("prepared map data", () => {
         const c = COUNTRIES[id];
         expect(geoContains(shapeOf(id), [...c.label.coordinates]), `${id} label`).toBe(true);
         expect(geoContains(shapeOf(id), [...c.capital.coordinates]), `${id} capital`).toBe(true);
-        if (c.landmark?.coordinates) expect(geoContains(shapeOf(id), [...c.landmark.coordinates]), `${id} landmark`).toBe(true);
+        if (c.landmark?.coordinates) {
+          const inside = geoContains(shapeOf(id), [...c.landmark.coordinates]);
+          const margin = COAST_MARGIN_KM[c.landmark.id];
+          if (margin === undefined) expect(inside, `${id} landmark`).toBe(true);
+          else expect(inside || withinKm(id, c.landmark.coordinates, margin), `${id} landmark within ${margin} km of its country`).toBe(true);
+        }
       }
     });
   }

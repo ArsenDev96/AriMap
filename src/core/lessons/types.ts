@@ -54,6 +54,15 @@ export interface LessonDefinition {
      */
     routeVia?: Readonly<Record<string, readonly LonLat[]>>;
     /**
+     * Fixed links a route leg may follow across water inside its own country, where
+     * the country's land is split and no line on land joins its parts: each a pair of
+     * consecutive points of `routeVia` (in either order), with the country whose leg
+     * uses it. Only these segments may leave land; they must never enter another
+     * country (verified in src/geo/route.test.ts). Croatia's Pelješac Bridge, past
+     * Bosnia and Herzegovina's coast at Neum, is the only one.
+     */
+    routeLinks?: readonly { country: CountryId; name: string; points: readonly [LonLat, LonLat] }[];
+    /**
      * Half-size, in world units, of the area around the level's countries that
      * the map may ever show (see src/geo/regionMap.ts). It must lie inside the
      * prepared map data, which the tests check. Defaults to [1150, 900].

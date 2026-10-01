@@ -30,10 +30,13 @@ const BBOX = "-27,32,36,62";
 
 // Countries kept at full (~400 m) detail: every playable country, and the
 // neighbours visible when zoomed in. Slovakia was added with Level 3 (Central
-// Europe); it changed only its borders with Hungary and Ukraine.
+// Europe); it changed only its borders with Hungary and Ukraine. Level 4 (Along
+// the Adriatic) added Slovenia, Croatia, Bosnia and Herzegovina and Montenegro,
+// and Serbia, Kosovo and Albania beside Montenegro; see docs/DATA.md.
 const DETAIL_IDS = [
   "FRA", "BEL", "NLD", "LUX", "DEU",
   "GBR", "IRL", "ESP", "AND", "MCO", "ITA", "SMR", "VAT", "CHE", "LIE", "AUT", "CZE", "POL", "DNK", "SVK",
+  "SVN", "HRV", "BIH", "MNE", "SRB", "KOS", "ALB",
 ];
 
 const commands = [

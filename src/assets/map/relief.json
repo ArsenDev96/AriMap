@@ -427,6 +427,22 @@
         "height": 645,
         "bytes": 87346
       }
+    },
+    "along-the-adriatic": {
+      "land": {
+        "x": -51,
+        "y": 493,
+        "width": 2001,
+        "height": 1011,
+        "bytes": 289538
+      },
+      "tone": {
+        "x": 579,
+        "y": 572,
+        "width": 741,
+        "height": 852,
+        "bytes": 82080
+      }
     }
   },
   "version": "46f31f1777",

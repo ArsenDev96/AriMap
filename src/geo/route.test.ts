@@ -56,11 +56,18 @@ function allShortestPaths(graph: BorderGraph, from: CountryId, to: CountryId): C
 /** Near the crossing the drawn line may graze the (simplified) border line itself. */
 const BORDER_TOLERANCE_KM = 3;
 
+const ALL_IDS = topology.objects.countries.geometries.map((g) => String(g.id));
+const same = (p: LonLat, q: LonLat) => p[0] === q[0] && p[1] === q[1];
+
 for (const lesson of Object.values(LESSONS)) {
   const crossings = lesson.map.routeCrossings ?? {};
   const via = lesson.map.routeVia ?? {};
   const settings = routeSettings(lesson);
   const moves = lesson.countries.flatMap((a) => lesson.borders[a].map((b) => [a, b] as const));
+  const links = lesson.map.routeLinks ?? [];
+  /** The fixed link (a bridge inside one country) a leg segment follows, if any. */
+  const linkOf = (country: CountryId, p: LonLat, q: LonLat) =>
+    links.find((l) => l.country === country && ((same(l.points[0], p) && same(l.points[1], q)) || (same(l.points[0], q) && same(l.points[1], p))));
 
   describe(`${lesson.id}: Travel route line`, () => {
     it("has a crossing for exactly the level's borders, and turning points only for them", () => {
@@ -84,6 +91,14 @@ for (const lesson of Object.values(LESSONS)) {
         const at = line.indexOf(crossing);
         for (let i = 1; i < line.length; i++) {
           const country = i <= at ? a : b;
+          const link = linkOf(country, line[i - 1], line[i]);
+          if (link) {
+            // A declared fixed link (a bridge inside the country) may cross water, but never another country.
+            for (const p of drawnSamples(lesson, line[i - 1], line[i])) {
+              for (const id of ALL_IDS.filter((x) => x !== country)) expect(geoContains(shapeOf(id), [...p]), `${link.name} enters ${id}`).toBe(false);
+            }
+            continue;
+          }
           const outside = drawnSamples(lesson, line[i - 1], line[i]).filter(
             (p) => km(p, crossing) > BORDER_TOLERANCE_KM && !geoContains(shapeOf(country), [...p]),
           );
@@ -91,6 +106,19 @@ for (const lesson of Object.values(LESSONS)) {
         }
       });
     }
+
+    it("uses each fixed link in a leg of its own country, joining two parts of that country's land", () => {
+      for (const link of links) {
+        expect(lesson.countries, link.name).toContain(link.country);
+        // Short: a bridge, not a sea route.
+        expect(km(link.points[0], link.points[1]), link.name).toBeLessThan(5);
+        // Both ends on the country's land.
+        for (const p of link.points) expect(geoContains(shapeOf(link.country), [...p]), `${link.name} end ${p}`).toBe(true);
+        // Used by some leg of that country, as two consecutive points.
+        const used = Object.entries(via).some(([key, points]) => key.startsWith(`${link.country}@`) && points.some((p, i) => i > 0 && linkOf(link.country, points[i - 1], p) === link));
+        expect(used, link.name).toBe(true);
+      }
+    });
 
     it("retraces the same line for a reversed move", () => {
       for (const [a, b] of moves) expect(routeLine([b, a], settings)).toEqual([...routeLine([a, b], settings)].reverse());
@@ -121,6 +149,10 @@ for (const lesson of Object.values(LESSONS)) {
       // Through Czechia or Slovakia, and through Germany too: Germany borders both Poland and Austria.
       if (lesson.id === "central-europe") {
         expect(paths.map((p) => p.join("→")).sort()).toEqual(["POL→CZE→AUT", "POL→DEU→AUT", "POL→SVK→AUT"]);
+      }
+      // A chain: Italy meets only Slovenia, and Croatia–Montenegro is shorter than through Bosnia and Herzegovina.
+      if (lesson.id === "along-the-adriatic") {
+        expect(paths.map((p) => p.join("→"))).toEqual(["ITA→SVN→HRV→MNE"]);
       }
       for (const path of paths) {
         const line = routeLine(path, settings);

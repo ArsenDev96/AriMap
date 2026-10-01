@@ -8,9 +8,11 @@ import { expect, test, type Page } from "@playwright/test";
 const L1 = "western-europe-1";
 const L2 = "around-the-alps";
 const L3 = "central-europe";
+const L4 = "along-the-adriatic";
 const L1_ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
 const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
+const L4_COUNTRIES = ["ITA", "SVN", "HRV", "BIH", "MNE"];
 const NAMES: Record<string, string> = { France: "FRA", Switzerland: "CHE", Germany: "DEU", Austria: "AUT", Italy: "ITA" };
 const LANDMARKS: Record<string, string> = { FRA: "Eiffel Tower", CHE: "Chapel Bridge", DEU: "Brandenburg Gate", AUT: "Schönbrunn Palace", ITA: "Colosseum" };
 
@@ -145,8 +147,8 @@ test.describe("level selection", () => {
         const statuses = await page.getByTestId("level-status").allTextContents();
         const expected =
           locale === "en"
-            ? [state ? "Completed" : "Ready to play", state ? "Ready to play" : "Locked", "Locked", "Coming soon", "Coming soon"]
-            : [state ? "Ավարտված է" : "Պատրաստ է խաղալու", state ? "Պատրաստ է խաղալու" : "Փակ է", "Փակ է", "Շուտով", "Շուտով"];
+            ? [state ? "Completed" : "Ready to play", state ? "Ready to play" : "Locked", "Locked", "Locked", "Coming soon"]
+            : [state ? "Ավարտված է" : "Պատրաստ է խաղալու", state ? "Պատրաստ է խաղալու" : "Փակ է", "Փակ է", "Փակ է", "Շուտով"];
         statuses.forEach((text, i) => expect(text.startsWith(expected[i]), `${label} ${locale} card ${i + 1}: ${text}`).toBe(true));
         // Number and name on every card, and its countries.
         for (const [i, id] of [L1, L2, "central-europe", "along-the-adriatic", "towards-greece"].entries()) {
@@ -159,6 +161,9 @@ test.describe("level selection", () => {
         // Level 3 opens after Level 2, not Level 1.
         await expect(card(page, "central-europe")).toContainText(locale === "en" ? "Complete “Around the Alps” to unlock it." : "Բացելու համար ավարտիր «Ալպերի շուրջը» մակարդակը։");
         await expect(card(page, "central-europe")).toContainText(locale === "en" ? "Germany · Poland · Czechia · Slovakia · Austria" : "Գերմանիա · Լեհաստան · Չեխիա · Սլովակիա · Ավստրիա");
+        // Level 4 opens after Level 3; its countries in full, Bosnia and Herzegovina's long name included.
+        await expect(card(page, "along-the-adriatic")).toContainText(locale === "en" ? "Complete “Central Europe” to unlock it." : "Բացելու համար ավարտիր «Կենտրոնական Եվրոպա» մակարդակը։");
+        await expect(card(page, "along-the-adriatic")).toContainText(locale === "en" ? "Italy · Slovenia · Croatia · Bosnia and Herzegovina · Montenegro" : "Իտալիա · Սլովենիա · Խորվաթիա · Բոսնիա և Հերցեգովինա · Չեռնոգորիա");
         if (!state) {
           await expect(card(page, L2).getByRole("button")).toHaveCount(0);
           await expect(card(page, L2)).toContainText(locale === "en" ? "Complete “France and its neighbours” to unlock it." : "Բացելու համար ավարտիր «Ֆրանսիան և իր հարևանները» մակարդակը։");
@@ -439,16 +444,29 @@ const L3_DONE = {
   travel: { missionId: "pol-to-aut", path: ["POL", "SVK", "AUT"], hintUsed: false, undoUsed: false },
   lastTravelResult: { missionId: "pol-to-aut", route: ["POL", "SVK", "AUT"], hintUsed: false, undoUsed: false },
 };
+const L4_IN_FIND = {
+  ...L1_IN_FIND,
+  discover: { selected: null, explored: L4_COUNTRIES },
+  find: { order: L4_COUNTRIES, index: 1, question: { target: "BIH", wrongGuesses: [], hintLevel: 0, solved: false, feedback: null }, results: answers(L4_COUNTRIES.slice(0, 1)), status: "asking" },
+};
+const L4_DONE = {
+  ...LEVEL1_DONE,
+  find: { order: L4_COUNTRIES, index: 4, question: { target: "MNE", wrongGuesses: [], hintLevel: 0, solved: true, feedback: null }, results: answers(L4_COUNTRIES), status: "complete" },
+  travel: { missionId: "ita-to-mne", path: ["ITA", "SVN", "HRV", "MNE"], hintUsed: false, undoUsed: false },
+  lastTravelResult: { missionId: "ita-to-mne", route: ["ITA", "SVN", "HRV", "MNE"], hintUsed: false, undoUsed: false },
+};
 const RETURNING: { name: string; levels: Record<string, object>; recent: string[]; next: string | null; compact: string[] }[] = [
   { name: "Level 1 in progress", levels: { [L1]: L1_IN_FIND }, recent: [L1], next: L1, compact: [] },
   { name: "Level 1 completed, Level 2 ready", levels: { [L1]: LEVEL1_DONE }, recent: [L1], next: L2, compact: [L1] },
   { name: "Level 2 in progress", levels: { [L1]: LEVEL1_DONE, [L2]: L2_IN_FIND }, recent: [L2, L1], next: L2, compact: [L1] },
   { name: "Levels 1 and 2 completed, Level 3 ready", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE }, recent: [L2, L1], next: L3, compact: [L1, L2] },
   { name: "Level 3 in progress", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_IN_FIND }, recent: [L3, L2, L1], next: L3, compact: [L1, L2] },
-  { name: "all three playable levels completed", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, recent: [L3, L2, L1], next: null, compact: [L1, L2, L3] },
+  { name: "Levels 1–3 completed, Level 4 ready", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, recent: [L3, L2, L1], next: L4, compact: [L1, L2, L3] },
+  { name: "Level 4 in progress", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_IN_FIND }, recent: [L4, L3, L2, L1], next: L4, compact: [L1, L2, L3] },
+  { name: "all four playable levels completed", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE }, recent: [L4, L3, L2, L1], next: null, compact: [L1, L2, L3, L4] },
 ];
 /** The first country each level's card lists. */
-const FIRST_COUNTRY: Record<string, [string, string]> = { [L1]: ["France ·", "Ֆրանսիա ·"], [L2]: ["France ·", "Ֆրանսիա ·"], [L3]: ["Germany ·", "Գերմանիա ·"] };
+const FIRST_COUNTRY: Record<string, [string, string]> = { [L1]: ["France ·", "Ֆրանսիա ·"], [L2]: ["France ·", "Ֆրանսիա ·"], [L3]: ["Germany ·", "Գերմանիա ·"], [L4]: ["Italy ·", "Իտալիա ·"] };
 
 /** The part of a box inside the scrolling area and above the action area: what shows without scrolling. */
 async function shownWithoutScrolling(page: Page, locator: ReturnType<Page["locator"]>) {

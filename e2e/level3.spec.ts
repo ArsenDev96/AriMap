@@ -344,19 +344,18 @@ test("Level 3, Central Europe: Discover, Find, Travel and Results", async ({ pag
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*None/);
   await expect(page.getByTestId("badge")).toBeVisible();
 
-  // The level selection: Level 3 completed, Levels 4–5 still coming soon, with no way in.
+  // The level selection: Level 3 completed unlocks Level 4, the main action starts it; Level 5 is still coming soon, with no way in.
   await page.getByTestId("home").click();
   for (const id of [L1, L2, L3]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  for (const id of ["along-the-adriatic", "towards-greece"]) {
-    await expect(card(page, id).getByTestId("level-status")).toHaveText(/^Coming soon/);
-    await expect(card(page, id).getByRole("button")).toHaveCount(0);
-  }
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toBeVisible();
+  await expect(card(page, "along-the-adriatic").getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 4 · Along the Adriatic$/);
+  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText(/^Coming soon/);
+  await expect(card(page, "towards-greece").getByRole("button")).toHaveCount(0);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   // Across a refresh too.
   await page.reload();
   await expect(card(page, L3).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
+  await expect(mainAction(page)).toHaveAttribute("data-level", "along-the-adriatic");
   expect(errors).toEqual([]);
 });
 
@@ -399,10 +398,11 @@ test("Level 3 at phone and desktop sizes: the level selection, the three new car
       for (const id of ["along-the-adriatic", "towards-greece"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-levels-unlocked`);
-      // Completed: Level 3 is one line like the others, and Levels 4–5 remain unavailable.
+      // Completed: Level 3 is one line like the others, Level 4 is up next, and Level 5 remains unavailable.
       await saveV2(page, { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, { locale, recent: [L3, L2, L1], levelId: L3 });
       await expect(card(page, L3).getByTestId("level-status")).toHaveText(locale === "en" ? "Completed" : "Ավարտված է");
-      await expect(page.getByTestId("all-done")).toBeVisible();
+      await expect(card(page, "along-the-adriatic")).toHaveAttribute("data-up-next", "true");
+      await expect(card(page, "towards-greece").getByRole("button")).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-levels-completed`);
 

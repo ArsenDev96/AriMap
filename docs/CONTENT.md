@@ -43,7 +43,7 @@ France and Germany reuse Level 1's capitals and landmarks. Capital and landmark 
 
 ## Names in Armenian
 
-Country, capital and landmark names follow the Armenian Wikipedia article titles (checked 2026-09-30): Շվեյցարիա, Ավստրիա, Իտալիա, Բեռն, Վիեննա, Հռոմ, Կոլիզեում, and «Շյոնբրունի պալատ» (the lead of the article Շյոնբրուն). The Levels 4–5 country names (`src/core/content/names.ts`) come from the same source. Level 3's names are listed in its own section below. **Chapel Bridge has no Armenian article or standard name.** «Մատուռի կամուրջ» ("the chapel's bridge", a translation of *Kapellbrücke*) is our own rendering and should be checked by a native speaker.
+Country, capital and landmark names follow the Armenian Wikipedia article titles (checked 2026-09-30): Շվեյցարիա, Ավստրիա, Իտալիա, Բեռն, Վիեննա, Հռոմ, Կոլիզեում, and «Շյոնբրունի պալատ» (the lead of the article Շյոնբրուն). Level 5's country names (`src/core/content/names.ts`) come from the same source; Level 4's are in its own section below. Level 3's names are listed in its own section below. **Chapel Bridge has no Armenian article or standard name.** «Մատուռի կամուրջ» ("the chapel's bridge", a translation of *Kapellbrücke*) is our own rendering and should be checked by a native speaker.
 
 ## Level-specific hints
 
@@ -169,6 +169,93 @@ Each starts with the shared style paragraph (Level 2's, above), then describes i
 
 3. **`bratislava-castle.png`**
    > [style paragraph] Subject: Bratislava Castle in Slovakia. A massive, simple rectangular white castle with a red-orange tiled roof and four square corner towers, each with its own red roof, rows of regular windows, on top of a green hill with a few trees and a stone terrace wall. At the foot of the hill, a narrow strip of the calm blue Danube. Wide, landscape-shaped artwork within the square.
+
+## Level 4: Along the Adriatic
+
+Italy reuses its shared content and illustration (Rome, the Colosseum). Slovenia, Croatia, Bosnia and Herzegovina and Montenegro are new. Their content was checked on 2026-10-01.
+
+### Capitals and landmarks
+
+| Country | Capital | Capital (lat, lon) | Landmark | Landmark (lat, lon) | Fact (English) | Sources |
+|---|---|---|---|---|---|---|
+| Slovenia (Սլովենիա) | Ljubljana (Լյուբլյանա) | 46.0514, 14.5061 | Bled Castle, Bled (Բլեդի ամրոց) | 46.3697, 14.1005 | Perched on a 130-metre cliff above Lake Bled, it was first mentioned in writing in 1011. | [Bled Castle (official): home](https://www.blejski-grad.si/en/) ("Built on a 130-meter-high cliff"); [Bled Castle (official): history](https://www.blejski-grad.si/en/discover-bled-castle/history/) ("donation deed signed in 1011 by King Henry II, in which the castle is referred to as castellum Veldes"); [Wikipedia: Bled Castle](https://en.wikipedia.org/wiki/Bled_Castle) (46°22′11″N 14°06′02″E; OpenStreetMap "Blejski grad" 46.36970, 14.10052); [Wikipedia: Ljubljana](https://en.wikipedia.org/wiki/Ljubljana) (46.05139 N, 14.50611 E) |
+| Croatia (Խորվաթիա) | Zagreb (Զագրեբ) | 45.8131, 15.9775 | City Walls of Dubrovnik (Դուբրովնիկի պարիսպներ) | 42.6430, 18.1084 (the Minčeta Tower) | Almost 2 kilometres long, with towers and fortresses, these walls ring Dubrovnik's old town. | [Dubrovnik City Walls (official)](https://citywallsdubrovnik.hr/the-city-walls/) ("The 1940m long walls consist of the main city wall, sixteen towers, three fortresses, six bastions…"); [UNESCO World Heritage Centre: Old City of Dubrovnik](https://whc.unesco.org/en/list/95/) (inscribed 1979, extended 1994); OpenStreetMap, Minčeta Tower (42.6430, 18.1084); [Wikipedia: Zagreb](https://en.wikipedia.org/wiki/Zagreb) (45°48′47″N 15°58′39″E) |
+| Bosnia and Herzegovina (Բոսնիա և Հերցեգովինա) | Sarajevo (Սարաևո) | 43.8564, 18.4131 | Stari Most, Mostar (Մոստարի կամուրջ) | 43.3373, 17.8151 | Mostar's “Old Bridge”, a stone arch over the Neretva from 1566, was destroyed in 1993 and rebuilt in 2004. | [UNESCO World Heritage Centre: Old Bridge Area of the Old City of Mostar](https://whc.unesco.org/en/list/946/) (inscribed 2005); [Wikipedia: Stari Most](https://en.wikipedia.org/wiki/Stari_Most) (built 1557–1566 by Mimar Hayruddin; destroyed 9 November 1993; rebuilt and reopened 23 July 2004; 43°20′14″N 17°48′54″E; OpenStreetMap 43.33727, 17.81509); [Wikipedia: Sarajevo](https://en.wikipedia.org/wiki/Sarajevo) (43°51′23″N 18°24′47″E) |
+| Montenegro (Չեռնոգորիա) | Podgorica (Պոդգորիցա) | 42.4414, 19.2628 | Ostrog Monastery (Օստրոգի վանք) | 42.6747, 19.0306 (the upper monastery) | Founded in the 17th century, it is built into an almost vertical cliff 900 metres above sea level. | [Montenegro Travel (national tourism organisation): top 10 attractions](https://www.montenegro.travel/en/inspiration-for-a-dream-trip/en167/top-10-attractions-of-montenegro) ("Carved in a stone cliff in the mountain massif of Ostroška Greda 900 m above sea level"); [Montenegro Travel: sacral objects](https://www.montenegro.travel/en/explore-montenegro/culture-and-tours/sacral-objects) (900 m; the Church of the Holy Cross carved into a cave in 1665 for the relics of St Basil of Ostrog); [Wikipedia: Ostrog Monastery](https://en.wikipedia.org/wiki/Ostrog_Monastery) ("founded by Vasilije, the Metropolitan Bishop of Herzegovina in the 17th century"; "placed against an almost vertical background"); OpenStreetMap, Upper Ostrog Monastery (42.67470, 19.03061); [Wikipedia: Podgorica](https://en.wikipedia.org/wiki/Podgorica) (42.4414 N, 19.2628 E) |
+
+Notes:
+
+- **No landmark is in its capital.** Bled is 50 km north-west of Ljubljana; Dubrovnik is in Croatia's far south, about 400 km from Zagreb (and cut off from the rest of Croatia by Bosnia and Herzegovina's coast at Neum, see DATA.md); Mostar is 70 km south-west of Sarajevo; Ostrog is 40 km north-west of Podgorica. Each pin is the monument's own coordinate, separate from the capital marker, and the facts never say otherwise.
+- **Bled Castle**: the official site calls it "the oldest in Slovenia" on its home page but "among the oldest castles in Slovenia mentioned in written sources" on its history page, so the fact says only that it was first mentioned in writing in 1011. A 1004 deed gave Bled to the Bishop of Brixen without naming the castle; the Armenian Wikipedia article «Բլեդ» gives 1004 for the castle, mixing the two up.
+- **City Walls of Dubrovnik**: 1,940 m, rounded to "almost 2 kilometres". The pin is the Minčeta Tower, the walls' highest point. **Natural Earth's 1:10m coastline at Dubrovnik is coarser than the old town**: the data's coast runs about 0.5 km north of it, so the pin sits that far off the drawn coast (at most about 4 px at the deepest zoom on desktop). The coordinate is kept as verified rather than moved inland onto the hillside; `src/geo/regionMap.test.ts` allows this landmark, and only this one, up to 0.6 km from Croatia's land in the data.
+- **Stari Most**: built 1557–1566, so "from 1566" (its completion, the date UNESCO gives). Wikipedia gives its height above the river as 21 m in one place and "roughly 20 m" in another, so the fact leaves the height out. Its destruction in 1993 and reconstruction are the reason for its UNESCO listing; the fact states them plainly.
+- **Ostrog Monastery**: "900 metres above sea level" (one tour site wrongly says 900 m above the valley floor). The pin is the upper monastery, built into the cliff.
+- **Podgorica** is the capital (Constitution of Montenegro, Art. 5: "The capital of Montenegro shall be Podgorica, The Old Royal Capital of Montenegro shall be Cetinje"); the card says "Capital", as for the others.
+- The CIA World Factbook (used for the border lengths in DATA.md) was retired on 4 February 2026; its last edition was read from the [factbook.json mirror](https://github.com/factbook/factbook.json). UNESCO's pages refused automated requests, so their inscription years were confirmed from their search listings and Wikipedia.
+- Capital coordinates are the Wikipedia article coordinates, rounded to 4 decimals, like the other capitals.
+
+### Names in Armenian
+
+The country and capital names are the titles of their Armenian Wikipedia articles (checked 2026-10-01): Սլովենիա, Խորվաթիա, Բոսնիա և Հերցեգովինա, Չեռնոգորիա; Լյուբլյանա, Զագրեբ, Սարաևո, Պոդգորիցա. The in-sentence forms add the definite article: Սլովենիան, Խորվաթիան, Բոսնիա և Հերցեգովինան (on the last word), Չեռնոգորիան.
+
+| English | Eastern Armenian | Status |
+|---|---|---|
+| Bled Castle | Բլեդի ամրոց | The Armenian article «Բլեդ» calls it this; there is no article of its own. |
+| City Walls of Dubrovnik | Դուբրովնիկի պարիսպներ | **Our rendering**: no Armenian article; the «Դուբրովնիկ» article speaks of «պաշտպանիչ պարիսպներ» (defensive walls). |
+| Stari Most | Մոստարի կամուրջ | The Armenian article's title (its lead: «Մոստարի կամուրջ կամ Հին կամուրջ»). The fact calls it «Հին կամուրջ» in quotes, as the article does. |
+| Ostrog Monastery | Օստրոգի վանք | **Our rendering**: no Armenian article found. |
+| Neretva, Neum, Lake Bled (in facts and hints) | Ներետվա, Նեում, Բլեդ լիճ | Transliterations; Ներետվա and Նեում have no Armenian articles. |
+
+Flagged for a native speaker's check (not presented as established usage):
+
+- **Դուբրովնիկի պարիսպներ** and **Օստրոգի վանք** (above).
+- **Croatia's hint**: «…որը աղեղով շրջապատում է Բոսնիա և Հերցեգովինան» ("which curves around Bosnia and Herzegovina like an arc") is our wording of the English "curving around".
+- **Bosnia and Herzegovina's hint** uses «ծովափ» for "coast" and «կմ» for "km", as the other hints use «ափ» and numbers; a reviewer may prefer «ափ» or the unabbreviated «կիլոմետր».
+- **Italy's Level 4 hint**, «Ադրիատիկ ծովի արևմտյան կողմում» ("on the west side of the Adriatic Sea").
+- **regionName** «Ադրիատիկյան երկրներ» (in the map's accessible label «Քարտեզ՝ Ադրիատիկյան երկրներ»), formed like Level 2's «Ալպյան երկրներ».
+
+The Armenian facts and hints are our translations of the English ones.
+
+### Descriptions and Find hints
+
+As in Level 3, a country's description is its hint, shown in Discover and repeated by Find's second hint; Find's first hint names the capital and the landmark.
+
+| Country | Hint (English) | Where it comes from |
+|---|---|---|
+| Italy | The long, boot-shaped peninsula on the west side of the Adriatic Sea. | Level 4's own (`hints` in `src/core/lessons/adriatic.ts`). Italy's shared hint ("…reaching into the Mediterranean Sea, south of the Alps", used by Level 2) stays unchanged. |
+| Slovenia | A small country where the Alps meet the Adriatic, with a short coast just east of Italy. | The country's own. |
+| Croatia | A crescent-shaped country with a long Adriatic coast and many islands, curving around Bosnia and Herzegovina. | The country's own. |
+| Bosnia and Herzegovina | A mountainous country between Croatia and Montenegro, whose only coast, at Neum, is about 20 km long. | The country's own; 20 km is the Factbook's figure (some sources give 21–24.5 km). |
+| Montenegro | A small mountainous country on the Adriatic in the south-east of this region, south of Bosnia and Herzegovina. | The country's own. |
+
+### Illustrations (missing)
+
+No artwork for the four new landmarks has been supplied: no originals exist in `public/images/landmarks/`, and none were found elsewhere on the machine this was prepared on. Their Discover cards use the existing text-only layout (`data-art="none"`): the map's amber landmark mark beside the landmark's name and fact, across the card, with no empty frame and no other country's art standing in. The level is fully playable without them, and Find never shows artwork anyway.
+
+To add them later, generate each with the prompt below, save the original under its exact file name, then follow the four integration steps in Level 3's "Illustrations" section (`node scripts/prepare-landmarks.mjs`; `illustration: "<key>"` in `countries.ts`; import into `LANDMARK_IMAGES`; update `content.test.ts` and `e2e/level4.spec.ts`, which currently expect these four cards to be text only). Art at least 2:1 after trimming gets the wide phone layout automatically.
+
+| Landmark | Save the original to | Key | Content |
+|---|---|---|---|
+| Bled Castle, Slovenia | `public/images/landmarks/bled-castle.png` | `bled-castle` | The medieval castle with red roofs and pale walls on top of a steep cliff, a strip of Lake Bled's turquoise water at the foot. Wide composition. |
+| City Walls of Dubrovnik, Croatia | `public/images/landmarks/dubrovnik-city-walls.png` | `dubrovnik-city-walls` | A stretch of the massive pale stone walls with the round Minčeta Tower, terracotta roofs of the old town inside, and blue sea at the foot. Wide composition. |
+| Stari Most, Mostar | `public/images/landmarks/stari-most.png` | `stari-most` | The single, high, pale stone arch over the green river, with a small stone tower at each end. Wide composition. |
+| Ostrog Monastery, Montenegro | `public/images/landmarks/ostrog-monastery.png` | `ostrog-monastery` | The white monastery building set into a vertical grey cliff face, with a little green slope below. Tall or square composition. |
+
+#### Generation prompts
+
+Each starts with the shared style paragraph (Level 2's, above: clean dark navy outlines of even weight, soft cel shading, recognisable architecture, fully transparent background, no text or people), then describes its landmark. Check each result as for Level 2: transparent background, the landmark whole inside the frame, no text, people, frame or shadow on the background.
+
+1. **`bled-castle.png`**
+   > [style paragraph] Subject: Bled Castle in Slovenia, perched on the top of a steep grey limestone cliff above Lake Bled. A compact medieval castle with pale cream and white walls, a few towers and wings with red-brown tiled roofs, a stone terrace wall at the cliff's edge, and a few dark green pine trees on the slopes of the cliff. At the foot of the cliff, a narrow strip of calm turquoise lake water. Wide, landscape-shaped artwork within the square.
+
+2. **`dubrovnik-city-walls.png`**
+   > [style paragraph] Subject: the City Walls of Dubrovnik, Croatia. A stretch of massive, thick pale limestone walls with crenellations curving around the old town, with the tall round Minčeta Tower on the left and a smaller square fort on the right; inside the walls, a dense cluster of houses with terracotta-red tiled roofs and a single bell tower. At the foot of the walls, a narrow strip of deep blue Adriatic sea with a few soft ripples. Wide, landscape-shaped artwork within the square.
+
+3. **`stari-most.png`**
+   > [style paragraph] Subject: Stari Most (the Old Bridge) in Mostar, Bosnia and Herzegovina. A single slender, very high semicircular arch of pale grey-white limestone spanning a gorge, with a small square stone tower with a low tiled roof at each end and pale stone riverbanks. Under the arch, a narrow strip of the emerald-green Neretva river. Wide, landscape-shaped artwork within the square.
+
+4. **`ostrog-monastery.png`**
+   > [style paragraph] Subject: Ostrog Monastery in Montenegro. A gleaming white monastery building with small arched windows and a few red-tiled roof edges, built into the face of a tall, almost vertical light-grey rock cliff, so the cliff rises above and around it. Below it, a short green slope with a few small trees. Tall or square artwork within the frame.
 
 ## Landmark illustrations
 

@@ -16,9 +16,11 @@ const SET = process.env.SHOT_SET ?? "after";
 const L1 = "western-europe-1";
 const L2 = "around-the-alps";
 const L3 = "central-europe";
+const L4 = "along-the-adriatic";
 const L1_ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
+const L4_COUNTRIES = ["ITA", "SVN", "HRV", "BIH", "MNE"];
 
 const answers = (order: string[]) => order.map((target) => ({ target, wrongGuesses: 0, hintLevel: 0 }));
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
@@ -50,6 +52,7 @@ const travelling = (order: string[], missionId: string, path: string[]) => ({
 const L1_DONE = done(L1_ORDER, "fra-to-nld", ["FRA", "BEL", "NLD"]);
 const L2_DONE = done(L2_COUNTRIES, "fra-to-aut", ["FRA", "DEU", "AUT"]);
 const L3_DONE = done(L3_COUNTRIES, "pol-to-aut", ["POL", "CZE", "AUT"]);
+const L4_DONE = done(L4_COUNTRIES, "ita-to-mne", ["ITA", "SVN", "HRV", "MNE"]);
 
 async function appReady(page: Page) {
   await expect(page.locator(".splash")).toHaveCount(0);
@@ -108,7 +111,9 @@ const SCENARIOS: { name: string; levels: Record<string, object>; recent: string[
   { name: "l2-ready", levels: { [L1]: L1_DONE }, recent: [L1], current: L2 },
   { name: "l3-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE }, recent: [L2, L1], current: L3 },
   { name: "l3-in-progress", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: inFind(L3_COUNTRIES) }, recent: [L3, L2, L1], current: L3 },
-  { name: "all-completed", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, recent: [L3, L2, L1], current: null },
+  { name: "l4-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, recent: [L3, L2, L1], current: L4 },
+  { name: "l4-in-progress", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: inFind(L4_COUNTRIES) }, recent: [L4, L3, L2, L1], current: L4 },
+  { name: "all-completed", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE }, recent: [L4, L3, L2, L1], current: null },
 ];
 
 /** Where things are on the level selection, in viewport pixels. */
@@ -453,13 +458,16 @@ const openAllCards = async (page: Page) => {
 };
 
 test.describe("level cards", () => {
-  test("a title takes the card's whole width when it can't fit beside the badge; nothing overlaps; every part reachable", async ({ page }) => {
-    test.setTimeout(1_200_000);
-    const sizes = project() === "desktop" ? [[1366, 800]] : project() === "small-phone" ? [[320, 568], [390, 844]] : project() === "webkit-phone" ? [[320, 568], [390, 844], [1366, 800]] : [];
-    test.skip(sizes.length === 0, "Runs on the small-phone, webkit-phone and desktop projects.");
-    // Level 3 ready and in progress (Levels 1 and 2 completed, 4 and 5 coming soon), and all completed.
-    const scenarios = SCENARIOS.filter((s) => ["l3-ready", "l3-in-progress", "all-completed"].includes(s.name));
-    for (const [width, height] of sizes) {
+  // One test per screen size, each in a fresh page: all three sizes in one WebKit page took 8–11 minutes,
+  // and once lost the page near the end (no assertion failed; it passed when run again).
+  for (const [width, height] of [[320, 568], [390, 844], [1366, 800]]) {
+    test(`a title takes the card's whole width when it can't fit beside the badge; nothing overlaps; every part reachable, at ${width}×${height}`, async ({ page }) => {
+      test.setTimeout(600_000);
+      const projects = width > 1000 ? ["desktop", "webkit-phone"] : ["small-phone", "webkit-phone"];
+      test.skip(!projects.includes(project()), `Runs on the ${projects.join(" and ")} projects.`);
+      // Level 3 ready and in progress, Level 4 ready and in progress (Bosnia and Herzegovina's long name in
+      // its card), and all completed (Level 5 coming soon throughout).
+      const scenarios = SCENARIOS.filter((s) => ["l3-ready", "l3-in-progress", "l4-ready", "l4-in-progress", "all-completed"].includes(s.name));
       await page.setViewportSize({ width, height });
       for (const s of scenarios) {
         for (const locale of ["en", "hy"] as const) {
@@ -489,8 +497,8 @@ test.describe("level cards", () => {
           await textSize(page, 100);
         }
       }
-    }
-  });
+    });
+  }
 });
 
 /* --- Fonts ------------------------------------------------------------------------ */
@@ -722,6 +730,7 @@ async function openTravel(page: Page, level: string, path: string[], locale: str
     [L1]: { levels: { [L1]: travelling(L1_ORDER, "fra-to-nld", path) }, recent: [L1] },
     [L2]: { levels: { [L1]: L1_DONE, [L2]: travelling(L2_COUNTRIES, "fra-to-aut", path) }, recent: [L2, L1] },
     [L3]: { levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: travelling(L3_COUNTRIES, "pol-to-aut", path) }, recent: [L3, L2, L1] },
+    [L4]: { levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: travelling(L4_COUNTRIES, "ita-to-mne", path) }, recent: [L4, L3, L2, L1] },
   };
   await save(page, setup[level].levels, { locale, screen: "lesson", levelId: level, recent: setup[level].recent });
   await expect(page.locator('[data-testid^="move-"]').first()).toBeVisible();
@@ -749,7 +758,7 @@ test.describe("Travel neighbour buttons", () => {
     }
   });
 
-  test("every neighbour set a journey offers, in Levels 1–3, in both languages", async ({ page }) => {
+  test("every neighbour set a journey offers, in Levels 1–4, in both languages", async ({ page }) => {
     test.setTimeout(600_000);
     test.skip(project() !== "small-phone" && project() !== "desktop", "Chromium phone and desktop.");
     // The countries a journey can stand in with crossings left: the start and its neighbours.
@@ -757,6 +766,8 @@ test.describe("Travel neighbour buttons", () => {
       [L1, ["FRA"]], [L1, ["FRA", "BEL"]], [L1, ["FRA", "LUX"]], [L1, ["FRA", "DEU"]],
       [L2, ["FRA"]], [L2, ["FRA", "CHE"]], [L2, ["FRA", "DEU"]], [L2, ["FRA", "ITA"]],
       [L3, ["POL"]], [L3, ["POL", "CZE"]], [L3, ["POL", "SVK"]], [L3, ["POL", "DEU"]],
+      // Level 4 is a chain: Italy's only neighbour is Slovenia; Croatia offers Bosnia and Herzegovina's long name.
+      [L4, ["ITA"]], [L4, ["ITA", "SVN"]], [L4, ["ITA", "SVN", "HRV"]],
     ];
     const sizes = project() === "desktop" ? [[1366, 800]] : [[320, 568], [390, 844]];
     const summary: string[] = [];
@@ -782,14 +793,16 @@ test.describe("Travel neighbour buttons", () => {
     test.info().annotations.push({ type: "columns", description: summary.join("; ") });
   });
 
-  test("the first row of neighbours shows without scrolling, before and after a move, in Levels 1–3; the map keeps its height and the text its size", async ({ page }) => {
-    test.setTimeout(1_200_000);
+  test("the first row of neighbours shows without scrolling, before and after a move, in Levels 1–4; the map keeps its height and the text its size", async ({ page }) => {
+    test.setTimeout(1_800_000);
     test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
-    // Each journey's start, and the first move from it to each neighbour.
-    const journeys: [string, string, string[]][] = [
-      [L1, "FRA", ["BEL", "LUX", "DEU"]],
-      [L2, "FRA", ["CHE", "DEU", "ITA"]],
-      [L3, "POL", ["CZE", "SVK", "DEU"]],
+    // Each journey's start, and the saved places after the first move to each neighbour (and, in
+    // Level 4's chain, on into Croatia, whose choices include Bosnia and Herzegovina).
+    const journeys: [string, string, string[][]][] = [
+      [L1, "FRA", [["FRA", "BEL"], ["FRA", "LUX"], ["FRA", "DEU"]]],
+      [L2, "FRA", [["FRA", "CHE"], ["FRA", "DEU"], ["FRA", "ITA"]]],
+      [L3, "POL", [["POL", "CZE"], ["POL", "SVK"], ["POL", "DEU"]]],
+      [L4, "ITA", [["ITA", "SVN"], ["ITA", "SVN", "HRV"]]],
     ];
     const summary = () =>
       page.evaluate(() => {
@@ -835,10 +848,11 @@ test.describe("Travel neighbour buttons", () => {
           await fontsSettled(page);
           await check(`moved to ${moved}`);
           if (width === 320 && height === 568) await shot(page, `travel-${level}-${moved}-${locale}`);
-          // Every first move, saved.
-          for (const n of neighbours) {
-            await openTravel(page, level, [start, n], locale);
-            await check(`at ${n}`);
+          // Every first move, saved (and Level 4's Croatia).
+          for (const path of neighbours) {
+            await openTravel(page, level, path, locale);
+            await check(`at ${path.at(-1)}`);
+            if (width === 320 && height === 568 && level === L4) await shot(page, `travel-${level}-${path.at(-1)}-${locale}`);
           }
         }
       }
@@ -846,18 +860,20 @@ test.describe("Travel neighbour buttons", () => {
     // Enlarged text on the shortest screen: the text grows (nothing shrinks to fit) and the panel scrolls.
     await page.setViewportSize({ width: 320, height: 568 });
     for (const locale of ["en", "hy"] as const) {
-      for (const [level, start, neighbours] of journeys) {
-        await openTravel(page, level, [start, neighbours[0]], locale);
+      for (const [level, , neighbours] of journeys) {
+        // Level 4 in Croatia: its longest choice, Bosnia and Herzegovina.
+        const path = level === L4 ? neighbours.at(-1)! : neighbours[0];
+        await openTravel(page, level, path, locale);
         const base = (await summary()).fonts.split(" ").map(parseFloat);
         for (const size of [150, 200]) {
           await textSize(page, size);
-          const where = `320×568 ${locale} ${level} at ${neighbours[0]} ${size}%`;
+          const where = `320×568 ${locale} ${level} at ${path.at(-1)} ${size}%`;
           const grown = (await summary()).fonts.split(" ").map(parseFloat);
           grown.forEach((px, i) => expect.soft(px, `${where}: text size ${i}`).toBeCloseTo((base[i] * size) / 100, 0));
           await expectNeighboursClear(page, where);
           await expectTravelReachable(page, where);
           await page.getByTestId("panel").evaluate((el) => el.scrollTo(0, 0));
-          await shot(page, `travel-${level}-${neighbours[0]}-${locale}-text${size}`);
+          await shot(page, `travel-${level}-${path.at(-1)}-${locale}-text${size}`);
         }
         await textSize(page, 100);
       }

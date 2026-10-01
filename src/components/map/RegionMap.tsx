@@ -1000,6 +1000,8 @@ function calloutCandidates(
    * containing the anchor still blocks the leader line.
    */
   chrome: Box[] = [],
+  /** Callouts already placed: never covered, even as a last resort (two neighbours' callouts, Level 4's Balkans on a 320px map). */
+  placed: Box[] = [],
 ): Box[] {
   const [ax, ay] = anchor;
   const candidates: { box: Box; step: number }[] = [];
@@ -1036,10 +1038,8 @@ function calloutCandidates(
   const onScreen = (b: Box) => b.x0 >= m && b.y0 >= m && b.x1 <= viewport.width - m && b.y1 <= viewport.height - m;
   // The anchor's own marker (e.g. Luxembourg City) is where the leader starts, so it can't block it.
   const blockers = [...hard.filter((o) => !inBox(anchor, o)), ...chrome];
-  const usable = candidates.filter(
-    ({ box }) =>
-      onScreen(box) && ![...hard, ...chrome].some((o) => overlaps(box, o)) && !blockers.some((o) => segmentHits(anchor, nearestOn(box, anchor), o)),
-  );
+  const clear = ({ box }: { box: Box }) =>
+    onScreen(box) && ![...hard, ...chrome].some((o) => overlaps(box, o)) && !blockers.some((o) => segmentHits(anchor, nearestOn(box, anchor), o));
   const score = ({ box, step }: { box: Box; step: number }) => {
     const end = nearestOn(box, anchor);
     return soft.reduce(
@@ -1047,18 +1047,32 @@ function calloutCandidates(
       step * CALLOUT_STEP_COST + depth(box) * CALLOUT_DEPTH_COST,
     );
   };
-  const ranked = usable
-    .map((c) => ({ box: c.box, cost: score(c) }))
-    .sort((a, b) => a.cost - b.cost)
-    .map((c) => c.box);
+  const rank = (list: { box: Box; step: number }[]) =>
+    list
+      .map((c) => ({ box: c.box, cost: score(c) }))
+      .sort((a, b) => a.cost - b.cost)
+      .map((c) => c.box);
+  const ranked = rank(candidates.filter(clear));
+  if (ranked.length === 0) {
+    // Nothing clear: the same positions slid sideways or up and down into the view, for a
+    // long name near the map's edge (Bosnia and Herzegovina on a 320px map), under the
+    // same rules. Only when no position is clear as it is, so layouts that fit don't change.
+    const slide = (b: Box): Box => {
+      const x0 = clamp(b.x0, m, Math.max(m, viewport.width - m - width));
+      const y0 = clamp(b.y0, m, Math.max(m, viewport.height - m - h));
+      return { x0, y0, x1: x0 + width, y1: y0 + h };
+    };
+    ranked.push(...rank(candidates.map((c) => ({ box: slide(c.box), step: c.step + 1 })).filter(clear)));
+  }
   if (ranked.length === 0) {
     // Last resort (tiny views such as the inset): any on-screen position, but
-    // never over map chrome or with a leader through it.
+    // never over map chrome or another callout, or with a leader through them.
+    const never = [...chrome, ...placed];
     const fallback = candidates.find(
-      (c) => onScreen(c.box) && !chrome.some((o) => overlaps(c.box, o) || segmentHits(anchor, nearestOn(c.box, anchor), o)),
+      (c) => onScreen(c.box) && !never.some((o) => overlaps(c.box, o) || segmentHits(anchor, nearestOn(c.box, anchor), o)),
     );
     if (fallback) ranked.push(fallback.box);
-    else if (chrome.length === 0) ranked.push(candidates[0].box);
+    else if (never.length === 0) ranked.push(candidates[0].box);
   }
   return ranked.map((b) => {
     const x0 = clamp(b.x0, m, Math.max(m, viewport.width - m - width));
@@ -1382,7 +1396,8 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     };
     const [ax0, ay0] = label.anchor;
     const otherDots = leaderZones.filter((z) => !(ax0 >= z.x0 && ax0 <= z.x1 && ay0 >= z.y0 && ay0 <= z.y1));
-    const candidates = calloutCandidates(label.anchor, reach, width, calloutHeight, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles);
+    const placed = labels.flatMap((o) => (o.callout ? [o.callout] : []));
+    const candidates = calloutCandidates(label.anchor, reach, width, calloutHeight, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed);
     // Nowhere clear of the map controls and the close-up: no callout.
     if (candidates.length === 0) {
       crowded.push(label.id);
@@ -1421,8 +1436,13 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     hard.push(best.callout);
     leaders.push([label.anchor, nearestOn(best.callout, label.anchor)]);
     for (const [other, [dx, dy]] of best.moves) {
+      const old = other.box as Box;
       [other.dx, other.dy] = [dx, dy];
       other.box = labelBox(other, dx, dy);
+      // Capital and landmark names, placed next, keep clear of the name where it is now.
+      const at = taken.indexOf(old);
+      if (at >= 0) taken.splice(at, 1, other.box);
+      else taken.push(other.box);
     }
   }
 

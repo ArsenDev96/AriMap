@@ -189,4 +189,30 @@ describe("painted relief", () => {
       expect(alphaNear(p, 1), name).toBeLessThanOrEqual(25);
     }
   });
+
+  // Level 4 reaches south to Lampedusa and east to Montenegro. Reference points: the Wikipedia
+  // articles' coordinates (checked 2026-10-01; see docs/TERRAIN.md).
+  it("Level 4: shows the Julian and Dinaric Alps down to Montenegro, forests from Kočevje to Biogradska Gora; the plains stay bare", async () => {
+    const alphaNear = await alphaSampler("along-the-adriatic", regionMapFor(LESSONS["along-the-adriatic"]));
+    const summits: Record<string, [LonLat, number]> = {
+      "Triglav (Julian Alps)": [[13.837, 46.378], 200],
+      "Bobotov Kuk (Durmitor)": [[19.029, 43.127], 200],
+      "Maglić (Bosnia and Herzegovina's highest)": [[18.733, 43.283], 200],
+      Dinara: [[16.39, 44.064], 200],
+      Lovćen: [[18.84, 42.4], 150],
+      "Vaganski vrh (Velebit)": [[15.23, 44.533], 150],
+    };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    const forests: Record<string, LonLat> = {
+      "Kočevski Rog": [15.0, 45.68],
+      "Risnjak (Gorski kotar)": [14.616, 45.42],
+      "Perućica (Sutjeska)": [18.7, 43.33],
+      "Biogradska Gora": [19.6, 42.9],
+    };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    // Open farmland of eastern Slavonia near Vukovar, the Po delta near Ferrara, and the Lomellina's rice fields.
+    for (const [name, p] of Object.entries({ "eastern Slavonia": [19.0, 45.25], "Po delta": [11.95, 44.75], Lomellina: [8.66, 45.28] } as Record<string, LonLat>)) {
+      expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+    }
+  });
 });

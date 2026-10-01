@@ -8,10 +8,6 @@ import type { CountryId } from "./types";
  * their level is made playable, and are then removed from here.
  */
 export const UPCOMING_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {
-  SVN: { en: "Slovenia", hy: "Սլովենիա" },
-  HRV: { en: "Croatia", hy: "Խորվաթիա" },
-  BIH: { en: "Bosnia and Herzegovina", hy: "Բոսնիա և Հերցեգովինա" },
-  MNE: { en: "Montenegro", hy: "Չեռնոգորիա" },
   HUN: { en: "Hungary", hy: "Հունգարիա" },
   ROU: { en: "Romania", hy: "Ռումինիա" },
   SRB: { en: "Serbia", hy: "Սերբիա" },

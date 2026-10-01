@@ -1,5 +1,6 @@
 import type { CountryId } from "../content/types";
 import type { LocalizedText } from "../i18n/locales";
+import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { centralEuropeLesson } from "./central-europe";
 import type { LessonDefinition } from "./types";
@@ -59,20 +60,21 @@ export const LEVELS: readonly LevelInfo[] = [
     lesson: centralEuropeLesson,
     unlockedBy: alpsLesson.id,
   },
-  // Levels 4–5: metadata only. Their country groups are connected by real land
-  // borders (checked against the map data in src/geo/regionMap.test.ts), but
-  // their content, journeys and map coverage are not prepared yet.
   {
-    id: "along-the-adriatic",
+    id: adriaticLesson.id,
     number: 4,
     title: { en: "Along the Adriatic", hy: "Ադրիատիկի ափով" },
     description: {
       en: "From Italy along the Adriatic coast to the Balkans.",
       hy: "Իտալիայից Ադրիատիկի ափով դեպի Բալկաններ։",
     },
-    countries: ["ITA", "SVN", "HRV", "BIH", "MNE"],
-    unlockedBy: "central-europe",
+    countries: adriaticLesson.countries,
+    lesson: adriaticLesson,
+    unlockedBy: centralEuropeLesson.id,
   },
+  // Level 5: metadata only. Its country group is connected by real land borders
+  // (checked against the map data in src/geo/regionMap.test.ts), but its content,
+  // journey and map coverage are not prepared yet.
   {
     id: "towards-greece",
     number: 5,
@@ -82,7 +84,7 @@ export const LEVELS: readonly LevelInfo[] = [
       hy: "Դանուբով և Բալկաններով՝ մինչև Հունաստան։",
     },
     countries: ["HUN", "ROU", "SRB", "BGR", "GRC"],
-    unlockedBy: "along-the-adriatic",
+    unlockedBy: adriaticLesson.id,
   },
 ];
 
