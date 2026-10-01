@@ -6,13 +6,17 @@ import type { Landmark } from "@/core/content/types";
 import adolpheBridge from "@/assets/landmarks/adolphe-bridge.webp";
 import amsterdamCanalHouses from "@/assets/landmarks/amsterdam-canal-houses.webp";
 import atomium from "@/assets/landmarks/atomium.webp";
+import bledCastle from "@/assets/landmarks/bled-castle.webp";
 import brandenburgGate from "@/assets/landmarks/brandenburg-gate.webp";
 import bratislavaCastle from "@/assets/landmarks/bratislava-castle.webp";
 import chapelBridge from "@/assets/landmarks/chapel-bridge.webp";
 import charlesBridge from "@/assets/landmarks/charles-bridge.webp";
 import colosseum from "@/assets/landmarks/colosseum.webp";
+import dubrovnikCityWalls from "@/assets/landmarks/dubrovnik-city-walls.webp";
 import eiffelTower from "@/assets/landmarks/eiffel-tower.webp";
+import ostrogMonastery from "@/assets/landmarks/ostrog-monastery.webp";
 import schonbrunnPalace from "@/assets/landmarks/schonbrunn-palace.webp";
+import stariMost from "@/assets/landmarks/stari-most.webp";
 import wawelCastle from "@/assets/landmarks/wawel-castle.webp";
 import { useI18n } from "../i18n";
 import styles from "./LandmarkCard.module.css";
@@ -32,6 +36,10 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
   "wawel-castle": wawelCastle,
   "charles-bridge": charlesBridge,
   "bratislava-castle": bratislavaCastle,
+  "bled-castle": bledCastle,
+  "dubrovnik-city-walls": dubrovnikCityWalls,
+  "stari-most": stariMost,
+  "ostrog-monastery": ostrogMonastery,
 };
 
 /**
@@ -41,7 +49,7 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
  * tile's height; in the shallow tile (about 262×62px at 320×568) it is drawn no larger than in
  * the square one until about 2:1 (Adolphe Bridge, 1.71: 100×58px square, about 106×62px wide),
  * but well beyond it (Schönbrunn Palace, 3.26: 100×30px square, about 200×62px wide). The current
- * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5). Desktop is unaffected.
+ * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20). Desktop is unaffected.
  */
 export const WIDE_ART_ASPECT = 2;
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithSave } from "./helpers/save";
 
 /*
  * The level selection, Level 2 (Around the Alps) from Discover to Results, and
@@ -34,27 +35,12 @@ const LEVEL1_DONE = {
   records: { ...records(true), lastFindScore: { independent: 5, total: 5 }, bestFindScore: { independent: 5, total: 5 } },
 };
 
-/**
- * Waits until the game has mounted: it saves the state it loaded when it mounts,
- * which would otherwise overwrite a save written by the test just before.
- */
-async function appReady(page: Page) {
-  await expect(page.locator(".splash")).toHaveCount(0);
-  await expect(page.locator("main").first()).toBeVisible();
-}
-
 async function saveV1(page: Page, lesson: object | null, { locale = "en", screen = "welcome" } = {}) {
-  await page.goto("/");
-  await appReady(page);
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 1, locale, screen, lessons: lesson ? { [L1]: lesson } : {} }));
-  await page.reload();
+  await openWithSave(page, { version: 1, locale, screen, lessons: lesson ? { [L1]: lesson } : {} });
 }
 
 async function saveV2(page: Page, levels: Record<string, object>, { locale = "en", screen = "welcome", levelId = L1, recent = [] as string[] } = {}) {
-  await page.goto("/");
-  await appReady(page);
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 2, locale, screen, levelId, recent, levels }));
-  await page.reload();
+  await openWithSave(page, { version: 2, locale, screen, levelId, recent, levels });
 }
 
 let shotIndex = 0;

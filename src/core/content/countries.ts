@@ -272,6 +272,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // At Lake Bled, not the capital.
       coordinates: [14.1005, 46.3697],
+      illustration: "bled-castle",
     },
   },
   HRV: {
@@ -295,6 +296,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       // In Dubrovnik, in Croatia's far south (cut off from the rest by Bosnia and
       // Herzegovina's coast at Neum), not the capital. The point is the Minčeta Tower.
       coordinates: [18.1084, 42.643],
+      illustration: "dubrovnik-city-walls",
     },
   },
   BIH: {
@@ -317,6 +319,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In Mostar, not the capital.
       coordinates: [17.8151, 43.3373],
+      illustration: "stari-most",
     },
   },
   MNE: {
@@ -340,6 +343,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // The upper monastery, north-west of Podgorica, not in the capital.
       coordinates: [19.0306, 42.6747],
+      illustration: "ostrog-monastery",
     },
   },
 };

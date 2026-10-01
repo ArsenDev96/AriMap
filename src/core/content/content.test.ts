@@ -141,7 +141,7 @@ describe("country content", () => {
     expect(COUNTRIES.AUT.landmark!.illustration).toBe("schonbrunn-palace");
   });
 
-  it("gives Level 4's new countries their capital and a localized landmark with a map location, shown as text until its artwork is supplied", () => {
+  it("gives Level 4's new countries their capital and a localized landmark with a map location and its own illustration", () => {
     // Country and capital names as in the English and Armenian Wikipedia article titles (docs/CONTENT.md).
     const expected: Record<string, [string, string, string, string, string, string]> = {
       SVN: ["Slovenia", "Սլովենիա", "Ljubljana", "Լյուբլյանա", "Bled Castle", "Բլեդի ամրոց"],
@@ -166,9 +166,12 @@ describe("country content", () => {
       expect(Math.hypot(dLon, dLat), `${id}: landmark at the capital`).toBeGreaterThan(0.3);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
-      // No artwork supplied yet: no illustration key, so no other country's art stands in.
-      expect(landmark.illustration, id).toBeUndefined();
     }
+    // Each its own artwork (no other country's stands in for it).
+    expect(COUNTRIES.SVN.landmark!.illustration).toBe("bled-castle");
+    expect(COUNTRIES.HRV.landmark!.illustration).toBe("dubrovnik-city-walls");
+    expect(COUNTRIES.BIH.landmark!.illustration).toBe("stari-most");
+    expect(COUNTRIES.MNE.landmark!.illustration).toBe("ostrog-monastery");
     // Italy keeps its shared content and artwork; Level 4 describes it within the Adriatic,
     // leaving the shared hint (Level 2's) unchanged.
     const [l2, l4] = [LESSONS["around-the-alps"], LESSONS["along-the-adriatic"]];

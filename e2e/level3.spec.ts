@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithSave } from "./helpers/save";
 
 /*
  * Level 3 (Central Europe) from Discover to Results, its unlock and place on the
@@ -59,20 +60,8 @@ const travelling = {
   records: { ...records(false), findDone: true },
 };
 
-/**
- * Waits until the game has mounted: it saves the state it loaded when it mounts,
- * which would otherwise overwrite a save written by the test just before.
- */
-async function appReady(page: Page) {
-  await expect(page.locator(".splash")).toHaveCount(0);
-  await expect(page.locator("main").first()).toBeVisible();
-}
-
 async function saveV2(page: Page, levels: Record<string, object>, { locale = "en", screen = "welcome", levelId = L1, recent = [] as string[] } = {}) {
-  await page.goto("/");
-  await appReady(page);
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 2, locale, screen, levelId, recent, levels }));
-  await page.reload();
+  await openWithSave(page, { version: 2, locale, screen, levelId, recent, levels });
 }
 
 /** Opens Level 3 directly in a given state, Levels 1 and 2 completed. */

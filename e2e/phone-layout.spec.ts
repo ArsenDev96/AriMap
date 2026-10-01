@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithSave } from "./helpers/save";
 
 /*
  * Phone layout regressions: the level selection keeps the brand and language
@@ -81,16 +82,7 @@ async function fontsSettled(page: Page) {
 }
 
 async function save(page: Page, levels: Record<string, object>, { locale = "en", screen = "welcome", levelId = L1, recent = [] as string[] } = {}) {
-  await page.goto("/");
-  await appReady(page);
-  // The game saves the state it loaded once it has mounted: clear the save and wait for the game's
-  // own, so it can't overwrite the one written here.
-  await page.evaluate(() => localStorage.removeItem("arimap:state"));
-  await page.reload();
-  await appReady(page);
-  await page.waitForFunction(() => localStorage.getItem("arimap:state") !== null);
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 2, locale, screen, levelId, recent, levels }));
-  await page.reload();
+  await openWithSave(page, { version: 2, locale, screen, levelId, recent, levels });
   await appReady(page);
   await fontsSettled(page);
 }
@@ -895,6 +887,351 @@ test.describe("Travel neighbour buttons", () => {
         const a = (await page.getByTestId("welcome-actions").boundingBox())!;
         expect.soft(a.y + a.height, `${where}: main action off screen`).toBeLessThanOrEqual(height + 0.5);
         await shot(page, `welcome-l3-ready-${locale}-toolbars`);
+      }
+    }
+  });
+});
+
+/* --- Enlarged text: the Results banner and the Discover card ---------------------- */
+
+const COUNTRIES: Record<string, string[]> = { [L1]: L1_ORDER, [L2]: L2_COUNTRIES, [L3]: L3_COUNTRIES, [L4]: L4_COUNTRIES };
+const LEVELS_DONE: Record<string, object> = { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE };
+/** A level's progress, every level before it completed (so it can be played). */
+const upTo = (level: string, own: object) => {
+  const ids = [L1, L2, L3, L4];
+  return { ...Object.fromEntries(ids.slice(0, ids.indexOf(level)).map((id) => [id, LEVELS_DONE[id]])), [level]: own };
+};
+
+/**
+ * Where the visible text in `within` falls, word by word, measured from the drawn text (not the
+ * page's scroll width): each word inside `box` (`within` itself if none is named: inside its
+ * border, so on its background) and on screen, and broken across lines only if it is wider than
+ * the box its own lines are laid out in (the content box of its nearest block), or than `fitsIn`'s
+ * content box if one is named (so a word broken in a narrow column counts when it would fit across
+ * the card). A hyphenated word may wrap after its hyphen, as text does anywhere.
+ */
+function wordProblems(page: Page, within: string, box?: string, fitsIn?: string) {
+  return page.evaluate(
+    ([within, box, fitsIn]) => {
+      const root = document.querySelector(within)!;
+      const frame = (box ? document.querySelector(box)! : root).getBoundingClientRect();
+      const frameStyle = getComputedStyle(box ? document.querySelector(box)! : root);
+      const left = frame.left + parseFloat(frameStyle.borderLeftWidth);
+      const right = frame.right - parseFloat(frameStyle.borderRightWidth);
+      const lineBox = (el: Element) => {
+        let block = el;
+        while (getComputedStyle(block).display === "inline" && block.parentElement) block = block.parentElement;
+        const s = getComputedStyle(block);
+        // Fractional, unlike clientWidth: a word a fraction of a pixel too wide does not fit.
+        return block.getBoundingClientRect().width - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth) - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      };
+      const out: string[] = [];
+      const range = document.createRange();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const parent = node.parentElement!;
+        if (parent.closest(".visually-hidden, [aria-hidden='true']")) continue;
+        for (const m of (node.textContent ?? "").matchAll(/[^\s-]+-?|-/g)) {
+          range.setStart(node, m.index!);
+          range.setEnd(node, m.index! + m[0].length);
+          const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+          for (const r of rects) {
+            if (r.left < left - 0.5 || r.right > right + 0.5) out.push(`«${m[0]}» at ${r.left.toFixed(0)}–${r.right.toFixed(0)}, outside ${left.toFixed(0)}–${right.toFixed(0)}`);
+            if (r.left < 0 || r.right > window.innerWidth) out.push(`«${m[0]}» off screen`);
+          }
+          if (new Set(rects.map((r) => Math.round(r.top))).size > 1) {
+            const ps = getComputedStyle(parent);
+            const probe = document.createElement("span");
+            probe.textContent = m[0];
+            Object.assign(probe.style, { position: "absolute", visibility: "hidden", whiteSpace: "nowrap", font: ps.font, letterSpacing: ps.letterSpacing, textTransform: ps.textTransform });
+            document.body.appendChild(probe);
+            const natural = probe.getBoundingClientRect().width;
+            probe.remove();
+            const width = lineBox(fitsIn ? document.querySelector(fitsIn)! : parent);
+            // Within half a pixel of the box, the browser's own measure decides whether it fits.
+            if (natural < width - 0.5) out.push(`«${m[0]}» broken though it fits (${natural.toFixed(1)} < ${width.toFixed(1)}px)`);
+          }
+        }
+      }
+      return out;
+    },
+    [within, box ?? null, fitsIn ?? null] as const,
+  );
+}
+
+test.describe("enlarged text", () => {
+  test("the Results banner and its action in every level: the title beside the star while it fits, else below it, never out of the banner", async ({ page }) => {
+    test.setTimeout(900_000);
+    test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
+    for (const [width, height] of [[320, 568], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      for (const locale of ["hy", "en"] as const) {
+        for (const level of [L1, L2, L3, L4]) {
+          await save(page, upTo(level, LEVELS_DONE[level]), { locale, screen: "lesson", levelId: level, recent: [level] });
+          for (const size of [100, 150, 200]) {
+            await textSize(page, size);
+            const where = `${width}×${height} ${locale} ${level} ${size}%`;
+            const banner = page.getByTestId("celebration");
+            // The text keeps its size.
+            expect.soft(parseFloat(await banner.locator("h1").evaluate((el) => getComputedStyle(el).fontSize)), `${where}: title size`).toBeCloseTo((1.35 * 16 * size) / 100, 0);
+            expect.soft(await wordProblems(page, '[data-testid="celebration"] h1', '[data-testid="celebration"]'), `${where}: title`).toEqual([]);
+            // What is drawn of the star and its confetti never covers the title.
+            const covered = await banner.evaluate((el) => {
+              const shapes = [...el.querySelectorAll("svg path, svg circle, svg rect")].map((s) => s.getBoundingClientRect());
+              const range = document.createRange();
+              range.selectNodeContents(el.querySelector("h1")!);
+              const text = [...range.getClientRects()].filter((r) => r.width > 0);
+              return shapes.some((s) => text.some((t) => s.left < t.right && t.left < s.right && s.top < t.bottom && t.top < s.bottom));
+            });
+            expect.soft(covered, `${where}: the star covers the title`).toBe(false);
+            const b = (await banner.boundingBox())!;
+            expect.soft(b.x >= 0 && b.x + b.width <= width, `${where}: banner off screen`).toBe(true);
+            // The pinned Replay journey button: its name inside it, and on screen.
+            expect.soft(await wordProblems(page, '[data-testid="panel"] .btn-block'), `${where}: Replay journey`).toEqual([]);
+            if (level === L4 && locale === "hy") await shot(page, `results-${level}-${locale}-text${size}`);
+          }
+        }
+      }
+    }
+  });
+
+  test("Discover at 150% and 200%: the card reads through the panel by scrolling, every word inside it; the map's controls stay clear", async ({ page }) => {
+    test.setTimeout(1_200_000);
+    test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
+    for (const [width, height] of [[320, 568], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      for (const locale of ["hy", "en"] as const) {
+        for (const level of [L1, L2, L3, L4]) {
+          for (const id of COUNTRIES[level]) {
+            await save(page, upTo(level, { started: true, stage: "discover", discover: { selected: id, explored: [id] }, records: records(false) }), { locale, screen: "lesson", levelId: level, recent: [level] });
+            for (const size of [150, 200]) {
+              await textSize(page, size);
+              const where = `${width}×${height} ${locale} ${level} ${id} ${size}%`;
+              expect.soft(await wordProblems(page, '[data-testid="country-card"]'), `${where}: card`).toEqual([]);
+              const m = await page.evaluate(() => {
+                const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+                const overlaps = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+                const panel = box('[data-testid="panel"]');
+                const map = box('[data-testid="map-main"]');
+                const controls = box('[data-testid="map-controls"]');
+                return {
+                  // What the player reads through: the panel above the pinned button.
+                  window: box('[data-testid="sticky-actions"]').top - panel.top,
+                  line: parseFloat(getComputedStyle(document.querySelector('[data-testid="country-card"] > p:last-child')!).lineHeight),
+                  map: map.height,
+                  controlsInMap: controls.left >= map.left - 0.5 && controls.right <= map.right + 0.5 && controls.top >= map.top - 0.5 && controls.bottom <= map.bottom + 0.5,
+                  controlsClear: !overlaps(controls, box('[data-testid="map-about"]')),
+                };
+              });
+              // At least two and a half lines of the card show at once: the map gives up height for them.
+              expect.soft(m.window, `${where}: ${m.window.toFixed(0)}px to read through, lines of ${m.line}px`).toBeGreaterThanOrEqual(2.5 * m.line);
+              expect.soft(m.map, `${where}: map height`).toBeGreaterThanOrEqual(100);
+              expect.soft(m.controlsInMap, `${where}: zoom controls outside the map`).toBe(true);
+              expect.soft(m.controlsClear, `${where}: zoom controls under "About the map"`).toBe(true);
+              // Scrolled to its end, the whole card is above the pinned button.
+              await page.getByTestId("panel").evaluate((el) => el.scrollTo(0, el.scrollHeight));
+              const card = (await page.getByTestId("country-card").boundingBox())!;
+              expect.soft(card.y + card.height, `${where}: card bottom`).toBeLessThanOrEqual((await page.getByTestId("sticky-actions").boundingBox())!.y + 1);
+              await page.getByTestId("panel").evaluate((el) => el.scrollTo(0, 0));
+            }
+          }
+        }
+      }
+    }
+  });
+});
+
+/* --- Discover: the country's name with its art, and the progress line --------------- */
+
+/** An on-screen point that hits the country's own path (not a neighbour, label or control). */
+async function tapCountry(page: Page, id: string) {
+  const point = await page.evaluate((id) => {
+    const path = document.querySelector(`[data-testid="map-main"] path[data-country="${id}"]`)!;
+    const r = path.getBoundingClientRect();
+    const hits: [number, number][] = [];
+    for (let i = 1; i < 32; i++)
+      for (let j = 1; j < 32; j++) {
+        const [x, y] = [r.left + (r.width * i) / 32, r.top + (r.height * j) / 32];
+        if (document.elementFromPoint(x, y) === path) hits.push([x, y]);
+      }
+    if (hits.length === 0) return null;
+    const cx = hits.reduce((s, h) => s + h[0], 0) / hits.length;
+    const cy = hits.reduce((s, h) => s + h[1], 0) / hits.length;
+    hits.sort((a, b) => Math.hypot(a[0] - cx, a[1] - cy) - Math.hypot(b[0] - cx, b[1] - cy));
+    return hits[0];
+  }, id);
+  expect(point, `${id} should be tappable`).not.toBeNull();
+  await page.touchscreen.tap(point![0], point![1]);
+}
+
+const discoverAt = (selected: string, explored = [selected]) => ({ started: true, stage: "discover", discover: { selected, explored }, records: records(false) });
+
+/** The Discover card's layout: its arrangement, its art as drawn, the pinned button and the room to read above it. */
+const discoverCard = (page: Page) =>
+  page.evaluate(() => {
+    const card = document.querySelector('[data-testid="country-card"]')!;
+    const panel = document.querySelector('[data-testid="panel"]')!;
+    const fold = document.querySelector('[data-testid="sticky-actions"]')!.getBoundingClientRect().top;
+    const box = (el: Element | null) => (el ? el.getBoundingClientRect() : null);
+    const img = card.querySelector<HTMLImageElement>('[data-testid="landmark-image"]');
+    let art = null;
+    if (img) {
+      const r = img.getBoundingClientRect();
+      const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+      const [w, h] = [img.naturalWidth * s, img.naturalHeight * s];
+      art = { top: r.top + (r.height - h) / 2, bottom: r.top + (r.height + h) / 2, left: r.left + (r.width - w) / 2, right: r.left + (r.width + w) / 2, size: Math.max(w, h) };
+    }
+    return {
+      head: card.getAttribute("data-head"),
+      title: box(card.querySelector("h2"))!.toJSON() as DOMRect,
+      capital: box(card.querySelector('[data-testid="country-capital"]'))!.toJSON() as DOMRect,
+      tile: box(card.querySelector("figure > div"))?.toJSON() as DOMRect | undefined,
+      art,
+      fold,
+      panelTop: panel.getBoundingClientRect().top,
+      scrollTop: panel.scrollTop,
+      line: parseFloat(getComputedStyle(card.querySelector(":scope > p:last-child")!).lineHeight),
+      titleSize: parseFloat(getComputedStyle(card.querySelector("h2")!).fontSize),
+    };
+  });
+
+test.describe("Discover card", () => {
+  // Names that don't fit beside the art at 320px in Armenian (Levels 1 and 4), and some that do.
+  const CASES: [string, string][] = [[L4, "MNE"], [L4, "BIH"], [L1, "NLD"], [L1, "LUX"], [L4, "HRV"], [L4, "SVN"], [L1, "FRA"], [L3, "POL"]];
+  const ACROSS_AT_320_HY = ["MNE", "BIH", "NLD", "LUX"];
+
+  test("the name beside the art when it fits, across the card when a word would otherwise break; name, capital and whole art above the pinned button", async ({ page }) => {
+    test.setTimeout(900_000);
+    test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
+    for (const [width, height] of [[320, 568], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      for (const locale of ["hy", "en"] as const) {
+        for (const [level, id] of CASES) {
+          await save(page, upTo(level, discoverAt(id)), { locale, screen: "lesson", levelId: level, recent: [level] });
+          await expect(page.getByTestId("landmark-image")).toHaveCount(1);
+          await expect.poll(() => page.getByTestId("landmark-image").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+          for (const size of [100, 200]) {
+            await textSize(page, size);
+            const where = `${width}×${height} ${locale} ${id} ${size}%`;
+            const m = await discoverCard(page);
+            // The name keeps its size (1.2rem on narrow phones, 1.45rem otherwise).
+            expect.soft(m.titleSize, `${where}: name size`).toBeCloseTo(((width < 420 ? 1.2 : 1.45) * 16 * size) / 100, 0);
+            // No word of the name or capital broken unless it is wider than the whole card.
+            for (const part of ['[data-testid="country-card"] h2', '[data-testid="country-capital"]'])
+              expect.soft(await wordProblems(page, part, '[data-testid="country-card"]', '[data-testid="country-card"]'), `${where}: ${part}`).toEqual([]);
+            if (size === 100) {
+              // At the default size: across the card only where the Armenian name can't fit beside the art.
+              expect.soft(m.head, `${where}: arrangement`).toBe(width === 320 && locale === "hy" && ACROSS_AT_320_HY.includes(id) ? "title" : "beside");
+              // The name, the capital and the whole art above the pinned button, the art at its full size.
+              expect.soft(m.scrollTop, `${where}: opened scrolled`).toBe(0);
+              for (const [what, b] of [["name", m.title], ["capital", m.capital]] as const) expect.soft(b.bottom, `${where}: ${what} under the button`).toBeLessThanOrEqual(m.fold + 0.5);
+              expect.soft(m.art!.bottom, `${where}: art under the button`).toBeLessThanOrEqual(m.fold + 0.5);
+              expect.soft(m.art!.top, `${where}: art above the panel`).toBeGreaterThanOrEqual(m.panelTop - 0.5);
+              expect.soft(m.art!.size, `${where}: art smaller`).toBeGreaterThanOrEqual(Math.min(Math.max(112, 0.33 * width), 132) - 12 - 0.5);
+            } else {
+              // Enlarged: room to read above the pinned button, and the whole card reached by scrolling.
+              expect.soft(m.fold - m.panelTop, `${where}: room to read`).toBeGreaterThanOrEqual(2.5 * m.line);
+              await page.getByTestId("panel").evaluate((el) => el.scrollTo(0, el.scrollHeight));
+              const card = (await page.getByTestId("country-card").boundingBox())!;
+              expect.soft(card.y + card.height, `${where}: card bottom`).toBeLessThanOrEqual(m.fold + 1);
+              await page.getByTestId("panel").evaluate((el) => el.scrollTo(0, 0));
+            }
+            if (ACROSS_AT_320_HY.includes(id) || id === "HRV") await shot(page, `discover-card-${id}-${locale}-text${size}`);
+          }
+          await textSize(page, 100);
+        }
+      }
+    }
+  });
+
+  test("switching countries after scrolling: each card opens at its top, in its own arrangement", async ({ page }) => {
+    test.setTimeout(300_000);
+    test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
+    await page.setViewportSize({ width: 320, height: 568 });
+    const panel = page.getByTestId("panel");
+    for (const locale of ["hy", "en"] as const) {
+      for (const size of [100, 200]) {
+        await save(page, upTo(L4, discoverAt("ITA")), { locale, screen: "lesson", levelId: L4, recent: [L4] });
+        await textSize(page, size);
+        for (const id of ["MNE", "HRV", "BIH", "SVN"]) {
+          const where = `320×568 ${locale} ${size}% ${id}`;
+          await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+          await tapCountry(page, id);
+          await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
+          await fontsSettled(page);
+          const m = await discoverCard(page);
+          expect.soft(m.scrollTop, `${where}: opened scrolled`).toBe(0);
+          if (size === 100) expect.soft(m.head, `${where}: arrangement`).toBe(locale === "hy" && ACROSS_AT_320_HY.includes(id) ? "title" : "beside");
+          expect.soft(await wordProblems(page, '[data-testid="country-card"] h2', '[data-testid="country-card"]', '[data-testid="country-card"]'), `${where}: name`).toEqual([]);
+        }
+      }
+    }
+  });
+
+  test("the progress line before and at 5/5: wraps when it must, never cut, the star and count shown", async ({ page }) => {
+    test.setTimeout(300_000);
+    test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
+    const progress = () =>
+      page.evaluate(() => {
+        const row = document.querySelector('[data-testid="discover-progress"]')!;
+        const panel = document.querySelector('[data-testid="panel"]')!;
+        const p = panel.getBoundingClientRect();
+        const ps = getComputedStyle(panel);
+        const [left, right] = [p.left + parseFloat(ps.paddingLeft), p.right - parseFloat(ps.paddingRight)];
+        const range = document.createRange();
+        range.selectNodeContents(row);
+        const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+        const star = row.querySelector("svg")?.getBoundingClientRect() ?? null;
+        const celebrate = row.querySelector("[role=status]");
+        // Lines of text (the star icon sits a little lower than the text beside it, so it is left out).
+        const lines = (el: Element) => {
+          const tops = new Set<number>();
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            if (!n.textContent?.replace(/⁠/g, "").trim()) continue;
+            const r = document.createRange();
+            r.selectNodeContents(n);
+            for (const x of r.getClientRects()) if (x.width > 0) tops.add(Math.round(x.top));
+          }
+          return tops.size;
+        };
+        return {
+          text: row.textContent ?? "",
+          outside: rects.filter((r) => r.left < left - 0.5 || r.right > right + 0.5 || r.right > window.innerWidth).length,
+          overflow: row.scrollWidth - row.clientWidth,
+          ellipsis: [row, ...row.querySelectorAll("*")].some((el) => getComputedStyle(el).textOverflow === "ellipsis"),
+          starShown: star ? star.width > 0 && star.left >= left - 0.5 && star.right <= right + 0.5 : null,
+          celebrateLines: celebrate ? lines(celebrate) : 0,
+          fontSize: parseFloat(getComputedStyle(row).fontSize),
+        };
+      });
+    for (const [width, height] of [[320, 568], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      for (const locale of ["hy", "en"] as const) {
+        for (const explored of [L4_COUNTRIES.slice(0, 4), L4_COUNTRIES]) {
+          await save(page, upTo(L4, discoverAt("SVN", explored)), { locale, screen: "lesson", levelId: L4, recent: [L4] });
+          for (const size of [100, 200]) {
+            await textSize(page, size);
+            const where = `${width}×${height} ${locale} ${explored.length}/5 ${size}%`;
+            // The celebration pops in, briefly a little larger than its size: measured once it has settled.
+            await page.getByTestId("discover-progress").evaluate((row) => Promise.all(row.getAnimations({ subtree: true }).map((a) => a.finished)));
+            const m = await progress();
+            expect.soft(m.text, where).toContain(`${explored.length}/5`);
+            expect.soft(m.outside, `${where}: text outside the panel`).toBe(0);
+            expect.soft(m.overflow, `${where}: row overflows`).toBeLessThanOrEqual(0);
+            expect.soft(m.ellipsis, `${where}: ellipsis`).toBe(false);
+            expect.soft(m.fontSize, `${where}: text size`).toBeCloseTo((0.8 * 16 * size) / 100, 0);
+            // Wrapping between words; a word broken only if wider than the whole row.
+            expect.soft(await wordProblems(page, '[data-testid="discover-progress"]', '[data-testid="panel"]'), `${where}: words`).toEqual([]);
+            if (explored.length === 5) {
+              expect.soft(m.starShown, `${where}: star`).toBe(true);
+              // At the default size the celebration fits on one line, as before.
+              if (size === 100) expect.soft(m.celebrateLines, `${where}: celebration lines`).toBe(1);
+            }
+            await shot(page, `discover-progress-${explored.length}of5-${locale}-text${size}`);
+          }
+          await textSize(page, 100);
+        }
       }
     }
   });

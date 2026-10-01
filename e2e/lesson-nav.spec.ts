@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithSave } from "./helpers/save";
 
 /*
  * Home and Continue, Start over, and saves from before Find became one round
@@ -7,15 +8,6 @@ import { expect, test, type Page } from "@playwright/test";
 
 const LESSON = "western-europe-1";
 const ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
-
-/**
- * Waits until the game has mounted: it saves the state it loaded when it mounts,
- * which would otherwise overwrite a save written by the test just before.
- */
-async function appReady(page: Page) {
-  await expect(page.locator(".splash")).toHaveCount(0);
-  await expect(page.locator("main").first()).toBeVisible();
-}
 
 /**
  * Sets the text size (every size here is in rem, as a browser's text size setting gives it)
@@ -67,10 +59,7 @@ async function setHeaderTextSize(page: Page, percent: number) {
 }
 
 async function save(page: Page, lesson: object, { locale = "en", screen = "lesson" } = {}) {
-  await page.goto("/");
-  await appReady(page);
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 1, locale, screen, lessons: { [LESSON]: lesson } }));
-  await page.reload();
+  await openWithSave(page, { version: 1, locale, screen, lessons: { [LESSON]: lesson } });
 }
 
 /** Level 1's own Continue on the level selection (the main action may point at Level 2 once Level 1 is complete). */
@@ -324,10 +313,7 @@ test.describe("interface", () => {
       await page.setViewportSize({ width, height });
       for (const locale of ["en", "hy"]) {
         for (const lesson of [null, STAGES[1].lesson]) {
-          await page.goto("/");
-          await appReady(page);
-          await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 1, locale, screen: "welcome", lessons: lesson ? { [LESSON]: lesson } : {} }));
-          await page.reload();
+          await openWithSave(page, { version: 1, locale, screen: "welcome", lessons: lesson ? { [LESSON]: lesson } : {} });
           const where = `${width}×${height} ${locale} ${lesson ? "in progress" : "new"}`;
           const main = page.getByTestId("welcome-actions").getByRole("button");
           await expect(main).toHaveText(lesson ? (locale === "en" ? /^Continue\s*Level 1/ : /^Շարունակել\s*Մակարդակ 1/) : locale === "en" ? /^Start\s*Level 1/ : /^Սկսել\s*Մակարդակ 1/);

@@ -28,10 +28,13 @@
   flex-direction: column;
 }
 
-/* Mobile: fixed map height (svh avoids resizes when browser bars move), panel scrolls below. */
+/* Mobile: fixed map height (svh avoids resizes when browser bars move), panel scrolls below.
+   With enlarged text the header and the pinned action grow too: the map then gives the panel
+   the room it keeps (see .panel's flex-basis), down to a height that still holds its controls. */
 .mapArea {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   height: clamp(220px, 46svh, 520px);
+  min-height: 120px;
   padding: 8px 8px 0;
 }
 
@@ -42,7 +45,11 @@
   }
 }
 .panel {
-  flex: 1;
+  /* The room the panel keeps for the card and its pinned action, taken from the map only when
+     the text is enlarged: 18px for each pixel the root text size grows past 16px (none at the
+     default size, so the map keeps its height there; about 288px at 200%). Never more than
+     leaves the map its minimum. */
+  flex: 1 0 min(max(0px, (1rem - 16px) * 18), 100% - 120px);
   min-height: 0;
   overflow-y: auto;
   padding: 14px 16px 0;
@@ -74,6 +81,7 @@
     flex: 1;
     min-width: 0;
     height: auto;
+    min-height: 0;
     padding: 12px;
   }
   .panel {
@@ -120,13 +128,22 @@
   background: var(--stage);
 }
 
-/* Discover at 5/5: a short celebration in the progress row, same size, one line. */
-/* Inline-block with the row's own line height, so the row keeps its height. */
+/* Discover's progress row: its text beside the dot, wrapping between words. Only a word wider than
+   the whole row (narrow phones with enlarged text) breaks inside, rather than running out of it. */
+.eyebrowText {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
+/* Discover at 5/5: a short celebration in the progress row, at the same size. With the row's own
+   line height, so where it fits (as at the default text size) the row keeps its height; where it
+   doesn't (narrow phones with enlarged text), it moves under "Discover ·", wrapping if need be,
+   and the row grows, rather than running out of the panel. */
 .celebrate {
   display: inline-block;
+  max-width: 100%;
   line-height: inherit;
   color: #8a5a00;
-  white-space: nowrap;
   animation: celebrate 420ms cubic-bezier(0.3, 1.5, 0.6, 1);
 }
 
@@ -320,6 +337,46 @@
   .countryCardWide .countryHint {
     grid-row: 4;
   }
+
+  /* A name or capital too long to sit beside the art without breaking inside a word (data-head,
+     set by useCardHeadLayout in DiscoverPanel.tsx): the name across the card, then the capital
+     beside the art ("title"); or the name and the capital across the card, then the art
+     ("stacked"). The art's own rows are in LandmarkCard.module.css. Switched off while the card
+     measures, which reads the narrowest widths of the name and capital (their longest words). */
+  .countryCard[data-measuring] > .cardHead > .cardTitle,
+  .countryCard[data-measuring] > .cardHead > .fact {
+    width: min-content;
+  }
+
+  .countryCard:where([data-head="title"], [data-head="stacked"]):not([data-measuring]) > .cardHead {
+    display: contents;
+  }
+
+  .countryCard:where([data-head="title"], [data-head="stacked"]):not([data-measuring]) .cardTitle {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    /* With the card's 10px row gap, 4px to the capital, as within the name and capital beside the art. */
+    margin-bottom: -6px;
+  }
+
+  .countryCard:where([data-head="title"]):not([data-measuring]) > .cardHead > .fact {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: center;
+  }
+
+  .countryCard:where([data-head="title"]):not([data-measuring]) .countryHint {
+    grid-row: 4;
+  }
+
+  .countryCard:where([data-head="stacked"]):not([data-measuring]) > .cardHead > .fact {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .countryCard:where([data-head="stacked"]):not([data-measuring]) .countryHint {
+    grid-row: 5;
+  }
 }
 
 /* Short phones with wide art: tighter spacing above and inside the card (its art tile's padding
@@ -339,9 +396,28 @@
   .countryCardWide > .cardHead {
     gap: 0;
   }
+
+  /* The name across the card adds a row above the art: tighter spacing above and inside the card
+     (and around the art in its tile, LandmarkCard.module.css, which keeps the art's own size), so
+     the name, capital and whole artwork still sit above the pinned button on a 320×568 phone, even
+     with the Armenian progress line on two lines. Cards with the name beside the art keep theirs. */
+  .panel:has(.countryCard:where([data-head="title"], [data-head="stacked"]):not([data-measuring])) {
+    padding-top: 10px;
+    gap: 6px;
+  }
+
+  .countryCard:where([data-head="title"], [data-head="stacked"]):not([data-measuring]) {
+    padding-top: 6px;
+  }
+
+  .countryCard:where([data-head="title"], [data-head="stacked"]):not([data-measuring]) .cardTitle {
+    margin-bottom: -7px;
+  }
 }
 
-/* Narrow phones: a smaller name keeps the longest (Նիդեռլանդներ, 133px at 320px wide) on one line beside the art. */
+/* Narrow phones: a smaller name. Beside the art at 320px wide, the column left for it (134px) is
+   too narrow for the longest Armenian words (Նիդեռլանդներ, 158px in Noto Sans Armenian): such a
+   name goes across the card instead (data-head above). */
 @media (max-width: 419.98px) {
   .countryCard .cardTitle {
     font-size: 1.2rem;
@@ -849,12 +925,22 @@
 /* Results: the completion banner. */
 .celebration {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 0 12px;
   padding: 12px 16px 12px 10px;
   border-radius: var(--radius);
   background: linear-gradient(120deg, var(--travel-soft), var(--peach));
   border: var(--card-border);
+}
+
+/* Beside the star while its longest word fits there; otherwise the star goes above and the
+   title takes the banner's full width (its minimum is its longest word, capped at that width).
+   Only a word wider than the whole banner breaks inside, rather than running out of it. */
+.celebration .title {
+  flex: 1 1 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
 }
 
 .celebrationArt {

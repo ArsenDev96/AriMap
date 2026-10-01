@@ -228,11 +228,17 @@ As in Level 3, a country's description is its hint, shown in Discover and repeat
 | Bosnia and Herzegovina | A mountainous country between Croatia and Montenegro, whose only coast, at Neum, is about 20 km long. | The country's own; 20 km is the Factbook's figure (some sources give 21–24.5 km). |
 | Montenegro | A small mountainous country on the Adriatic in the south-east of this region, south of Bosnia and Herzegovina. | The country's own. |
 
-### Illustrations (missing)
+### Illustrations
 
-No artwork for the four new landmarks has been supplied: no originals exist in `public/images/landmarks/`, and none were found elsewhere on the machine this was prepared on. Their Discover cards use the existing text-only layout (`data-art="none"`): the map's amber landmark mark beside the landmark's name and fact, across the card, with no empty frame and no other country's art standing in. The level is fully playable without them, and Find never shows artwork anyway.
+Bled Castle, the City Walls of Dubrovnik, Stari Most and Ostrog Monastery were supplied on 2026-10-01 and integrated with the four steps in Level 3's "Illustrations" section (`node scripts/prepare-landmarks.mjs`, which left the eleven existing copies byte-identical; `illustration: "<key>"` in `countries.ts`; the import into `LANDMARK_IMAGES`; the expectations in `content.test.ts` and `e2e/level4.spec.ts`). Until then their cards used the text-only layout (`data-art="none"`), which remains for any landmark without artwork. Italy keeps the Colosseum. Find never shows artwork.
 
-To add them later, generate each with the prompt below, save the original under its exact file name, then follow the four integration steps in Level 3's "Illustrations" section (`node scripts/prepare-landmarks.mjs`; `illustration: "<key>"` in `countries.ts`; import into `LANDMARK_IMAGES`; update `content.test.ts` and `e2e/level4.spec.ts`, which currently expect these four cards to be text only). Art at least 2:1 after trimming gets the wide phone layout automatically.
+Trimmed, they are 0.96–1.20:1 (Ostrog Monastery 690×720, the others 720×598 to 720×694), well below 2:1, so each uses the square tile beside the country's name on phones, like the other ordinary art. The briefs asked for wide compositions (and Ostrog for a tall or square one); the supplied art is nearly square instead, which suits the square tile. At 320×568 and 390×844 in both languages, and on desktop, the country's name (Bosnia and Herzegovina's included), its capital and the whole artwork show together above the pinned button without scrolling, uncropped and undistorted, and the card opens at its top (`e2e/level4.spec.ts`, "Level 4's landmark illustrations"). At 200% text on a 320×568 phone, choosing each country on the map opens its card at the top, the panel keeps its room to read (the map gives it height at enlarged text: `.mapArea` and `.panel` in `LessonScreen.module.css`), and the whole card, art included, is reached by scrolling.
+
+**Names too long to sit beside the art (every level).** Beside the square tile, a country name's longest word sometimes does not fit the column left for it (134 px at 320 px wide). At the default text size this happens only in Armenian at 320 px: «Հերցեգովինա» (13 px too wide) and «Չեռնոգորիա» (0.6 px), as with Level 1's «Նիդեռլանդներ» (24 px) and «Լյուքսեմբուրգ» (14 px); at 390 px every name fits. With enlarged text it is common in both languages (17 of the 30 illustrated cards at 150% at 320 px, 25 at 200%), because the tile keeps its size while the name grows. Such a card puts the name across its full width instead, with the capital beside the art beneath it; if the capital doesn't fit beside the art either, it too goes across, with the art below (`useCardHeadLayout` in `DiscoverPanel.tsx`, measured from the loaded font and the card's width before the card is painted, and again after a resize, a change of text size or language, or fonts loading). Cards whose name fits keep the side-by-side layout, and desktop is unchanged. On short phones such a card has slightly tighter spacing (and 3 px instead of 6 px of tile around the art, which keeps its size), so at 320×568 the name, capital and whole art still sit above the pinned button. A word now breaks inside only if it is wider than the whole card.
+
+Alt text follows the existing pattern, with the in-sentence name: "Illustration of Bled Castle" / «Նկարազարդում՝ Բլեդի ամրոցը», "Illustration of the city walls of Dubrovnik" / «Նկարազարդում՝ Դուբրովնիկի պարիսպները», "Illustration of Stari Most" / «Նկարազարդում՝ Մոստարի կամուրջը», "Illustration of Ostrog Monastery" / «Նկարազարդում՝ Օստրոգի վանքը».
+
+The briefs they were requested with:
 
 | Landmark | Save the original to | Key | Content |
 |---|---|---|---|
@@ -259,7 +265,7 @@ Each starts with the shared style paragraph (Level 2's, above: clean dark navy o
 
 ## Landmark illustrations
 
-The eleven illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum; and Level 3's Wawel Castle, Charles Bridge and Bratislava Castle, all added 2026-09-30) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).
+The fifteen illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum; Level 3's Wawel Castle, Charles Bridge and Bratislava Castle, added 2026-09-30; and Level 4's Bled Castle, City Walls of Dubrovnik, Stari Most and Ostrog Monastery, added 2026-10-01) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).
 
 | Country | Supplied original (kept unchanged) | Display copy | Artwork area in original |
 |---|---|---|---|
@@ -274,6 +280,10 @@ The eleven illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn P
 | Poland | `public/images/landmarks/wawel-castle.png` | `src/assets/landmarks/wawel-castle.webp` (720×481) | 1527×1021 at (9, 0) (with the 2% margin; the artwork itself is 1479×962 at (39, 29)) |
 | Czechia | `public/images/landmarks/charles-bridge.png` | `src/assets/landmarks/charles-bridge.webp` (720×480) | 1536×1024 at (0, 0) (with the 2% margin; the artwork itself is 1503×986 at (19, 20)) |
 | Slovakia | `public/images/landmarks/bratislava-castle.png` | `src/assets/landmarks/bratislava-castle.webp` (720×489) | 1495×1015 at (23, 0) (with the 2% margin; the artwork itself is 1437×974 at (52, 12)) |
+| Slovenia | `public/images/landmarks/bled-castle.png` | `src/assets/landmarks/bled-castle.webp` (720×665) | 1254×1159 at (0, 69) (with the 2% margin; the artwork itself is 1209×1111 at (21, 93)) |
+| Croatia | `public/images/landmarks/dubrovnik-city-walls.png` | `src/assets/landmarks/dubrovnik-city-walls.webp` (720×694) | 1254×1209 at (0, 20) (with the 2% margin; the artwork itself is 1240×1159 at (8, 45)) |
+| Bosnia and Herzegovina | `public/images/landmarks/stari-most.png` | `src/assets/landmarks/stari-most.webp` (720×598) | 1254×1041 at (0, 134) (with the 2% margin; the artwork itself is 1232×991 at (9, 159)) |
+| Montenegro | `public/images/landmarks/ostrog-monastery.png` | `src/assets/landmarks/ostrog-monastery.webp` (690×720) | 1202×1254 at (26, 0) (with the 2% margin; the artwork itself is 1152×1232 at (51, 12)) |
 
 ### Originals
 
@@ -288,18 +298,25 @@ Level 3's three are 1536×1024 (3:2) 8-bit RGBA PNG, 2.4–2.8 MB. Checked on ar
 
 Composited on the card's tile colour and on black (to show fringes), their edges are clean: no halo on the tile, and no coloured fringe visible at display size on black. Like Level 2's, they are more painterly than Level 1's. The castles stand on their hills with only a hint of the river, rather than the river strip the briefs asked for. The trimmed art is about 1.5:1, so each uses the square tile beside the country's name on phones. At the four phone sizes (320×568, 320×640, 390×664, 390×844) the name, the capital and the whole artwork show together above the pinned button, uncropped and undistorted (`e2e/level3.spec.ts`).
 
+Level 4's four are 1254×1254 8-bit RGBA PNG, 2.3–2.7 MB. Checked on arrival (2026-10-01), by reading their alpha channels as for Level 3's:
+- each shows its assigned landmark: Bled Castle on its cliff above the lake; Dubrovnik's walls with the round Minčeta Tower, the old town's roofs and a bell tower above the sea; Stari Most's single arch over the Neretva between its two towers; Ostrog Monastery's white building set into the cliff, with stairs and cypresses below. No text or people;
+- transparent corners; no artwork pixel touches the frame (6–159 px of empty margin; the closest are Dubrovnik's right side, 6 px, and Ostrog's bottom, 10 px, so the trimmed copies' 2% margin is cut short at the frame there, with no artwork lost);
+- 34–44% of each image fully transparent; a 0.8–1.8% fringe of faint pixels (alpha 1–32) and 0.3–0.6% of edge pixels (alpha 33–223) from background removal; no colour hidden in the fully transparent pixels; the artwork itself at alpha 251–253 (0.01–0.03% at 255), like the approved originals.
+
+Seen on black they show thin coloured fringes (red, green and cyan along Stari Most's deck, railing and towers; cyan along Bled's water), left by background removal, like Level 2's; composited on the card's sky-to-mint tile, at full size and at 2× zoom on the original pixels, these are not visible, and the edges match the Colosseum's. Stari Most's railing is drawn light and partly see-through, as part of the artwork. Ostrog has a dark outline around the whole cliff, its own drawn style. They are as painterly as Level 2's and 3's. The originals were not retouched.
+
 ### Display copies
 
 `scripts/prepare-landmarks.mjs` (run with `node scripts/prepare-landmarks.mjs`) creates the display copies:
 
 1. Trim each original to its visible artwork (pixels with alpha > 32) plus a 2% transparent margin. No part of the artwork is cut: tower tips, bridge ends and the Quadriga stay whole.
 2. Downsize to at most 720 px on the longer side, about 3× the largest on-screen size.
-3. Save as lossless WebP, so the only lossy step is next/image's own encoding. Total 4.2 MB for all eleven (Level 3's three add 1.06 MB), versus 20.5 MB for the originals. The player downloads only the resized WebP that `next/image` serves for the card's size, not these copies.
+3. Save as lossless WebP, so the only lossy step is next/image's own encoding. Total 6.9 MB for all fifteen (Level 3's three add 1.06 MB; Level 4's four 2.69 MB: Bled Castle 682 KiB, City Walls of Dubrovnik 682 KiB, Stari Most 603 KiB, Ostrog Monastery 658 KiB), versus 30.7 MB for the originals. The player downloads only the resized WebP that `next/image` serves for the card's size, not these copies.
 
 The app imports the display copies statically. `next/image` serves each device a resized, cached WebP, and the static import supplies intrinsic dimensions to prevent layout shift. Every card uses the same fixed illustration box with `object-fit: contain`. Because the copies are trimmed, tall and wide landmarks get similar visual weight.
 
 **Very wide art on phones.** An illustration whose display copy is at least **2:1** (width ÷ height, `WIDE_ART_ASPECT` in `src/components/landmarks/LandmarkCard.tsx`) gets a different phone layout: the country's name and capital as a compact heading, the art in a shallow tile across the card below them (the same colours and corners), then the landmark's name and fact and the country's description. The tile's height follows the art's own proportions, up to `max(56px, 11svh)` so that the name, capital and whole artwork fit above the pinned button on a 320×568 screen. Since the ratio comes from the static import, the layout is decided before the image loads, and nothing moves when it does. Everything else keeps the square tile beside the name, and desktop is unchanged.
 
-Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26 (Level 3's are 1.47–1.50), so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
+Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26 (Level 3's are 1.47–1.50; Level 4's 0.96–1.20), so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
 
 To replace an illustration, overwrite the original in `public/images/landmarks/` and rerun the script.
