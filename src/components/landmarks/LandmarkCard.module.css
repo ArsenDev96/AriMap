@@ -126,6 +126,13 @@
     grid-row: 3;
   }
 
+  /* Short phones: a slimmer border around the art (with the card's spacing in LessonScreen.module.css). */
+  @media (max-height: 700px) {
+    .wide .stage {
+      padding: 4px;
+    }
+  }
+
   /* Without art the figure stays one block under the name and capital. */
   .textOnly {
     display: flex;

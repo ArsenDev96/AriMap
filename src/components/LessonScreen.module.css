@@ -322,6 +322,25 @@
   }
 }
 
+/* Short phones with wide art: tighter spacing above and inside the card (its art tile's padding
+   is in LandmarkCard.module.css), so the name, capital and whole artwork sit above the pinned
+   button with a few pixels to spare, even when the Armenian progress line takes two lines.
+   The art keeps its size; cards with other art keep their layout. */
+@media (max-width: 899.98px) and (max-height: 700px) {
+  .panel:has(.countryCardWide) {
+    gap: 10px;
+  }
+
+  .countryCardWide {
+    padding-top: 8px;
+    row-gap: 6px;
+  }
+
+  .countryCardWide > .cardHead {
+    gap: 0;
+  }
+}
+
 /* Narrow phones: a smaller name keeps the longest (Նիդեռլանդներ, 133px at 320px wide) on one line beside the art. */
 @media (max-width: 419.98px) {
   .countryCard .cardTitle {
@@ -931,5 +950,53 @@
   .screen[data-stage="travel"] .neighborCard {
     min-height: 48px;
     padding: 6px 12px;
+  }
+}
+
+/* Short phones (320×568 in Armenian: the route's chips, the lead and the status can each take
+   two lines): tighter spacing, padding and line boxes in the summary above the choices, so the
+   first row of neighbours still shows without scrolling. Text sizes, names, the neighbour cards
+   and the map are unchanged; with enlarged text the panel scrolls instead. */
+@media (max-width: 899.98px) and (max-height: 700px) {
+  .screen[data-stage="travel"] .panel {
+    padding-top: 6px;
+    gap: 6px;
+  }
+
+  .screen[data-stage="travel"] .heading {
+    gap: 1px;
+  }
+
+  .screen[data-stage="travel"] .mission {
+    row-gap: 2px;
+  }
+
+  .screen[data-stage="travel"] .chip {
+    padding-top: 2px;
+    padding-bottom: 2px;
+  }
+
+  .travelLead {
+    line-height: 1.2;
+  }
+
+  .screen[data-stage="travel"] .crossings {
+    padding-top: 2px;
+    padding-bottom: 2px;
+    line-height: 1.25;
+  }
+
+  .travelStatus {
+    padding: 3px 10px;
+    line-height: 1.25;
+  }
+
+  /* "Choose a neighbour", the choices' heading. */
+  .screen[data-stage="travel"] .factLabel {
+    line-height: 1.2;
+  }
+
+  .screen[data-stage="travel"] .neighbors {
+    margin-top: 3px;
   }
 }

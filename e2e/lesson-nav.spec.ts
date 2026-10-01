@@ -431,6 +431,12 @@ test.describe("corrections", () => {
           const where = `${width}×${height} ${locale} at ${path.at(-1)}`;
           const cards = page.locator('[data-testid^="move-"]');
           await expect(cards.first()).toBeVisible();
+          // Measured in the web fonts (Armenian's is wider than its stand-in), once they have loaded.
+          await page.evaluate(async () => {
+            await document.fonts.load('900 16px "Noto Sans Armenian"', "Աա").catch(() => undefined);
+            await document.fonts.ready;
+            await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
+          });
           const boxes = await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: r.top, bottom: r.bottom, left: r.left, right: r.right })));
           // The first row: every card sharing the first card's top, all of it on screen.
           const row = boxes.filter((b) => Math.abs(b.top - boxes[0].top) < 1);

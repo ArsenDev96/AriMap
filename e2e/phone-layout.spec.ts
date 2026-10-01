@@ -782,6 +782,88 @@ test.describe("Travel neighbour buttons", () => {
     test.info().annotations.push({ type: "columns", description: summary.join("; ") });
   });
 
+  test("the first row of neighbours shows without scrolling, before and after a move, in Levels 1–3; the map keeps its height and the text its size", async ({ page }) => {
+    test.setTimeout(1_200_000);
+    test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
+    // Each journey's start, and the first move from it to each neighbour.
+    const journeys: [string, string, string[]][] = [
+      [L1, "FRA", ["BEL", "LUX", "DEU"]],
+      [L2, "FRA", ["CHE", "DEU", "ITA"]],
+      [L3, "POL", ["CZE", "SVK", "DEU"]],
+    ];
+    const summary = () =>
+      page.evaluate(() => {
+        const panel = document.querySelector('[data-testid="panel"]')!.getBoundingClientRect();
+        const moves = [...document.querySelectorAll('[data-testid^="move-"]')].map((e) => e.getBoundingClientRect());
+        const row = moves.filter((b) => Math.abs(b.top - moves[0].top) < 1);
+        const size = (sel: string) => getComputedStyle(document.querySelector(sel)!).fontSize;
+        return {
+          rowBottom: Math.max(...row.map((b) => b.bottom)),
+          fold: Math.min(panel.bottom, window.innerHeight),
+          scrollTop: document.querySelector('[data-testid="panel"]')!.scrollTop,
+          map: document.querySelector('[data-testid="map-main"]')!.getBoundingClientRect().height,
+          // The summary's text sizes: the route, the lead, the crossings, the status, the choices.
+          fonts: ['[data-testid="panel"] h1', '[data-testid="panel"] h1 + p', '[data-testid="crossings-left"]', '[role="status"] p', "#neighbors-heading", '[data-testid^="move-"] span'].map(size).join(" "),
+        };
+      });
+    const fontsAt: Record<string, string> = {};
+    for (const [width, height] of [[320, 568], [320, 640], [390, 664], [390, 844]]) {
+      await page.setViewportSize({ width, height });
+      // The map area's height (LessonScreen.module.css), less its 8px top padding: unchanged by the panel.
+      const map = (height <= 700 ? Math.min(Math.max(200, 0.42 * height), 520) : Math.min(Math.max(220, 0.46 * height), 520)) - 8;
+      for (const locale of ["en", "hy"] as const) {
+        for (const [level, start, neighbours] of journeys) {
+          const check = async (at: string) => {
+            const where = `${width}×${height} ${locale} ${level} ${at}`;
+            const s = await summary();
+            expect.soft(s.scrollTop, `${where}: the panel opened scrolled`).toBe(0);
+            expect.soft(s.rowBottom, `${where}: first row ${(s.rowBottom - s.fold).toFixed(1)}px below the screen`).toBeLessThanOrEqual(s.fold + 0.5);
+            expect.soft(Math.abs(s.map - map), `${where}: map ${s.map.toFixed(1)}px, expected ${map.toFixed(1)}px`).toBeLessThanOrEqual(1);
+            // The same text sizes on every phone screen, short or tall.
+            fontsAt[locale] ??= s.fonts;
+            expect.soft(s.fonts, `${where}: text sizes`).toBe(fontsAt[locale]);
+            await expectNeighboursClear(page, where);
+          };
+          // Before a move, then after one made by tapping the first card (shown without scrolling).
+          await openTravel(page, level, [start], locale);
+          await check(`at ${start}`);
+          if (width === 320 && height === 568) await shot(page, `travel-${level}-${start}-${locale}`);
+          const first = page.locator('[data-testid^="move-"]').first();
+          const moved = (await first.getAttribute("data-testid"))!.slice(5);
+          await first.click();
+          await expect(page.getByTestId(`move-${start}`)).toBeVisible();
+          await fontsSettled(page);
+          await check(`moved to ${moved}`);
+          if (width === 320 && height === 568) await shot(page, `travel-${level}-${moved}-${locale}`);
+          // Every first move, saved.
+          for (const n of neighbours) {
+            await openTravel(page, level, [start, n], locale);
+            await check(`at ${n}`);
+          }
+        }
+      }
+    }
+    // Enlarged text on the shortest screen: the text grows (nothing shrinks to fit) and the panel scrolls.
+    await page.setViewportSize({ width: 320, height: 568 });
+    for (const locale of ["en", "hy"] as const) {
+      for (const [level, start, neighbours] of journeys) {
+        await openTravel(page, level, [start, neighbours[0]], locale);
+        const base = (await summary()).fonts.split(" ").map(parseFloat);
+        for (const size of [150, 200]) {
+          await textSize(page, size);
+          const where = `320×568 ${locale} ${level} at ${neighbours[0]} ${size}%`;
+          const grown = (await summary()).fonts.split(" ").map(parseFloat);
+          grown.forEach((px, i) => expect.soft(px, `${where}: text size ${i}`).toBeCloseTo((base[i] * size) / 100, 0));
+          await expectNeighboursClear(page, where);
+          await expectTravelReachable(page, where);
+          await page.getByTestId("panel").evaluate((el) => el.scrollTo(0, 0));
+          await shot(page, `travel-${level}-${neighbours[0]}-${locale}-text${size}`);
+        }
+        await textSize(page, 100);
+      }
+    }
+  });
+
   test("with the browser's toolbars showing (a shorter viewport), actions stay on screen", async ({ page }) => {
     test.skip(!isPhoneProject(), "Phones.");
     // Safari on a 375×667 iPhone with its toolbars expanded leaves about 375×548; a 320px phone about 320×460.

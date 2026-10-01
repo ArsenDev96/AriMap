@@ -807,6 +807,8 @@ test("Level 2's landmark cards: each illustration whole, in view and named; very
           expect(art.tile.right - art.tile.left, `${where}: tile not across the card`).toBeGreaterThanOrEqual(card.width * 0.8);
           expect(Math.abs((art.left + art.right) / 2 - (art.tile.left + art.tile.right) / 2), `${where}: art off centre`).toBeLessThan(2);
           expect(art.width, `${where}: art ${art.width}px wide, square tile gave ${squareArt}px`).toBeGreaterThanOrEqual(1.9 * squareArt);
+          // A few pixels clear of the pinned button, not an edge that subpixel rounding decides.
+          expect(fold - art.bottom, `${where}: art ${(fold - art.bottom).toFixed(1)}px clear of the button`).toBeGreaterThanOrEqual(4);
         } else {
           // The approved layouts: on phones the square tile beside the name and capital; on desktop,
           // the panel-wide tile above the landmark's name.
