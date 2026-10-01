@@ -52,7 +52,26 @@
   --shadow: 0 1px 0 rgba(31, 58, 95, 0.04), 0 6px 16px rgba(31, 58, 95, 0.07);
   --tap: 48px;
 
-  --font: var(--font-latin), var(--font-armenian), "Nunito", "Noto Sans Armenian", system-ui, sans-serif;
+  /* Nunito for Latin text, Noto Sans Armenian for Armenian (each with a stand-in of its
+     proportions while it loads), then the system's own fonts if they fail.
+     Not var(--font-latin): next/font follows "Nunito" with its own stand-in, "Nunito
+     Fallback", which is a whole font (local Arial). Arial has Armenian letters on Windows,
+     so that stand-in took Armenian text before Noto Sans Armenian could (Next 16.3.6 with
+     Turbopack ignores adjustFontFallback: false, which would remove it). "Nunito" is the
+     family next/font declares; e2e/phone-layout.spec.ts checks which font each script gets. */
+  --font: "Nunito", "Nunito Latin Fallback", var(--font-armenian), system-ui, sans-serif;
+}
+
+/* Nunito's stand-in while it loads (its proportions, as next/font sets them for "Nunito
+   Fallback"), for Latin and Cyrillic only, so Armenian goes on to Noto Sans Armenian. */
+@font-face {
+  font-family: "Nunito Latin Fallback";
+  src: local("Arial"), local("ArialMT");
+  ascent-override: 99.71%;
+  descent-override: 34.82%;
+  line-gap-override: 0%;
+  size-adjust: 101.39%;
+  unicode-range: U+0000-052F, U+1C80-1C8A, U+1D00-1FFF, U+2000-2BFF, U+2C60-2C7F, U+A640-A69F, U+A720-A7FF, U+FE2E-FE2F, U+FEFF, U+FFFD;
 }
 
 * {

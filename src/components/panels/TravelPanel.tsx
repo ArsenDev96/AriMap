@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { availableMoves, crossingsLeft, currentCountry, isAssisted } from "@/core/game/travel";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
@@ -11,11 +11,60 @@ interface Props extends PanelProps {
   onHint: () => void;
 }
 
+/** The arrow drawn on every neighbour card. */
+function NeighborArrow() {
+  return (
+    <svg className={styles.neighborArrow} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 12h13M13 6.5 18.5 12 13 17.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/**
+ * Two columns of neighbour cards only when every card fits half the row with its name on one
+ * line: the widest card's own width (name, padding, gap and arrow, in the loaded font at the
+ * current text size) is measured in a hidden copy. Measured again when the row or a card's size
+ * changes (screen width, text enlargement), when fonts finish loading, and for new names
+ * (another country, another language). Otherwise one column.
+ */
+function useNeighborColumns(labelsKey: string) {
+  const gridRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [columns, setColumns] = useState<1 | 2>(1);
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    const measure = measureRef.current;
+    if (!grid || !measure) return;
+    const update = () => {
+      const cards = [...measure.children];
+      const gap = parseFloat(getComputedStyle(grid).columnGap) || 0;
+      const half = (grid.clientWidth - gap) / 2;
+      const widest = Math.max(0, ...cards.map((c) => c.getBoundingClientRect().width));
+      // A pixel to spare, so subpixel rounding never wraps a name that just fits.
+      setColumns(cards.length > 1 && widest + 1 <= half ? 2 : 1);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(grid);
+    for (const card of measure.children) observer.observe(card);
+    const fonts = document.fonts;
+    fonts?.addEventListener("loadingdone", update);
+    void fonts?.ready.then(update);
+    return () => {
+      observer.disconnect();
+      fonts?.removeEventListener("loadingdone", update);
+    };
+  }, [labelsKey]);
+  return { gridRef, measureRef, columns };
+}
+
 export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Props) {
   const { t, tp, name, countryParams } = useI18n();
   const stuckRef = useRef<HTMLDivElement>(null);
   const attempt = progress.travel;
   const isStuck = attempt?.status === "outOfCrossings";
+  const labelsKey = attempt ? availableMoves(attempt, lesson.borders).map((id) => name(id)).join("|") : "";
+  const { gridRef, measureRef, columns } = useNeighborColumns(labelsKey);
 
   // On phones the panel is short: bring the Undo/Retry choice into view.
   useEffect(() => {
@@ -89,22 +138,31 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
           <h2 className={styles.factLabel} id="neighbors-heading">
             {t("travel.choose")}
           </h2>
-          {/* Cards show names only; focusing or hovering them never highlights the map. */}
-          <div className={styles.neighbors} role="group" aria-labelledby="neighbors-heading">
-            {moves.map((id) => (
-              <button
-                key={id}
-                type="button"
-                className={styles.neighborCard}
-                data-testid={`move-${id}`}
-                onClick={() => act({ type: "travelMove", country: id })}
-              >
-                <span>{name(id)}</span>
-                <svg className={styles.neighborArrow} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M5 12h13M13 6.5 18.5 12 13 17.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            ))}
+          <div className={styles.neighborsArea}>
+            {/* Cards show names only; focusing or hovering them never highlights the map. */}
+            <div ref={gridRef} className={styles.neighbors} data-columns={columns} role="group" aria-labelledby="neighbors-heading">
+              {moves.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={styles.neighborCard}
+                  data-testid={`move-${id}`}
+                  onClick={() => act({ type: "travelMove", country: id })}
+                >
+                  <span className={styles.neighborLabel}>{name(id)}</span>
+                  <NeighborArrow />
+                </button>
+              ))}
+            </div>
+            {/* The same cards with each name on one line, hidden and inert: their widths choose the columns. */}
+            <div ref={measureRef} className={styles.neighborMeasure} aria-hidden="true" inert>
+              {moves.map((id) => (
+                <span key={id} className={styles.neighborCard}>
+                  <span className={styles.neighborLabel}>{name(id)}</span>
+                  <NeighborArrow />
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -122,7 +180,9 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
           {t("travel.restart")}
         </button>
       </div>
-      <p className={styles.note}>{t("travel.region")}</p>
+      <p className={styles.note} data-testid="travel-note">
+        {t("travel.region")}
+      </p>
     </>
   );
 }

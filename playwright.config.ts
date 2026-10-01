@@ -32,5 +32,16 @@ export default defineConfig({
       name: "desktop",
       use: { browserName: "chromium", viewport: { width: 1366, height: 800 } },
     },
+    {
+      // Safari's engine, as Playwright ships it (a Windows WebKit build with iPhone 12 emulation:
+      // viewport, touch, pixel ratio and user agent), not a physical iPhone. Limited to the phone
+      // layout checks. This build lays text out at the weight asked for (widths match Chromium's
+      // exactly) but paints variable fonts at their default instance, so its screenshots show
+      // Nunito ExtraLight and Noto Sans Armenian Regular, thin and widely spaced, whatever the
+      // weight. Its measurements hold; its typography in screenshots does not show Safari's.
+      name: "webkit-phone",
+      testMatch: /phone-layout.spec.ts/,
+      use: { ...devices["iPhone 12"] },
+    },
   ],
 });

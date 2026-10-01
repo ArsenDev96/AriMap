@@ -504,13 +504,17 @@ test.describe("returning players", () => {
             // At the top, unless completed levels above it would push its status under the action area:
             // then scrolled just enough (its status right above the action area), never past the card's top.
             const scrollTop = await page.getByTestId("welcome-scroll").evaluate((el) => el.scrollTop);
-            if (s.compact.length < 2) expect(scrollTop, where).toBe(0);
+            // (With one completed level above, English still fits at the top; Armenian, drawn in Noto Sans
+            // Armenian and longer, can already need the scroll, checked just below.)
+            if (s.compact.length < 2 && locale === "en") expect(scrollTop, where).toBe(0);
             if (scrollTop > 0) {
               const status = (await next.getByTestId("level-status").boundingBox())!;
               const scrollBox = (await page.getByTestId("welcome-scroll").boundingBox())!;
               expect(scrollBox.y + scrollBox.height - (status.y + status.height), `${where}: scrolled further than needed`).toBeLessThanOrEqual(13);
             }
-            for (const part of [next.getByRole("heading"), next.getByTestId("level-status"), ...(height >= 800 ? [next.getByRole("button").first()] : [])]) {
+            // At 390×844 in English the card's own button shows too (in Armenian it can be just below; it
+            // repeats the main action, which is always on screen).
+            for (const part of [next.getByRole("heading"), next.getByTestId("level-status"), ...(height >= 800 && locale === "en" ? [next.getByRole("button").first()] : [])]) {
               expect(await shownWithoutScrolling(page, part), `${where}: ${await part.textContent()} shows without scrolling`).toBe(true);
             }
           } else {

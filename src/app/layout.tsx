@@ -4,7 +4,8 @@ import { STORAGE_KEY } from "@/core/progress/storage";
 import "./globals.css";
 
 // Nunito is rounded but has no Armenian glyphs; the browser falls back to
-// Noto Sans Armenian per character, so both scripts render correctly.
+// Noto Sans Armenian per character, so both scripts render correctly. The order
+// that makes this work is set in globals.css (--font), not by --font-latin.
 const nunito = Nunito({ variable: "--font-latin", subsets: ["latin"] });
 const notoArmenian = Noto_Sans_Armenian({ variable: "--font-armenian", subsets: ["armenian"] });
 

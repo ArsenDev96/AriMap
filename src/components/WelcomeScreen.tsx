@@ -27,24 +27,67 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   const { t, l } = useI18n();
   const confirmRef = useRef<HTMLDialogElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLOListElement>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const main = mainAction(state);
   // Known from the save on the first render (the game renders on the client only), so the
   // page never switches layout after it appears.
   const returning = isReturning(state);
 
+  // Each card's head, beside or above its title (stackLevelHeads): worked out before the list
+  // is first painted or scrolled below, again after every render (a language change changes the
+  // titles), and whenever the list's size changes (its width, the text size, a card opened) or a
+  // font finishes loading. It only sets an attribute, so it never renders again.
+  useLayoutEffect(() => {
+    if (listRef.current) stackLevelHeads(listRef.current);
+  });
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const update = () => stackLevelHeads(list);
+    const observer = new ResizeObserver(update);
+    observer.observe(list);
+    document.fonts?.addEventListener("loadingdone", update);
+    return () => {
+      observer.disconnect();
+      document.fonts?.removeEventListener("loadingdone", update);
+    };
+  }, []);
+
   // The "Up next" card's number, name and status are found at once. With several completed
   // levels above it (one line each), a short phone can leave its status under the action area:
-  // the list then starts scrolled just enough to show it, never past the card's own top. Set
-  // before the first paint, so nothing moves after the page appears.
+  // the list (only the list: the brand and language switch stay above it) then starts scrolled
+  // just enough to show it: never past the card's own top, or, when the card is taller than the
+  // list (very large text), never past its title. Set before the first paint, so nothing moves
+  // after the page appears; only on arrival, so a position the player chose is kept (if a web font
+  // finishes loading just after, it is worked out again, unless the player has scrolled by then).
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
-    const status = scroll?.querySelector("[data-up-next] [data-testid='level-status']");
-    const card = status?.closest("[data-up-next]");
-    if (!scroll || !status || !card) return;
-    const view = scroll.getBoundingClientRect();
-    const bottom = status.getBoundingClientRect().bottom;
-    if (bottom > view.bottom) scroll.scrollTop = Math.min(bottom + 12 - view.bottom, card.getBoundingClientRect().top - view.top);
+    if (!scroll) return;
+    const reveal = () => {
+      const card = scroll.querySelector("[data-up-next]");
+      const status = card?.querySelector("[data-testid='level-status']");
+      const title = card?.querySelector("[data-level-title]");
+      if (!card || !status || !title) return scroll.scrollTop;
+      // Positions within the list's content, and the height it shows.
+      const top = scroll.getBoundingClientRect().top - scroll.scrollTop;
+      const y = (el: Element, edge: "top" | "bottom") => el.getBoundingClientRect()[edge] - top;
+      const height = scroll.clientHeight;
+      const [statusBottom, cardTop, titleTop, titleBottom] = [y(status, "bottom"), y(card, "top"), y(title, "top"), y(title, "bottom")];
+      if (statusBottom <= height) return (scroll.scrollTop = 0);
+      // The status in view if the whole card fits; otherwise as much as the title allows.
+      const limit = statusBottom - cardTop + 12 <= height ? cardTop : Math.min(titleTop, Math.max(cardTop, titleBottom + 12 - height));
+      scroll.scrollTop = Math.min(statusBottom + 12 - height, limit);
+      return scroll.scrollTop;
+    };
+    let applied = reveal();
+    let active = true;
+    void document.fonts?.ready.then(() => {
+      if (active && scroll.scrollTop === applied) applied = reveal();
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -54,25 +97,29 @@ export function WelcomeScreen({ state, dispatch }: Props) {
 
   return (
     <main className={styles.page} data-returning={returning} data-testid="welcome">
-      {/* Everything but the main action scrolls here, above the action's own area: nothing is covered. */}
+      {returning && (
+        // Returning players: the name, tagline and language in one row, above the scrolling list,
+        // so they stay in view however far the levels are scrolled.
+        <header className={styles.compactHeader} data-testid="welcome-hero">
+          <div className={styles.compactTop}>
+            <div className={styles.compactBrand}>
+              <BrandMark size={40} />
+              <div>
+                <h1 className={styles.compactTitle}>{t("app.name")}</h1>
+                <p className={styles.compactTagline}>{t("app.tagline")}</p>
+              </div>
+            </div>
+            <LanguageToggle dispatch={dispatch} />
+          </div>
+        </header>
+      )}
+      {/* Everything else but the main action scrolls here, between the header (returning players)
+          and the action's own area: nothing is covered. */}
       <div ref={scrollRef} className={styles.scroll} data-testid="welcome-scroll">
         <div className={styles.content}>
           {returning ? (
-            // Returning players: the name, tagline and language in one row, and the artwork as a
-            // slim ribbon (only where there is room for it), so the levels come first.
-            <section className={styles.compactHero} data-testid="welcome-hero">
-              <div className={styles.compactTop}>
-                <div className={styles.compactBrand}>
-                  <BrandMark size={40} />
-                  <div>
-                    <h1 className={styles.compactTitle}>{t("app.name")}</h1>
-                    <p className={styles.compactTagline}>{t("app.tagline")}</p>
-                  </div>
-                </div>
-                <LanguageToggle dispatch={dispatch} />
-              </div>
-              <WelcomeArt compact />
-            </section>
+            // The artwork as a slim ribbon (only where there is room for it), so the levels come first.
+            <WelcomeArt compact />
           ) : (
             <>
               <div className={styles.top}>
@@ -101,7 +148,7 @@ export function WelcomeScreen({ state, dispatch }: Props) {
                 <span>{t("welcome.allDone")}</span>
               </p>
             )}
-            <ol className={styles.levels} data-testid="levels">
+            <ol ref={listRef} className={styles.levels} data-testid="levels">
               {LEVELS.map((level) => {
                 const status = levelStatus(state, level);
                 return (
@@ -244,7 +291,7 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
 
   // The level's number; a check once it is completed.
   const badge = (
-    <span className={styles.levelBadge} aria-hidden="true">
+    <span className={styles.levelBadge} aria-hidden="true" data-level-side="">
       {completed ? <CheckIcon /> : level.number}
     </span>
   );
@@ -324,14 +371,15 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
             aria-controls={detailsId}
             onClick={() => setExpanded((e) => !e)}
             data-testid="level-details-toggle"
+            data-level-head=""
           >
             {badge}
             <span className={styles.levelHeading}>
               <span className={styles.summaryLine}>
-                <span className={styles.levelNumber}>{t("level.number", { number: level.number })}</span>
+                <span className={styles.levelNumber} data-level-number="">{t("level.number", { number: level.number })}</span>
                 {statusLine}
               </span>
-              <span id={titleId} className={styles.levelTitle}>
+              <span id={titleId} className={styles.levelTitle} data-level-title="">
                 {title}
               </span>
             </span>
@@ -347,10 +395,10 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
 
   return (
     <article className={styles.levelCard} data-status={status.kind} data-up-next={upNext || undefined} data-testid={`level-${level.id}`} aria-labelledby={titleId}>
-      <div className={styles.levelHead}>
+      <div className={styles.levelHead} data-level-head="">
         {badge}
         <div className={styles.levelHeading}>
-          <p className={styles.levelNumber}>
+          <p className={styles.levelNumber} data-level-number="">
             {t("level.number", { number: level.number })}
             {upNext && (
               <span className={styles.upNext} data-testid="up-next">
@@ -358,7 +406,7 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
               </span>
             )}
           </p>
-          <h3 id={titleId} className={styles.levelTitle}>
+          <h3 id={titleId} className={styles.levelTitle} data-level-title="">
             {title}
           </h3>
         </div>
@@ -368,9 +416,56 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
   );
 }
 
+/**
+ * A level card's head shows its number badge (and a completed card's chevron) beside the title,
+ * the usual layout, while every word of the title fits the room beside them. When one doesn't
+ * (enlarged text on a phone), the head is marked data-stacked: the badge and number (and the
+ * chevron and status) go above the title, which has the card's whole width, so it wraps
+ * between words; a word is broken only if it is wider than the whole card. Measured in the
+ * text as laid out, in its language and loaded font, rather than guessed from the text size.
+ */
+function stackLevelHeads(list: HTMLElement) {
+  for (const head of list.querySelectorAll<HTMLElement>("[data-level-head]")) {
+    const title = head.querySelector("[data-level-title]");
+    if (!title) continue;
+    const style = getComputedStyle(head);
+    // The gap beside the title in the usual layout (the stacked one spaces its row differently).
+    const gap = parseFloat(style.getPropertyValue("--head-gap")) || 0;
+    // The title's room beside the badge and chevron: the same in either layout.
+    let room = head.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    for (const side of head.querySelectorAll(":scope > [data-level-side]")) {
+      const width = side.getBoundingClientRect().width;
+      if (width > 0) room -= width + gap;
+    }
+    // A completed card's status shares that room: its widest word, with its icon and padding, too.
+    let need = widestWord(title);
+    const status = head.querySelector("[data-testid='level-status']");
+    const statusText = status?.lastElementChild;
+    if (status && statusText) need = Math.max(need, widestWord(statusText) + status.getBoundingClientRect().width - statusText.getBoundingClientRect().width);
+    head.toggleAttribute("data-stacked", need > room + 0.5);
+  }
+}
+
+/** The width of the widest word in an element, as laid out (the sum of its pieces, if it is broken). */
+function widestWord(element: Element): number {
+  let widest = 0;
+  const range = document.createRange();
+  const words = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  for (let node = words.nextNode(); node; node = words.nextNode()) {
+    for (const word of (node.textContent ?? "").matchAll(/\S+/g)) {
+      range.setStart(node, word.index);
+      range.setEnd(node, word.index + word[0].length);
+      let width = 0;
+      for (const piece of range.getClientRects()) width += piece.width;
+      widest = Math.max(widest, width);
+    }
+  }
+  return widest;
+}
+
 function ChevronIcon() {
   return (
-    <svg className={styles.chevron} width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={styles.chevron} width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" data-level-side="">
       <path d="M6 9.5l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

@@ -577,6 +577,8 @@ test.describe("header", () => {
                 spoken: steps.map((li) => li.querySelector(".visually-hidden")!.textContent),
                 stepsBelow: steps.every((li) => r(li).top >= r(home).bottom) ? "own row" : "one row",
                 langBesideHome: r(lang).top < r(home).bottom && r(home).top < r(lang).bottom,
+                // Whether Home (in its tight form) and the toggle could share a row at all.
+                pairFits: r(home).width + r(lang).width + (parseFloat(getComputedStyle(home.parentElement!).columnGap) || 0) <= home.parentElement!.clientWidth - parseFloat(getComputedStyle(home.parentElement!).paddingLeft) - parseFloat(getComputedStyle(home.parentElement!).paddingRight),
                 stepsInARow: steps.every((li) => Math.abs(r(li).top + r(li).height / 2 - (r(steps[0]).top + r(steps[0]).height / 2)) < 1),
               };
             });
@@ -590,8 +592,11 @@ test.describe("header", () => {
             expect(m.homeFont, where).toBeGreaterThanOrEqual((16 * size) / 100 - 0.5);
             // Every step keeps its name for screen readers, whatever is shown.
             expect(m.spoken.every((s) => s && s.length > 3), where).toBe(true);
-            // At most two rows: only the steps move below; Home and the language toggle keep the first.
-            expect(m.langBesideHome, where).toBe(true);
+            // At most two rows: only the steps move below; Home and the language toggle keep the first,
+            // wherever the two fit side by side. (Armenian at 200% on a 320px phone, in Noto Sans
+            // Armenian: Home alone is about two-thirds of the row, so the toggle takes a row of its own.)
+            if (m.pairFits) expect(m.langBesideHome, where).toBe(true);
+            else expect(`${width}px ${locale} ${size}%`, `${where}: Home and the toggle can't share a row`).toBe(`320px hy 200%`);
             expect(m.stepsInARow, where).toBe(true);
             if (width === 1366 || size === 100) expect(m.stepsBelow, where).toBe("one row");
           }

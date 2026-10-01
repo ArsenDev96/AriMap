@@ -597,19 +597,51 @@
 }
 
 /* Two columns where the longest name (Armenian "Նիդեռլանդներ") fits beside its arrow, otherwise one. */
+/* One column, or two when every card fits half the row with its name on one line: TravelPanel
+   measures the cards (useNeighborColumns), in the loaded font at the current text size. */
 .neighbors {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(10.25rem, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin-top: 8px;
 }
 
-/* Neighbour choices: cream cards with a sky-blue edge and an arrow, name first. */
+.neighbors[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.neighborsArea {
+  position: relative;
+}
+
+/* The hidden copy the columns are measured from: each card at its one-line width, clipped to
+   nothing so it never widens the panel or takes space. */
+.neighborMeasure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.neighborMeasure > .neighborCard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: max-content;
+  white-space: nowrap;
+}
+
+/* Neighbour choices: cream cards with a sky-blue edge and an arrow, name first. The name and
+   the arrow each have their own space, with a gap between them that nothing takes. */
 .neighborCard {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   min-height: 56px;
   padding: 10px 12px 10px 14px;
   border-radius: var(--radius-sm);
@@ -625,15 +657,17 @@
   transition: transform 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
 }
 
-/* Names wrap only between words, never inside one (the columns are wide enough for the longest). */
-.neighborCard > span {
+/* The name takes the room beside the arrow and wraps between words. A word breaks only when it
+   is wider than the whole row (possible only with very large text, in one column): never over
+   the arrow, never cut off. */
+.neighborLabel {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow-wrap: normal;
-  word-break: normal;
+  overflow-wrap: break-word;
 }
 
 .neighborArrow {
-  flex-shrink: 0;
+  flex: none;
   color: var(--travel-ink);
 }
 

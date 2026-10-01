@@ -134,18 +134,22 @@ A country's description is its hint (`hint`): the card shows it under the landma
 
 Levels 1 and 2 keep their hints unchanged (`src/core/content/content.test.ts` checks both).
 
-### Illustrations (not supplied yet)
+### Illustrations
 
-Wawel Castle, Charles Bridge and Bratislava Castle have no artwork yet. Until they arrive, their cards use the text-only layout: the map's amber landmark mark beside the landmark's name and fact, across the card. There is no empty picture frame and no other landmark's art in its place (`data-art="none"`; the e2e tests check both). Find never shows artwork.
+Wawel Castle, Charles Bridge and Bratislava Castle were supplied on 2026-09-30 and prepared like the others (see "Landmark illustrations" below). Before that, their cards used the text-only layout (the map's amber landmark mark beside the landmark's name and fact, `data-art="none"`), which remains for any landmark without artwork. Find never shows artwork.
 
-Generate them as described below, using the same style paragraph as Level 2's (see "Level 2 illustrations" above). Save each original under its filename, then:
+They were integrated with the steps kept here for later levels:
 
-1. run `node scripts/prepare-landmarks.mjs` (it prepares every PNG in the folder, so `src/assets/landmarks/<key>.webp` appears);
+1. run `node scripts/prepare-landmarks.mjs` (it prepares every PNG in the folder, so `src/assets/landmarks/<key>.webp` appears; the existing copies came out byte-identical);
 2. add `illustration: "<key>"` to the landmark in `src/core/content/countries.ts`;
 3. import the display copy into `LANDMARK_IMAGES` in `src/components/landmarks/LandmarkCard.tsx`;
-4. update the Level 3 expectations in `src/core/content/content.test.ts` and `e2e/level3.spec.ts` (they currently assert the text-only card).
+4. update the expectations in `src/core/content/content.test.ts` and `e2e/level3.spec.ts`.
 
-Art at least 2:1 (width ÷ height after trimming) gets the wide phone layout automatically (see "Very wide art on phones").
+Art at least 2:1 (width ÷ height after trimming) gets the wide phone layout automatically (see "Very wide art on phones"). These three are about 1.5:1, so they use the square tile beside the name, like the other ordinary art.
+
+Alt text follows the existing pattern, with the in-sentence name: "Illustration of Wawel Castle" / «Նկարազարդում՝ Վավելի ամրոցը», "Illustration of the Charles Bridge" / «Նկարազարդում՝ Կառլի կամուրջը», "Illustration of Bratislava Castle" / «Նկարազարդում՝ Բրատիսլավայի ամրոցը».
+
+The briefs they were requested with:
 
 | Landmark | Save the original to | Key | Content |
 |---|---|---|---|
@@ -168,7 +172,7 @@ Each starts with the shared style paragraph (Level 2's, above), then describes i
 
 ## Landmark illustrations
 
-The eight illustrations (Level 1's five, and Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum, added 2026-09-30) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).
+The eleven illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum; and Level 3's Wawel Castle, Charles Bridge and Bratislava Castle, all added 2026-09-30) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).
 
 | Country | Supplied original (kept unchanged) | Display copy | Artwork area in original |
 |---|---|---|---|
@@ -180,6 +184,9 @@ The eight illustrations (Level 1's five, and Level 2's Chapel Bridge, Schönbrun
 | Switzerland | `public/images/landmarks/chapel-bridge.png` | `src/assets/landmarks/chapel-bridge.webp` (720×720) | 1254×1254 at (0, 0) (the artwork reaches to within 2% of every edge) |
 | Austria | `public/images/landmarks/schonbrunn-palace.png` | `src/assets/landmarks/schonbrunn-palace.webp` (720×221) | 2172×668 at (0, 44) |
 | Italy | `public/images/landmarks/colosseum.png` | `src/assets/landmarks/colosseum.webp` (720×598) | 1254×1042 at (0, 144) |
+| Poland | `public/images/landmarks/wawel-castle.png` | `src/assets/landmarks/wawel-castle.webp` (720×481) | 1527×1021 at (9, 0) (with the 2% margin; the artwork itself is 1479×962 at (39, 29)) |
+| Czechia | `public/images/landmarks/charles-bridge.png` | `src/assets/landmarks/charles-bridge.webp` (720×480) | 1536×1024 at (0, 0) (with the 2% margin; the artwork itself is 1503×986 at (19, 20)) |
+| Slovakia | `public/images/landmarks/bratislava-castle.png` | `src/assets/landmarks/bratislava-castle.webp` (720×489) | 1495×1015 at (23, 0) (with the 2% margin; the artwork itself is 1437×974 at (52, 12)) |
 
 ### Originals
 
@@ -187,18 +194,25 @@ Level 1's five are 1254×1254 PNG, 8-bit RGBA, 0.9–1.7 MB. Their transparency 
 
 Level 2's three are 8-bit RGBA PNG, 1.8–2.3 MB: the Chapel Bridge and the Colosseum 1254×1254, Schönbrunn Palace 2172×724 (not square; the script handles any size). Checked on arrival: transparent corners, no artwork touching the frame's edge, no text or people, and edges as crisp as Level 1's (0.5–1.3% of pixels semi-transparent, against 0.5–0.9%). Seen on black they show thin coloured fringes (orange at the bridge's roof, cyan at its water, yellow on the Colosseum) and Schönbrunn a faint whitish smear under its gravel, all left by background removal; composited on the card's sky-to-mint tile these are not visible. They are more painterly than Level 1's, with lighter outlines. Schönbrunn is very wide (about 3.3:1): on phones it uses the wide layout below.
 
+Level 3's three are 1536×1024 (3:2) 8-bit RGBA PNG, 2.4–2.8 MB. Checked on arrival (2026-09-30), by reading their alpha channels:
+- transparent corners; no artwork pixel touches the frame (12–52 px of empty margin on every side); no text or people;
+- 43–52% of each image fully transparent; a 1.3–2.8% fringe of faint pixels (alpha 1–32) and 0.5–1.4% of edge pixels (alpha 33–223) from background removal, like the earlier art;
+- the artwork itself at alpha 251–253, that is 98–99% opaque, not 255. **The approved originals are the same**: measured the same way, the Eiffel Tower, the Brandenburg Gate and the Colosseum are 251–253 too (at most 0.1% of their pixels are 255). So "fully opaque" above means this in practice: on the card's tile at most about 2/255 of the background shows through, which cannot be seen.
+
+Composited on the card's tile colour and on black (to show fringes), their edges are clean: no halo on the tile, and no coloured fringe visible at display size on black. Like Level 2's, they are more painterly than Level 1's. The castles stand on their hills with only a hint of the river, rather than the river strip the briefs asked for. The trimmed art is about 1.5:1, so each uses the square tile beside the country's name on phones. At the four phone sizes (320×568, 320×640, 390×664, 390×844) the name, the capital and the whole artwork show together above the pinned button, uncropped and undistorted (`e2e/level3.spec.ts`).
+
 ### Display copies
 
 `scripts/prepare-landmarks.mjs` (run with `node scripts/prepare-landmarks.mjs`) creates the display copies:
 
 1. Trim each original to its visible artwork (pixels with alpha > 32) plus a 2% transparent margin. No part of the artwork is cut: tower tips, bridge ends and the Quadriga stay whole.
 2. Downsize to at most 720 px on the longer side, about 3× the largest on-screen size.
-3. Save as lossless WebP, so the only lossy step is next/image's own encoding. Total 3.1 MB, versus 12.7 MB for the originals.
+3. Save as lossless WebP, so the only lossy step is next/image's own encoding. Total 4.2 MB for all eleven (Level 3's three add 1.06 MB), versus 20.5 MB for the originals. The player downloads only the resized WebP that `next/image` serves for the card's size, not these copies.
 
 The app imports the display copies statically. `next/image` serves each device a resized, cached WebP, and the static import supplies intrinsic dimensions to prevent layout shift. Every card uses the same fixed illustration box with `object-fit: contain`. Because the copies are trimmed, tall and wide landmarks get similar visual weight.
 
 **Very wide art on phones.** An illustration whose display copy is at least **2:1** (width ÷ height, `WIDE_ART_ASPECT` in `src/components/landmarks/LandmarkCard.tsx`) gets a different phone layout: the country's name and capital as a compact heading, the art in a shallow tile across the card below them (the same colours and corners), then the landmark's name and fact and the country's description. The tile's height follows the art's own proportions, up to `max(56px, 11svh)` so that the name, capital and whole artwork fit above the pinned button on a 320×568 screen. Since the ratio comes from the static import, the layout is decided before the image loads, and nothing moves when it does. Everything else keeps the square tile beside the name, and desktop is unchanged.
 
-Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26, so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
+Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26 (Level 3's are 1.47–1.50), so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
 
 To replace an illustration, overwrite the original in `public/images/landmarks/` and rerun the script.

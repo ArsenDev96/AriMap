@@ -5,12 +5,17 @@
   height: 100dvh;
   display: flex;
   flex-direction: column;
+  /* For the header's query below: the screen's size in rem, so it follows the text size. */
+  container: welcome / size;
 }
 
 .scroll {
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Holds (and clips) what is positioned inside it, such as the cards' visually hidden text:
+     otherwise that sits outside, below the screen, and the page itself can scroll. */
+  position: relative;
 }
 
 .content {
@@ -164,12 +169,14 @@
 }
 
 /* Returning players --------------------------------------------------- */
-/* The name, tagline and language share one row (wrapping with very large text), and the
-   artwork becomes a slim ribbon, left out on short screens: the levels come first. */
-.compactHero {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* The name, tagline and language share one row (wrapping with very large text) in a header
+   above the scrolling list, so they stay in view; the artwork becomes a slim ribbon at the
+   top of the list, left out on short screens: the levels come first. */
+.compactHeader {
+  flex: none;
+  padding: 10px max(16px, calc((100% - 508px) / 2));
+  border-bottom: 1.5px solid var(--line);
+  background: var(--bg);
 }
 
 .compactTop {
@@ -227,6 +234,22 @@
   .compactTagline {
     grid-column: 1 / -1;
     font-size: 0.9rem;
+  }
+}
+
+/* A screen short for its text (under 32 lines of it: a 568 px phone from 150% text, an 844 px
+   one at 200%): the header is one row, the name and the language, so the fixed header keeps
+   no more than it must from the list. The mark and the tagline stay in the new-player intro. */
+@container welcome (max-height: 32rem) {
+  .compactBrand {
+    display: flex;
+  }
+  .compactBrand > svg,
+  .compactTagline {
+    display: none;
+  }
+  .compactTitle {
+    font-size: 1rem;
   }
 }
 
@@ -300,6 +323,9 @@
   border: var(--card-border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
+  /* A word wider than the card (a long Armenian word at very large text on a narrow phone) is
+     broken, rather than running past the card and the screen; every other word stays whole. */
+  overflow-wrap: break-word;
 }
 
 .levelCard[data-status="completed"] {
@@ -368,9 +394,10 @@
 }
 
 .summary {
+  --head-gap: 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--head-gap);
   width: 100%;
   min-height: var(--tap);
   padding: 12px 14px 12px 16px;
@@ -434,6 +461,66 @@
   transform: rotate(180deg);
 }
 
+/* A title word wider than the room beside the badge (stackLevelHeads in WelcomeScreen.tsx):
+   the badge and number (and "Up next") become a row above the title, which has the card's
+   whole width. */
+.levelHead[data-stacked] {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+.levelHead[data-stacked] > .levelHeading {
+  display: contents;
+}
+
+.levelHead[data-stacked] .levelNumber {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.levelHead[data-stacked] .levelTitle {
+  flex: 1 0 100%;
+  order: 1;
+}
+
+/* A completed card's summary: the badge (when shown), the number and the chevron in a row, then
+   the status and the title, each with the whole width. Gaps as margins, so a hidden badge
+   leaves none. */
+.summary[data-stacked] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px 0;
+}
+
+.summary[data-stacked] > .levelHeading,
+.summary[data-stacked] .summaryLine {
+  display: contents;
+}
+
+.summary[data-stacked] .levelBadge {
+  grid-area: 1 / 1;
+  margin-inline-end: var(--head-gap);
+}
+
+.summary[data-stacked] .levelNumber {
+  grid-area: 1 / 2;
+  margin-inline-end: var(--head-gap);
+}
+
+.summary[data-stacked] .chevron {
+  grid-area: 1 / 3;
+}
+
+.summary[data-stacked] .status {
+  grid-area: 2 / 1 / 3 / -1;
+  justify-self: start;
+  max-width: 100%;
+}
+
+.summary[data-stacked] .levelTitle {
+  grid-area: 3 / 1 / 4 / -1;
+}
+
 .details {
   display: flex;
   flex-direction: column;
@@ -446,9 +533,10 @@
 }
 
 .levelHead {
+  --head-gap: 12px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--head-gap);
 }
 
 .levelBadge {
@@ -529,6 +617,15 @@
   color: var(--ink-soft);
 }
 
+/* The status pill never wider than its card (see .levelCard). */
+.status {
+  max-width: 100%;
+}
+
+.status > span {
+  min-width: 0;
+}
+
 .statusIcon {
   flex: none;
   width: 1.15em;
@@ -596,6 +693,12 @@
   color: var(--discover-ink);
   font-weight: 800;
   line-height: 1.35;
+}
+
+/* A word wider than the box (very large text on a narrow phone) is broken, not run off screen. */
+.allDone > span {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .steps {

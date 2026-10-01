@@ -109,7 +109,7 @@ describe("country content", () => {
     }
   });
 
-  it("gives Level 3's new countries their capital and a localized landmark with a map location, shown as text until their art arrives", () => {
+  it("gives Level 3's new countries their capital and a localized, illustrated landmark with a map location", () => {
     // Names as in the English and Armenian Wikipedia article titles (docs/CONTENT.md).
     const expected: Record<string, [string, string, string, string, string, string]> = {
       POL: ["Poland", "Լեհաստան", "Warsaw", "Վարշավա", "Wawel Castle", "Վավելի ամրոց"],
@@ -129,9 +129,11 @@ describe("country content", () => {
       expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
-      // No artwork yet: no illustration key, so the card shows the landmark as text (no empty frame, no stand-in).
-      expect(landmark.illustration, id).toBeUndefined();
     }
+    // Each its own artwork (no other country's stands in for it).
+    expect(COUNTRIES.POL.landmark!.illustration).toBe("wawel-castle");
+    expect(COUNTRIES.CZE.landmark!.illustration).toBe("charles-bridge");
+    expect(COUNTRIES.SVK.landmark!.illustration).toBe("bratislava-castle");
     // Wawel Castle is in Kraków, not the capital.
     expect(COUNTRIES.POL.landmark!.fact.en).toContain("Kraków");
     // Germany and Austria are shared with earlier levels: same content and artwork.

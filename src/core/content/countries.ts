@@ -182,8 +182,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "colosseum",
     },
   },
-  // Level 3's new countries. Their illustrations are not supplied yet, so they have no
-  // `illustration` and their cards show the landmark as text (filenames and briefs: docs/CONTENT.md).
+  // Level 3's new countries.
   POL: {
     id: "POL",
     name: { en: "Poland", hy: "Լեհաստան" },
@@ -204,6 +203,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In Kraków, not the capital.
       coordinates: [19.9347, 50.0539],
+      illustration: "wawel-castle",
     },
   },
   CZE: {
@@ -225,6 +225,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
         hy: "Կառուցումը սկսվել է 1357 թվականին։ Մինչև 1841 թվականը այս քարե կամուրջը Պրահայում Վլտավա գետն անցնելու միակ ճանապարհն էր։",
       },
       coordinates: [14.4119, 50.0864],
+      illustration: "charles-bridge",
     },
   },
   SVK: {
@@ -246,6 +247,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
         hy: "Չորս անկյունային աշտարակներով այս ուղղանկյուն ամրոցը կանգնած է ժայռոտ բլրի վրա՝ Դանուբ գետի վերևում։",
       },
       coordinates: [17.1, 48.1422],
+      illustration: "bratislava-castle",
     },
   },
 };

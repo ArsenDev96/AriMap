@@ -28,6 +28,12 @@
   margin-left: auto;
 }
 
+/* One row, if Home drops its icon (Armenian at 320px): its name stays. Switched off while the
+   header measures its natural sizes. */
+.header:where([data-layout="compact"]):not([data-measuring]) .home svg {
+  display: none;
+}
+
 /* Even Home and the toggle would not share a row (the narrowest phones with the largest
    text): Home keeps its name but drops its icon, and the padding is trimmed. Switched off
    while the header measures its natural sizes. */

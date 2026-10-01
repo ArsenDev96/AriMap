@@ -54,15 +54,15 @@ function CheckIcon() {
 /** The room the three step dots need beside Home and the language toggle, in rem, so it grows with the text size. */
 const STEPS_MIN_REM = 4.25;
 
-type HeaderLayout = "row" | "stacked" | "tight";
+type HeaderLayout = "row" | "compact" | "stacked" | "tight";
 
 /**
  * How the header fits its three groups: in one row when the steps have comfortable room
- * between Home and the language toggle; otherwise "stacked", the steps on a row of their
- * own; and "tight" (Home's icon hidden, less padding) when even Home and the toggle would
- * not share a row. Home, the toggle and the brand keep their width in the first two layouts,
- * so the room is worked out from their natural sizes, read with the tight rules switched
- * off (data-measuring). Checked again whenever the header, Home or the toggle changes size:
+ * between Home and the language toggle; still in one row, "compact", when hiding Home's icon
+ * gives them that room (Armenian's longer "Home" on a 320px phone); otherwise "stacked", the
+ * steps on a row of their own; and "tight" (Home's icon hidden, less padding) when even Home
+ * and the toggle would not share a row. The room is worked out from the natural sizes of Home,
+ * the toggle and the brand, read with the compact and tight rules switched off (data-measuring). Checked again whenever the header, Home or the toggle changes size:
  * screen width, text size or language.
  *
  * Decided before the browser paints, so the header never shows a frame in the wrong layout
@@ -81,9 +81,14 @@ function useHeaderLayout(header: RefObject<HTMLElement | null>, steps: RefObject
       const inner = h.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
       const others = [...h.children].filter((el) => el !== steps.current && getComputedStyle(el).display !== "none");
       const used = others.reduce((w, el) => w + el.getBoundingClientRect().width, 0) + gap * (others.length - 1);
+      // What hiding Home's icon saves: the icon and the gap after it.
+      const home = h.querySelector<HTMLElement>("[data-testid='home']");
+      const icon = home?.querySelector("svg");
+      const saved = home && icon ? icon.getBoundingClientRect().width + (parseFloat(getComputedStyle(home).columnGap) || 0) : 0;
       h.removeAttribute("data-measuring");
       const stepsMin = STEPS_MIN_REM * parseFloat(getComputedStyle(document.documentElement).fontSize);
-      const layout: HeaderLayout = inner - used - gap >= stepsMin ? "row" : used <= inner ? "stacked" : "tight";
+      const room = inner - used - gap;
+      const layout: HeaderLayout = room >= stepsMin ? "row" : room + saved >= stepsMin ? "compact" : used <= inner ? "stacked" : "tight";
       h.setAttribute("data-layout", layout);
     };
     measure();
