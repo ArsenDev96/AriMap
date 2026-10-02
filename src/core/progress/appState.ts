@@ -73,6 +73,11 @@ export function levelStatus(state: AppState, level: LevelInfo): LevelStatus {
   return { kind: "ready" };
 }
 
+/** Every level completed: none left to start, none coming soon. Each stays open to replay. */
+export function allLevelsComplete(state: AppState): boolean {
+  return LEVELS.every((level) => levelStatus(state, level).kind === "completed");
+}
+
 /** Whether a level can be opened: playable and unlocked. */
 export function canPlay(state: AppState, levelId: string): boolean {
   const level = getLevel(levelId);

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithSave } from "./helpers/save";
 
 /*
  * Level 3 (Central Europe) from Discover to Results, its unlock and place on the
@@ -59,20 +60,8 @@ const travelling = {
   records: { ...records(false), findDone: true },
 };
 
-/**
- * Waits until the game has mounted: it saves the state it loaded when it mounts,
- * which would otherwise overwrite a save written by the test just before.
- */
-async function appReady(page: Page) {
-  await expect(page.locator(".splash")).toHaveCount(0);
-  await expect(page.locator("main").first()).toBeVisible();
-}
-
 async function saveV2(page: Page, levels: Record<string, object>, { locale = "en", screen = "welcome", levelId = L1, recent = [] as string[] } = {}) {
-  await page.goto("/");
-  await appReady(page);
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 2, locale, screen, levelId, recent, levels }));
-  await page.reload();
+  await openWithSave(page, { version: 2, locale, screen, levelId, recent, levels });
 }
 
 /** Opens Level 3 directly in a given state, Levels 1 and 2 completed. */
@@ -344,12 +333,12 @@ test("Level 3, Central Europe: Discover, Find, Travel and Results", async ({ pag
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*None/);
   await expect(page.getByTestId("badge")).toBeVisible();
 
-  // The level selection: Level 3 completed unlocks Level 4, the main action starts it; Level 5 is still coming soon, with no way in.
+  // The level selection: Level 3 completed unlocks Level 4, the main action starts it; Level 5 stays locked, with no way in.
   await page.getByTestId("home").click();
   for (const id of [L1, L2, L3]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, "along-the-adriatic").getByTestId("level-status")).toHaveText("Ready to play");
   await expect(mainAction(page)).toHaveText(/^Start\s*Level 4 · Along the Adriatic$/);
-  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText(/^Coming soon/);
+  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText(/^Locked/);
   await expect(card(page, "towards-greece").getByRole("button")).toHaveCount(0);
   await expect(page.getByTestId("all-done")).toHaveCount(0);
   // Across a refresh too.
@@ -398,7 +387,7 @@ test("Level 3 at phone and desktop sizes: the level selection, the three new car
       for (const id of ["along-the-adriatic", "towards-greece"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-levels-unlocked`);
-      // Completed: Level 3 is one line like the others, Level 4 is up next, and Level 5 remains unavailable.
+      // Completed: Level 3 is one line like the others, Level 4 is up next, and Level 5 stays locked.
       await saveV2(page, { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, { locale, recent: [L3, L2, L1], levelId: L3 });
       await expect(card(page, L3).getByTestId("level-status")).toHaveText(locale === "en" ? "Completed" : "Ավարտված է");
       await expect(card(page, "along-the-adriatic")).toHaveAttribute("data-up-next", "true");

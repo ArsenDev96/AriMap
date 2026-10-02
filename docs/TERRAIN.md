@@ -110,6 +110,13 @@ Also `scripts/generate-relief.mjs`, into the same rasters and tiles as the relie
    - So at the whole-map level (about 1.5 km per pixel) small woods fade into gentle shading and large forests stay. Zoomed in (about 760 m and 470 m per pixel) smaller woods and clearings reappear.
 4. **Canopy.** Value noise anchored to world coordinates, so the texture is continuous across tiles, and finer levels add octaves to the same coarse pattern.
 
+### Geographic check (Level 5)
+
+The same test reads Level 5's overview (reference points: Wikipedia article coordinates, checked 2026-10-02):
+- **Relief** is at least 200/255 at Moldoveanu (Făgăraș), the Retezat, Musala (Rila), Vihren (Pirin), Botev (Balkan Mountains), Mount Olympus, Smolikas (Pindus) and Midžor; at least 150 at Mount Ida (Crete) and the Apuseni Mountains; and at least 45 at Kékes in the Mátra, Hungary's highest point (1,014 m). Measured: 252 at all the 200s and Mount Ida, 229 at the Apuseni, 136 at Kékes.
+- **Forests** are at least 40/255 in the Bükk, Fruška Gora, Strandzha and the Rhodopes (measured 89–252; the Rhodopes also have relief).
+- **Farmland and steppe stay bare** (at most 10/255; measured 0): the Hortobágy and Békés on the Great Hungarian Plain, Bačka, the Banat, Wallachia, the Bărăgan, Dobruja and the Thessalian plain. Bucharest's centre stays at most 25 (measured 0). Budapest's is left out: the Buda Hills lie within a pixel of it (71).
+
 ### Geographic check (Level 4)
 
 The same test reads Level 4's overview (reference points: Wikipedia article coordinates, checked 2026-10-01):
@@ -151,8 +158,15 @@ The same test reads Level 2's overview (reference points: Wikipedia article coor
 | Game Level 3 neutral overlay overview (`central-europe-tone.webp`, 849×645) | 85 KB | Once a Level 3 country has a state colour |
 | Game Level 4 land overview (`along-the-adriatic-land.webp`, 2001×1011) | 283 KB | With Level 4 (every stage) |
 | Game Level 4 neutral overlay overview (`along-the-adriatic-tone.webp`, 741×852) | 80 KB | Once a Level 4 country has a state colour |
-| Detail level 2 tiles (65 land + 45 tone) | 4.7 MB in all, about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
-| Detail level 3 tiles (138 land + 90 tone) | 10.4 MB in all, about 47 KB each | Zoomed in further |
+| Game Level 5 land overview (`towards-greece-land.webp`, 2201×1201) | 394 KB | With Level 5 (every stage) |
+| Game Level 5 neutral overlay overview (`towards-greece-tone.webp`, 790×1003) | 130 KB | Once a Level 5 country has a state colour |
+| Detail level 2 tiles (72 land + 58 tone; 65 + 45 before Level 5) | 5.3 MB in all, about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
+| Detail level 3 tiles (160 land + 109 tone; 138 + 90 before Level 5) | 11.9 MB in all, about 46 KB each | Zoomed in further |
+
+**Adding Level 5** (2026-10-02). Level 5 uses the shared projection (DATA.md, "One projection for every level"), so the existing grid stays anchored and keeps its pixels. Its map data was extended without moving any coordinate of Levels 1–4 (DATA.md, "Preparation"), so the projection, and every overview of Levels 1–4, are byte-for-byte the files they were. Its pan area reaches further east than any earlier level's (Romania's Black Sea coast, the Danube delta), so the level-2 grid grew from 9 to 10 columns and the level-3 grid from 13 to 16; the rows are unchanged (its pan area lies within the grid's existing height). Of the 338 earlier tiles, **314 are byte-identical**, none was removed, and 61 are new (20 in level 2, 41 in level 3; 2.2 MB), over Romania, Bulgaria, Greece, Serbia's east and the Aegean; Level 5's two overviews add 524 KB, loaded only with Level 5. The other 24 changed:
+- **The old east edge** (level-2 column 8 rows 0–4, level-3 column 12): before, the elevation and forest data ended at the old pan limit and its last pixels were repeated; now there is real terrain beyond. Level 3: 0–3.4% of a tile's pixels changed by more than 8/255 (mean difference 0–2.7/255); level 2: 0.6–7.4% (mean 0.6–3.9).
+- **The bottom row of level 2** (row 7, North Africa from Morocco to Libya, 29–34°N, at the far south of Level 2's pan area) and level-3 tile 0-11: here the old z8 elevation mosaic ended short, because its latitude range followed the old pan union's corners; the sampler repeated its last row, which drew vertical streaks across the Atlas (seen in the old tile 0-7). Level 5's wider union reaches further south, so these tiles now show the real Atlas and Saharan relief: 5–53% of their pixels changed (mean 5–57/255). One corner of tile 0-7 (south-west of the Atlas, near 29°N 10°W) still shows a few streaks, beyond the mosaic.
+The tiles live in a new folder (`public/relief/7940e36f5f/`, replacing `46f31f1777/`), named by the hash of all tiles, so a returning player of Levels 1–4 downloads the tiles of a zoomed view again once, although 314 of them have the same bytes. The elevation sources are the same three: the sources the generator records from every tile it reads (`elevationSources` in `relief.json`) are still only `srtm`, `gmted` and `etopo1`, so the credits are unchanged, and WorldCover's is a single global product. Generating Level 5's overview read 247 elevation tiles at zoom 7 and 144 WorldCover tiles at overview 5 (141 with land); the grid read 1,364 at zoom 8 (most cached from earlier levels).
 
 **Adding Level 4** (2026-10-01). Level 4 uses the shared projection (DATA.md), and its whole pan area already lies inside the tile grid: Level 2's pan area (Italy, plus 25% on each side) reached the Balkans. So the grids kept their size and every tile, and the tile folder's content hash is unchanged (`46f31f1777`): all 338 tiles, and the six overviews of Levels 1–3, are byte-for-byte the files they were. The only new files are Level 4's two overviews (363 KB together), loaded only with Level 4. The elevation sources are the same three (SRTM, GMTED2010, ETOPO1), so the credits are unchanged. Generating them read 170 elevation tiles at zoom 7 and 105 WorldCover tiles at overview 5 (most already cached from earlier levels).
 
@@ -186,7 +200,7 @@ So forests add about 54 KB to the first load (46 KB with a state colour), and a 
 ### Attribution
 
 Which sources the elevation tiles use depends on the zoom (https://github.com/tilezen/joerd/blob/master/docs/data-sources.md): at zooms 7 and 8, SRTM on land (GMTED2010 above 60°N) and ETOPO1 at sea. EU-DEM and national models only start at zooms 9–10.
-- **Checked:** the `x-amz-meta-x-imagery-sources` header of every tile used for Levels 1–3 (1,590 tiles; 1,560 for Levels 1 and 2, 1,260 for Level 1 before) lists only `srtm`, `gmted` and `etopo1`. The generator now records these headers and writes the sources to `relief.json` (`elevationSources`), and a test fails if any other source appears. Level 2's area adds no credit: Italy, Switzerland and Austria at zooms 7–8 come from SRTM, like the rest. Nor does Level 3's: Poland, Czechia, Slovakia and their neighbours come from SRTM (GMTED2010 north of 60°N), and the sea from ETOPO1.
+- **Checked:** the `x-amz-meta-x-imagery-sources` header of every tile used for Levels 1–3 (1,590 tiles; 1,560 for Levels 1 and 2, 1,260 for Level 1 before) lists only `srtm`, `gmted` and `etopo1`. The generator now records these headers and writes the sources to `relief.json` (`elevationSources`), and a test fails if any other source appears. Level 2's area adds no credit: Italy, Switzerland and Austria at zooms 7–8 come from SRTM, like the rest. Nor does Level 3's: Poland, Czechia, Slovakia and their neighbours come from SRTM (GMTED2010 north of 60°N), and the sea from ETOPO1. Nor Level 5's (checked 2026-10-02): its overview and the grown grid (all the tiles read for every level: 7,687 SRTM, 1,588 GMTED2010 and 1,168 ETOPO1 entries in the headers) name no other source; the Balkans, Greece's islands and western Turkey are SRTM, the Aegean and the Black Sea ETOPO1. The larger Natural Earth box needs no credit either: Natural Earth is public domain ("Made with Natural Earth" is appreciated, not required, and "About the map" already names it).
 - **Required credits** (from https://github.com/tilezen/joerd/blob/master/docs/attribution.md), shown verbatim in "About the map":
 
 > Terrain Tiles by Mapzen, from the Registry of Open Data on AWS.
@@ -282,5 +296,5 @@ Result:
     - Pixel 7 size (412×915, 2.6× pixels, touch): at rest 487 MB (before: 458, +29 MB, mostly GPU memory for the copy); after the gestures 429 MB (before: 486).
     - The copy adds about 240 elements (829 against 587 on desktop) and 1.7 MB of JavaScript heap. Neither grows with repeated gestures: after 40 and 60 gestures back at the same view, the element count is unchanged.
     - Not measured in Firefox or WebKit, or on physical phones.
-- **Repository size.** The committed landscape is about 17 MB (1.6 MB overviews for three game levels, 15.8 MB tiles), against 16 MB for Levels 1 and 2 and 9.5 MB for Level 1 alone.
+- **Repository size.** The committed landscape is about 20.6 MB (2.6 MB overviews for five game levels, 18.1 MB tiles), against about 17.9 MB before Level 5 (2.0 MB overviews, 15.8 MB tiles), 16 MB for Levels 1 and 2 and 9.5 MB for Level 1 alone.
 - **Generator dependency.** Reading WorldCover needs `geotiff` (a dev dependency, used only by the script).

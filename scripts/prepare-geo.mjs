@@ -8,7 +8,7 @@
 //
 // See docs/DATA.md for the rationale behind each step.
 import mapshaper from "mapshaper";
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const input = process.argv[2];
@@ -26,19 +26,35 @@ mkdirSync(dirname(output), { recursive: true });
 // never appear on screen. Clipping also discards overseas territories (e.g.
 // French Guiana, Saint Martin, Caribbean Netherlands), so they cannot distort
 // the viewport or create border shortcuts.
-const BBOX = "-27,32,36,62";
+// Level 5 (Towards Greece) moved the east edge from 36°E to 48°E and the south
+// edge from 32°N to 29.5°N (north of the Canary Islands, which would otherwise
+// add a clipped piece of Spain); the west and north edges are unchanged.
+const BBOX = "-27,29.5,48,62";
 
 // Countries kept at full (~400 m) detail: every playable country, and the
 // neighbours visible when zoomed in. Slovakia was added with Level 3 (Central
 // Europe); it changed only its borders with Hungary and Ukraine. Level 4 (Along
 // the Adriatic) added Slovenia, Croatia, Bosnia and Herzegovina and Montenegro,
-// and Serbia, Kosovo and Albania beside Montenegro; see docs/DATA.md.
+// and Serbia, Kosovo and Albania beside Montenegro. Level 5 (Towards Greece)
+// added Hungary, Romania, Bulgaria and Greece, and North Macedonia, Moldova,
+// Turkey and Ukraine beside them; see docs/DATA.md.
 const DETAIL_IDS = [
   "FRA", "BEL", "NLD", "LUX", "DEU",
   "GBR", "IRL", "ESP", "AND", "MCO", "ITA", "SMR", "VAT", "CHE", "LIE", "AUT", "CZE", "POL", "DNK", "SVK",
   "SVN", "HRV", "BIH", "MNE", "SRB", "KOS", "ALB",
+  "HUN", "ROU", "BGR", "GRC", "MKD", "MDA", "TUR", "UKR",
 ];
 
+// TopoJSON quantization, fixed: the transform mapshaper computed for the data of
+// Levels 1–4 (lon −25.859…36, lat 32…62, quantization 1e5). Coordinates are
+// rounded on this same grid whatever the box, so every border and coast the
+// larger box leaves alone keeps exactly the same coordinates (and the shared
+// projection, fitted to Level 1's countries, is unchanged). Rounding to it here
+// reproduces the earlier file byte for byte from the earlier box; points beyond
+// the old box simply get larger (or negative) integers.
+const GRID = { xmin: -25.859486456999946, xmax: 36, ymin: 32, ymax: 62, xq: 99999, yq: 100000 };
+
+const raw = `${output}.unquantized.json`;
 const commands = [
   `-i "${input}" encoding=utf8`,
   `-filter-fields ADM0_A3,NAME_EN`,
@@ -50,18 +66,37 @@ const commands = [
   // single TopoJSON arc, so neighbouring countries stay identical and gap-free.
   // keep-shapes never deletes whole small shapes (Luxembourg, Andorra, Monaco…).
   `-simplify variable interval="${JSON.stringify(DETAIL_IDS).replaceAll('"', "'")}.includes(id) ? 400 : 1500" keep-shapes`,
-  `-o format=topojson id-field=id quantization=100000 precision=0.0001 "${output}"`,
+  `-o format=topojson id-field=id no-quantization "${raw}"`,
 ].join(" ");
 
 await mapshaper.runCommands(commands);
 
-// Rename the object to a stable name and report a short summary.
-const topo = JSON.parse(readFileSync(output, "utf8"));
+// Quantize on the fixed grid (as mapshaper's own export does: x * mx + bx, rounded),
+// delta-encode, and name the object `countries`.
+const topo = JSON.parse(readFileSync(raw, "utf8"));
+rmSync(raw);
+const mx = GRID.xq / (GRID.xmax - GRID.xmin);
+const my = GRID.yq / (GRID.ymax - GRID.ymin);
+const [bx, by] = [0 - mx * GRID.xmin, 0 - my * GRID.ymin];
+const arcs = topo.arcs.map((arc) => {
+  let [px, py] = [0, 0];
+  return arc.map(([x, y], i) => {
+    const [qx, qy] = [Math.round(x * mx + bx), Math.round(y * my + by)];
+    const point = i === 0 ? [qx, qy] : [qx - px, qy - py];
+    [px, py] = [qx, qy];
+    return point;
+  });
+});
 const [key] = Object.keys(topo.objects);
-topo.objects = { countries: topo.objects[key] };
-writeFileSync(output, JSON.stringify(topo));
+const result = {
+  type: "Topology",
+  arcs,
+  transform: { scale: [1 / mx, 1 / my], translate: [-bx / mx, -by / my] },
+  objects: { countries: topo.objects[key] },
+};
+writeFileSync(output, JSON.stringify(result));
 
-const ids = topo.objects.countries.geometries.map((g) => g.id).sort();
+const ids = result.objects.countries.geometries.map((g) => g.id).sort();
 console.log(`Wrote ${output}`);
 console.log(`${ids.length} countries: ${ids.join(", ")}`);
 console.log(`${(readFileSync(output).length / 1024).toFixed(1)} KiB`);

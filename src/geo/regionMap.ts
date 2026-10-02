@@ -41,7 +41,7 @@ const WORLD = 1000;
  * Lon/lat box the dataset is clipped to (west, south, east, north).
  * Must match BBOX in scripts/prepare-geo.mjs.
  */
-export const MAP_DATA_CLIP = [-27, 32, 36, 62] as const;
+export const MAP_DATA_CLIP = [-27, 29.5, 48, 62] as const;
 
 /**
  * Countries the shared projection is fitted to (Level 1's). Every level is drawn

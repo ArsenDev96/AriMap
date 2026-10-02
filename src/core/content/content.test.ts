@@ -50,9 +50,10 @@ describe("country content", () => {
           expect(c.hint[locale]).toBeTruthy();
         }
         const [lon, lat] = c.capital.coordinates;
+        // Europe, from Paris to Bucharest and Athens.
         expect(lon).toBeGreaterThan(-10);
-        expect(lon).toBeLessThan(25);
-        expect(lat).toBeGreaterThan(40);
+        expect(lon).toBeLessThan(30);
+        expect(lat).toBeGreaterThan(35);
         expect(lat).toBeLessThan(58);
       }
     }
@@ -141,7 +142,7 @@ describe("country content", () => {
     expect(COUNTRIES.AUT.landmark!.illustration).toBe("schonbrunn-palace");
   });
 
-  it("gives Level 4's new countries their capital and a localized landmark with a map location, shown as text until its artwork is supplied", () => {
+  it("gives Level 4's new countries their capital and a localized landmark with a map location and its own illustration", () => {
     // Country and capital names as in the English and Armenian Wikipedia article titles (docs/CONTENT.md).
     const expected: Record<string, [string, string, string, string, string, string]> = {
       SVN: ["Slovenia", "Սլովենիա", "Ljubljana", "Լյուբլյանա", "Bled Castle", "Բլեդի ամրոց"],
@@ -166,9 +167,12 @@ describe("country content", () => {
       expect(Math.hypot(dLon, dLat), `${id}: landmark at the capital`).toBeGreaterThan(0.3);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
-      // No artwork supplied yet: no illustration key, so no other country's art stands in.
-      expect(landmark.illustration, id).toBeUndefined();
     }
+    // Each its own artwork (no other country's stands in for it).
+    expect(COUNTRIES.SVN.landmark!.illustration).toBe("bled-castle");
+    expect(COUNTRIES.HRV.landmark!.illustration).toBe("dubrovnik-city-walls");
+    expect(COUNTRIES.BIH.landmark!.illustration).toBe("stari-most");
+    expect(COUNTRIES.MNE.landmark!.illustration).toBe("ostrog-monastery");
     // Italy keeps its shared content and artwork; Level 4 describes it within the Adriatic,
     // leaving the shared hint (Level 2's) unchanged.
     const [l2, l4] = [LESSONS["around-the-alps"], LESSONS["along-the-adriatic"]];
@@ -177,6 +181,49 @@ describe("country content", () => {
     expect(countryHint(l4, "ITA").en).toContain("west side of the Adriatic Sea");
     const hints = l4.countries.map((id) => countryHint(l4, id));
     for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+  });
+
+  it("gives Level 5's countries their capital and a localized landmark away from the capital, with its own illustration", () => {
+    // Country, capital and landmark names as in the English and Armenian Wikipedia article titles where
+    // one exists (docs/CONTENT.md flags our own renderings).
+    const expected: Record<string, [string, string, string, string, string, string, string, string]> = {
+      HUN: ["Hungary", "Հունգարիա", "Budapest", "Բուդապեշտ", "Esztergom Basilica", "Էստերգոմի բազիլիկ", "Էստերգոմի բազիլիկը", "esztergom-basilica"],
+      ROU: ["Romania", "Ռումինիա", "Bucharest", "Բուխարեստ", "Bran Castle", "Բրանի դղյակ", "Բրանի դղյակը", "bran-castle"],
+      SRB: ["Serbia", "Սերբիա", "Belgrade", "Բելգրադ", "Golubac Fortress", "Գոլուբաց ամրոց", "Գոլուբաց ամրոցը", "golubac-fortress"],
+      BGR: ["Bulgaria", "Բուլղարիա", "Sofia", "Սոֆիա", "Rila Monastery", "Ռիլայի վանք", "Ռիլայի վանքը", "rila-monastery"],
+      GRC: ["Greece", "Հունաստան", "Athens", "Աթենք", "Meteora", "Մետեորա", "Մետեորան", "meteora"],
+    };
+    const l5 = LESSONS["towards-greece"];
+    expect([...l5.countries].sort()).toEqual(Object.keys(expected).sort());
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, illustration]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      // The level card names it the same way as before the level was playable.
+      expect(countryName(id), id).toEqual({ en, hy });
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      expect(landmark.nameInText.hy, id).toBe(landmarkInText);
+      // Each landmark is elsewhere than the capital, with its own map location.
+      expect(landmark.coordinates, id).toBeDefined();
+      const [dLon, dLat] = [landmark.coordinates![0] - c.capital.coordinates[0], landmark.coordinates![1] - c.capital.coordinates[1]];
+      expect(Math.hypot(dLon, dLat), `${id}: landmark at the capital`).toBeGreaterThan(0.3);
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // Its own artwork (supplied 2026-10-02), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
+    }
+    // One hint per country, all different, in each language; no player-facing "lesson" wording.
+    const hints = l5.countries.map((id) => countryHint(l5, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l5.countries) {
+      const c = COUNTRIES[id];
+      for (const text of [c.hint, c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    expect(l5.regionName).toEqual({ en: "South-eastern Europe", hy: "Հարավարևելյան Եվրոպա" });
   });
 
   it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {

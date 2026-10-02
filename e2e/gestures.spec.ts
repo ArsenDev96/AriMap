@@ -1,13 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openWithSave } from "./helpers/save";
 
 /** Opens the lesson directly in a given state. */
 async function openLesson(page: Page, lesson: object) {
-  await page.goto("/");
-  await page.evaluate(
-    ([v]) => localStorage.setItem("arimap:state", v),
-    [JSON.stringify({ version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": lesson } })],
-  );
-  await page.reload();
+  await openWithSave(page, { version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": lesson } });
   await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toBeVisible();
 }
 

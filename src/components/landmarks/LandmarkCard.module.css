@@ -38,6 +38,9 @@
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  /* Only a word wider than the whole column (long Armenian words with enlarged text on a
+     narrow phone) breaks inside, rather than running out of the card. */
+  overflow-wrap: break-word;
 }
 
 .label {
@@ -130,6 +133,35 @@
   @media (max-height: 700px) {
     .wide .stage {
       padding: 4px;
+    }
+  }
+
+  /* The country card's name across the card (its data-head, LessonScreen.module.css): the art one
+     row down, beside the capital ("title"), or below the name and capital ("stacked"). */
+  :global(:where([data-head="title"]):not([data-measuring])) .stage {
+    grid-row: 2;
+  }
+
+  :global(:where([data-head="title"]):not([data-measuring])) .text {
+    grid-row: 3;
+  }
+
+  :global(:where([data-head="stacked"]):not([data-measuring])) .stage {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  :global(:where([data-head="stacked"]):not([data-measuring])) .text {
+    grid-row: 4;
+  }
+
+  /* Short phones, with the name across the card: a thinner border of tile around the art, so the
+     tile is 6px shorter while the art keeps its size (see LessonScreen.module.css). */
+  @media (max-height: 700px) {
+    :global(:where([data-head="title"], [data-head="stacked"]):not([data-measuring])) .stage {
+      width: calc(clamp(112px, 33vw, 132px) - 6px);
+      height: calc(clamp(112px, 33vw, 132px) - 6px);
+      padding: 3px;
     }
   }
 

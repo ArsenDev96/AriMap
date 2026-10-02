@@ -12,6 +12,8 @@ import alpsLand from "@/assets/map/relief/around-the-alps-land.webp";
 import alpsTone from "@/assets/map/relief/around-the-alps-tone.webp";
 import centralEuropeLand from "@/assets/map/relief/central-europe-land.webp";
 import centralEuropeTone from "@/assets/map/relief/central-europe-tone.webp";
+import towardsGreeceLand from "@/assets/map/relief/towards-greece-land.webp";
+import towardsGreeceTone from "@/assets/map/relief/towards-greece-tone.webp";
 import westernEuropeLand from "@/assets/map/relief/western-europe-1-land.webp";
 import westernEuropeTone from "@/assets/map/relief/western-europe-1-tone.webp";
 import styles from "./RegionMap.module.css";
@@ -25,6 +27,7 @@ const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: St
   "around-the-alps": { land: alpsLand, tone: alpsTone },
   "central-europe": { land: centralEuropeLand, tone: centralEuropeTone },
   "along-the-adriatic": { land: adriaticLand, tone: adriaticTone },
+  "towards-greece": { land: towardsGreeceLand, tone: towardsGreeceTone },
 };
 
 /**

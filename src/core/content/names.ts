@@ -5,15 +5,10 @@ import type { CountryId } from "./types";
 /**
  * Names of countries in levels that are not playable yet, shown on their level
  * cards. They get full content (capital, hint, landmark) in countries.ts when
- * their level is made playable, and are then removed from here.
+ * their level is made playable, and are then removed from here. Every level is
+ * playable now, so it is empty.
  */
-export const UPCOMING_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {
-  HUN: { en: "Hungary", hy: "Հունգարիա" },
-  ROU: { en: "Romania", hy: "Ռումինիա" },
-  SRB: { en: "Serbia", hy: "Սերբիա" },
-  BGR: { en: "Bulgaria", hy: "Բուլղարիա" },
-  GRC: { en: "Greece", hy: "Հունաստան" },
-};
+export const UPCOMING_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {};
 
 /** A country's base name, for playable and upcoming levels alike. */
 export function countryName(id: CountryId): LocalizedText {

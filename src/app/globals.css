@@ -178,6 +178,9 @@ button {
 
 .btn-block {
   width: 100%;
+  /* Its width is fixed, so words that fit stay whole; only a single word wider than the whole
+     button (the narrowest phones with enlarged text) breaks inside rather than running off the screen. */
+  overflow-wrap: anywhere;
 }
 
 .visually-hidden {

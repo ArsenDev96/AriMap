@@ -1,25 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { countGameSaves, openWithSave, writeSave } from "./helpers/save";
 
-/*
- * The game saves the state it loaded once it has mounted: one write, a few milliseconds after the
- * splash has gone. A saved state a test writes before then is overwritten by the one the page opened
- * with. Each page counts the game's writes, so a test can wait for that one before writing its own.
- */
-type Saves = { gameSaves?: number };
-
+// A saved state is written only once the game has made its own first save (see helpers/save.ts).
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    const setItem = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key: string, value: string) {
-      setItem.call(this, key, value);
-      if (key === "arimap:state") (window as Saves).gameSaves = ((window as Saves).gameSaves ?? 0) + 1;
-    };
-  });
+  await countGameSaves(page);
 });
-
-async function gameSaved(page: Page) {
-  await page.waitForFunction(() => ((window as Saves).gameSaves ?? 0) > 0);
-}
 
 const NAMES: Record<string, string> = {
   France: "FRA",
@@ -530,13 +515,7 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
     await page.setViewportSize({ width, height });
     for (const locale of ["en", "hy"]) {
       // Discover with every country selected in turn.
-      await page.goto("/");
-      await gameSaved(page);
-      await page.evaluate(
-        ([key, value]) => localStorage.setItem(key, value),
-        ["arimap:state", JSON.stringify({ version: 1, locale, screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "discover" } } })],
-      );
-      await page.reload();
+      await openWithSave(page, { version: 1, locale, screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "discover" } } });
       await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toBeVisible();
       await expect(page.locator("html")).toHaveAttribute("lang", locale);
       for (const id of ["FRA", "BEL", "NLD", "LUX", "DEU"]) {
@@ -583,19 +562,12 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
       }
 
       // Travel: Hint, Undo and Restart are reachable and not covered.
-      await page.evaluate(
-        ([key, value]) => localStorage.setItem(key, value),
-        [
-          "arimap:state",
-          JSON.stringify({
-            version: 1,
-            locale,
-            screen: "lesson",
-            lessons: { "western-europe-1": { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "LUX"] } } },
-          }),
-        ],
-      );
-      await page.reload();
+      await writeSave(page, {
+        version: 1,
+        locale,
+        screen: "lesson",
+        lessons: { "western-europe-1": { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "LUX"] } } },
+      });
       await expect(page.getByTestId("travel-tools")).toBeAttached();
       await toBottom();
       const tools = await box("travel-tools");
@@ -630,10 +602,8 @@ test("Luxembourg's name stays close to Luxembourg on a 320px map", async ({ page
     });
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto("/");
-  await gameSaved(page);
   for (const selected of [null, "FRA", "BEL", "NLD", "LUX", "DEU"]) {
-    await page.evaluate((v) => localStorage.setItem("arimap:state", v), lesson(selected));
-    await page.reload();
+    await writeSave(page, lesson(selected));
     await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toBeVisible();
     for (const round of ["as opened", "toggled"]) {
       if (round === "toggled") await page.getByTestId("inset-toggle").click();
@@ -657,8 +627,7 @@ test("Luxembourg's name stays close to Luxembourg on a 320px map", async ({ page
     }
   }
   // A close-up the player closed stays closed while they keep exploring.
-  await page.evaluate((v) => localStorage.setItem("arimap:state", v), lesson("BEL"));
-  await page.reload();
+  await writeSave(page, lesson("BEL"));
   await expect(page.getByTestId("map-inset")).toHaveCount(1);
   await page.getByTestId("inset-toggle").click();
   await expect(page.getByTestId("map-inset")).toHaveCount(0);
@@ -671,15 +640,13 @@ test("Luxembourg's name stays close to Luxembourg on a 320px map", async ({ page
 
 test("only Discover opens the close-up by itself; the traveller replaces Luxembourg's dot", async ({ page }) => {
   test.skip(test.info().project.name !== "small-phone", "Runs once, at 320px.");
-  const save = (lesson: object) =>
-    page.evaluate((v) => localStorage.setItem("arimap:state", v), JSON.stringify({ version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": lesson } }));
+  const save = (lesson: object) => writeSave(page, { version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": lesson } });
   const closeUp = page.getByTestId("map-inset");
   await page.goto("/");
 
   // Find: a wrong answer, then Luxembourg as the answer, never open the close-up.
   const order = ["LUX", "FRA", "NLD", "BEL", "DEU"];
   await save({ started: true, stage: "find", find: { order, index: 0, question: { target: "LUX", wrongGuesses: [], hintLevel: 0, solved: false, feedback: null }, results: [], status: "asking" } });
-  await page.reload();
   await expect(page.getByTestId("find-prompt")).toBeVisible();
   await expect(page.locator('[data-testid="map-main"] path[data-country="DEU"]')).toBeVisible();
   await tapCountry(page, "DEU");
@@ -695,7 +662,6 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
   for (const reducedMotion of ["no-preference", "reduce"] as const) {
     await page.emulateMedia({ reducedMotion });
     await save({ started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA"] } });
-    await page.reload();
     await page.getByTestId("travel-tools").getByRole("button", { name: "Hint" }).click();
     const lux = page.locator('[data-testid="map-main"] [data-callout="LUX"]');
     const dot = lux.locator("[data-leader-dot]");
@@ -731,7 +697,6 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
   // takes the best clear spot on the main map, or is left out, never overprinted.
   await page.setViewportSize({ width: 800, height: 500 });
   await save({ started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "BEL"] } });
-  await page.reload();
   await expect(closeUp).toHaveCount(0);
   await page.getByTestId("move-LUX").click();
   await expect(page.locator("[data-crowded]")).toHaveCount(1);
@@ -742,7 +707,6 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
 
   // The close-up stays available: opened by hand in Travel, it stays open while moving.
   await save({ started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA"] } });
-  await page.reload();
   await page.getByTestId("inset-toggle").click();
   await expect(closeUp).toHaveCount(1);
   await page.getByTestId("move-LUX").click();
@@ -755,15 +719,7 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
 test("reduced motion shows every map change in its final state", async ({ page }) => {
   test.skip(test.info().project.name !== "desktop", "Runs once.");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  await gameSaved(page);
-  await page.evaluate(() =>
-    localStorage.setItem(
-      "arimap:state",
-      JSON.stringify({ version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA"] } } } }),
-    ),
-  );
-  await page.reload();
+  await openWithSave(page, { version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA"] } } } });
   await page.getByTestId("move-BEL").click();
   const animations = () =>
     page.evaluate(() =>
@@ -787,15 +743,7 @@ test("a large country's name stays inside it when its label point is under the c
   // France's label point lies under the close-up. Its name became a bottom-edge
   // callout over the close-up toggle, with its leader running behind the panel.
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  await gameSaved(page);
-  await page.evaluate(() =>
-    localStorage.setItem(
-      "arimap:state",
-      JSON.stringify({ version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "discover", discover: { selected: "FRA", explored: ["FRA"] } } } }),
-    ),
-  );
-  await page.reload();
+  await openWithSave(page, { version: 1, locale: "en", screen: "lesson", lessons: { "western-europe-1": { started: true, stage: "discover", discover: { selected: "FRA", explored: ["FRA"] } } } });
   await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toBeVisible();
   for (let i = 0; i < 2; i++) {
     await page.getByRole("button", { name: "Zoom in" }).click();
@@ -845,15 +793,11 @@ test("a large country's name stays inside it when its label point is under the c
 test("malformed saved data falls back safely", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
-  await gameSaved(page);
-  await page.evaluate(() => localStorage.setItem("arimap:state", '{"version":1,"locale":"hy","screen":"lesson","lessons":{"western-europe-1":{"started":true,"stage":"travel","travel":{"missionId":"fra-to-nld","path":["FRA","NLD"]}}}}'));
-  await page.reload();
+  await openWithSave(page, '{"version":1,"locale":"hy","screen":"lesson","lessons":{"western-europe-1":{"started":true,"stage":"travel","travel":{"missionId":"fra-to-nld","path":["FRA","NLD"]}}}}');
   // Invalid journey is dropped; language kept; lesson resumes at Discover.
   await expect(page.locator("html")).toHaveAttribute("lang", "hy");
   await expect(page.getByRole("heading", { name: "Հպիր երկրին՝ դրա մասին իմանալու համար։" })).toBeVisible();
-  await page.evaluate(() => localStorage.setItem("arimap:state", "garbage{"));
-  await page.reload();
+  await writeSave(page, "garbage{");
   await expect(page.getByRole("heading", { name: "AriMap" })).toBeVisible();
   expect(errors).toEqual([]);
 });

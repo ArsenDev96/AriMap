@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { geoContains, geoDistance } from "d3-geo";
+import { geoBounds, geoContains, geoDistance } from "d3-geo";
 import { feature, mesh } from "topojson-client";
 import type { Feature, MultiLineString, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
@@ -15,9 +15,18 @@ const topology = topologyJson as unknown as Topology<{ countries: GeometryCollec
 const EARTH_KM = 6371;
 const km = (a: LonLat, b: LonLat) => geoDistance([...a], [...b]) * EARTH_KM;
 
+const shapes = new Map<CountryId, Feature<Polygon | MultiPolygon>>();
 function shapeOf(id: CountryId) {
-  const g = topology.objects.countries.geometries.find((x) => x.id === id)!;
-  return feature(topology, g) as Feature<Polygon | MultiPolygon>;
+  if (!shapes.has(id)) shapes.set(id, feature(topology, topology.objects.countries.geometries.find((x) => x.id === id)!) as Feature<Polygon | MultiPolygon>);
+  return shapes.get(id)!;
+}
+
+/** Whether a point lies in the country; its bounding box is checked first, as there are 74 countries to try. */
+const boxes = new Map<CountryId, [[number, number], [number, number]]>();
+function inCountry(id: CountryId, p: LonLat) {
+  if (!boxes.has(id)) boxes.set(id, geoBounds(shapeOf(id)));
+  const [[x0, y0], [x1, y1]] = boxes.get(id)!;
+  return p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1 && geoContains(shapeOf(id), [...p]);
 }
 
 function sharedBorder(a: CountryId, b: CountryId): MultiLineString {
@@ -95,7 +104,7 @@ for (const lesson of Object.values(LESSONS)) {
           if (link) {
             // A declared fixed link (a bridge inside the country) may cross water, but never another country.
             for (const p of drawnSamples(lesson, line[i - 1], line[i])) {
-              for (const id of ALL_IDS.filter((x) => x !== country)) expect(geoContains(shapeOf(id), [...p]), `${link.name} enters ${id}`).toBe(false);
+              for (const id of ALL_IDS.filter((x) => x !== country)) expect(inCountry(id, p), `${link.name} enters ${id}`).toBe(false);
             }
             continue;
           }
@@ -154,6 +163,10 @@ for (const lesson of Object.values(LESSONS)) {
       if (lesson.id === "along-the-adriatic") {
         expect(paths.map((p) => p.join("→"))).toEqual(["ITA→SVN→HRV→MNE"]);
       }
+      // Two: through Romania or Serbia, then Bulgaria, Greece's only neighbour here.
+      if (lesson.id === "towards-greece") {
+        expect(paths.map((p) => p.join("→")).sort()).toEqual(["HUN→ROU→BGR→GRC", "HUN→SRB→BGR→GRC"]);
+      }
       for (const path of paths) {
         const line = routeLine(path, settings);
         const others = lesson.countries.filter((id) => !path.includes(id));
@@ -187,5 +200,28 @@ describe("central-europe: reuses Level 2's Germany–Austria line", () => {
     expect(routeLine(["DEU", "AUT"], routeSettings(central))).toHaveLength(5);
     // Level 3's other legs need no turning points.
     expect(Object.keys(central.map.routeVia ?? {}).sort()).toEqual(["AUT@AUT-DEU", "DEU@AUT-DEU"]);
+  });
+});
+
+describe("towards-greece: Greece's leg runs up its own mainland", () => {
+  const lesson = LESSONS["towards-greece"];
+  const line = routeLine(["BGR", "GRC"], routeSettings(lesson));
+
+  it("turns only on the Bulgarian–Greek border's legs; every other move is straight", () => {
+    expect(Object.keys(lesson.map.routeVia ?? {}).sort()).toEqual(["BGR@BGR-GRC", "GRC@BGR-GRC"]);
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+    // Sofia, a turning point near Smolyan, the crossing in the Rhodopes, three in Greece, Athens.
+    expect(line).toHaveLength(7);
+  });
+
+  it("never crosses the sea: every point drawn is on Greek or Bulgarian land, clear of North Macedonia and Turkey", () => {
+    for (let i = 1; i < line.length; i++) {
+      for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
+        const crossing = lesson.map.routeCrossings!["BGR-GRC"];
+        if (km(p, crossing) <= BORDER_TOLERANCE_KM) continue;
+        expect(geoContains(shapeOf("GRC"), [...p]) || geoContains(shapeOf("BGR"), [...p]), `${p} at sea or abroad`).toBe(true);
+        for (const id of ["MKD", "TUR", "ALB"]) expect(geoContains(shapeOf(id), [...p]), `${p} in ${id}`).toBe(false);
+      }
+    }
   });
 });

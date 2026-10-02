@@ -24,6 +24,7 @@ export const en = {
   "welcome.playAgainKeep": "Not now",
   "welcome.upNext": "Up next",
   "welcome.allDone": "You've completed every level that's ready. More are coming soon.",
+  "welcome.allComplete": "You've completed all {count} levels! Play any of them again whenever you like.",
   "welcome.stepDone": "{step}: done",
   "welcome.stepTodo": "{step}: not done yet",
 

@@ -1,31 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-
-/*
- * The game saves the state it loaded once it has mounted: one write, a few milliseconds after the
- * splash has gone. A saved state a test writes before then is overwritten by the one the page opened
- * with. Each page counts the game's writes, so a test can wait for that one before writing its own.
- */
-type Saves = { gameSaves?: number };
-
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    const setItem = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key: string, value: string) {
-      setItem.call(this, key, value);
-      if (key === "arimap:state") (window as Saves).gameSaves = ((window as Saves).gameSaves ?? 0) + 1;
-    };
-  });
-});
+import { openWithSave } from "./helpers/save";
 
 /** Opens the lesson directly in a given state. */
 async function openLesson(page: Page, lesson: object, locale = "en") {
-  await page.goto("/");
-  await page.waitForFunction(() => ((window as Saves).gameSaves ?? 0) > 0);
-  await page.evaluate(
-    ([v]) => localStorage.setItem("arimap:state", v),
-    [JSON.stringify({ version: 1, locale, screen: "lesson", lessons: { "western-europe-1": lesson } })],
-  );
-  await page.reload();
+  await openWithSave(page, { version: 1, locale, screen: "lesson", lessons: { "western-europe-1": lesson } });
   await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toBeVisible();
 }
 

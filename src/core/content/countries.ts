@@ -250,8 +250,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "bratislava-castle",
     },
   },
-  // Level 4's new countries. Their landmarks have no illustration yet: the Discover
-  // card shows them as text (docs/CONTENT.md has the prompts and file names).
+  // Level 4's new countries, each with its own landmark illustration (docs/CONTENT.md).
   SVN: {
     id: "SVN",
     name: { en: "Slovenia", hy: "Սլովենիա" },
@@ -272,6 +271,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // At Lake Bled, not the capital.
       coordinates: [14.1005, 46.3697],
+      illustration: "bled-castle",
     },
   },
   HRV: {
@@ -295,6 +295,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       // In Dubrovnik, in Croatia's far south (cut off from the rest by Bosnia and
       // Herzegovina's coast at Neum), not the capital. The point is the Minčeta Tower.
       coordinates: [18.1084, 42.643],
+      illustration: "dubrovnik-city-walls",
     },
   },
   BIH: {
@@ -317,6 +318,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In Mostar, not the capital.
       coordinates: [17.8151, 43.3373],
+      illustration: "stari-most",
     },
   },
   MNE: {
@@ -340,6 +342,123 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // The upper monastery, north-west of Podgorica, not in the capital.
       coordinates: [19.0306, 42.6747],
+      illustration: "ostrog-monastery",
+    },
+  },
+  // Level 5's countries.
+  HUN: {
+    id: "HUN",
+    name: { en: "Hungary", hy: "Հունգարիա" },
+    nameInText: { en: "Hungary", hy: "Հունգարիան" },
+    capital: { name: { en: "Budapest", hy: "Բուդապեշտ" }, coordinates: [19.0514, 47.4925] },
+    hint: {
+      en: "A country with no coast in the north-west of this region, on wide plains crossed by the Danube.",
+      hy: "Երկիր առանց ծովի՝ տարածաշրջանի հյուսիս-արևմուտքում, լայն հարթավայրերով, որոնցով հոսում է Դանուբը։",
+    },
+    label: { coordinates: [19.5, 47.1] },
+    landmark: {
+      id: "esztergom-basilica",
+      name: { en: "Esztergom Basilica", hy: "Էստերգոմի բազիլիկ" },
+      nameInText: { en: "Esztergom Basilica", hy: "Էստերգոմի բազիլիկը" },
+      fact: {
+        en: "Completed in 1869, Hungary's largest church rises 100 metres from its crypt to the top of its dome.",
+        hy: "Հունգարիայի ամենամեծ եկեղեցին ավարտվել է 1869 թվականին։ Ստորին եկեղեցուց մինչև գմբեթի գագաթը նրա բարձրությունը 100 մետր է։",
+      },
+      // In Esztergom, on the Danube north-west of Budapest, not the capital.
+      coordinates: [18.7364, 47.7989],
+      illustration: "esztergom-basilica",
+    },
+  },
+  ROU: {
+    id: "ROU",
+    name: { en: "Romania", hy: "Ռումինիա" },
+    nameInText: { en: "Romania", hy: "Ռումինիան" },
+    capital: { name: { en: "Bucharest", hy: "Բուխարեստ" }, coordinates: [26.1039, 44.4325] },
+    hint: {
+      en: "The largest country in this region, with the arc of the Carpathians and a coast on the Black Sea.",
+      hy: "Տարածաշրջանի ամենամեծ երկիրը՝ Կարպատների աղեղով և Սև ծովի ափով։",
+    },
+    label: { coordinates: [24.9, 45.95] },
+    landmark: {
+      id: "bran-castle",
+      name: { en: "Bran Castle", hy: "Բրանի դղյակ" },
+      nameInText: { en: "Bran Castle", hy: "Բրանի դղյակը" },
+      fact: {
+        en: "Begun in 1377 on a rock above a mountain pass, it guarded the road into Transylvania.",
+        hy: "Կառուցումը սկսվել է 1377 թվականին՝ լեռնանցքի վերևում գտնվող ժայռի վրա։ Այն հսկում էր դեպի Տրանսիլվանիա տանող ճանապարհը։",
+      },
+      // Near Brașov, in the Carpathians, not the capital.
+      coordinates: [25.3672, 45.515],
+      illustration: "bran-castle",
+    },
+  },
+  SRB: {
+    id: "SRB",
+    name: { en: "Serbia", hy: "Սերբիա" },
+    nameInText: { en: "Serbia", hy: "Սերբիան" },
+    capital: { name: { en: "Belgrade", hy: "Բելգրադ" }, coordinates: [20.4569, 44.8178] },
+    hint: {
+      en: "A country with no coast in the west of this region, just south of Hungary.",
+      hy: "Երկիր առանց ծովի՝ տարածաշրջանի արևմուտքում, Հունգարիայից անմիջապես հարավ։",
+    },
+    label: { coordinates: [20.85, 44.05] },
+    landmark: {
+      id: "golubac-fortress",
+      name: { en: "Golubac Fortress", hy: "Գոլուբաց ամրոց" },
+      nameInText: { en: "Golubac Fortress", hy: "Գոլուբաց ամրոցը" },
+      fact: {
+        en: "First mentioned in 1335, it guards the Danube where the river enters the Iron Gates gorge.",
+        hy: "Առաջին անգամ հիշատակվել է 1335 թվականին։ Այն հսկում է Դանուբն այնտեղ, որտեղ գետը մտնում է Երկաթե դարպասների կիրճը։",
+      },
+      // On the Danube, east of Belgrade, not the capital.
+      coordinates: [21.6785, 44.6612],
+      illustration: "golubac-fortress",
+    },
+  },
+  BGR: {
+    id: "BGR",
+    name: { en: "Bulgaria", hy: "Բուլղարիա" },
+    nameInText: { en: "Bulgaria", hy: "Բուլղարիան" },
+    capital: { name: { en: "Sofia", hy: "Սոֆիա" }, coordinates: [23.3242, 42.6975] },
+    hint: {
+      en: "A country on the Black Sea, between the Danube in the north and Greece in the south.",
+      hy: "Երկիր Սև ծովի ափին՝ հյուսիսում Դանուբի և հարավում Հունաստանի միջև։",
+    },
+    label: { coordinates: [25.2, 42.75] },
+    landmark: {
+      id: "rila-monastery",
+      name: { en: "Rila Monastery", hy: "Ռիլայի վանք" },
+      nameInText: { en: "Rila Monastery", hy: "Ռիլայի վանքը" },
+      fact: {
+        en: "Founded in the 10th century by the hermit John of Rila; after a fire it was rebuilt in 1834–1862.",
+        hy: "Հիմնադրել է ճգնավոր Հովհաննես Ռիլայեցին 10-րդ դարում։ Հրդեհից հետո այն վերակառուցվել է 1834–1862 թվականներին։",
+      },
+      // In the Rila Mountains, south of Sofia, not the capital.
+      coordinates: [23.3403, 42.1333],
+      illustration: "rila-monastery",
+    },
+  },
+  GRC: {
+    id: "GRC",
+    name: { en: "Greece", hy: "Հունաստան" },
+    nameInText: { en: "Greece", hy: "Հունաստանը" },
+    capital: { name: { en: "Athens", hy: "Աթենք" }, coordinates: [23.7281, 37.9842] },
+    hint: {
+      en: "The southernmost country of this region: a mountainous peninsula with many islands.",
+      hy: "Տարածաշրջանի ամենահարավային երկիրը՝ բազմաթիվ կղզիներով լեռնային թերակղզի։",
+    },
+    label: { coordinates: [21.95, 39.45] },
+    landmark: {
+      id: "meteora",
+      name: { en: "Meteora", hy: "Մետեորա" },
+      nameInText: { en: "Meteora", hy: "Մետեորան" },
+      fact: {
+        en: "Monks settled on these sandstone pillars from the 11th century; 24 monasteries were built on them.",
+        hy: "11-րդ դարից վանականները բնակություն են հաստատել այս ավազաքարե ժայռասյուների վրա, որտեղ կառուցվել է 24 վանք։",
+      },
+      // The Monastery of Great Meteoron, in Thessaly, not the capital.
+      coordinates: [21.6244, 39.7239],
+      illustration: "meteora",
     },
   },
 };

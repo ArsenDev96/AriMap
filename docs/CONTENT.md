@@ -228,11 +228,17 @@ As in Level 3, a country's description is its hint, shown in Discover and repeat
 | Bosnia and Herzegovina | A mountainous country between Croatia and Montenegro, whose only coast, at Neum, is about 20 km long. | The country's own; 20 km is the Factbook's figure (some sources give 21–24.5 km). |
 | Montenegro | A small mountainous country on the Adriatic in the south-east of this region, south of Bosnia and Herzegovina. | The country's own. |
 
-### Illustrations (missing)
+### Illustrations
 
-No artwork for the four new landmarks has been supplied: no originals exist in `public/images/landmarks/`, and none were found elsewhere on the machine this was prepared on. Their Discover cards use the existing text-only layout (`data-art="none"`): the map's amber landmark mark beside the landmark's name and fact, across the card, with no empty frame and no other country's art standing in. The level is fully playable without them, and Find never shows artwork anyway.
+Bled Castle, the City Walls of Dubrovnik, Stari Most and Ostrog Monastery were supplied on 2026-10-01 and integrated with the four steps in Level 3's "Illustrations" section (`node scripts/prepare-landmarks.mjs`, which left the eleven existing copies byte-identical; `illustration: "<key>"` in `countries.ts`; the import into `LANDMARK_IMAGES`; the expectations in `content.test.ts` and `e2e/level4.spec.ts`). Until then their cards used the text-only layout (`data-art="none"`), which remains for any landmark without artwork. Italy keeps the Colosseum. Find never shows artwork.
 
-To add them later, generate each with the prompt below, save the original under its exact file name, then follow the four integration steps in Level 3's "Illustrations" section (`node scripts/prepare-landmarks.mjs`; `illustration: "<key>"` in `countries.ts`; import into `LANDMARK_IMAGES`; update `content.test.ts` and `e2e/level4.spec.ts`, which currently expect these four cards to be text only). Art at least 2:1 after trimming gets the wide phone layout automatically.
+Trimmed, they are 0.96–1.20:1 (Ostrog Monastery 690×720, the others 720×598 to 720×694), well below 2:1, so each uses the square tile beside the country's name on phones, like the other ordinary art. The briefs asked for wide compositions (and Ostrog for a tall or square one); the supplied art is nearly square instead, which suits the square tile. At 320×568 and 390×844 in both languages, and on desktop, the country's name (Bosnia and Herzegovina's included), its capital and the whole artwork show together above the pinned button without scrolling, uncropped and undistorted, and the card opens at its top (`e2e/level4.spec.ts`, "Level 4's landmark illustrations"). At 200% text on a 320×568 phone, choosing each country on the map opens its card at the top, the panel keeps its room to read (the map gives it height at enlarged text: `.mapArea` and `.panel` in `LessonScreen.module.css`), and the whole card, art included, is reached by scrolling.
+
+**Names too long to sit beside the art (every level).** Beside the square tile, a country name's longest word sometimes does not fit the column left for it (134 px at 320 px wide). At the default text size this happens only in Armenian at 320 px: «Հերցեգովինա» (13 px too wide) and «Չեռնոգորիա» (0.6 px), as with Level 1's «Նիդեռլանդներ» (24 px) and «Լյուքսեմբուրգ» (14 px); at 390 px every name fits. With enlarged text it is common in both languages (17 of the 30 illustrated cards at 150% at 320 px, 25 at 200%), because the tile keeps its size while the name grows. Such a card puts the name across its full width instead, with the capital beside the art beneath it; if the capital doesn't fit beside the art either, it too goes across, with the art below (`useCardHeadLayout` in `DiscoverPanel.tsx`, measured from the loaded font and the card's width before the card is painted, and again after a resize, a change of text size or language, or fonts loading). Cards whose name fits keep the side-by-side layout, and desktop is unchanged. On short phones such a card has slightly tighter spacing (and 3 px instead of 6 px of tile around the art, which keeps its size), so at 320×568 the name, capital and whole art still sit above the pinned button. A word now breaks inside only if it is wider than the whole card.
+
+Alt text follows the existing pattern, with the in-sentence name: "Illustration of Bled Castle" / «Նկարազարդում՝ Բլեդի ամրոցը», "Illustration of the city walls of Dubrovnik" / «Նկարազարդում՝ Դուբրովնիկի պարիսպները», "Illustration of Stari Most" / «Նկարազարդում՝ Մոստարի կամուրջը», "Illustration of Ostrog Monastery" / «Նկարազարդում՝ Օստրոգի վանքը».
+
+The briefs they were requested with:
 
 | Landmark | Save the original to | Key | Content |
 |---|---|---|---|
@@ -257,9 +263,115 @@ Each starts with the shared style paragraph (Level 2's, above: clean dark navy o
 4. **`ostrog-monastery.png`**
    > [style paragraph] Subject: Ostrog Monastery in Montenegro. A gleaming white monastery building with small arched windows and a few red-tiled roof edges, built into the face of a tall, almost vertical light-grey rock cliff, so the cliff rises above and around it. Below it, a short green slope with a few small trees. Tall or square artwork within the frame.
 
+## Level 5: Towards Greece
+
+Hungary, Romania, Serbia, Bulgaria and Greece are all new. Their content was checked on 2026-10-02. Level 5 keeps the stable id its card had while it was coming soon (`towards-greece`), and its title, description and country order.
+
+### Capitals and landmarks
+
+| Country | Capital | Capital (lat, lon) | Landmark | Landmark (lat, lon) | Fact (English) | Sources |
+|---|---|---|---|---|---|---|
+| Hungary (Հունգարիա) | Budapest (Բուդապեշտ) | 47.4925, 19.0514 | Esztergom Basilica, Esztergom (Էստերգոմի բազիլիկ) | 47.7989, 18.7364 | Completed in 1869, Hungary's largest church rises 100 metres from its crypt to the top of its dome. | [Visit Esztergom (the town's official tourism site): Basilica of Esztergom](https://visitesztergom.hu/en/sights/basilica-of-esztergom/) ("In terms of dimensions, the Esztergom Basilica is the largest church building in Hungary"; "it is 100 meters high from the lower church to the sphere of the dome"; built 1822–1869, "The capstone was finally laid on November 1, 1869"); [Wikipedia: Esztergom Basilica](https://en.wikipedia.org/wiki/Esztergom_Basilica) (47.79889 N, 18.73639 E); [Wikipedia: Budapest](https://en.wikipedia.org/wiki/Budapest) (47.4925 N, 19.05139 E) |
+| Romania (Ռումինիա) | Bucharest (Բուխարեստ) | 44.4325, 26.1039 | Bran Castle, near Brașov (Բրանի դղյակ) | 45.5150, 25.3672 | Begun in 1377 on a rock above a mountain pass, it guarded the road into Transylvania. | [Bran Castle (official): Bran Fortress](https://www.bran-castle.com/en/fortareata-bran/) (19 November 1377: Louis I of Anjou's privilege to the people of Brașov to build "a new fortress on Dietrich's rock"; its purpose "to intercept the road leading to Transylvania, including the pass"); [Wikipedia: Bran Castle](https://en.wikipedia.org/wiki/Bran_Castle) (completed 1388; 45.515 N, 25.36722 E); [Wikipedia: Bucharest](https://en.wikipedia.org/wiki/Bucharest) (44.4325 N, 26.10389 E) |
+| Serbia (Սերբիա) | Belgrade (Բելգրադ) | 44.8178, 20.4569 | Golubac Fortress (Գոլուբաց ամրոց) | 44.6612, 21.6785 | First mentioned in 1335, it guards the Danube where the river enters the Iron Gates gorge. | [Golubac Fortress (official): history](https://tvrdjavagolubackigrad.rs/eng/history/) ("mentioned for the first time in 1335"; "built at the entrance of the Iron Gate gorge, a place where the Danube's widest stream flows into a pass of the Carpathian Mountains"); [Wikipedia: Golubac Fortress](https://en.wikipedia.org/wiki/Golubac_Fortress) (ten towers; 44.66119 N, 21.67848 E); [Wikipedia: Belgrade](https://en.wikipedia.org/wiki/Belgrade) (44.81778 N, 20.45694 E) |
+| Bulgaria (Բուլղարիա) | Sofia (Սոֆիա) | 42.6975, 23.3242 | Rila Monastery (Ռիլայի վանք) | 42.1333, 23.3403 | Founded in the 10th century by the hermit John of Rila; after a fire it was rebuilt in 1834–1862. | [UNESCO World Heritage Centre: Rila Monastery](https://whc.unesco.org/en/list/216) ("founded in the 10th century by St John of Rila, a hermit canonized by the Orthodox Church"; "Destroyed by fire at the beginning of the 19th century, the complex was rebuilt between 1834 and 1862"; inscribed 1983); [Wikipedia: Rila Monastery](https://en.wikipedia.org/wiki/Rila_Monastery) (42.13333 N, 23.34028 E); Sofia: GeoNames 727011 (42.69751 N, 23.32415 E; the Wikipedia article gives only 42.7 N, 23.33 E) |
+| Greece (Հունաստան) | Athens (Աթենք) | 37.9842, 23.7281 | Meteora (Մետեորա) | 39.7239, 21.6244 (the Monastery of Great Meteoron) | Monks settled on these sandstone pillars from the 11th century; 24 monasteries were built on them. | [UNESCO World Heritage Centre: Meteora](https://whc.unesco.org/en/list/455) ("In a region of almost inaccessible sandstone peaks, monks settled on these 'columns of the sky' from the 11th century onwards. Twenty-four of these monasteries were built…"; inscribed 1988); [Wikipedia: Monastery of Great Meteoron](https://en.wikipedia.org/wiki/Monastery_of_Great_Meteoron) (39.72389 N, 21.62444 E); [Wikipedia: Athens](https://en.wikipedia.org/wiki/Athens) (37.98417 N, 23.72806 E) |
+
+Notes:
+
+- **No landmark is in its capital.** Esztergom is 41 km north-west of Budapest; Bran is in the Carpathians near Brașov, 134 km north-west of Bucharest; Golubac is on the Danube 98 km east of Belgrade; Rila Monastery is in the Rila Mountains 63 km south of Sofia; Meteora is in Thessaly, 266 km north-west of Athens (straight-line distances). Each pin is the monument's own coordinate, separate from the capital marker, and each lies inside its country in the map data (`src/geo/regionMap.test.ts`): Esztergom Basilica 1.9 km and Golubac Fortress 2.8 km from the nearest vertex of the Danube border, the others far from any edge.
+- **Esztergom Basilica**: "100 metres from its crypt to the top of its dome" is the official site's "from the lower church to the sphere of the dome". It was consecrated in 1856 and finished in 1869; the fact uses the completion.
+- **Bran Castle**: begun after the privilege of 1377 and finished in 1388 (Wikipedia; the official page quotes the 1377 document). Its popular name "Dracula's Castle" is left out: the link with Bram Stoker's novel is a tourism tradition, not history, and the fact keeps to what the castle was built for.
+- **Golubac Fortress**: the official site's history page says it was first mentioned in 1335, as a fortification with a Hungarian garrison; who built it first is uncertain, so the fact says "first mentioned", not "built". Its ten towers are left out of the fact (from Wikipedia, not the official page) but described in the artwork brief.
+- **Rila Monastery**: today's buildings date from the rebuilding after the fire (1834–1862, UNESCO); the fact says so, so "founded in the 10th century" isn't read as the age of what stands.
+- **Meteora** is a group of monasteries, not one building. Like Ostrog Monastery's upper monastery, its pin is one monument: the Great Meteoron, the largest, on its own rock. The fact counts the 24 monasteries built (UNESCO), not those still in use (six).
+- **Sofia's coordinate** is GeoNames', because the Wikipedia article's is rounded to 0.01°; it is the city centre (by the St Nedelya church), 0.5 km from the Wikipedia value.
+- UNESCO's pages refused automated requests (as for Level 4), so their wording was confirmed from their search listings; Bran Castle's official page was confirmed the same way.
+
+### Names in Armenian
+
+Country and capital names are the titles of their Armenian Wikipedia articles (checked 2026-10-02 through the MediaWiki API, `prop=langlinks`): Հունգարիա, Ռումինիա, Սերբիա, Բուլղարիա, Հունաստան; Բուդապեշտ, Բուխարեստ, Բելգրադ, Սոֆիա, Աթենք. The country names are unchanged from the level card (`src/core/content/names.ts` held them while the level was coming soon). The in-sentence forms add the definite article: Հունգարիան, Ռումինիան, Սերբիան, Բուլղարիան, Հունաստանը.
+
+| English | Eastern Armenian | Status |
+|---|---|---|
+| Esztergom Basilica | Էստերգոմի բազիլիկ | **Our rendering**: no Armenian article. «Էստերգոմ» is the town's article title. |
+| Bran Castle | Բրանի դղյակ | The Armenian article's title. |
+| Golubac Fortress | Գոլուբաց ամրոց | The Armenian article's title. |
+| Rila Monastery | Ռիլայի վանք | **Our rendering**, shortened: the article's title is «Ռիլայի վանական համալիր» ("Rila monastic complex"). «Ռիլայի վանք» matches the English, the Bulgarian «Рилски манастир» and Level 4's «Օստրոգի վանք». |
+| Meteora | Մետեորա | The Armenian article's title; in a sentence «Մետեորան». |
+| South-eastern Europe (the region's name) | Հարավարևելյան Եվրոպա | The Armenian article's title. |
+| Danube, Iron Gates, Transylvania, Carpathians, Black Sea (facts and hints) | Դանուբ, Երկաթե դարպասներ, Տրանսիլվանիա, Կարպատներ, Սև ծով | Article titles. |
+| John of Rila | Հովհաննես Ռիլայեցի | From the «Ռիլայի վանական համալիր» article («Հովհաննես Ռիլայեցու»); no article of his own. |
+
+Flagged for a native speaker's check (not presented as established usage):
+
+- **Էստերգոմի բազիլիկ** and **Ռիլայի վանք** (above).
+- **Esztergom's fact**: «Ստորին եկեղեցուց մինչև գմբեթի գագաթը» ("from the lower church to the top of the dome") follows the official wording; "crypt" could also be «դամբարանադաշտ» or «ստորգետնյա եկեղեցի».
+- **Golubac's fact**: «Երկաթե դարպասների կիրճը» ("the gorge of the Iron Gates"); the article «Երկաթե դարպասներ» names the gorge itself.
+- **Meteora's fact**: «ավազաքարե ժայռասյուներ» for "sandstone pillars" is our wording.
+- **Romania's hint**: «Կարպատների աղեղով» ("with the arc of the Carpathians").
+- **Greece's hint**: «բազմաթիվ կղզիներով լեռնային թերակղզի» ("a mountainous peninsula with many islands").
+- **The completion message** (all five levels done): «Ավարտել ես բոլոր 5 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։»
+- **Travel's status line, shortened in every level** (`travel.current` and `travel.moved` in `messages.hy.ts`): «Դու հիմա այստեղ ես՝ {name}։» became «Դու այստեղ ես՝ {name}։» (as the map's traveller pin says, «Դու այստեղ ես»), and «Անցար սահմանը։ Այժմ՝ {name}։» became «Մտար {name}։» ("You entered …", the English is "You crossed into …"). With Level 5's longer names (Հունգարիա, Բուլղարիա) the old lines took two lines on a 320 px phone and, with the route's chips «Հունգարիա →» «Հունաստան» on two rows, pushed the first neighbour card 13 px below a 320×568 screen. Shorter wording keeps the text size and the layout; for Levels 1–4 it only shortens the line, and their own first-row test (`e2e/phone-layout.spec.ts`) was rerun.
+
+The Armenian facts and hints are our translations of the English ones.
+
+### Descriptions and Find hints
+
+As in Levels 3 and 4, a country's description is its hint, shown in Discover and repeated by Find's second hint; Find's first hint names the capital and the landmark. Each is the country's own (none of these countries appears in another level):
+
+| Country | Hint (English) |
+|---|---|
+| Hungary | A country with no coast in the north-west of this region, on wide plains crossed by the Danube. |
+| Romania | The largest country in this region, with the arc of the Carpathians and a coast on the Black Sea. |
+| Serbia | A country with no coast in the west of this region, just south of Hungary. |
+| Bulgaria | A country on the Black Sea, between the Danube in the north and Greece in the south. |
+| Greece | The southernmost country of this region: a mountainous peninsula with many islands. |
+
+"Largest" is by area (Romania 238,000 km², Greece 132,000, Bulgaria 111,000, Hungary 93,000, Serbia 77,000 without Kosovo; CIA World Factbook). Serbia's hint doesn't mention Kosovo (see DATA.md, "Level 5", for the boundary treatment).
+
+### Illustrations
+
+Esztergom Basilica, Bran Castle, Golubac Fortress, Rila Monastery and Meteora were supplied on 2026-10-02 and integrated with the four steps in Level 3's "Illustrations" section (`node scripts/prepare-landmarks.mjs`, which left the fifteen existing copies byte-identical; `illustration: "<key>"` in `countries.ts`; the import into `LANDMARK_IMAGES`; the expectations in `content.test.ts` and `e2e/level5.spec.ts`). Until then their cards used the text-only layout (`data-art="none"`), which remains for any landmark without artwork. Find never shows artwork, not even after a hint names the landmark.
+
+Trimmed, they are 0.90–1.24:1 (Meteora 648×720, Esztergom Basilica 720×720, Bran Castle 720×718, Golubac Fortress 720×612, Rila Monastery 720×580), well below 2:1, so each uses the square tile beside the country's name on phones, like Level 4's. The briefs asked for wide compositions for the basilica, Golubac and Rila; the supplied art is nearly square instead, which suits the square tile. At 320×568 and 390×844 (Chromium) and 320×568 and 390×664 (WebKit) in both languages, and on desktop, the country's name, its capital and the whole artwork show together above the pinned button without scrolling, uncropped and undistorted, no word of the name or capital broken that would fit across the card, and the card opens at its top (`e2e/level5.spec.ts`, "Level 5 at phone and desktop sizes"). At 150% and 200% text the text keeps its size, the art keeps its size and shape in its tile, and every part of the card is reached by scrolling; at 200% on a 320×568 phone, choosing each country on the map after the previous card was scrolled to its end opens the new card at its top, with room to read.
+
+**Meteora at phone size.** It is the tallest of the five (0.90:1), so it is drawn 90×100 px at 320 px wide, 105×117 px at 390 px and 126×140 px on desktop; the monastery on the rock's top is about half the art's width and a fifth of its height (about 45×20 px on the smallest phone). On a 3× screen (WebKit's iPhone 12 emulation) its red roofs, dome, walls and the stair up the rock read clearly; on a 1× screen they are small but still read as buildings on the rock. It was not cropped: the rock is the subject as much as the monastery.
+
+Alt text follows the existing pattern, with the in-sentence name: "Illustration of Esztergom Basilica" / «Նկարազարդում՝ Էստերգոմի բազիլիկը», "Illustration of Bran Castle" / «Նկարազարդում՝ Բրանի դղյակը», "Illustration of Golubac Fortress" / «Նկարազարդում՝ Գոլուբաց ամրոցը», "Illustration of Rila Monastery" / «Նկարազարդում՝ Ռիլայի վանքը», "Illustration of Meteora" / «Նկարազարդում՝ Մետեորան».
+
+The briefs they were requested with:
+
+| Landmark | Save the original to | Key | Content |
+|---|---|---|---|
+| Esztergom Basilica, Hungary | `public/images/landmarks/esztergom-basilica.png` | `esztergom-basilica` | The great domed neoclassical cathedral on its hill above the Danube: a tall green-copper dome on a colonnaded drum, a columned portico and two bell towers. Wide composition. |
+| Bran Castle, Romania | `public/images/landmarks/bran-castle.png` | `bran-castle` | The white castle with steep red roofs and towers of different heights, on a rocky outcrop with fir trees. Tall or square composition. |
+| Golubac Fortress, Serbia | `public/images/landmarks/golubac-fortress.png` | `golubac-fortress` | The stone fortress whose towers and walls climb a steep hill from the wide Danube. Wide composition. |
+| Rila Monastery, Bulgaria | `public/images/landmarks/rila-monastery.png` | `rila-monastery` | The domed church with red-and-white striped arcades, the stone tower behind it, and the monastery's wooden-balconied wings, with forested mountains suggested behind. Wide composition. |
+| Meteora, Greece | `public/images/landmarks/meteora.png` | `meteora` | A monastery with red-tiled roofs on the flat top of a towering sandstone rock pillar. Tall or square composition. |
+
+#### Generation prompts
+
+Each starts with the shared style paragraph (Level 2's, above: clean dark navy outlines of even weight, soft cel shading, warm bright colours, recognisable architecture, the landmark alone on a fully transparent background, no sky, cast shadow, frame, text, letters, signs, watermark or people, the whole landmark inside the square with a small margin, 1254×1254 px), then describes its landmark. Check each result as for Level 2: transparent background, the landmark whole inside the frame, no text, people, frame or shadow on the background. Save it under the filename in the table above.
+
+1. **`esztergom-basilica.png`**
+   > [style paragraph] Subject: Esztergom Basilica in Hungary, the country's largest church, standing on a green hill above the Danube. A massive neoclassical cathedral in pale cream and light grey stone. At its centre, a very tall dome with a weathered green-copper roof, raised on a high round drum ringed by columns, topped by a small lantern. In front, a broad portico of tall columns under a triangular pediment, flanked by two square bell towers with green-copper caps. Below, a short green slope with a stone terrace wall and a narrow strip of calm blue river water. Wide, landscape-shaped artwork within the square.
+
+2. **`bran-castle.png`**
+   > [style paragraph] Subject: Bran Castle in Romania, perched on a steep grey rocky outcrop. A compact medieval castle with whitewashed walls and dark timber details, steep red-brown tiled roofs, and several towers of different heights and shapes (one round, others square) with small windows. A few dark green fir trees at the foot of the rock and a little green ground at the base. Tall or square artwork within the frame.
+
+3. **`golubac-fortress.png`**
+   > [style paragraph] Subject: Golubac Fortress in Serbia, on the bank of the Danube at the entrance to the Iron Gates gorge. A medieval fortress of rough grey-beige stone: tall square towers joined by thick crenellated walls that climb a steep green hillside, with the highest tower at the top, its upper part rounded under a small pointed cap. At the foot, the lowest walls and towers stand at the edge of a strip of wide blue-green river water with a few soft ripples. Wide, landscape-shaped artwork within the square.
+
+4. **`rila-monastery.png`**
+   > [style paragraph] Subject: Rila Monastery in Bulgaria's Rila Mountains. In the centre, the Church of the Nativity: an Orthodox church with five small domes covered in dark grey lead, its long open galleries of arches painted in bold red, white and black stripes. Behind it, a tall square medieval stone tower with a small roof. Around and behind them, the monastery's multi-storey residential wings of white walls with dark wooden balconies and arcades. A suggestion of forested green mountain slopes behind, and a little paved courtyard at the base. Wide, landscape-shaped artwork within the square.
+
+5. **`meteora.png`**
+   > [style paragraph] Subject: a Meteora monastery in Greece. A towering, smooth, rounded pillar of grey and honey-beige sandstone with vertical streaks, and on its flat top a monastery: cream and ochre stone walls, small windows, red-tiled roofs and a small dome, built right to the cliff's edge. A second, lower rock pillar beside it, and a little green ground with a few dark cypress trees at the base. Tall or square artwork within the frame.
+
 ## Landmark illustrations
 
-The eleven illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum; and Level 3's Wawel Castle, Charles Bridge and Bratislava Castle, all added 2026-09-30) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).
+The twenty illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum; Level 3's Wawel Castle, Charles Bridge and Bratislava Castle, added 2026-09-30; Level 4's Bled Castle, City Walls of Dubrovnik, Stari Most and Ostrog Monastery, added 2026-10-01; and Level 5's Esztergom Basilica, Bran Castle, Golubac Fortress, Rila Monastery and Meteora, added 2026-10-02) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).
 
 | Country | Supplied original (kept unchanged) | Display copy | Artwork area in original |
 |---|---|---|---|
@@ -274,6 +386,15 @@ The eleven illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn P
 | Poland | `public/images/landmarks/wawel-castle.png` | `src/assets/landmarks/wawel-castle.webp` (720×481) | 1527×1021 at (9, 0) (with the 2% margin; the artwork itself is 1479×962 at (39, 29)) |
 | Czechia | `public/images/landmarks/charles-bridge.png` | `src/assets/landmarks/charles-bridge.webp` (720×480) | 1536×1024 at (0, 0) (with the 2% margin; the artwork itself is 1503×986 at (19, 20)) |
 | Slovakia | `public/images/landmarks/bratislava-castle.png` | `src/assets/landmarks/bratislava-castle.webp` (720×489) | 1495×1015 at (23, 0) (with the 2% margin; the artwork itself is 1437×974 at (52, 12)) |
+| Slovenia | `public/images/landmarks/bled-castle.png` | `src/assets/landmarks/bled-castle.webp` (720×665) | 1254×1159 at (0, 69) (with the 2% margin; the artwork itself is 1209×1111 at (21, 93)) |
+| Croatia | `public/images/landmarks/dubrovnik-city-walls.png` | `src/assets/landmarks/dubrovnik-city-walls.webp` (720×694) | 1254×1209 at (0, 20) (with the 2% margin; the artwork itself is 1240×1159 at (8, 45)) |
+| Bosnia and Herzegovina | `public/images/landmarks/stari-most.png` | `src/assets/landmarks/stari-most.webp` (720×598) | 1254×1041 at (0, 134) (with the 2% margin; the artwork itself is 1232×991 at (9, 159)) |
+| Montenegro | `public/images/landmarks/ostrog-monastery.png` | `src/assets/landmarks/ostrog-monastery.webp` (690×720) | 1202×1254 at (26, 0) (with the 2% margin; the artwork itself is 1152×1232 at (51, 12)) |
+| Hungary | `public/images/landmarks/esztergom-basilica.png` | `src/assets/landmarks/esztergom-basilica.webp` (720×720) | 1254×1254 at (0, 0) (with the 2% margin; the artwork itself is 1220×1220 at (17, 16)) |
+| Romania | `public/images/landmarks/bran-castle.png` | `src/assets/landmarks/bran-castle.webp` (720×718) | 1239×1236 at (14, 12) (with the 2% margin; the artwork itself is 1191×1188 at (38, 36)) |
+| Serbia | `public/images/landmarks/golubac-fortress.png` | `src/assets/landmarks/golubac-fortress.webp` (720×612) | 1254×1066 at (0, 107) (with the 2% margin; the artwork itself is 1229×1016 at (14, 132)) |
+| Bulgaria | `public/images/landmarks/rila-monastery.png` | `src/assets/landmarks/rila-monastery.webp` (720×580) | 1251×1007 at (3, 125) (with the 2% margin; the artwork itself is 1204×959 at (27, 149)) |
+| Greece | `public/images/landmarks/meteora.png` | `src/assets/landmarks/meteora.webp` (648×720) | 1090×1211 at (83, 34) (with the 2% margin; the artwork itself is 1044×1165 at (106, 57)) |
 
 ### Originals
 
@@ -288,18 +409,32 @@ Level 3's three are 1536×1024 (3:2) 8-bit RGBA PNG, 2.4–2.8 MB. Checked on ar
 
 Composited on the card's tile colour and on black (to show fringes), their edges are clean: no halo on the tile, and no coloured fringe visible at display size on black. Like Level 2's, they are more painterly than Level 1's. The castles stand on their hills with only a hint of the river, rather than the river strip the briefs asked for. The trimmed art is about 1.5:1, so each uses the square tile beside the country's name on phones. At the four phone sizes (320×568, 320×640, 390×664, 390×844) the name, the capital and the whole artwork show together above the pinned button, uncropped and undistorted (`e2e/level3.spec.ts`).
 
+Level 4's four are 1254×1254 8-bit RGBA PNG, 2.3–2.7 MB. Checked on arrival (2026-10-01), by reading their alpha channels as for Level 3's:
+- each shows its assigned landmark: Bled Castle on its cliff above the lake; Dubrovnik's walls with the round Minčeta Tower, the old town's roofs and a bell tower above the sea; Stari Most's single arch over the Neretva between its two towers; Ostrog Monastery's white building set into the cliff, with stairs and cypresses below. No text or people;
+- transparent corners; no artwork pixel touches the frame (6–159 px of empty margin; the closest are Dubrovnik's right side, 6 px, and Ostrog's bottom, 10 px, so the trimmed copies' 2% margin is cut short at the frame there, with no artwork lost);
+- 34–44% of each image fully transparent; a 0.8–1.8% fringe of faint pixels (alpha 1–32) and 0.3–0.6% of edge pixels (alpha 33–223) from background removal; no colour hidden in the fully transparent pixels; the artwork itself at alpha 251–253 (0.01–0.03% at 255), like the approved originals.
+
+Seen on black they show thin coloured fringes (red, green and cyan along Stari Most's deck, railing and towers; cyan along Bled's water), left by background removal, like Level 2's; composited on the card's sky-to-mint tile, at full size and at 2× zoom on the original pixels, these are not visible, and the edges match the Colosseum's. Stari Most's railing is drawn light and partly see-through, as part of the artwork. Ostrog has a dark outline around the whole cliff, its own drawn style. They are as painterly as Level 2's and 3's. The originals were not retouched.
+
+Level 5's five are 1254×1254 8-bit RGBA PNG (sRGB), 2.0–2.3 MB. Checked on arrival (2026-10-02), by reading their alpha channels as for Level 4's:
+- each shows its assigned landmark: Esztergom Basilica's green-copper dome on its colonnaded drum, the columned portico and the two domed bell towers, on its wooded hill (without the brief's strip of river); Bran Castle's white walls, red roofs and towers of different heights on its rock, with fir trees; Golubac Fortress's towers and crenellated walls climbing a rocky hill from the blue-green Danube; Rila Monastery's church with its black-and-white striped arcades, red-and-white striped walls and five domes, the stone tower behind and a balconied residential wing; Meteora's monastery with red-tiled roofs and a small dome on the flat top of a tall sandstone pillar, a lower pillar beside it and cypresses at the base. No text, letters, people, frame or cast shadow;
+- transparent corners; no artwork pixel touches the frame (11–149 px of empty margin; the closest are Golubac's right side, 11 px, and its left, 14 px, so the trimmed copies' 2% margin is cut short at the frame there, as for Level 4, with no artwork lost);
+- 41–47% of each image fully transparent; a 1.2–1.7% fringe of faint pixels (alpha 1–32) and 0.4–0.9% of edge pixels (alpha 33–223) from background removal; the only colour in fully transparent pixels is near-black (every channel below 32, 0.02–0.05% of pixels), which cannot show; the artwork itself at alpha 250–253 (0.01–0.04% at 255), like the approved originals.
+
+Composited on the card's sky-to-mint tile and on black, at full size and at 2× zoom on the original pixels, their edges are clean: no halo on the tile and no coloured fringe on black. Golubac's river ends in a soft scalloped edge and Rila's residential wing in a plain end wall; both are drawn that way, well inside the frame (the water 106 px above its bottom edge, the wall 27 px from its left), not cut by it. Meteora has a dark outline around its rocks, like Ostrog's cliff. They are as painterly as Level 4's. The originals were not retouched.
+
 ### Display copies
 
 `scripts/prepare-landmarks.mjs` (run with `node scripts/prepare-landmarks.mjs`) creates the display copies:
 
 1. Trim each original to its visible artwork (pixels with alpha > 32) plus a 2% transparent margin. No part of the artwork is cut: tower tips, bridge ends and the Quadriga stay whole.
 2. Downsize to at most 720 px on the longer side, about 3× the largest on-screen size.
-3. Save as lossless WebP, so the only lossy step is next/image's own encoding. Total 4.2 MB for all eleven (Level 3's three add 1.06 MB), versus 20.5 MB for the originals. The player downloads only the resized WebP that `next/image` serves for the card's size, not these copies.
+3. Save as lossless WebP, so the only lossy step is next/image's own encoding. Total 9.7 MB for all twenty (Level 3's three add 1.06 MB; Level 4's four 2.69 MB: Bled Castle 682 KiB, City Walls of Dubrovnik 682 KiB, Stari Most 603 KiB, Ostrog Monastery 658 KiB; Level 5's five 2.83 MB: Esztergom Basilica 517 KiB, Bran Castle 581 KiB, Golubac Fortress 529 KiB, Rila Monastery 569 KiB, Meteora 565 KiB), versus 41.5 MB for the originals. The player downloads only the resized WebP that `next/image` serves for the card's size, not these copies.
 
 The app imports the display copies statically. `next/image` serves each device a resized, cached WebP, and the static import supplies intrinsic dimensions to prevent layout shift. Every card uses the same fixed illustration box with `object-fit: contain`. Because the copies are trimmed, tall and wide landmarks get similar visual weight.
 
 **Very wide art on phones.** An illustration whose display copy is at least **2:1** (width ÷ height, `WIDE_ART_ASPECT` in `src/components/landmarks/LandmarkCard.tsx`) gets a different phone layout: the country's name and capital as a compact heading, the art in a shallow tile across the card below them (the same colours and corners), then the landmark's name and fact and the country's description. The tile's height follows the art's own proportions, up to `max(56px, 11svh)` so that the name, capital and whole artwork fit above the pinned button on a 320×568 screen. Since the ratio comes from the static import, the layout is decided before the image loads, and nothing moves when it does. Everything else keeps the square tile beside the name, and desktop is unchanged.
 
-Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26 (Level 3's are 1.47–1.50), so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
+Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26 (Level 3's are 1.47–1.50; Level 4's 0.96–1.20; Level 5's 0.90–1.24), so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
 
 To replace an illustration, overwrite the original in `public/images/landmarks/` and rerun the script.
