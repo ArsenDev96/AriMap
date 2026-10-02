@@ -267,4 +267,22 @@ describe("painted relief", () => {
     for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
     expect(alphaNear([26.1039, 44.4325], 1), "Bucharest centre").toBeLessThanOrEqual(25);
   });
+  // Level 6 reaches north to the Gulf of Finland. The Baltic states are low and flat (Suur Munamägi,
+  // the highest point, is 318 m), so the check is their forests and open farmland. Reference points: the
+  // Wikipedia articles' coordinates (checked 2026-10-02; see docs/TERRAIN.md).
+  it("Level 6: shows the forests from Augustów and Dzūkija to Lahemaa; the Zemgale plain stays bare", async () => {
+    const alphaNear = await alphaSampler("baltic-journey", regionMapFor(LESSONS["baltic-journey"]));
+    const forests: Record<string, LonLat> = {
+      "Augustów Primeval Forest": [23.3446, 53.8898],
+      "Dzūkija National Park": [24.3767, 54.0819],
+      "Žemaitija National Park": [21.8889, 56.0486],
+      "Soomaa National Park": [25.1056, 58.4408],
+      "Lahemaa National Park": [25.8003, 59.5711],
+    };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    // Open farmland: the Zemgale plain between Jelgava and Bauska (Latvia), the plain near Joniškis
+    // (northern Lithuania) and Kuyavia (Poland, as in Level 3).
+    const open: Record<string, LonLat> = { "Zemgale plain": [23.95, 56.5], "Joniškis plain": [23.6, 56.2], Kuyavia: [18.6, 52.75] };
+    for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+  });
 });

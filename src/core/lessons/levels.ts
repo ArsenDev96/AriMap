@@ -2,6 +2,7 @@ import type { CountryId } from "../content/types";
 import type { LocalizedText } from "../i18n/locales";
 import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
+import { balticJourneyLesson } from "./baltic-journey";
 import { centralEuropeLesson } from "./central-europe";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
@@ -84,6 +85,18 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: towardsGreeceLesson.countries,
     lesson: towardsGreeceLesson,
     unlockedBy: adriaticLesson.id,
+  },
+  {
+    id: balticJourneyLesson.id,
+    number: 6,
+    title: { en: "Baltic Journey", hy: "Բալթյան ճամփորդություն" },
+    description: {
+      en: "From Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia.",
+      hy: "Բեռլինից Բալթիկ ծովի երկայնքով մինչև Տալլին՝ Լեհաստանով, Լիտվայով և Լատվիայով։",
+    },
+    countries: balticJourneyLesson.countries,
+    lesson: balticJourneyLesson,
+    unlockedBy: towardsGreeceLesson.id,
   },
 ];
 

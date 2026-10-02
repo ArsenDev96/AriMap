@@ -47,7 +47,7 @@ Country, capital and landmark names follow the Armenian Wikipedia article titles
 
 ## Level-specific hints
 
-A country's hint describes it within its level's region. Where Level 1's hint would be wrong in Level 2, the level has its own (`hints` in `src/core/lessons/alps.ts`): Germany is "in the north of this region" in Level 2, not "in the east". France's hint (the largest country, coasts on the Atlantic and the Mediterranean) is true in both. Level 3 has its own hints for Germany ("in the west") and Austria ("in the south"); see its section below.
+A country's hint describes it within its level's region. Where Level 1's hint would be wrong in Level 2, the level has its own (`hints` in `src/core/lessons/alps.ts`): Germany is "in the north of this region" in Level 2, not "in the east". France's hint (the largest country, coasts on the Atlantic and the Mediterranean) is true in both. Level 3 has its own hints for Germany ("in the west") and Austria ("in the south"); see its section below. Level 6 has its own for Germany ("in the south-west") and Poland ("in the south of this region, east of Germany"); see its section.
 
 ## Level 2 illustrations
 
@@ -368,6 +368,95 @@ Each starts with the shared style paragraph (Level 2's, above: clean dark navy o
 
 5. **`meteora.png`**
    > [style paragraph] Subject: a Meteora monastery in Greece. A towering, smooth, rounded pillar of grey and honey-beige sandstone with vertical streaks, and on its flat top a monastery: cream and ochre stone walls, small windows, red-tiled roofs and a small dome, built right to the cliff's edge. A second, lower rock pillar beside it, and a little green ground with a few dark cypress trees at the base. Tall or square artwork within the frame.
+
+## Level 6: Baltic Journey
+
+Germany and Poland are shared with earlier levels: their names, capitals, landmarks, facts and artwork are unchanged. Only their descriptions are Level 6's own (below). Lithuania, Latvia and Estonia are new. Their content was checked on 2026-10-02. The level's stable id is `baltic-journey`.
+
+### Capitals and landmarks
+
+| Country | Capital | Capital (lat, lon) | Landmark | Landmark (lat, lon) | Fact (English) | Sources |
+|---|---|---|---|---|---|---|
+| Lithuania (Լիտվա) | Vilnius (Վիլնյուս) | 54.6872, 25.2800 | Trakai Island Castle, Trakai (Տրակայի կղզու դղյակ) | 54.6525, 24.9331 | Built in the 14th–15th centuries on an island in Lake Galvė, it was home to Lithuania's Grand Dukes. | [Trakai tourism information centre: Trakai Island Castle](https://www.trakai-visit.lt/en/traku-salos-pilis/) ("The Castle was built in the 14th and 15th centuries on one of many islands of Lake Galvė"; "served as a royal residence for the Grand Dukes of Lithuania"); [Trakai History Museum: Island Castle](https://trakaimuziejus.lt/en/apie-mus/salos_pilis/) ("construction of the Island Castle began in the second half of the 14th century on one of the larger islands in Lake Galvė"; "completed in the first half of the 15th century"; "became the residence of the Grand Duke of Lithuania"); [Wikipedia: Trakai Island Castle](https://en.wikipedia.org/wiki/Trakai_Island_Castle) (54.6525 N, 24.93306 E); [Wikipedia: Vilnius](https://en.wikipedia.org/wiki/Vilnius) (54.68722 N, 25.28 E) |
+| Latvia (Լատվիա) | Riga (Ռիգա) | 56.9489, 24.1064 | House of the Black Heads, Riga (Սևագլուխների տուն) | 56.9472, 24.1069 | Named after a brotherhood of merchants, it was destroyed in the Second World War and rebuilt in 1999. | [House of the Black Heads (official): History](https://www.melngalvjunams.lv/en/exposition/history) ("the jovial and enterprising foreigners, comprised of mostly German merchants, who were known as the Brotherhood of Black Heads, became the sole residents of the building"; in the Second World War "the building burned down and was later blown up"; "The reconstructed House of the Black Heads was consecrated on December 9, 1999"); [Latvia Travel (the national tourism site): House of the Black Heads](https://www.latvia.travel/en/sight/house-black-heads) ("destroyed by bombs in the Second World War but was fully rebuilt in 1999"); [Wikipedia: House of the Blackheads (Riga)](https://en.wikipedia.org/wiki/House_of_the_Blackheads_(Riga)) (56.94722 N, 24.10694 E); [Wikipedia: Riga](https://en.wikipedia.org/wiki/Riga) (56.94889 N, 24.10639 E) |
+| Estonia (Էստոնիա) | Tallinn (Տալլին) | 59.4370, 24.7535 | Tallinn Town Hall (Տալլինի ռատուշա) | 59.4371, 24.7455 | Built in its present form in 1402–1404, it is the only surviving Gothic town hall in Northern Europe. | [Tallinn Town Hall (official): The building](https://raekoda.tallinn.ee/en/the-building/) ("Tallinn Town Hall is the only surviving Gothic town hall in Northern Europe"; "The building history of the Town Hall goes back to the II half of 13th century, but it acquired its medieval appearance in 1402–04"); [Wikipedia: Tallinn Town Hall](https://en.wikipedia.org/wiki/Tallinn_Town_Hall) (59.43709 N, 24.74547 E); Tallinn: GeoNames 588409 (59.43696 N, 24.75353 E) |
+
+Notes:
+
+- **Capital and landmark coordinates are separate, as in every level.** Trakai is 22.6 km west of Vilnius. The House of the Black Heads is on Riga's Town Hall Square, 0.19 km from Riga's coordinate, and Tallinn Town Hall is on Tallinn's, 0.46 km from Tallinn's: both are their old towns' centres. Each keeps its own coordinate, but **the existing rule for nearby markers applies**: a landmark within 16 px of its capital on screen is not drawn, so at every zoom the game allows, these two pins are left out and the capital marker stands for the old town (at the deepest zoom, 8× the whole-map view, 0.2–0.5 km is still under 4 px). The card names the landmark as usual. Trakai's pin is drawn wherever it is at least 16 px from Vilnius: on a 1920 px desktop at the whole-map view, and on phones and a 1366 px desktop once zoomed in (about 14 px apart at the whole-map view there), as for Brandenburg Gate beside Berlin.
+- **Tallinn's coordinate is GeoNames'**, the city's reference point, east of the old town near Viru Square: the Wikipedia article's (59.43722 N, 24.74528 E) is the Town Hall itself, 20 m from the landmark, which would make the capital and the landmark one point. Vilnius and Riga use their Wikipedia article coordinates (GeoNames' are 0.2 km and 0.3 km away).
+- **Trakai Island Castle**: "home to Lithuania's Grand Dukes" is the official sites' "residence of the Grand Duke(s) of Lithuania". Its restoration (begun in the 1950s, the palace rebuilt by 1962; sources give 1951, 1953 or 1960 for the start) is left out, as is "never taken by enemies" (the museum's wording; Wikipedia describes heavy damage in 1377). The castle is on Lithuania's UNESCO tentative list (2003), not inscribed; the fact doesn't mention UNESCO.
+- **House of the Black Heads**: the official history says it "was built in 1334"; Wikipedia says it was first mentioned in 1334, as the New House of the Great Guild. The fact leaves the year out and names what explains the name: the Brotherhood of Black Heads, "mostly German merchants" (official). Wikipedia's dates for its destruction (bombed 29 June 1941, ruins demolished 1948) are not on the official site, so the fact says "in the Second World War"; it was rebuilt from 1996 and consecrated on 9 December 1999 (official; Wikipedia gives 1996–2000), so the fact says 1999. "Unmarried" merchants (Wikipedia, Armenian Wikipedia) is not on the official site and is left out.
+- **Tallinn Town Hall**: the town hall is first mentioned in 1322 and its history goes back to the 13th century; it "acquired its medieval appearance in 1402–04" (official), so the fact says "built in its present form", not "built". "The only surviving Gothic town hall in Northern Europe" is the official site's own claim, quoted as it stands; its home page calls it "the oldest surviving town hall in Northern Europe", which the fact doesn't use. The Old Thomas weathervane (1530; today's figure is a 1996 copy) is in the artwork brief, not the fact.
+- **Ranges stay on one line**: the facts' "14th–15th", «14–15-րդ» and "1402–1404" carry a word joiner (U+2060) after the dash or hyphen, so a narrow card never breaks a range across lines (the Armenian Tallinn fact did, on desktop, without it).
+- **Borders**: CIA World Factbook, final edition (January 2026). The Factbook was discontinued in February 2026 (cia.gov now says "The World Factbook, has sunset"), so its pages were read from the [factbook.json mirror](https://github.com/factbook/factbook.json) and checked against archived cia.gov pages: Germany–Poland 467 km (447 km in Germany's own entry, a discrepancy in the Factbook itself), Poland–Lithuania 100 km, Lithuania–Latvia 544 km, Latvia–Estonia 333 km, and no other land border among the five. Areas: Germany 357,022 km², Poland 312,685, Lithuania 65,300, Latvia 64,589, Estonia 45,228 (with "1,520 islands in the Baltic Sea").
+- The automated requests to Riga's tourism site (liveriga.com) were refused, and Visit Tallinn's page keeps its text in scripts, so the official landmark sites above were used instead.
+
+### Names in Armenian
+
+Country and capital names are the titles of their Armenian Wikipedia articles (checked 2026-10-02 through the MediaWiki API, `prop=langlinks`, and against Wikidata): Լիտվա, Լատվիա, Էստոնիա; Վիլնյուս, Ռիգա, Տալլին (GeoNames gives the same Armenian names). The in-sentence forms add the definite article: Լիտվան, Լատվիան, Էստոնիան.
+
+| English | Eastern Armenian | Status |
+|---|---|---|
+| Trakai Island Castle | Տրակայի կղզու դղյակ | **Our rendering**: no Armenian article. «Տրակայ» is the town's article title, and that article calls the castle a «դղյակ» (as for Bran Castle, «Բրանի դղյակ»). |
+| House of the Black Heads | Սևագլուխների տուն | The Armenian article's title; in a sentence «Սևագլուխների տունը». |
+| Tallinn Town Hall | Տալլինի ռատուշա | The Armenian article's title; in a sentence «Տալլինի ռատուշան». |
+| Lake Galvė (fact) | Գալվե լիճ | **Our rendering**: no Armenian article; «Գալվե» appears only in the Տրակայ article. |
+| Grand Dukes of Lithuania (fact) | Լիտվայի մեծ իշխաններ | From the articles «Լիտվայի մեծ իշխանություն» (Grand Duchy of Lithuania, lowercase մ) and Տրակայ («մեծ իշխանների … նստավայրը»). |
+| Gulf of Finland, Gulf of Riga, Baltic Sea (hints) | Ֆիննական ծոց, Ռիգայի ծոց, Բալթիկ ծով | Article titles. |
+| Baltic Journey (the level's title) | Բալթյան ճամփորդություն | **Our rendering.** |
+| the Baltic Sea countries (the map's region name) | Բալթիկ ծովի երկրներ | **Our rendering**: the article «Բալթյան երկրներ» means the Baltic states (Lithuania, Latvia, Estonia) only, not Germany and Poland. |
+
+Flagged for a native speaker's check (not presented as established usage):
+
+- **Տրակայի կղզու դղյակ**, **Գալվե լիճ**, **Բալթյան ճամփորդություն** and **Բալթիկ ծովի երկրներ** (above).
+- **The level's description**: «Բեռլինից Բալթիկ ծովի երկայնքով մինչև Տալլին՝ Լեհաստանով, Լիտվայով և Լատվիայով։» ("from Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia").
+- **Trakai's fact**: «Գալվե լճի կղզիներից մեկի վրա» ("on one of the islands of Lake Galvė", as the tourism office says) and «եղել է … նստավայրը» for "was home to".
+- **The House of the Black Heads' fact**: «Անվանվել է առևտրականների եղբայրության անունով» ("named after a brotherhood of merchants").
+- **Tallinn Town Hall's fact**: «Ներկայիս տեսքը ստացել է 1402–1404 թվականներին» ("received its present appearance in 1402–1404"), close to the official wording, where the English says "built in its present form".
+- **The new hints**: Lithuania's «Բալթիկ ծովի կարճ ափով» ("with a short Baltic Sea coast"); Latvia's «Ռիգայի ծոցի շուրջը» ("around the Gulf of Riga"); Estonia's «Ֆիննական ծոցի ափին, բազմաթիվ կղզիներով»; Germany's «Տարածաշրջանի հարավ-արևմտյան մասի» and Poland's «տարածաշրջանի հարավում՝ Գերմանիայից արևելք» for this level's own directions.
+- **The completion message** (all six levels done) uses the existing wording with the new count: «Ավարտել ես բոլոր 6 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։»
+
+The Armenian facts and hints are our translations of the English ones. No player-facing text uses "lesson" or «դաս» (`src/core/content/content.test.ts` checks).
+
+### Descriptions and Find hints
+
+As in Levels 3–5, a country's description is its hint, shown in Discover and repeated by Find's second hint; Find's first hint names the capital and the landmark. Germany's and Poland's usual hints would be wrong here (Germany is "in the east" of Level 1's region, Poland "in the north-east" of Level 3's), so Level 6 has its own for them (`hints` in `src/core/lessons/baltic-journey.ts`); the hints of Levels 1–5 are unchanged.
+
+| Country | Hint (English) |
+|---|---|
+| Germany | The large country in the south-west of this region, reaching both the North Sea and the Baltic Sea. (Level 6's own) |
+| Poland | A large, mostly flat country in the south of this region, east of Germany, with a coast on the Baltic Sea. (Level 6's own) |
+| Lithuania | A country with a short coast on the Baltic Sea, between Poland and Latvia. |
+| Latvia | A country on the Baltic Sea between Lithuania and Estonia, around the Gulf of Riga. |
+| Estonia | The northernmost country of this region, on the Gulf of Finland, with many islands. |
+
+Lithuania's coast is about 90 km, against Latvia's 500 km and Estonia's 3,800 km with its islands; "short" sets it apart from both. Lithuania also borders Russia's Kaliningrad and Belarus, which are outside the level; "between Poland and Latvia" describes it within the level's region.
+
+### Illustrations
+
+**No artwork was generated or substituted for Level 6.** Germany's Brandenburg Gate and Poland's Wawel Castle keep their existing illustrations. Trakai Island Castle, the House of the Black Heads and Tallinn Town Hall have none yet, so their cards use the existing text-only layout (`data-art="none"`): the map's amber landmark mark beside the landmark's name and fact, across the card, with no image and no empty picture frame. Find never shows artwork for any country. `e2e/level6.spec.ts` checks the three text cards (no image, no frame, the caption across the card) at 320×568, 390×844 and 390×664 (Chromium and WebKit), on desktop, in both languages and at 150% and 200% text.
+
+To add one once it exists: save the original under the filename below, run `node scripts/prepare-landmarks.mjs`, set `illustration: "<key>"` on the landmark in `src/core/content/countries.ts`, import the display copy into `LANDMARK_IMAGES` in `src/components/landmarks/LandmarkCard.tsx`, and update the expectations in `src/core/content/content.test.ts` and `e2e/level6.spec.ts` (Level 3's "Illustrations" section has the four steps in full).
+
+| Landmark | Save the original to | Key | Content |
+|---|---|---|---|
+| Trakai Island Castle, Lithuania | `public/images/landmarks/trakai-island-castle.png` | `trakai-island-castle` | The red-brick Gothic castle on its island in Lake Galvė: the tall square keep of the ducal palace, steep red-tiled roofs, round and square towers on the outer walls, and a wooden footbridge reaching it across calm blue water. Wide composition. |
+| House of the Black Heads, Riga, Latvia | `public/images/landmarks/house-of-the-black-heads.png` | `house-of-the-black-heads` | The tall, richly decorated red-brick façade with white and gilded ornaments, a steep stepped and scrolled gable, statues in niches and a large clock, beside the smaller gabled house next to it. Tall or square composition. |
+| Tallinn Town Hall, Estonia | `public/images/landmarks/tallinn-town-hall.png` | `tallinn-town-hall` | The grey limestone Gothic town hall with an arcade of pointed arches, a crenellated parapet and a steep roof, and its slender tower with a dark green tiered spire topped by the Old Thomas weathervane. Tall or square composition. |
+
+#### Generation prompts
+
+Each starts with the shared style paragraph (Level 2's, above: clean dark navy outlines of even weight, soft cel shading, warm bright colours, recognisable architecture, the landmark alone on a fully transparent background, no sky, cast shadow, frame, text, letters, signs, watermark or people, the whole landmark inside the square with a small margin, 1254×1254 px), then describes its landmark. Check each result as for Level 2: transparent background, the landmark whole inside the frame, no text (the clock face has no numerals that read as text), people, frame or shadow on the background. Save it under the filename in the table above.
+
+1. **`trakai-island-castle.png`**
+   > [style paragraph] Subject: Trakai Island Castle in Lithuania, a medieval red-brick castle standing on a small green island in a lake. In the centre, the ducal palace with a tall, square red-brick keep tower and steep red-tiled roofs, with small pointed Gothic windows and pale stone details. Around it, the outer curtain wall of red brick with round and square towers capped by red conical and pyramid roofs. In the foreground, a narrow wooden footbridge on posts leads to the castle gate across calm blue lake water with a few soft ripples and a hint of green reeds at the island's edge. Wide, landscape-shaped artwork within the square.
+
+2. **`house-of-the-black-heads.png`**
+   > [style paragraph] Subject: the House of the Black Heads in Riga, Latvia, seen from the front at a slight angle. A tall, narrow Northern Renaissance guild house in deep red brick, richly decorated with white and pale cream stone trim and touches of gold: a very tall, steep stepped and scrolled gable with ornamental finials and small spires, rows of tall windows, a large ornate clock in the upper façade, and a few small statues in niches between the windows. Beside it, attached on one side, a smaller, plainer house with its own pale stepped gable. A little grey cobbled square at the base. Tall or square artwork within the frame.
+
+3. **`tallinn-town-hall.png`**
+   > [style paragraph] Subject: Tallinn Town Hall in Estonia, a medieval Gothic town hall. A long two-storey building of pale grey limestone with a steep dark grey roof, a row of tall pointed Gothic windows on the upper floor, and an open arcade of pointed arches along the ground floor. A crenellated parapet runs along the top of the façade. At one end rises a slender octagonal tower with a tall, tiered dark green copper spire, topped by a small weathervane in the shape of a medieval warrior holding a flag (Old Thomas). A few small dragon-head waterspouts under the eaves. A little grey cobbled square at the base. Tall or square artwork within the frame.
 
 ## Landmark illustrations
 

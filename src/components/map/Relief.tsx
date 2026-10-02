@@ -10,6 +10,8 @@ import adriaticLand from "@/assets/map/relief/along-the-adriatic-land.webp";
 import adriaticTone from "@/assets/map/relief/along-the-adriatic-tone.webp";
 import alpsLand from "@/assets/map/relief/around-the-alps-land.webp";
 import alpsTone from "@/assets/map/relief/around-the-alps-tone.webp";
+import balticJourneyLand from "@/assets/map/relief/baltic-journey-land.webp";
+import balticJourneyTone from "@/assets/map/relief/baltic-journey-tone.webp";
 import centralEuropeLand from "@/assets/map/relief/central-europe-land.webp";
 import centralEuropeTone from "@/assets/map/relief/central-europe-tone.webp";
 import towardsGreeceLand from "@/assets/map/relief/towards-greece-land.webp";
@@ -28,6 +30,7 @@ const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: St
   "central-europe": { land: centralEuropeLand, tone: centralEuropeTone },
   "along-the-adriatic": { land: adriaticLand, tone: adriaticTone },
   "towards-greece": { land: towardsGreeceLand, tone: towardsGreeceTone },
+  "baltic-journey": { land: balticJourneyLand, tone: balticJourneyTone },
 };
 
 /**

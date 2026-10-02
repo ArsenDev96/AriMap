@@ -93,6 +93,30 @@ describe("prepared map data", () => {
     expect(Math.max(...points.map((p) => p[0]))).toBeLessThan(e - 1);
   });
 
+  it("baltic-journey: keeps Estonia's islands, each in Estonia, and none of them clipped", () => {
+    const estonia = shapeOf("EST");
+    // Every part Natural Earth has for Estonia (docs/DATA.md, "Level 6"): Saaremaa (Kuressaare), Hiiumaa
+    // (Kärdla), Muhu, Vormsi, Kihnu, Naissaar, and Ruhnu in the Gulf of Riga, nearer Latvia's coast.
+    const islands = { Kuressaare: [22.485, 58.25], Kärdla: [22.75, 58.995], Muhu: [23.24, 58.6], Vormsi: [23.24, 59.0], Kihnu: [23.98, 58.13], Naissaar: [24.52, 59.57], Ruhnu: [23.26, 57.8] };
+    for (const [name, p] of Object.entries(islands)) {
+      expect(geoContains(estonia, p as [number, number]), `${name} in Estonia`).toBe(true);
+      for (const other of ["LVA", "FIN", "RUS", "SWE"]) expect(geoContains(shapeOf(other), p as [number, number]), `${name} in ${other}`).toBe(false);
+    }
+    expect(estonia.geometry.type === "MultiPolygon" && estonia.geometry.coordinates.length).toBe(8);
+    // All of Estonia lies inside the level's focus, so every island is within the start view and the pan
+    // limits, and well inside the clip box (no artificial edge cuts an island).
+    const map = regionMapFor(LESSONS["baltic-journey"]);
+    const [[ex0, ey0], [ex1, ey1]] = map.shapes.find((s) => s.id === "EST")!.bounds;
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    expect(ex0 >= fx0 && ey0 >= fy0 && ex1 <= fx1 && ey1 <= fy1).toBe(true);
+    const n = MAP_DATA_CLIP[3];
+    const points = (JSON.stringify(estonia.geometry.coordinates).match(/-?[\d.]+,-?[\d.]+/g) ?? []).map((p) => p.split(",").map(Number));
+    expect(Math.max(...points.map((p) => p[1]))).toBeLessThan(n - 2);
+    // The Curonian Spit is split between Lithuania (Nida) and Russia's Kaliningrad (Rybachy).
+    expect(geoContains(shapeOf("LTU"), [21.0, 55.32])).toBe(true);
+    expect(geoContains(shapeOf("RUS"), [20.82, 55.16])).toBe(true);
+  });
+
   it("draws every level in the same projection, so the painted landscape lines up with each", () => {
     const [l1, l2] = [regionMapFor(LESSONS["western-europe-1"]), regionMapFor(LESSONS["around-the-alps"])];
     expect(PROJECTION_FIT).toEqual(LESSONS["western-europe-1"].countries);
