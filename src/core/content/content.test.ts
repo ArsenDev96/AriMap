@@ -50,9 +50,10 @@ describe("country content", () => {
           expect(c.hint[locale]).toBeTruthy();
         }
         const [lon, lat] = c.capital.coordinates;
+        // Europe, from Paris to Bucharest and Athens.
         expect(lon).toBeGreaterThan(-10);
-        expect(lon).toBeLessThan(25);
-        expect(lat).toBeGreaterThan(40);
+        expect(lon).toBeLessThan(30);
+        expect(lat).toBeGreaterThan(35);
         expect(lat).toBeLessThan(58);
       }
     }
@@ -180,6 +181,47 @@ describe("country content", () => {
     expect(countryHint(l4, "ITA").en).toContain("west side of the Adriatic Sea");
     const hints = l4.countries.map((id) => countryHint(l4, id));
     for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+  });
+
+  it("gives Level 5's countries their capital and a localized landmark away from the capital, shown as text until its artwork exists", () => {
+    // Country, capital and landmark names as in the English and Armenian Wikipedia article titles where
+    // one exists (docs/CONTENT.md flags our own renderings).
+    const expected: Record<string, [string, string, string, string, string, string, string]> = {
+      HUN: ["Hungary", "Հունգարիա", "Budapest", "Բուդապեշտ", "Esztergom Basilica", "Էստերգոմի բազիլիկ", "Էստերգոմի բազիլիկը"],
+      ROU: ["Romania", "Ռումինիա", "Bucharest", "Բուխարեստ", "Bran Castle", "Բրանի դղյակ", "Բրանի դղյակը"],
+      SRB: ["Serbia", "Սերբիա", "Belgrade", "Բելգրադ", "Golubac Fortress", "Գոլուբաց ամրոց", "Գոլուբաց ամրոցը"],
+      BGR: ["Bulgaria", "Բուլղարիա", "Sofia", "Սոֆիա", "Rila Monastery", "Ռիլայի վանք", "Ռիլայի վանքը"],
+      GRC: ["Greece", "Հունաստան", "Athens", "Աթենք", "Meteora", "Մետեորա", "Մետեորան"],
+    };
+    const l5 = LESSONS["towards-greece"];
+    expect([...l5.countries].sort()).toEqual(Object.keys(expected).sort());
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      // The level card names it the same way as before the level was playable.
+      expect(countryName(id), id).toEqual({ en, hy });
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      expect(landmark.nameInText.hy, id).toBe(landmarkInText);
+      // Each landmark is elsewhere than the capital, with its own map location.
+      expect(landmark.coordinates, id).toBeDefined();
+      const [dLon, dLat] = [landmark.coordinates![0] - c.capital.coordinates[0], landmark.coordinates![1] - c.capital.coordinates[1]];
+      expect(Math.hypot(dLon, dLat), `${id}: landmark at the capital`).toBeGreaterThan(0.3);
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // No artwork has been supplied yet: the card is text-only, and no other country's art stands in.
+      expect(landmark.illustration, id).toBeUndefined();
+    }
+    // One hint per country, all different, in each language; no player-facing "lesson" wording.
+    const hints = l5.countries.map((id) => countryHint(l5, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l5.countries) {
+      const c = COUNTRIES[id];
+      for (const text of [c.hint, c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    expect(l5.regionName).toEqual({ en: "South-eastern Europe", hy: "Հարավարևելյան Եվրոպա" });
   });
 
   it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {

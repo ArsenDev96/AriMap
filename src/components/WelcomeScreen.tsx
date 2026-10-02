@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
 import { LEVELS, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
-import { levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
+import { allLevelsComplete, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
 import { BrandMark, LanguageToggle, STEPS } from "./Header";
 import { useI18n } from "./i18n";
 import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
@@ -143,9 +143,11 @@ export function WelcomeScreen({ state, dispatch }: Props) {
               {t("welcome.levels")}
             </h2>
             {returning && !main && (
-              <p className={styles.allDone} data-testid="all-done">
+              // Nothing left to start. Once every level is completed (none coming soon), it says
+              // so; every card still offers Play again.
+              <p className={styles.allDone} data-testid="all-done" data-all-complete={allLevelsComplete(state) || undefined}>
                 <CheckIcon />
-                <span>{t("welcome.allDone")}</span>
+                <span>{allLevelsComplete(state) ? t("welcome.allComplete", { count: LEVELS.length }) : t("welcome.allDone")}</span>
               </p>
             )}
             <ol ref={listRef} className={styles.levels} data-testid="levels">

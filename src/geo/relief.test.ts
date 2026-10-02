@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import relief from "@/assets/map/relief.json";
@@ -55,6 +55,17 @@ describe("painted relief", () => {
         expect(y0, id).toBeGreaterThanOrEqual(tone.y);
         expect(x1, id).toBeLessThanOrEqual(tone.x + tone.width);
         expect(y1, id).toBeLessThanOrEqual(tone.y + tone.height);
+      }
+    });
+
+    it(`${lesson.id}: its overview images are registered for the map to draw`, () => {
+      // src/components/map/Relief.tsx imports each level's overview by name (an import only gives a URL,
+      // so no level fetches another's); a level missing there would show no landscape at all.
+      const source = readFileSync("src/components/map/Relief.tsx", "utf8");
+      const entry = new RegExp(`"${lesson.id}": \\{ land: (\\w+), tone: (\\w+) \\}`).exec(source);
+      expect(entry, `${lesson.id} in OVERVIEW_IMAGES`).not.toBeNull();
+      for (const [name, family] of [[entry![1], "land"], [entry![2], "tone"]]) {
+        expect(source, `${name} imported`).toContain(`import ${name} from "@/assets/map/relief/${lesson.id}-${family}.webp";`);
       }
     });
 
@@ -214,5 +225,46 @@ describe("painted relief", () => {
     for (const [name, p] of Object.entries({ "eastern Slavonia": [19.0, 45.25], "Po delta": [11.95, 44.75], Lomellina: [8.66, 45.28] } as Record<string, LonLat>)) {
       expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
     }
+  });
+
+  // Level 5 reaches north to the Mátra and south to Crete. Reference points: the Wikipedia articles'
+  // coordinates (checked 2026-10-02; see docs/TERRAIN.md).
+  it("Level 5: shows the Carpathians, the Balkan Mountains, Rila, Pirin, Olympus and Crete's mountains, forests from the Bükk to Strandzha; the plains stay bare", async () => {
+    const alphaNear = await alphaSampler("towards-greece", regionMapFor(LESSONS["towards-greece"]));
+    const summits: Record<string, [LonLat, number]> = {
+      "Moldoveanu (Făgăraș)": [[24.7378, 45.6], 200],
+      "Retezat Mountains": [[22.8667, 45.3667], 200],
+      "Musala (Rila)": [[23.5853, 42.1797], 200],
+      "Vihren (Pirin)": [[23.4008, 41.7678], 200],
+      "Botev (Balkan Mountains)": [[24.9167, 42.7175], 200],
+      "Mount Olympus": [[22.3586, 40.0856], 200],
+      "Smolikas (Pindus)": [[20.9261, 40.0897], 200],
+      "Midžor (Serbia–Bulgaria)": [[22.6817, 43.3939], 200],
+      "Mount Ida (Crete)": [[24.7725, 35.2267], 150],
+      "Apuseni Mountains": [[23.0, 46.5], 150],
+      "Kékes (Mátra, Hungary's highest)": [[20.0103, 47.8789], 45],
+    };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    const forests: Record<string, LonLat> = {
+      Bükk: [20.5, 48.0833],
+      "Fruška Gora": [19.7111, 45.1511],
+      Strandzha: [27.6086, 42.0125],
+      "Rhodope Mountains": [24.5742, 41.6011],
+    };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    // The Great Hungarian Plain (the Hortobágy, Békés), Bačka and the Banat, the Wallachian and Bărăgan
+    // plains, Dobruja and the Thessalian plain: open, flat farmland and steppe.
+    const open: Record<string, LonLat> = {
+      Hortobágy: [21.1, 47.6],
+      Békés: [21.0, 46.75],
+      Bačka: [19.3333, 46.0],
+      Banat: [20.6, 45.6],
+      Wallachia: [25.0, 44.2],
+      Bărăgan: [27.3, 44.5],
+      Dobruja: [28.3333, 44.45],
+      "Thessalian plain": [22.25, 39.55],
+    };
+    for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+    expect(alphaNear([26.1039, 44.4325], 1), "Bucharest centre").toBeLessThanOrEqual(25);
   });
 });

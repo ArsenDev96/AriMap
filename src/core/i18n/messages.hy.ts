@@ -26,6 +26,7 @@ export const hy: Record<keyof typeof en, string> = {
   "welcome.playAgainKeep": "Ոչ հիմա",
   "welcome.upNext": "Հաջորդը",
   "welcome.allDone": "Ավարտել ես բոլոր պատրաստ մակարդակները։ Նորերը շուտով կլինեն։",
+  "welcome.allComplete": "Ավարտել ես բոլոր {count} մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
   "welcome.stepDone": "{step}՝ արված է",
   "welcome.stepTodo": "{step}՝ դեռ արված չէ",
 
@@ -110,7 +111,7 @@ export const hy: Record<keyof typeof en, string> = {
   "travel.to": "Նպատակակետ",
   "travel.crossingsLeft.one": "Մնաց {count} սահմանահատում",
   "travel.crossingsLeft.other": "Մնաց {count} սահմանահատում",
-  "travel.current": "Դու հիմա այստեղ ես՝ {name}։",
+  "travel.current": "Դու այստեղ ես՝ {name}։",
   "travel.choose": "Անցիր սահմանը դեպի՝",
   "travel.region": "Այս ճանապարհորդության ընթացքում կարող ես անցնել միայն նշված հինգ երկրներով։ Մյուս հարևան երկրներն ընտրել չես կարող։",
   "travel.hint": "Հուշում",
@@ -118,7 +119,7 @@ export const hy: Record<keyof typeof en, string> = {
   "travel.undo": "Հետարկել",
   "travel.restart": "Սկսել նորից",
   "travel.retry": "Կրկին փորձել",
-  "travel.moved": "Անցար սահմանը։ Այժմ՝ {name}։",
+  "travel.moved": "Մտար {name}։",
   "travel.outOfCrossings": "Սահմանահատումները վերջացան։ Ամեն քայլով իրական սահման ես հատել, բայց այս երթուղին ամենակարճից երկար է։ Հետարկիր վերջին քայլը կամ փորձիր նորից։",
   "travel.helpUsed": "Այս ճամփորդությունում օգնություն ես օգտագործել",
 

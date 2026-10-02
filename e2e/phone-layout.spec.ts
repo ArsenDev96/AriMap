@@ -18,10 +18,12 @@ const L1 = "western-europe-1";
 const L2 = "around-the-alps";
 const L3 = "central-europe";
 const L4 = "along-the-adriatic";
+const L5 = "towards-greece";
 const L1_ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
 const L4_COUNTRIES = ["ITA", "SVN", "HRV", "BIH", "MNE"];
+const L5_COUNTRIES = ["HUN", "ROU", "SRB", "BGR", "GRC"];
 
 const answers = (order: string[]) => order.map((target) => ({ target, wrongGuesses: 0, hintLevel: 0 }));
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
@@ -54,6 +56,7 @@ const L1_DONE = done(L1_ORDER, "fra-to-nld", ["FRA", "BEL", "NLD"]);
 const L2_DONE = done(L2_COUNTRIES, "fra-to-aut", ["FRA", "DEU", "AUT"]);
 const L3_DONE = done(L3_COUNTRIES, "pol-to-aut", ["POL", "CZE", "AUT"]);
 const L4_DONE = done(L4_COUNTRIES, "ita-to-mne", ["ITA", "SVN", "HRV", "MNE"]);
+const L5_DONE = done(L5_COUNTRIES, "hun-to-grc", ["HUN", "ROU", "BGR", "GRC"]);
 
 async function appReady(page: Page) {
   await expect(page.locator(".splash")).toHaveCount(0);
@@ -105,7 +108,8 @@ const SCENARIOS: { name: string; levels: Record<string, object>; recent: string[
   { name: "l3-in-progress", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: inFind(L3_COUNTRIES) }, recent: [L3, L2, L1], current: L3 },
   { name: "l4-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE }, recent: [L3, L2, L1], current: L4 },
   { name: "l4-in-progress", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: inFind(L4_COUNTRIES) }, recent: [L4, L3, L2, L1], current: L4 },
-  { name: "all-completed", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE }, recent: [L4, L3, L2, L1], current: null },
+  { name: "l5-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE }, recent: [L4, L3, L2, L1], current: L5 },
+  { name: "all-completed", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE }, recent: [L5, L4, L3, L2, L1], current: null },
 ];
 
 /** Where things are on the level selection, in viewport pixels. */
@@ -426,7 +430,7 @@ async function expectFrame(page: Page, where: string) {
   return at;
 }
 
-/** Screenshots of the list: as it arrived, then scrolled to Level 1 (opened) and to the last card (coming soon). */
+/** Screenshots of the list: as it arrived, then scrolled to Level 1 (opened) and to the last card (Level 5). */
 async function cardShots(page: Page, name: string) {
   const list = page.getByTestId("welcome-scroll");
   const scrollTo = (selector: string) =>
@@ -438,7 +442,7 @@ async function cardShots(page: Page, name: string) {
   await scrollTo(`[data-testid="level-${L1}"]`);
   await shot(page, `${name}-l1-opened`);
   await scrollTo('[data-testid="levels"] > li:last-child');
-  await shot(page, `${name}-coming-soon`);
+  await shot(page, `${name}-last-card`);
   await list.evaluate((el, at) => (el.scrollTop = at), at);
 }
 
@@ -458,8 +462,8 @@ test.describe("level cards", () => {
       const projects = width > 1000 ? ["desktop", "webkit-phone"] : ["small-phone", "webkit-phone"];
       test.skip(!projects.includes(project()), `Runs on the ${projects.join(" and ")} projects.`);
       // Level 3 ready and in progress, Level 4 ready and in progress (Bosnia and Herzegovina's long name in
-      // its card), and all completed (Level 5 coming soon throughout).
-      const scenarios = SCENARIOS.filter((s) => ["l3-ready", "l3-in-progress", "l4-ready", "l4-in-progress", "all-completed"].includes(s.name));
+      // its card), Level 5 ready, and all five completed.
+      const scenarios = SCENARIOS.filter((s) => ["l3-ready", "l3-in-progress", "l4-ready", "l4-in-progress", "l5-ready", "all-completed"].includes(s.name));
       await page.setViewportSize({ width, height });
       for (const s of scenarios) {
         for (const locale of ["en", "hy"] as const) {

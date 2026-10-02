@@ -907,6 +907,8 @@ function useRouteMotion(view: MapView): RouteMotion {
 const LABEL_FONT_PX = 14;
 /** Capital and landmark names are a step smaller than country names. */
 const MARKER_FONT_PX = 12;
+/** Markers closer than this (on screen) put their names on the sides facing away from each other. */
+const NEAR_MARKER_PX = 60;
 /** Font weights used by the map text (see RegionMap.module.css), for measuring. */
 const LABEL_WEIGHT = 700;
 const MARKER_WEIGHT = 650;
@@ -1472,7 +1474,17 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
       [x + 16, down + 6, "start"],
       [x - 16, down + 6, "end"],
     ];
-    const boxOf = ([tx, ty, anchor]: [number, number, "start" | "end"]): Box => {
+    // With another marker close beside this one (Belgrade and Golubac Fortress on a phone,
+    // about 20px apart), the sides facing away from it come first, so each name reads as
+    // its own marker's rather than sitting right beside the other one.
+    const near = markers
+      .filter((o) => Math.hypot(o.x - x, o.y - y) > 1 && Math.hypot(o.x - x, o.y - y) < NEAR_MARKER_PX && Math.abs(o.x - x) >= 4)
+      .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
+    if (near) {
+      const away = (c: [number, number, "start" | "end"]) => (c[2] === "start") === near.x < x;
+      sides.sort((a, b) => Number(away(b)) - Number(away(a)));
+    }
+    const boxOf =([tx, ty, anchor]: [number, number, "start" | "end"]): Box => {
       const x0 = anchor === "start" ? tx : tx - w;
       return { x0, y0: ty - markerFont - 2, x1: x0 + w, y1: ty + 5 };
     };
@@ -1790,14 +1802,14 @@ function Overlay({ motion, layout: given, ...input }: OverlayProps) {
       {layout.markers.map((m) => {
         if (m.kind === "capital")
           return (
-            <g key={`capital-${m.country}`} transform={`translate(${m.x},${m.y})`}>
+            <g key={`capital-${m.country}`} transform={`translate(${m.x},${m.y})`} data-marker="capital">
               <circle className={styles.capital} r={5.5} />
               <circle className={styles.capitalDot} r={2.8} />
             </g>
           );
         if (m.kind === "landmark")
           return (
-            <g key={`landmark-${m.country}`} transform={`translate(${m.x},${m.y})`}>
+            <g key={`landmark-${m.country}`} transform={`translate(${m.x},${m.y})`} data-marker="landmark">
               <rect className={styles.landmark} x={-4.5} y={-4.5} width={9} height={9} rx={1.5} transform="rotate(45)" />
             </g>
           );

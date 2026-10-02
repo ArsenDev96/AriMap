@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { geoBounds, geoContains } from "d3-geo";
+import { geoContains } from "d3-geo";
 import { feature, neighbors } from "topojson-client";
 import type { Feature, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
@@ -68,6 +68,31 @@ describe("prepared map data", () => {
     });
   }
 
+  it("keeps the quantization grid of Levels 1–4's data, so extending the clip box moved none of their coordinates", () => {
+    // scripts/prepare-geo.mjs rounds on this grid whatever the box (docs/DATA.md, "Level 5").
+    expect(topology.transform).toEqual({ scale: [0.0006186010505805053, 0.0003], translate: [-25.859486456999946, 32] });
+  });
+
+  it("towards-greece: keeps Greece's islands, each in Greece, and none of them clipped", () => {
+    const greece = shapeOf("GRC");
+    // Heraklion (Crete), Rhodes, Corfu, Mytilene (Lesbos), Chios, Kos, Gavdos (the southernmost), Thira (Santorini).
+    for (const [name, p] of Object.entries({ Heraklion: [25.13, 35.335], Rhodes: [28.03, 36.24], Corfu: [19.85, 39.6], Mytilene: [26.4, 39.15], Chios: [26.0, 38.4], Kos: [27.1, 36.84], Gavdos: [24.09, 34.84], Thira: [25.43, 36.43] })) {
+      expect(geoContains(greece, p as [number, number]), `${name} in Greece`).toBe(true);
+      expect(geoContains(shapeOf("TUR"), p as [number, number]), `${name} in Turkey`).toBe(false);
+    }
+    // All of Greece lies well inside the clip box (no artificial edge cuts an island), and inside the
+    // level's focus, so every island is within the start view and the pan limits.
+    const map = regionMapFor(LESSONS["towards-greece"]);
+    const [[gx0, gy0], [gx1, gy1]] = map.shapes.find((s) => s.id === "GRC")!.bounds;
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    expect(gx0 >= fx0 && gy0 >= fy0 && gx1 <= fx1 && gy1 <= fy1).toBe(true);
+    const [w, s, e] = MAP_DATA_CLIP;
+    const points = (JSON.stringify(greece.geometry.coordinates).match(/-?[\d.]+,-?[\d.]+/g) ?? []).map((p) => p.split(",").map(Number));
+    expect(Math.min(...points.map((p) => p[0]))).toBeGreaterThan(w + 1);
+    expect(Math.min(...points.map((p) => p[1]))).toBeGreaterThan(s + 1);
+    expect(Math.max(...points.map((p) => p[0]))).toBeLessThan(e - 1);
+  });
+
   it("draws every level in the same projection, so the painted landscape lines up with each", () => {
     const [l1, l2] = [regionMapFor(LESSONS["western-europe-1"]), regionMapFor(LESSONS["around-the-alps"])];
     expect(PROJECTION_FIT).toEqual(LESSONS["western-europe-1"].countries);
@@ -135,16 +160,24 @@ describe("map coverage", () => {
   ] as const;
 
   it("MAP_DATA_CLIP matches the box the dataset was clipped to", () => {
-    // Land reaches the south, east and north edges of the clip box (North Africa,
-    // Russia, Scandinavia), so those match the box used by scripts/prepare-geo.mjs.
-    // The west edge lies in the open Atlantic.
-    const [[bx0, by0], [bx1, by1]] = geoBounds(feature(topology, topology.objects.countries));
+    // Land reaches the south, east and north edges of the clip box (North Africa and
+    // Arabia, Iraq and Russia, Scandinavia), so those match the box used by
+    // scripts/prepare-geo.mjs. The west edge lies in the open Atlantic. The extent of
+    // the vertices themselves: geoBounds would follow great-circle edges, which bulge
+    // off the clipped parallels (0.28° north of 62°N along Russia's long clipped edge,
+    // far outside every level's coverage).
+    let [bx0, by0, bx1, by1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const f of feature(topology, topology.objects.countries).features)
+      for (const p of JSON.stringify(f.geometry ?? null).match(/-?[\d.]+,-?[\d.]+/g) ?? []) {
+        const [x, y] = p.split(",").map(Number);
+        [bx0, by0, bx1, by1] = [Math.min(bx0, x), Math.min(by0, y), Math.max(bx1, x), Math.max(by1, y)];
+      }
     const [w, s, e, n] = MAP_DATA_CLIP;
     expect(bx0).toBeGreaterThanOrEqual(w);
-    // geoBounds follows great-circle edges, which bulge slightly off the clipped parallels.
-    expect(Math.abs(by0 - s)).toBeLessThan(0.1);
-    expect(Math.abs(bx1 - e)).toBeLessThan(0.1);
-    expect(Math.abs(by1 - n)).toBeLessThan(0.1);
+    // The quantization grid rounds the clipped edges by at most about 30 m.
+    expect(Math.abs(by0 - s)).toBeLessThan(0.001);
+    expect(Math.abs(bx1 - e)).toBeLessThan(0.001);
+    expect(Math.abs(by1 - n)).toBeLessThan(0.001);
   });
 
   for (const lesson of lessons) {

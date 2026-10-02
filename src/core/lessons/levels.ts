@@ -3,6 +3,7 @@ import type { LocalizedText } from "../i18n/locales";
 import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { centralEuropeLesson } from "./central-europe";
+import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
 
@@ -72,18 +73,16 @@ export const LEVELS: readonly LevelInfo[] = [
     lesson: adriaticLesson,
     unlockedBy: centralEuropeLesson.id,
   },
-  // Level 5: metadata only. Its country group is connected by real land borders
-  // (checked against the map data in src/geo/regionMap.test.ts), but its content,
-  // journey and map coverage are not prepared yet.
   {
-    id: "towards-greece",
+    id: towardsGreeceLesson.id,
     number: 5,
     title: { en: "Towards Greece", hy: "Դեպի Հունաստան" },
     description: {
       en: "Across the Danube and the Balkans, all the way to Greece.",
       hy: "Դանուբով և Բալկաններով՝ մինչև Հունաստան։",
     },
-    countries: ["HUN", "ROU", "SRB", "BGR", "GRC"],
+    countries: towardsGreeceLesson.countries,
+    lesson: towardsGreeceLesson,
     unlockedBy: adriaticLesson.id,
   },
 ];

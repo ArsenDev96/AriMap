@@ -263,6 +263,106 @@ Each starts with the shared style paragraph (Level 2's, above: clean dark navy o
 4. **`ostrog-monastery.png`**
    > [style paragraph] Subject: Ostrog Monastery in Montenegro. A gleaming white monastery building with small arched windows and a few red-tiled roof edges, built into the face of a tall, almost vertical light-grey rock cliff, so the cliff rises above and around it. Below it, a short green slope with a few small trees. Tall or square artwork within the frame.
 
+## Level 5: Towards Greece
+
+Hungary, Romania, Serbia, Bulgaria and Greece are all new. Their content was checked on 2026-10-02. Level 5 keeps the stable id its card had while it was coming soon (`towards-greece`), and its title, description and country order.
+
+### Capitals and landmarks
+
+| Country | Capital | Capital (lat, lon) | Landmark | Landmark (lat, lon) | Fact (English) | Sources |
+|---|---|---|---|---|---|---|
+| Hungary (Հունգարիա) | Budapest (Բուդապեշտ) | 47.4925, 19.0514 | Esztergom Basilica, Esztergom (Էստերգոմի բազիլիկ) | 47.7989, 18.7364 | Completed in 1869, Hungary's largest church rises 100 metres from its crypt to the top of its dome. | [Visit Esztergom (the town's official tourism site): Basilica of Esztergom](https://visitesztergom.hu/en/sights/basilica-of-esztergom/) ("In terms of dimensions, the Esztergom Basilica is the largest church building in Hungary"; "it is 100 meters high from the lower church to the sphere of the dome"; built 1822–1869, "The capstone was finally laid on November 1, 1869"); [Wikipedia: Esztergom Basilica](https://en.wikipedia.org/wiki/Esztergom_Basilica) (47.79889 N, 18.73639 E); [Wikipedia: Budapest](https://en.wikipedia.org/wiki/Budapest) (47.4925 N, 19.05139 E) |
+| Romania (Ռումինիա) | Bucharest (Բուխարեստ) | 44.4325, 26.1039 | Bran Castle, near Brașov (Բրանի դղյակ) | 45.5150, 25.3672 | Begun in 1377 on a rock above a mountain pass, it guarded the road into Transylvania. | [Bran Castle (official): Bran Fortress](https://www.bran-castle.com/en/fortareata-bran/) (19 November 1377: Louis I of Anjou's privilege to the people of Brașov to build "a new fortress on Dietrich's rock"; its purpose "to intercept the road leading to Transylvania, including the pass"); [Wikipedia: Bran Castle](https://en.wikipedia.org/wiki/Bran_Castle) (completed 1388; 45.515 N, 25.36722 E); [Wikipedia: Bucharest](https://en.wikipedia.org/wiki/Bucharest) (44.4325 N, 26.10389 E) |
+| Serbia (Սերբիա) | Belgrade (Բելգրադ) | 44.8178, 20.4569 | Golubac Fortress (Գոլուբաց ամրոց) | 44.6612, 21.6785 | First mentioned in 1335, it guards the Danube where the river enters the Iron Gates gorge. | [Golubac Fortress (official): history](https://tvrdjavagolubackigrad.rs/eng/history/) ("mentioned for the first time in 1335"; "built at the entrance of the Iron Gate gorge, a place where the Danube's widest stream flows into a pass of the Carpathian Mountains"); [Wikipedia: Golubac Fortress](https://en.wikipedia.org/wiki/Golubac_Fortress) (ten towers; 44.66119 N, 21.67848 E); [Wikipedia: Belgrade](https://en.wikipedia.org/wiki/Belgrade) (44.81778 N, 20.45694 E) |
+| Bulgaria (Բուլղարիա) | Sofia (Սոֆիա) | 42.6975, 23.3242 | Rila Monastery (Ռիլայի վանք) | 42.1333, 23.3403 | Founded in the 10th century by the hermit John of Rila; after a fire it was rebuilt in 1834–1862. | [UNESCO World Heritage Centre: Rila Monastery](https://whc.unesco.org/en/list/216) ("founded in the 10th century by St John of Rila, a hermit canonized by the Orthodox Church"; "Destroyed by fire at the beginning of the 19th century, the complex was rebuilt between 1834 and 1862"; inscribed 1983); [Wikipedia: Rila Monastery](https://en.wikipedia.org/wiki/Rila_Monastery) (42.13333 N, 23.34028 E); Sofia: GeoNames 727011 (42.69751 N, 23.32415 E; the Wikipedia article gives only 42.7 N, 23.33 E) |
+| Greece (Հունաստան) | Athens (Աթենք) | 37.9842, 23.7281 | Meteora (Մետեորա) | 39.7239, 21.6244 (the Monastery of Great Meteoron) | Monks settled on these sandstone pillars from the 11th century; 24 monasteries were built on them. | [UNESCO World Heritage Centre: Meteora](https://whc.unesco.org/en/list/455) ("In a region of almost inaccessible sandstone peaks, monks settled on these 'columns of the sky' from the 11th century onwards. Twenty-four of these monasteries were built…"; inscribed 1988); [Wikipedia: Monastery of Great Meteoron](https://en.wikipedia.org/wiki/Monastery_of_Great_Meteoron) (39.72389 N, 21.62444 E); [Wikipedia: Athens](https://en.wikipedia.org/wiki/Athens) (37.98417 N, 23.72806 E) |
+
+Notes:
+
+- **No landmark is in its capital.** Esztergom is 41 km north-west of Budapest; Bran is in the Carpathians near Brașov, 134 km north-west of Bucharest; Golubac is on the Danube 98 km east of Belgrade; Rila Monastery is in the Rila Mountains 63 km south of Sofia; Meteora is in Thessaly, 266 km north-west of Athens (straight-line distances). Each pin is the monument's own coordinate, separate from the capital marker, and each lies inside its country in the map data (`src/geo/regionMap.test.ts`): Esztergom Basilica 1.9 km and Golubac Fortress 2.8 km from the nearest vertex of the Danube border, the others far from any edge.
+- **Esztergom Basilica**: "100 metres from its crypt to the top of its dome" is the official site's "from the lower church to the sphere of the dome". It was consecrated in 1856 and finished in 1869; the fact uses the completion.
+- **Bran Castle**: begun after the privilege of 1377 and finished in 1388 (Wikipedia; the official page quotes the 1377 document). Its popular name "Dracula's Castle" is left out: the link with Bram Stoker's novel is a tourism tradition, not history, and the fact keeps to what the castle was built for.
+- **Golubac Fortress**: the official site's history page says it was first mentioned in 1335, as a fortification with a Hungarian garrison; who built it first is uncertain, so the fact says "first mentioned", not "built". Its ten towers are left out of the fact (from Wikipedia, not the official page) but described in the artwork brief.
+- **Rila Monastery**: today's buildings date from the rebuilding after the fire (1834–1862, UNESCO); the fact says so, so "founded in the 10th century" isn't read as the age of what stands.
+- **Meteora** is a group of monasteries, not one building. Like Ostrog Monastery's upper monastery, its pin is one monument: the Great Meteoron, the largest, on its own rock. The fact counts the 24 monasteries built (UNESCO), not those still in use (six).
+- **Sofia's coordinate** is GeoNames', because the Wikipedia article's is rounded to 0.01°; it is the city centre (by the St Nedelya church), 0.5 km from the Wikipedia value.
+- UNESCO's pages refused automated requests (as for Level 4), so their wording was confirmed from their search listings; Bran Castle's official page was confirmed the same way.
+
+### Names in Armenian
+
+Country and capital names are the titles of their Armenian Wikipedia articles (checked 2026-10-02 through the MediaWiki API, `prop=langlinks`): Հունգարիա, Ռումինիա, Սերբիա, Բուլղարիա, Հունաստան; Բուդապեշտ, Բուխարեստ, Բելգրադ, Սոֆիա, Աթենք. The country names are unchanged from the level card (`src/core/content/names.ts` held them while the level was coming soon). The in-sentence forms add the definite article: Հունգարիան, Ռումինիան, Սերբիան, Բուլղարիան, Հունաստանը.
+
+| English | Eastern Armenian | Status |
+|---|---|---|
+| Esztergom Basilica | Էստերգոմի բազիլիկ | **Our rendering**: no Armenian article. «Էստերգոմ» is the town's article title. |
+| Bran Castle | Բրանի դղյակ | The Armenian article's title. |
+| Golubac Fortress | Գոլուբաց ամրոց | The Armenian article's title. |
+| Rila Monastery | Ռիլայի վանք | **Our rendering**, shortened: the article's title is «Ռիլայի վանական համալիր» ("Rila monastic complex"). «Ռիլայի վանք» matches the English, the Bulgarian «Рилски манастир» and Level 4's «Օստրոգի վանք». |
+| Meteora | Մետեորա | The Armenian article's title; in a sentence «Մետեորան». |
+| South-eastern Europe (the region's name) | Հարավարևելյան Եվրոպա | The Armenian article's title. |
+| Danube, Iron Gates, Transylvania, Carpathians, Black Sea (facts and hints) | Դանուբ, Երկաթե դարպասներ, Տրանսիլվանիա, Կարպատներ, Սև ծով | Article titles. |
+| John of Rila | Հովհաննես Ռիլայեցի | From the «Ռիլայի վանական համալիր» article («Հովհաննես Ռիլայեցու»); no article of his own. |
+
+Flagged for a native speaker's check (not presented as established usage):
+
+- **Էստերգոմի բազիլիկ** and **Ռիլայի վանք** (above).
+- **Esztergom's fact**: «Ստորին եկեղեցուց մինչև գմբեթի գագաթը» ("from the lower church to the top of the dome") follows the official wording; "crypt" could also be «դամբարանադաշտ» or «ստորգետնյա եկեղեցի».
+- **Golubac's fact**: «Երկաթե դարպասների կիրճը» ("the gorge of the Iron Gates"); the article «Երկաթե դարպասներ» names the gorge itself.
+- **Meteora's fact**: «ավազաքարե ժայռասյուներ» for "sandstone pillars" is our wording.
+- **Romania's hint**: «Կարպատների աղեղով» ("with the arc of the Carpathians").
+- **Greece's hint**: «բազմաթիվ կղզիներով լեռնային թերակղզի» ("a mountainous peninsula with many islands").
+- **The completion message** (all five levels done): «Ավարտել ես բոլոր 5 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։»
+- **Travel's status line, shortened in every level** (`travel.current` and `travel.moved` in `messages.hy.ts`): «Դու հիմա այստեղ ես՝ {name}։» became «Դու այստեղ ես՝ {name}։» (as the map's traveller pin says, «Դու այստեղ ես»), and «Անցար սահմանը։ Այժմ՝ {name}։» became «Մտար {name}։» ("You entered …", the English is "You crossed into …"). With Level 5's longer names (Հունգարիա, Բուլղարիա) the old lines took two lines on a 320 px phone and, with the route's chips «Հունգարիա →» «Հունաստան» on two rows, pushed the first neighbour card 13 px below a 320×568 screen. Shorter wording keeps the text size and the layout; for Levels 1–4 it only shortens the line, and their own first-row test (`e2e/phone-layout.spec.ts`) was rerun.
+
+The Armenian facts and hints are our translations of the English ones.
+
+### Descriptions and Find hints
+
+As in Levels 3 and 4, a country's description is its hint, shown in Discover and repeated by Find's second hint; Find's first hint names the capital and the landmark. Each is the country's own (none of these countries appears in another level):
+
+| Country | Hint (English) |
+|---|---|
+| Hungary | A country with no coast in the north-west of this region, on wide plains crossed by the Danube. |
+| Romania | The largest country in this region, with the arc of the Carpathians and a coast on the Black Sea. |
+| Serbia | A country with no coast in the west of this region, just south of Hungary. |
+| Bulgaria | A country on the Black Sea, between the Danube in the north and Greece in the south. |
+| Greece | The southernmost country of this region: a mountainous peninsula with many islands. |
+
+"Largest" is by area (Romania 238,000 km², Greece 132,000, Bulgaria 111,000, Hungary 93,000, Serbia 77,000 without Kosovo; CIA World Factbook). Serbia's hint doesn't mention Kosovo (see DATA.md, "Level 5", for the boundary treatment).
+
+### Illustrations (not yet supplied)
+
+No artwork exists for Level 5's landmarks yet. Until it does, each card uses the text-only layout (`data-art="none"`): the map's amber landmark mark beside the landmark's name and fact, across the card. No other country's artwork, empty frame or placeholder stands in, and the level is fully playable. `src/core/content/content.test.ts` checks that these five have no `illustration` yet.
+
+When the art arrives, integrate it with the four steps in Level 3's "Illustrations" section: save each original under the exact filename below; run `node scripts/prepare-landmarks.mjs`; add `illustration: "<key>"` to the landmark in `src/core/content/countries.ts`; import the display copy into `LANDMARK_IMAGES` in `src/components/landmarks/LandmarkCard.tsx`; then update `content.test.ts` (the `illustration` expectations) and `e2e/level5.spec.ts` (`expectTextOnlyLandmark` becomes the illustrated check of `e2e/level4.spec.ts`). Alt text then follows the existing pattern automatically: "Illustration of Esztergom Basilica" / «Նկարազարդում՝ Էստերգոմի բազիլիկը», "Illustration of Bran Castle" / «Նկարազարդում՝ Բրանի դղյակը», "Illustration of Golubac Fortress" / «Նկարազարդում՝ Գոլուբաց ամրոցը», "Illustration of Rila Monastery" / «Նկարազարդում՝ Ռիլայի վանքը», "Illustration of Meteora" / «Նկարազարդում՝ Մետեորան».
+
+| Landmark | Save the original to | Key | Content |
+|---|---|---|---|
+| Esztergom Basilica, Hungary | `public/images/landmarks/esztergom-basilica.png` | `esztergom-basilica` | The great domed neoclassical cathedral on its hill above the Danube: a tall green-copper dome on a colonnaded drum, a columned portico and two bell towers. Wide composition. |
+| Bran Castle, Romania | `public/images/landmarks/bran-castle.png` | `bran-castle` | The white castle with steep red roofs and towers of different heights, on a rocky outcrop with fir trees. Tall or square composition. |
+| Golubac Fortress, Serbia | `public/images/landmarks/golubac-fortress.png` | `golubac-fortress` | The stone fortress whose towers and walls climb a steep hill from the wide Danube. Wide composition. |
+| Rila Monastery, Bulgaria | `public/images/landmarks/rila-monastery.png` | `rila-monastery` | The domed church with red-and-white striped arcades, the stone tower behind it, and the monastery's wooden-balconied wings, with forested mountains suggested behind. Wide composition. |
+| Meteora, Greece | `public/images/landmarks/meteora.png` | `meteora` | A monastery with red-tiled roofs on the flat top of a towering sandstone rock pillar. Tall or square composition. |
+
+#### Generation prompts
+
+Each starts with the shared style paragraph (Level 2's, above: clean dark navy outlines of even weight, soft cel shading, warm bright colours, recognisable architecture, the landmark alone on a fully transparent background, no sky, cast shadow, frame, text, letters, signs, watermark or people, the whole landmark inside the square with a small margin, 1254×1254 px), then describes its landmark. Check each result as for Level 2: transparent background, the landmark whole inside the frame, no text, people, frame or shadow on the background. Save it under the filename in the table above.
+
+1. **`esztergom-basilica.png`**
+   > [style paragraph] Subject: Esztergom Basilica in Hungary, the country's largest church, standing on a green hill above the Danube. A massive neoclassical cathedral in pale cream and light grey stone. At its centre, a very tall dome with a weathered green-copper roof, raised on a high round drum ringed by columns, topped by a small lantern. In front, a broad portico of tall columns under a triangular pediment, flanked by two square bell towers with green-copper caps. Below, a short green slope with a stone terrace wall and a narrow strip of calm blue river water. Wide, landscape-shaped artwork within the square.
+
+2. **`bran-castle.png`**
+   > [style paragraph] Subject: Bran Castle in Romania, perched on a steep grey rocky outcrop. A compact medieval castle with whitewashed walls and dark timber details, steep red-brown tiled roofs, and several towers of different heights and shapes (one round, others square) with small windows. A few dark green fir trees at the foot of the rock and a little green ground at the base. Tall or square artwork within the frame.
+
+3. **`golubac-fortress.png`**
+   > [style paragraph] Subject: Golubac Fortress in Serbia, on the bank of the Danube at the entrance to the Iron Gates gorge. A medieval fortress of rough grey-beige stone: tall square towers joined by thick crenellated walls that climb a steep green hillside, with the highest tower at the top, its upper part rounded under a small pointed cap. At the foot, the lowest walls and towers stand at the edge of a strip of wide blue-green river water with a few soft ripples. Wide, landscape-shaped artwork within the square.
+
+4. **`rila-monastery.png`**
+   > [style paragraph] Subject: Rila Monastery in Bulgaria's Rila Mountains. In the centre, the Church of the Nativity: an Orthodox church with five small domes covered in dark grey lead, its long open galleries of arches painted in bold red, white and black stripes. Behind it, a tall square medieval stone tower with a small roof. Around and behind them, the monastery's multi-storey residential wings of white walls with dark wooden balconies and arcades. A suggestion of forested green mountain slopes behind, and a little paved courtyard at the base. Wide, landscape-shaped artwork within the square.
+
+5. **`meteora.png`**
+   > [style paragraph] Subject: a Meteora monastery in Greece. A towering, smooth, rounded pillar of grey and honey-beige sandstone with vertical streaks, and on its flat top a monastery: cream and ochre stone walls, small windows, red-tiled roofs and a small dome, built right to the cliff's edge. A second, lower rock pillar beside it, and a little green ground with a few dark cypress trees at the base. Tall or square artwork within the frame.
+
 ## Landmark illustrations
 
 The fifteen illustrations (Level 1's five; Level 2's Chapel Bridge, Schönbrunn Palace and Colosseum; Level 3's Wawel Castle, Charles Bridge and Bratislava Castle, added 2026-09-30; and Level 4's Bled Castle, City Walls of Dubrovnik, Stari Most and Ostrog Monastery, added 2026-10-01) are **AI-generated stylised illustrations** supplied for this prototype. They are not photographs and should not be presented as such. They are drawn in a consistent cartoon style, not as exact architectural records. Provenance is recorded here only; the player interface shows no provenance notice. Each image has localized alt text ("Illustration of …" / «Նկարազարդում՝ …»).

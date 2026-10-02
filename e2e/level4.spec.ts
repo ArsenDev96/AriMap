@@ -269,7 +269,7 @@ test("Level 4, Along the Adriatic: Discover, Find, Travel and Results", async ({
   await saveV2(page, EARLIER, { levelId: L3, recent: [L3, L2, L1] });
   await expect(card(page, L4).getByTestId("level-status")).toHaveText("Ready to play");
   await expect(card(page, L4)).toContainText("Italy · Slovenia · Croatia · Bosnia and Herzegovina · Montenegro");
-  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText(/^Coming soon/);
+  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText(/^Locked/);
   await expect(mainAction(page)).toHaveText(/^Start\s*Level 4 · Along the Adriatic$/);
   await mainAction(page).click();
 
@@ -412,15 +412,15 @@ test("Level 4, Along the Adriatic: Discover, Find, Travel and Results", async ({
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*None/);
   await expect(page.getByTestId("badge")).toBeVisible();
 
-  // The level selection: every playable level completed, Level 5 still coming soon with no way in.
+  // The level selection: Levels 1–4 completed; completing Level 4 unlocks Level 5, which the main action starts.
   await page.getByTestId("home").click();
   for (const id of [L1, L2, L3, L4]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText(/^Coming soon/);
-  await expect(card(page, "towards-greece").getByRole("button")).toHaveCount(0);
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toBeVisible();
+  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 5 · Towards Greece$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await page.reload();
   await expect(card(page, L4).getByTestId("level-status")).toHaveText("Completed");
+  await expect(card(page, "towards-greece").getByTestId("level-status")).toHaveText("Ready to play");
   expect(errors).toEqual([]);
 });
 
