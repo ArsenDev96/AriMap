@@ -1207,6 +1207,8 @@ test.describe("Discover card", () => {
           starShown: star ? star.width > 0 && star.left >= left - 0.5 && star.right <= right + 0.5 : null,
           celebrateLines: celebrate ? lines(celebrate) : 0,
           fontSize: parseFloat(getComputedStyle(row).fontSize),
+          // Armenian text drawn in the loaded Noto Sans Armenian, at the row's own weight and size.
+          armenianFont: document.fonts.check(`${getComputedStyle(row).fontWeight} ${getComputedStyle(row).fontSize} "Noto Sans Armenian"`, "Բա"),
         };
       });
     for (const [width, height] of [[320, 568], [390, 844]]) {
@@ -1225,8 +1227,12 @@ test.describe("Discover card", () => {
             expect.soft(m.overflow, `${where}: row overflows`).toBeLessThanOrEqual(0);
             expect.soft(m.ellipsis, `${where}: ellipsis`).toBe(false);
             expect.soft(m.fontSize, `${where}: text size`).toBeCloseTo((0.8 * 16 * size) / 100, 0);
-            // Wrapping between words; a word broken only if wider than the whole row.
+            if (locale === "hy") expect.soft(m.armenianFont, `${where}: Noto Sans Armenian loaded`).toBe(true);
+            // Wrapping between words; a word broken only if wider than the whole row (the panel's width,
+            // not just the text beside the dot: a word that fits the row moves to a line of its own first).
             expect.soft(await wordProblems(page, '[data-testid="discover-progress"]', '[data-testid="panel"]'), `${where}: words`).toEqual([]);
+            expect.soft(await wordProblems(page, '[data-testid="discover-progress"]', '[data-testid="panel"]', '[data-testid="panel"]'), `${where}: words across the row`).toEqual([]);
+            await page.getByTestId("discover-progress").screenshot({ path: `screenshots/${project()}/${SET}/discover-progress-row-${explored.length}of5-${locale}-text${size}-${width}x${height}.png` });
             if (explored.length === 5) {
               expect.soft(m.starShown, `${where}: star`).toBe(true);
               // At the default size the celebration fits on one line, as before.

@@ -183,19 +183,19 @@ describe("country content", () => {
     for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
   });
 
-  it("gives Level 5's countries their capital and a localized landmark away from the capital, shown as text until its artwork exists", () => {
+  it("gives Level 5's countries their capital and a localized landmark away from the capital, with its own illustration", () => {
     // Country, capital and landmark names as in the English and Armenian Wikipedia article titles where
     // one exists (docs/CONTENT.md flags our own renderings).
-    const expected: Record<string, [string, string, string, string, string, string, string]> = {
-      HUN: ["Hungary", "Հունգարիա", "Budapest", "Բուդապեշտ", "Esztergom Basilica", "Էստերգոմի բազիլիկ", "Էստերգոմի բազիլիկը"],
-      ROU: ["Romania", "Ռումինիա", "Bucharest", "Բուխարեստ", "Bran Castle", "Բրանի դղյակ", "Բրանի դղյակը"],
-      SRB: ["Serbia", "Սերբիա", "Belgrade", "Բելգրադ", "Golubac Fortress", "Գոլուբաց ամրոց", "Գոլուբաց ամրոցը"],
-      BGR: ["Bulgaria", "Բուլղարիա", "Sofia", "Սոֆիա", "Rila Monastery", "Ռիլայի վանք", "Ռիլայի վանքը"],
-      GRC: ["Greece", "Հունաստան", "Athens", "Աթենք", "Meteora", "Մետեորա", "Մետեորան"],
+    const expected: Record<string, [string, string, string, string, string, string, string, string]> = {
+      HUN: ["Hungary", "Հունգարիա", "Budapest", "Բուդապեշտ", "Esztergom Basilica", "Էստերգոմի բազիլիկ", "Էստերգոմի բազիլիկը", "esztergom-basilica"],
+      ROU: ["Romania", "Ռումինիա", "Bucharest", "Բուխարեստ", "Bran Castle", "Բրանի դղյակ", "Բրանի դղյակը", "bran-castle"],
+      SRB: ["Serbia", "Սերբիա", "Belgrade", "Բելգրադ", "Golubac Fortress", "Գոլուբաց ամրոց", "Գոլուբաց ամրոցը", "golubac-fortress"],
+      BGR: ["Bulgaria", "Բուլղարիա", "Sofia", "Սոֆիա", "Rila Monastery", "Ռիլայի վանք", "Ռիլայի վանքը", "rila-monastery"],
+      GRC: ["Greece", "Հունաստան", "Athens", "Աթենք", "Meteora", "Մետեորա", "Մետեորան", "meteora"],
     };
     const l5 = LESSONS["towards-greece"];
     expect([...l5.countries].sort()).toEqual(Object.keys(expected).sort());
-    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText]] of Object.entries(expected)) {
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, illustration]] of Object.entries(expected)) {
       const c = COUNTRIES[id];
       expect(c.name, id).toEqual({ en, hy });
       // The level card names it the same way as before the level was playable.
@@ -211,8 +211,10 @@ describe("country content", () => {
       expect(Math.hypot(dLon, dLat), `${id}: landmark at the capital`).toBeGreaterThan(0.3);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
-      // No artwork has been supplied yet: the card is text-only, and no other country's art stands in.
-      expect(landmark.illustration, id).toBeUndefined();
+      // Its own artwork (supplied 2026-10-02), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
     }
     // One hint per country, all different, in each language; no player-facing "lesson" wording.
     const hints = l5.countries.map((id) => countryHint(l5, id));

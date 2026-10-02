@@ -250,8 +250,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "bratislava-castle",
     },
   },
-  // Level 4's new countries. Their landmarks have no illustration yet: the Discover
-  // card shows them as text (docs/CONTENT.md has the prompts and file names).
+  // Level 4's new countries, each with its own landmark illustration (docs/CONTENT.md).
   SVN: {
     id: "SVN",
     name: { en: "Slovenia", hy: "Սլովենիա" },
@@ -346,8 +345,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "ostrog-monastery",
     },
   },
-  // Level 5's countries. Their landmarks have no illustration yet: the Discover card
-  // shows them as text (docs/CONTENT.md has the prompts and file names).
+  // Level 5's countries.
   HUN: {
     id: "HUN",
     name: { en: "Hungary", hy: "Հունգարիա" },
@@ -368,6 +366,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In Esztergom, on the Danube north-west of Budapest, not the capital.
       coordinates: [18.7364, 47.7989],
+      illustration: "esztergom-basilica",
     },
   },
   ROU: {
@@ -390,6 +389,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // Near Brașov, in the Carpathians, not the capital.
       coordinates: [25.3672, 45.515],
+      illustration: "bran-castle",
     },
   },
   SRB: {
@@ -412,6 +412,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // On the Danube, east of Belgrade, not the capital.
       coordinates: [21.6785, 44.6612],
+      illustration: "golubac-fortress",
     },
   },
   BGR: {
@@ -434,6 +435,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In the Rila Mountains, south of Sofia, not the capital.
       coordinates: [23.3403, 42.1333],
+      illustration: "rila-monastery",
     },
   },
   GRC: {
@@ -456,6 +458,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // The Monastery of Great Meteoron, in Thessaly, not the capital.
       coordinates: [21.6244, 39.7239],
+      illustration: "meteora",
     },
   },
 };

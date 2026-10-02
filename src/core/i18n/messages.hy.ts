@@ -75,7 +75,7 @@ export const hy: Record<keyof typeof en, string> = {
   "discover.prompt": "Հպիր երկրին՝ դրա մասին իմանալու համար։",
   "discover.region":
     "Բացահայտիր այս 5 երկրները։ Հարևան երկրները ցույց են տրված գունատ՝ կողմնորոշվելու համար։",
-  "discover.explored": "Ուսումնասիրված՝ {count}/{total}",
+  "discover.explored": "Բացահայտված՝ {count}/{total}",
   "discover.exploredAll": "Կեցցե՛ս՝ {total}/{total}",
   "discover.capital": "Մայրաքաղաք",
   "discover.landmark": "Տեսարժան վայր",
