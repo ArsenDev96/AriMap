@@ -7,7 +7,7 @@ import topologyJson from "@/data/geo/europe-west.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import { LESSONS, LEVELS } from "@/core/lessons";
 import { shortestDistance, validateGraph, type BorderGraph } from "@/core/game/graph";
-import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds } from "./regionMap";
+import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, MARK_EDGE_CLEARANCE, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds, type ScreenMark, type Transform } from "./regionMap";
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
 const geometries = topology.objects.countries.geometries;
@@ -269,4 +269,124 @@ describe("map coverage", () => {
       }
     });
   }
+});
+
+describe("start view with markers kept whole", () => {
+  /** The traveller's pin around its capital, in px (PIN_BOX in RegionMap.tsx): it stands 23px above the point. */
+  const PIN = { x0: -8, y0: -23, x1: 8, y1: 2 };
+  /** The map's padding for a size, as RegionMap sets it. */
+  const paddingFor = (width: number, height: number) => Math.max(10, Math.min(width, height) * 0.04);
+  const pinAt = (map: ReturnType<typeof regionMapFor>, country: string): ScreenMark => ({
+    at: map.project(COUNTRIES[country].capital.coordinates),
+    extent: PIN,
+  });
+  /** The mark's room to the map's edges at a view: left, top, right, bottom (px). */
+  const room = (mark: ScreenMark, t: Transform, width: number, height: number) => {
+    const [x, y] = applyTransform(t, mark.at);
+    return [x + mark.extent.x0, y + mark.extent.y0, width - x - mark.extent.x1, height - y - mark.extent.y1];
+  };
+  /** The view's world area against the coverage and the pan limits (which d3-zoom keeps a smaller view inside). */
+  const expectInside = (map: ReturnType<typeof regionMapFor>, t: Transform, width: number, height: number, extent: Bounds) => {
+    const view: Bounds = [
+      [-t.x / t.k, -t.y / t.k],
+      [(width - t.x) / t.k, (height - t.y) / t.k],
+    ];
+    for (const d of [0, 1]) {
+      expect(view[0][d]).toBeGreaterThanOrEqual(map.coverage[0][d] - 1e-6);
+      expect(view[1][d]).toBeLessThanOrEqual(map.coverage[1][d] + 1e-6);
+      if (view[1][d] - view[0][d] <= extent[1][d] - extent[0][d]) {
+        expect(view[0][d]).toBeGreaterThanOrEqual(extent[0][d] - 1e-6);
+        expect(view[1][d]).toBeLessThanOrEqual(extent[1][d] + 1e-6);
+      }
+    }
+  };
+  const baltic = regionMapFor(LESSONS["baltic-journey"]);
+
+  it("baltic-journey: on a 320×568 phone (304×231 map), the pin in Tallinn is whole, the view inside the data", () => {
+    const [width, height] = [304, 231];
+    const tallinn = pinAt(baltic, "EST");
+    const region = viewLimits(baltic, width, height, paddingFor(width, height));
+    // The countries' own start view cuts the pin's head: Tallinn is on the coast, 34 world units below the top of the five countries.
+    expect(room(tallinn, region.base, width, height)[1]).toBeLessThan(0);
+    const { base, minScale, translateExtent } = viewLimits(baltic, width, height, paddingFor(width, height), [tallinn]);
+    for (const r of room(tallinn, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+    expectInside(baltic, base, width, height, translateExtent);
+    // The data ends just north of the view (the coverage's top edge), so the view zooms in by the least that fits
+    // the pin there, never out: the countries keep their size, and only Germany's south runs past the bottom edge.
+    expect(base.k).toBeGreaterThan(region.base.k);
+    expect(base.k / region.base.k).toBeLessThan(1.1);
+    expect(-base.y / base.k).toBeCloseTo(baltic.coverage[0][1], 6);
+    const [[fx0, fy0], [fx1, fy1]] = baltic.focusBounds;
+    const [sx0, sy0] = applyTransform(base, [fx0, fy0]);
+    const [sx1, sy1] = applyTransform(base, [fx1, fy1]);
+    expect(sx0).toBeGreaterThanOrEqual(0);
+    expect(sx1).toBeLessThanOrEqual(width);
+    expect(sy0).toBeGreaterThanOrEqual(0);
+    expect(sy1 - height).toBeLessThan(20);
+    // Zooming out still reaches the countries' own view.
+    expect(minScale).toBeCloseTo(region.base.k, 9);
+  });
+
+  it("baltic-journey: on a 320×640 phone (304×261 map), the pin in Tallinn and all five countries are whole", () => {
+    const [width, height] = [304, 261];
+    const padding = paddingFor(width, height);
+    const tallinn = pinAt(baltic, "EST");
+    expect(room(tallinn, viewLimits(baltic, width, height, padding).base, width, height)[1]).toBeLessThan(0);
+    const { base, translateExtent } = viewLimits(baltic, width, height, padding, [tallinn]);
+    for (const r of room(tallinn, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+    expectInside(baltic, base, width, height, translateExtent);
+    const [[fx0, fy0], [fx1, fy1]] = baltic.focusBounds;
+    const [sx0, sy0] = applyTransform(base, [fx0, fy0]);
+    const [sx1, sy1] = applyTransform(base, [fx1, fy1]);
+    for (const margin of [sx0, sy0, width - sx1, height - sy1]) expect(margin).toBeGreaterThanOrEqual(0);
+  });
+
+  it("changes the start view only where the pin would be cut: every level, every capital, phones to wide desktops", () => {
+    const changed: string[] = [];
+    for (const lesson of Object.values(LESSONS)) {
+      const map = regionMapFor(lesson);
+      for (const [width, height] of [
+        [304, 231],
+        [304, 261],
+        [374, 380],
+        [396, 413],
+        [932, 712],
+        [1456, 992],
+        [2096, 992],
+      ]) {
+        const padding = paddingFor(width, height);
+        const region = viewLimits(map, width, height, padding);
+        const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+        const [[sx0, sy0], [sx1, sy1]] = [applyTransform(region.base, [fx0, fy0]), applyTransform(region.base, [fx1, fy1])];
+        // A map whose start view crops the countries already (Level 2 on a 2.1:1 map, where Berlin is beyond the top edge).
+        const cropped = sx0 < -0.5 || sy0 < -0.5 || sx1 > width + 0.5 || sy1 > height + 0.5;
+        for (const country of lesson.countries) {
+          const pin = pinAt(map, country);
+          const { base, translateExtent } = viewLimits(map, width, height, padding, [pin]);
+          if (cropped || room(pin, region.base, width, height).every((r) => r >= MARK_EDGE_CLEARANCE)) {
+            expect(base).toEqual(region.base);
+            continue;
+          }
+          changed.push(`${lesson.id} ${country} ${width}×${height}`);
+          for (const r of room(pin, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          expectInside(map, base, width, height, translateExtent);
+        }
+      }
+    }
+    // Only Tallinn, on the coast at the top of Level 6, on 320px phones.
+    expect(changed).toEqual(["baltic-journey EST 304×231", "baltic-journey EST 304×261"]);
+  });
+
+  it("leaves short maps as they are: landscape phones (cropped already) and 200% text, which would need more than a small zoom", () => {
+    for (const [width, height] of [
+      [724, 192],
+      [828, 192],
+      // 200% text on a 320×568 phone: the pin would need the view zoomed in 1.7 times.
+      [304, 156],
+      [304, 150],
+    ]) {
+      const region = viewLimits(baltic, width, height, paddingFor(width, height));
+      expect(viewLimits(baltic, width, height, paddingFor(width, height), [pinAt(baltic, "EST")]).base).toEqual(region.base);
+    }
+  });
 });

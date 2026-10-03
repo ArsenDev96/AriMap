@@ -461,8 +461,8 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "meteora",
     },
   },
-  // Level 6's new countries (Germany and Poland are shared with earlier levels). Their
-  // landmarks have no illustration yet: their cards show the landmark as text.
+  // Level 6's new countries (Germany and Poland are shared with earlier levels), each with
+  // its own illustration (supplied 2026-10-03).
   LTU: {
     id: "LTU",
     name: { en: "Lithuania", hy: "Լիտվա" },
@@ -484,6 +484,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In Trakai, west of Vilnius, not the capital.
       coordinates: [24.9331, 54.6525],
+      illustration: "trakai-island-castle",
     },
   },
   LVA: {
@@ -507,6 +508,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       // On Town Hall Square in Riga's old town, 0.2 km from the capital's point: the marker
       // rule leaves its pin out wherever the two would meet (docs/CONTENT.md).
       coordinates: [24.1069, 56.9472],
+      illustration: "house-of-the-black-heads",
     },
   },
   EST: {
@@ -531,6 +533,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       // On Town Hall Square in Tallinn's old town, 0.5 km from the capital's point: the marker
       // rule leaves its pin out wherever the two would meet (docs/CONTENT.md).
       coordinates: [24.7455, 59.4371],
+      illustration: "tallinn-town-hall",
     },
   },
 };

@@ -226,17 +226,17 @@ describe("country content", () => {
     expect(l5.regionName).toEqual({ en: "South-eastern Europe", hy: "Հարավարևելյան Եվրոպա" });
   });
 
-  it("gives Level 6's new countries their capital and a localized landmark with a text card, and Germany and Poland their shared content", () => {
+  it("gives Level 6's new countries their capital and a localized landmark with its own illustration, and Germany and Poland their shared content", () => {
     // Country, capital and landmark names as in the English and Armenian Wikipedia article titles where
     // one exists (docs/CONTENT.md flags our own renderings).
-    const expected: Record<string, [string, string, string, string, string, string, string]> = {
-      LTU: ["Lithuania", "Լիտվա", "Vilnius", "Վիլնյուս", "Trakai Island Castle", "Տրակայի կղզու դղյակ", "Տրակայի կղզու դղյակը"],
-      LVA: ["Latvia", "Լատվիա", "Riga", "Ռիգա", "House of the Black Heads", "Սևագլուխների տուն", "Սևագլուխների տունը"],
-      EST: ["Estonia", "Էստոնիա", "Tallinn", "Տալլին", "Tallinn Town Hall", "Տալլինի ռատուշա", "Տալլինի ռատուշան"],
+    const expected: Record<string, [string, string, string, string, string, string, string, string, string]> = {
+      LTU: ["Lithuania", "Լիտվա", "Vilnius", "Վիլնյուս", "Trakai Island Castle", "Տրակայի կղզու դղյակ", "Տրակայի կղզու դղյակը", "trakai-island-castle", "Trakai Island Castle"],
+      LVA: ["Latvia", "Լատվիա", "Riga", "Ռիգա", "House of the Black Heads", "Սևագլուխների տուն", "Սևագլուխների տունը", "house-of-the-black-heads", "the House of the Black Heads"],
+      EST: ["Estonia", "Էստոնիա", "Tallinn", "Տալլին", "Tallinn Town Hall", "Տալլինի ռատուշա", "Տալլինի ռատուշան", "tallinn-town-hall", "Tallinn Town Hall"],
     };
     const l6 = LESSONS["baltic-journey"];
     expect(l6.countries).toEqual(["DEU", "POL", "LTU", "LVA", "EST"]);
-    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText]] of Object.entries(expected)) {
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, illustration, landmarkInTextEn]] of Object.entries(expected)) {
       const c = COUNTRIES[id];
       expect(c.name, id).toEqual({ en, hy });
       expect(countryName(id), id).toEqual({ en, hy });
@@ -250,8 +250,10 @@ describe("country content", () => {
       expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
-      // No artwork yet (docs/CONTENT.md has the briefs): the card shows the landmark as text.
-      expect(landmark.illustration, id).toBeUndefined();
+      // Its own artwork (supplied 2026-10-03), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkInTextEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
     }
     // Trakai is outside the capital; Riga's and Tallinn's landmarks are in their old towns.
     const kmApart = (id: string) => {

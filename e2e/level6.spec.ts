@@ -3,8 +3,8 @@ import { openWithSave } from "./helpers/save";
 
 /*
  * Level 6 (Baltic Journey) from Discover to Results, its unlock from Level 5 (an existing save),
- * its five landmark cards (Germany's and Poland's illustrated, as in earlier levels; Lithuania's,
- * Latvia's and Estonia's as text until their artwork exists), the Germany → Estonia journey
+ * its five illustrated landmark cards (Germany's and Poland's artwork shared with earlier levels;
+ * Lithuania's, Latvia's and Estonia's their own, supplied 2026-10-03), the Germany → Estonia journey
  * (one shortest route), the level selection once all six levels are completed, and its map:
  * framing (Estonia's islands included), reset, and the landscape it loads.
  */
@@ -31,9 +31,19 @@ const LANDMARKS_HY: Record<string, string> = { DEU: "Բրանդենբուրգյ�
 /** In a sentence (Find's first hint). */
 const LANDMARKS_IN_TEXT: Record<string, string> = { DEU: "the Brandenburg Gate", POL: "Wawel Castle", LTU: "Trakai Island Castle", LVA: "the House of the Black Heads", EST: "Tallinn Town Hall" };
 const LANDMARK_IDS: Record<string, string> = { DEU: "brandenburg-gate", POL: "wawel-castle", LTU: "trakai-island-castle", LVA: "house-of-the-black-heads", EST: "tallinn-town-hall" };
-/** Germany's and Poland's artwork is shared with earlier levels; the Baltic three have none yet. */
-const ILLUSTRATED = ["DEU", "POL"];
-const TEXT_ONLY = ["LTU", "LVA", "EST"];
+/** Germany's and Poland's artwork is shared with earlier levels; the Baltic three have their own. */
+const BALTIC_ART = ["LTU", "LVA", "EST"];
+/** Each illustration's alt text: the landmark as named in a sentence. */
+const ALT: Record<"en" | "hy", Record<string, string>> = {
+  en: Object.fromEntries(Object.entries(LANDMARKS_IN_TEXT).map(([id, name]) => [id, `Illustration of ${name}`])),
+  hy: {
+    DEU: "Նկարազարդում՝ Բրանդենբուրգյան դարպասները",
+    POL: "Նկարազարդում՝ Վավելի ամրոցը",
+    LTU: "Նկարազարդում՝ Տրակայի կղզու դղյակը",
+    LVA: "Նկարազարդում՝ Սևագլուխների տունը",
+    EST: "Նկարազարդում՝ Տալլինի ռատուշան",
+  },
+};
 
 const answers = (order: string[]) => order.map((target) => ({ target, wrongGuesses: 0, hintLevel: 0 }));
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
@@ -286,9 +296,10 @@ async function expectFindSpoilerFree(page: Page, target: string) {
 }
 
 /**
- * A Level 6 landmark card. Germany's and Poland's show their own illustration, as in earlier levels;
- * Lithuania's, Latvia's and Estonia's are text only: the landmark mark beside the name and fact, and
- * no picture frame at all (no empty tile, no image).
+ * A Level 6 landmark card, with its own illustration (Germany's and Poland's shared with earlier levels):
+ * loaded, from its own file, with alt text naming the landmark in the card's language, and the only image
+ * in the panel. Every one is well below 2:1 (0.84–1.25:1 for the Baltic three), so on phones it takes the
+ * square tile beside the country's name.
  */
 async function expectLandmarkCard(page: Page, id: string, locale: "en" | "hy") {
   const figure = page.getByTestId("landmark-card");
@@ -296,22 +307,56 @@ async function expectLandmarkCard(page: Page, id: string, locale: "en" | "hy") {
   await expect(figure).toContainText(locale === "en" ? LANDMARKS[id] : LANDMARKS_HY[id]);
   // Its fact, a sentence, follows the name.
   expect(((await figure.locator("figcaption span").last().textContent()) ?? "").length).toBeGreaterThan(30);
-  if (ILLUSTRATED.includes(id)) {
-    await expect(figure).toHaveAttribute("data-art", "illustration");
-    const image = page.getByTestId("landmark-image");
-    await expect(image).toHaveCount(1);
-    await expect(image).toHaveAttribute("src", new RegExp(LANDMARK_IDS[id]));
-    await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
-  } else {
-    await expect(figure).toHaveAttribute("data-art", "none");
-    await expect(page.getByTestId("landmark-image")).toHaveCount(0);
-    await expect(page.getByTestId("panel").locator("img")).toHaveCount(0);
-    // No frame or stage for a picture: only the mark (an inline SVG) and the caption.
-    expect(await figure.evaluate((f) => [...f.children].map((c) => c.tagName.toLowerCase()))).toEqual(["svg", "figcaption"]);
-    // The caption takes the card's width beside the mark, not a narrow column.
-    const [fig, caption] = [(await figure.boundingBox())!, (await figure.locator("figcaption").boundingBox())!];
-    expect(caption.width, `${id}: caption narrow`).toBeGreaterThan(fig.width * 0.6);
-  }
+  await expect(figure).toHaveAttribute("data-art", "illustration");
+  await expect(figure).toHaveAttribute("data-shape", "ordinary");
+  const image = page.getByTestId("landmark-image");
+  await expect(image).toHaveCount(1);
+  await expect(page.getByTestId("panel").locator("img")).toHaveCount(1);
+  await expect(image).toHaveAttribute("alt", ALT[locale][id]);
+  await expect(image).toHaveAttribute("src", new RegExp(LANDMARK_IDS[id]));
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+}
+
+/** The artwork as drawn (object-fit: contain), not its box: where it is, its size and proportions. */
+async function drawnArt(page: Page) {
+  return page.getByTestId("landmark-image").evaluate((img: HTMLImageElement) => {
+    const r = img.getBoundingClientRect();
+    const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const [w, h] = [img.naturalWidth * s, img.naturalHeight * s];
+    const tile = img.closest("figure")!.querySelector("div")!.getBoundingClientRect();
+    return {
+      left: r.left + (r.width - w) / 2,
+      right: r.left + (r.width + w) / 2,
+      top: r.top + (r.height - h) / 2,
+      bottom: r.top + (r.height + h) / 2,
+      width: w,
+      height: h,
+      naturalRatio: img.naturalWidth / img.naturalHeight,
+      fit: getComputedStyle(img).objectFit,
+      tile: { left: tile.left, right: tile.right, top: tile.top, bottom: tile.bottom },
+    };
+  });
+}
+
+/**
+ * Scrolls the panel until the artwork's tile ends just above the pinned button (the button covers the
+ * panel's bottom, so "in view" for the browser isn't in view for the player), then checks that the whole
+ * artwork shows between the panel's top and the button, unstretched and inside its tile.
+ */
+async function expectArtReachable(page: Page, where: string) {
+  const panel = page.getByTestId("panel");
+  await panel.evaluate((el) => {
+    const tile = el.querySelector('[data-testid="landmark-image"]')!.closest("figure")!.querySelector("div")!.getBoundingClientRect();
+    const fold = document.querySelector('[data-testid="sticky-actions"]')!.getBoundingClientRect().top;
+    el.scrollBy(0, tile.bottom - fold + 4);
+  });
+  const art = await drawnArt(page);
+  const top = (await panel.boundingBox())!.y;
+  const fold = (await page.getByTestId("sticky-actions").boundingBox())!.y;
+  expect(Math.abs(art.width / art.height - art.naturalRatio), `${where}: art stretched`).toBeLessThan(0.02);
+  expect(art.top >= art.tile.top - 0.5 && art.bottom <= art.tile.bottom + 0.5 && art.left >= art.tile.left - 0.5 && art.right <= art.tile.right + 0.5, `${where}: art outside its tile`).toBe(true);
+  expect(art.top, `${where}: art's top above the panel when its bottom shows`).toBeGreaterThanOrEqual(top - 0.5);
+  expect(art.bottom, `${where}: art under the button`).toBeLessThanOrEqual(fold + 0.5);
 }
 
 /** The first row of Travel's neighbour cards, whole above the screen's (or panel's) bottom without scrolling. */
@@ -644,7 +689,8 @@ test("Level 6 on the level selection: its title and status in view on arrival; a
 });
 
 /* Screens at a short and an ordinary phone (small-phone, Chromium; webkit-phone, WebKit) and on desktop,
-   in both languages: each Discover card, unanswered Find, Travel and Results; enlarged text on phones. */
+   in both languages: each Discover card with its illustration, unanswered Find, Travel and Results; enlarged
+   text on phones, and each card opened at its top after the previous one was scrolled. */
 test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel and Results", async ({ page }) => {
   test.skip(!["small-phone", "desktop", "webkit-phone"].includes(project()), "Runs on small-phone, webkit-phone and desktop.");
   test.setTimeout(900_000);
@@ -657,7 +703,8 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
     for (const locale of ["en", "hy"] as const) {
       const where = (what: string) => `${width}×${height} ${locale} ${what}`;
 
-      // Discover: each country's card.
+      // Discover: each country's card, with its illustration.
+      const squareArt = Math.min(Math.max(112, 0.33 * width), 132) - 12;
       for (const id of L6_COUNTRIES) {
         await openLevel6(page, discoverAt(id), locale);
         await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
@@ -669,13 +716,34 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
         await expectWordsWhole(page.getByTestId("country-capital"), where(`${id} capital`), page.getByTestId("country-card"));
         await expectWordsWhole(page.getByTestId("landmark-card").locator("figcaption"), where(`${id} landmark`));
         expect(await panel.evaluate((el) => el.scrollTop), where(`${id} card opened scrolled`)).toBe(0);
-        // Without scrolling: the name and the capital above the pinned button.
+        // Without scrolling: the name, the capital and the whole artwork, above the pinned button,
+        // uncropped (Tallinn's spire, Trakai's bridge, both of Riga's facades) and unstretched.
         const fold = (await box("sticky-actions")).y;
         const panelBox = await box("panel");
         for (const part of [title, page.getByTestId("country-capital")]) {
           const b = (await part.boundingBox())!;
           expect(b.y, where(`${id} ${await part.textContent()} above the panel`)).toBeGreaterThanOrEqual(panelBox.y);
           expect(b.y + b.height, where(`${id} ${await part.textContent()} under the button`)).toBeLessThanOrEqual(fold + 1);
+        }
+        const art = await drawnArt(page);
+        expect(art.fit).toBe("contain");
+        expect(Math.abs(art.width / art.height - art.naturalRatio), where(`${id} art stretched`)).toBeLessThan(0.02);
+        expect(art.left, where(`${id} art cut on the left`)).toBeGreaterThanOrEqual(Math.max(art.tile.left, panelBox.x, 0) - 0.5);
+        expect(art.right, where(`${id} art cut on the right`)).toBeLessThanOrEqual(Math.min(art.tile.right, panelBox.x + panelBox.width, width) + 0.5);
+        expect(art.top, where(`${id} art above its tile`)).toBeGreaterThanOrEqual(Math.max(art.tile.top, panelBox.y) - 0.5);
+        expect(art.bottom, where(`${id} art under its tile`)).toBeLessThanOrEqual(art.tile.bottom + 0.5);
+        expect(art.bottom, where(`${id} art under the button`)).toBeLessThanOrEqual(fold + 1);
+        expect(Math.max(art.width, art.height), where(`${id} art too small`)).toBeGreaterThanOrEqual(phone ? squareArt - 0.5 : 96);
+        if (phone) {
+          // The square tile, beside the capital (and the name, when it fits beside it).
+          const capital = (await page.getByTestId("country-capital").boundingBox())!;
+          expect(art.tile.left, where(`${id} tile not beside the capital`)).toBeGreaterThanOrEqual(capital.x + 0.5);
+          expect(Math.round(art.tile.right - art.tile.left), where(`${id} square tile`)).toBe(Math.round(art.tile.bottom - art.tile.top));
+        }
+        if (BALTIC_ART.includes(id)) {
+          // The artwork at its real size on the page, for review (Tallinn's tall spire on a phone above all).
+          console.log(`${where(LANDMARK_IDS[id])} drawn ${art.width.toFixed(0)}×${art.height.toFixed(0)}px`);
+          await page.getByTestId("landmark-image").screenshot({ path: `screenshots/${project()}/level6-${locale}-${LANDMARK_IDS[id]}-art-${width}x${height}.png` });
         }
         await expectMapTextClear(page);
         await expectMarkerNamesOwn(page, where(`${id} map`));
@@ -685,7 +753,7 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
         await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
         const c = await box("country-card");
         expect(c.y + c.height, where(`${id} card bottom`)).toBeLessThanOrEqual((await box("sticky-actions")).y + 1);
-        if (TEXT_ONLY.includes(id)) await shot(page, `${locale}-discover-${id}-scrolled`);
+        if (BALTIC_ART.includes(id)) await shot(page, `${locale}-discover-${id}-scrolled`);
       }
 
       // Find, unanswered, and after its first hint.
@@ -725,7 +793,7 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
   for (const [width, height] of sizes) {
     await page.setViewportSize({ width, height });
     for (const locale of ["en", "hy"] as const) {
-      for (const id of ["LVA", "EST"]) {
+      for (const id of BALTIC_ART) {
         await openLevel6(page, discoverAt(id), locale);
         for (const size of [150, 200]) {
           const where = `${width}×${height} ${locale} ${id} ${size}%`;
@@ -734,7 +802,10 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
           expect(parseFloat(await title.evaluate((el) => getComputedStyle(el).fontSize)), where).toBeGreaterThanOrEqual(((width < 420 ? 1.2 : 1.45) * 16 * size) / 100 - 0.5);
           await expectWordsWhole(title, `${where} title`);
           await expectWordsWhole(page.getByTestId("landmark-card").locator("figcaption"), `${where} landmark`);
-          await expect(page.getByTestId("landmark-card")).toHaveAttribute("data-art", "none");
+          // The artwork keeps its size and shape, whole in its tile, and is brought into view by scrolling.
+          await expectArtReachable(page, where);
+          await shot(page, `${locale}-discover-${id}-text${size}-art`);
+          await panel.evaluate((el) => el.scrollTo(0, 0));
           await shot(page, `${locale}-discover-${id}-text${size}`);
           await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
           const c = await box("country-card");
@@ -742,6 +813,34 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
           await expectNoHorizontalOverflow(page);
           await shot(page, `${locale}-discover-${id}-text${size}-end`);
           await panel.evaluate((el) => el.scrollTo(0, 0));
+        }
+        await textSize(page, 100);
+      }
+      // At 200% on the short phone, each country chosen on the map in turn after the previous card was
+      // scrolled to its end: the new card opens at its top, leaves room to read, and is reached whole by scrolling.
+      if (width === 320) {
+        await openLevel6(page, discoverAt("DEU"), locale);
+        await textSize(page, 200);
+        for (const id of BALTIC_ART) {
+          const where = `${width}×${height} ${locale} 200% ${id} chosen on the map`;
+          await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+          expect(await panel.evaluate((el) => el.scrollTop), `${where}: previous card not scrolled`).toBeGreaterThan(0);
+          await tapCountry(page, id);
+          await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
+          await expectLandmarkCard(page, id, locale);
+          await fontsSettled(page);
+          expect(await panel.evaluate((el) => el.scrollTop), `${where}: card opened scrolled`).toBe(0);
+          const room = await page.evaluate(() => {
+            const top = document.querySelector('[data-testid="panel"]')!.getBoundingClientRect().top;
+            const fold = document.querySelector('[data-testid="sticky-actions"]')!.getBoundingClientRect().top;
+            return { window: fold - top, line: parseFloat(getComputedStyle(document.querySelector('[data-testid="country-card"] > p:last-child')!).lineHeight) };
+          });
+          expect(room.window, `${where}: ${room.window.toFixed(0)}px to read through`).toBeGreaterThanOrEqual(2.5 * room.line);
+          await shot(page, `${locale}-discover-${id}-text200-top`);
+          await expectArtReachable(page, where);
+          await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+          const c = await box("country-card");
+          expect(c.y + c.height, `${where}: card bottom`).toBeLessThanOrEqual((await box("sticky-actions")).y + 1);
         }
         await textSize(page, 100);
       }
@@ -766,9 +865,11 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
   }
 });
 
-/* The whole map: every country whole with padding (Estonia's islands included), never beyond the prepared
-   data; Estonia's islands reached and tapped with the normal controls; "Show the whole map" returns to the start. */
-test("Level 6's map: the start view and reset show all five countries with Estonia's islands; no size shows past the data", async ({ page }) => {
+/* The whole map: every country whole with padding (Estonia's islands included) on whole-region maps, never beyond the
+   prepared data at any size. Phones in landscape (192px maps) are cropped instead: their start view leaves Estonia
+   wholly beyond the top edge, and the player pans (docs/DATA.md, "Level 6"). Estonia's islands reached and tapped with
+   the normal controls; "Show the whole map" returns to the start. */
+test("Level 6's map: the start view and reset show all five countries with Estonia's islands on whole-region maps; no size shows past the data", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once, across sizes.");
   test.setTimeout(400_000);
   const mapState = () =>
@@ -862,6 +963,244 @@ test("Level 6's map: the start view and reset show all five countries with Eston
   }
   test.info().annotations.push({ type: "margins", description: report.join("; ") });
   console.log(report.join("\n"));
+});
+
+/** The world layer's transform (the camera), as drawn. */
+const cameraOf = (page: Page) => page.locator('[data-testid="map-main"] [data-relief]').evaluate((el) => el.parentElement!.getAttribute("transform")!);
+const scaleOf = (transform: string) => Number(/scale\(([-\d.e]+)\)/.exec(transform)![1]);
+
+/** The traveller's pin as painted (its white outline included) against the map's edges: room left, top, right and bottom (px). */
+const pinRoom = (page: Page) =>
+  page.evaluate(() => {
+    const map = document.querySelector('[data-testid="map-main"]')!.getBoundingClientRect();
+    const pin = document.querySelector('[data-testid="map-main"] [data-traveller] path')!;
+    const r = pin.getBoundingClientRect();
+    const outline = parseFloat(getComputedStyle(pin).strokeWidth) / 2;
+    return [r.left - outline - map.left, r.top - outline - map.top, map.right - r.right - outline, map.bottom - r.bottom - outline];
+  });
+
+/** Where a point lies in Estonia's drawn box, as fractions of its width and height: the same in every view. */
+const inEstonia = (page: Page, selector: string, at: "tip" | "centre") =>
+  page.evaluate(
+    ([selector, at]) => {
+      const est = document.querySelector('[data-testid="map-main"] path[data-country="EST"]')!.getBoundingClientRect();
+      const r = document.querySelector(selector)!.getBoundingClientRect();
+      const [x, y] = [(r.left + r.right) / 2, at === "tip" ? r.bottom : (r.top + r.bottom) / 2];
+      return [(x - est.left) / est.width, (y - est.top) / est.height];
+    },
+    [selector, at] as const,
+  );
+
+/* The traveller's pin in Tallinn (on the coast, at the top of the map): whole inside the map, with clear room, on
+   arrival, at Results, after a refresh and after "Show the whole map"; its tip on Tallinn, as the capital marker is.
+   On a 320×568 phone the start view zooms in a little for it (docs/DATA.md, "Level 6"); it never moves on its own
+   while the player drags the map. */
+test("Level 6: the traveller's pin in Tallinn is whole in the start view; the map never moves on its own during a drag", async ({ page }) => {
+  test.skip(project() !== "desktop", "Runs once, across sizes.");
+  test.setTimeout(400_000);
+  const ROOM = 1.5;
+  for (const [width, height] of [[320, 568], [390, 844], [1366, 800]]) {
+    await page.setViewportSize({ width, height });
+    for (const locale of ["en", "hy"] as const) {
+      const where = (what: string) => `${width}×${height} ${locale} ${what}`;
+      const reset = page.getByRole("button", { name: locale === "en" ? "Show the whole map" : "Ցույց տալ ամբողջ քարտեզը" });
+      const zoomIn = page.getByRole("button", { name: locale === "en" ? "Zoom in" : "Մեծացնել" });
+      // Tallinn's capital marker, in Estonia's box: the pin's tip stands on the same point.
+      await openLevel6(page, discoverAt("EST"), locale);
+      const capital = await inEstonia(page, '[data-testid="map-main"] [data-marker="capital"]', "centre");
+
+      // Arrival: from Latvia into Estonia, at the start view.
+      await openLevel6(page, travellingAt(["DEU", "POL", "LTU", "LVA"]), locale);
+      const travelling = await cameraOf(page);
+      await page.getByTestId("move-EST").click();
+      await expect(page.getByTestId("result-crossings")).toBeVisible();
+      await expect(page.locator('[data-testid="map-main"] [data-traveller]')).toHaveAttribute("data-traveller", "EST");
+      // The landing and any easing of the camera are over.
+      await page.waitForTimeout(1200);
+      const arrived = await cameraOf(page);
+      for (const r of await pinRoom(page)) expect(r, where("pin on arrival")).toBeGreaterThanOrEqual(ROOM);
+      const tip = await inEstonia(page, '[data-testid="map-main"] [data-traveller] path', "tip");
+      expect(Math.abs(tip[0] - capital[0]) + Math.abs(tip[1] - capital[1]), where("pin tip off Tallinn")).toBeLessThan(0.03);
+      // Only the 320px map needs a different start view for the pin.
+      if (width === 320) expect(arrived, where("camera on arrival")).not.toBe(travelling);
+      else expect(arrived, where("camera on arrival")).toBe(travelling);
+
+      // Results after a refresh: the same view.
+      await page.reload();
+      await appReady(page);
+      await fontsSettled(page);
+      await expect(page.locator('[data-testid="map-main"] [data-traveller]')).toHaveAttribute("data-traveller", "EST");
+      await page.waitForTimeout(300);
+      expect(await cameraOf(page), where("camera after refresh")).toBe(arrived);
+      for (const r of await pinRoom(page)) expect(r, where("pin after refresh")).toBeGreaterThanOrEqual(ROOM);
+
+      // Zoomed in and moved, then "Show the whole map": the same view again.
+      await zoomIn.click();
+      await zoomIn.click();
+      await page.waitForTimeout(500);
+      const svg = (await page.getByTestId("map-main").boundingBox())!;
+      await page.mouse.move(svg.x + svg.width * 0.5, svg.y + svg.height * 0.5);
+      await page.mouse.down();
+      await page.mouse.move(svg.x + svg.width * 0.3, svg.y + svg.height * 0.7, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForTimeout(400);
+      expect(await cameraOf(page)).not.toBe(arrived);
+      await reset.click();
+      await expect.poll(() => cameraOf(page), { timeout: 5000 }).toBe(arrived);
+      for (const r of await pinRoom(page)) expect(r, where("pin after Show the whole map")).toBeGreaterThanOrEqual(ROOM);
+      if (width === 320 && locale === "en") await shot(page, "results-pin-whole");
+    }
+  }
+
+  // At 320×568, the traveller arrives in Tallinn while the player drags the map: the camera stays with the drag, and
+  // where they leave it, rather than easing to the new start view. "Show the whole map" then shows the pin whole.
+  await page.setViewportSize({ width: 320, height: 568 });
+  await openLevel6(page, travellingAt(["DEU", "POL", "LTU", "LVA"]));
+  const before = await cameraOf(page);
+  const svg = (await page.getByTestId("map-main").boundingBox())!;
+  await page.mouse.move(svg.x + svg.width * 0.5, svg.y + svg.height * 0.4);
+  await page.mouse.down();
+  await page.mouse.move(svg.x + svg.width * 0.5, svg.y + svg.height * 0.6, { steps: 6 });
+  // Arrival, without releasing the map.
+  await page.getByTestId("move-EST").evaluate((b: HTMLButtonElement) => b.click());
+  await expect(page.locator('[data-testid="map-main"] [data-traveller]')).toHaveAttribute("data-traveller", "EST");
+  await page.waitForTimeout(500);
+  expect(scaleOf(await cameraOf(page)), "zoom changed during the drag").toBeCloseTo(scaleOf(before), 6);
+  await page.mouse.move(svg.x + svg.width * 0.5, svg.y + svg.height * 0.7, { steps: 4 });
+  await page.mouse.up();
+  const dragged = await cameraOf(page);
+  expect(dragged, "the drag moved the map").not.toBe(before);
+  await page.waitForTimeout(1200);
+  expect(await cameraOf(page), "the map moved on its own after the drag").toBe(dragged);
+  await page.getByRole("button", { name: "Show the whole map" }).click();
+  await page.waitForTimeout(600);
+  expect(scaleOf(await cameraOf(page))).toBeGreaterThan(scaleOf(before));
+  for (const r of await pinRoom(page)) expect(r, "pin after Show the whole map").toBeGreaterThanOrEqual(ROOM);
+});
+
+/**
+ * Estonia's name, selected in Discover: inside Estonia where it fits; otherwise in a callout close to it (its leader
+ * at most 18px longer than half Estonia's size, the rule for a nearby callout), clear of the other names, Tallinn's
+ * name and marker, the map controls, and with a leader that crosses none of them. Null when it is not shown (left
+ * out, or beyond the map's edge once zoomed or moved).
+ */
+async function expectEstoniaNamedNearby(page: Page, where: string) {
+  const s = await page.evaluate(() => {
+    const main = document.querySelector('[data-testid="map-main"]')!;
+    const box = (e: Element) => {
+      const r = e.getBoundingClientRect();
+      return { x0: r.left, y0: r.top, x1: r.right, y1: r.bottom };
+    };
+    const g = main.querySelector('[data-label="EST"]');
+    if (!g) return null;
+    const est = box(main.querySelector('path[data-country="EST"]')!);
+    const own = new Set([...g.querySelectorAll("*")]);
+    const others = [
+      ...[...main.querySelectorAll("[data-label] text, [data-marker-text]")].filter((t) => !own.has(t)).map((t) => ({ what: `«${t.textContent}»`, b: box(t) })),
+      ...[...main.querySelectorAll("[data-marker], [data-traveller]")].map((m) => ({ what: "a marker", b: box(m) })),
+      ...[...document.querySelectorAll('[data-testid="map-controls"], [data-testid="map-about"]')].map((c) => ({ what: "the map controls", b: box(c) })),
+    ];
+    const line = g.querySelector("line");
+    const svg = main.querySelector("[data-overlay]")!.getBoundingClientRect();
+    const leader = line ? (["x1", "y1", "x2", "y2"].map((a) => Number(line.getAttribute(a))) as [number, number, number, number]) : null;
+    const pill = g.querySelector("rect");
+    // Drawn beyond the map's edge (panned or zoomed away), so not shown.
+    const shown = box(pill ?? g.querySelector("text")!);
+    const map = box(main);
+    if (shown.x1 <= map.x0 || shown.x0 >= map.x1 || shown.y1 <= map.y0 || shown.y0 >= map.y1) return null;
+    return {
+      est,
+      callout: pill ? box(pill) : null,
+      name: box(g.querySelector("text")!),
+      leader: leader && [leader[0] + svg.left, leader[1] + svg.top, leader[2] + svg.left, leader[3] + svg.top],
+      others,
+    };
+  });
+  if (!s) return null;
+  type B = { x0: number; y0: number; x1: number; y1: number };
+  const hit = (a: B, b: B) => a.x0 < b.x1 - 0.5 && b.x0 < a.x1 - 0.5 && a.y0 < b.y1 - 0.5 && b.y0 < a.y1 - 0.5;
+  const crosses = ([x1, y1, x2, y2]: number[], b: B) => {
+    for (let i = 1; i < 40; i++) {
+      const [x, y] = [x1 + ((x2 - x1) * i) / 40, y1 + ((y2 - y1) * i) / 40];
+      if (x > b.x0 + 0.5 && x < b.x1 - 0.5 && y > b.y0 + 0.5 && y < b.y1 - 0.5) return true;
+    }
+    return false;
+  };
+  const label = s.callout ?? s.name;
+  for (const o of s.others) expect(hit(label, o.b), `${where}: Estonia's name covers ${o.what}`).toBe(false);
+  if (!s.callout) {
+    // On Estonia: centred on its label point, or a spot inside it (a name may run past a small country's edges).
+    const [cx, cy] = [(s.name.x0 + s.name.x1) / 2, (s.name.y0 + s.name.y1) / 2];
+    expect(cx >= s.est.x0 && cx <= s.est.x1 && cy >= s.est.y0 && cy <= s.est.y1, `${where}: inline name off Estonia`).toBe(true);
+    return { inline: true, leader: 0 };
+  }
+  const leader = Math.hypot(s.leader![2] - s.leader![0], s.leader![3] - s.leader![1]);
+  const reach = Math.max(s.est.x1 - s.est.x0, s.est.y1 - s.est.y0) / 2;
+  expect(leader, `${where}: Estonia's callout ${leader.toFixed(1)}px away`).toBeLessThanOrEqual(reach + 18);
+  for (const o of s.others) expect(crosses(s.leader!, o.b), `${where}: Estonia's leader crosses ${o.what}`).toBe(false);
+  return { inline: false, leader };
+}
+
+/* Estonia selected in Discover: its name inside Estonia where it fits (390px, desktop), and on a 320px phone a callout
+   beside it, over the sea, with a short leader, in both languages; also after other selections, zoomed in and moved.
+   The callout never brings a name into Find. */
+test("Level 6: Estonia's name in Discover stays inside or close beside Estonia, clear of Tallinn and the controls", async ({ page }) => {
+  test.skip(project() !== "desktop", "Runs once, across sizes.");
+  test.setTimeout(300_000);
+  for (const [width, height] of [[320, 568], [390, 844], [1366, 800]]) {
+    await page.setViewportSize({ width, height });
+    for (const locale of ["en", "hy"] as const) {
+      const where = (what: string) => `${width}×${height} ${locale} ${what}`;
+      await openLevel6(page, discoverAt("EST"), locale);
+      await expect(page.locator("[data-marker-text]")).toHaveText(locale === "en" ? CAPITALS.EST : CAPITALS_HY.EST);
+      const at = await expectEstoniaNamedNearby(page, where("Estonia selected"));
+      expect(at, where("Estonia's name left out")).not.toBeNull();
+      // Inside Estonia wherever it fits; on a 320px map it doesn't, beside Tallinn's marker and name.
+      expect(at!.inline, where("Estonia's name inline")).toBe(width !== 320);
+      await expectMapTextClear(page);
+      await expectMarkerNamesOwn(page, where("Estonia selected"));
+      if (width === 320) await shot(page, `${locale}-discover-EST-callout`);
+      if (width !== 320) continue;
+
+      // Another country selected, then Estonia again.
+      for (const id of ["LVA", "EST"]) {
+        await tapCountry(page, id);
+        await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
+        await page.waitForTimeout(200);
+        expect(await expectEstoniaNamedNearby(page, where(`${id} selected`)), where(`${id} selected: Estonia's name left out`)).not.toBeNull();
+        await expectMapTextClear(page);
+      }
+      // Zoomed in (Estonia then lies beyond the top edge, its name not shown), then moved to bring Estonia
+      // towards the middle: its name inside it or close beside it.
+      await page.getByRole("button", { name: locale === "en" ? "Zoom in" : "Մեծացնել" }).click();
+      await page.waitForTimeout(500);
+      await expectEstoniaNamedNearby(page, where("zoomed in"));
+      await expectMapTextClear(page);
+      const svg = (await page.getByTestId("map-main").boundingBox())!;
+      for (let i = 0; i < 2; i++) {
+        const c = await page.locator('[data-testid="map-main"] path[data-country="EST"]').evaluate((p) => {
+          const r = p.getBoundingClientRect();
+          return [(r.left + r.right) / 2, (r.top + r.bottom) / 2];
+        });
+        const [mx, my] = [svg.x + svg.width / 2, svg.y + svg.height / 2];
+        const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+        await page.mouse.move(mx, my);
+        await page.mouse.down();
+        await page.mouse.move(clamp(2 * mx - c[0], svg.x + 5, svg.x + svg.width - 5), clamp(2 * my - c[1], svg.y + 5, svg.y + svg.height - 5), { steps: 6 });
+        await page.mouse.up();
+        await page.waitForTimeout(500);
+      }
+      expect(await expectEstoniaNamedNearby(page, where("zoomed in and moved")), where("zoomed in and moved: Estonia's name not shown")).not.toBeNull();
+      await expectMapTextClear(page);
+      if (locale === "en") await shot(page, "discover-EST-zoomed-moved");
+    }
+  }
+  // Find, unanswered on the 320px map: still nothing names or marks the target.
+  await page.setViewportSize({ width: 320, height: 568 });
+  for (const locale of ["en", "hy"] as const) {
+    await openLevel6(page, findAsking("EST"), locale);
+    await expectFindSpoilerFree(page, "EST");
+  }
 });
 
 /* The landscape: only Level 6's own overview, its overlay once a country has a state colour, and tiles only when zoomed. */
