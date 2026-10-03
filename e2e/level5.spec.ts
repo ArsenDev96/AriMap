@@ -4,7 +4,7 @@ import { openWithSave } from "./helpers/save";
 /*
  * Level 5 (Towards Greece) from Discover to Results, its unlock from Level 4, its five
  * landmark cards and their illustrations (never shown in Find), the Hungary → Greece journey
- * (two shortest routes), the level selection once all five levels are completed, and its
+ * (two shortest routes), the level selection once it is completed (Level 6 then ready), and its
  * map: framing (Greece's islands included), reset, and the landscape it loads.
  */
 
@@ -13,6 +13,7 @@ const L2 = "around-the-alps";
 const L3 = "central-europe";
 const L4 = "along-the-adriatic";
 const L5 = "towards-greece";
+const L6 = "baltic-journey";
 const L1_ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
@@ -381,7 +382,7 @@ async function expectNeighboursClear(page: Page, where: string) {
   return columns;
 }
 
-test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and all five levels completed", async ({ page }) => {
+test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and Level 6 unlocked", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once, on the Pixel 7 project; layouts are checked at other sizes below.");
   test.setTimeout(300_000);
   const errors: string[] = [];
@@ -528,16 +529,16 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and all 
   await expect(page.getByTestId("badge")).toBeVisible();
   await expect(route).toHaveAttribute("data-route", "HUN,SRB,BGR,GRC");
 
-  // The level selection: all five levels completed. No level to start (and none coming soon), a short
-  // message instead, and every level still open to play again.
+  // The level selection: Levels 1–5 completed, Level 6 unlocked and up next (e2e/level6.spec.ts plays it
+  // and checks all six completed); every completed level still open to play again.
   await page.getByTestId("home").click();
   for (const id of [L1, L2, L3, L4, L5]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toHaveText("You've completed all 5 levels! Play any of them again whenever you like.");
-  await expect(page.getByTestId("all-done")).toHaveAttribute("data-all-complete", "true");
+  await expect(card(page, L6).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(mainAction(page)).toHaveText(/^Starts*Level 6 · Baltic Journey$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await expect(page.getByText(/Coming soon/)).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("all-done")).toBeVisible();
+  await expect(card(page, L6)).toHaveAttribute("data-up-next", "true");
   for (const id of [L1, L2, L3, L4, L5]) {
     await card(page, id).getByTestId("level-details-toggle").click();
     await expect(card(page, id).getByRole("button", { name: /^Play again/ })).toBeVisible();
@@ -546,7 +547,7 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and all 
   expect(errors).toEqual([]);
 });
 
-test("Level 5: Start over and Play again ask first and change only this level; all five stay completed", async ({ page }) => {
+test("Level 5: Start over and Play again ask first and change only this level; Levels 1–5 stay completed", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once.");
   // In progress: Start over asks, naming the level; confirming resets only Level 5.
   await saveV2(page, { ...EARLIER, [L5]: findAsking("BGR", 1) }, { levelId: L5, recent: [L5, L4, L3, L2, L1] });
@@ -562,10 +563,10 @@ test("Level 5: Start over and Play again ask first and change only this level; a
   for (const id of [L1, L2, L3, L4]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L5).getByTestId("level-status")).toHaveText("In progress: Discover");
 
-  // All five completed: playing Level 5 again keeps it (and the others) completed, and the
-  // completion message stays; nothing was reset automatically.
+  // Levels 1–5 completed: playing Level 5 again keeps it (and the others) completed, and Level 6
+  // unlocked; nothing was reset automatically.
   await saveV2(page, ALL_DONE, { levelId: L5, recent: [L5, L4, L3, L2, L1] });
-  await expect(page.getByTestId("all-done")).toHaveAttribute("data-all-complete", "true");
+  await expect(card(page, L6).getByTestId("level-status")).toHaveText("Ready to play");
   await card(page, L5).getByTestId("level-details-toggle").click();
   await card(page, L5).getByRole("button", { name: /^Play again/ }).click();
   await expect(dialog.getByRole("heading")).toHaveText("Play “Towards Greece” again?");
@@ -573,7 +574,7 @@ test("Level 5: Start over and Play again ask first and change only this level; a
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
   await page.getByTestId("home").click();
   for (const id of [L1, L2, L3, L4, L5]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("all-done")).toHaveAttribute("data-all-complete", "true");
+  await expect(card(page, L6).getByTestId("level-status")).toHaveText("Ready to play");
   // Level 4 played again keeps Level 5 open.
   await card(page, L4).getByTestId("level-details-toggle").click();
   await card(page, L4).getByRole("button", { name: /^Play again/ }).click();
@@ -599,7 +600,7 @@ test("Level 5 at phone and desktop sizes: level selection, every card, unanswere
     for (const locale of ["en", "hy"] as const) {
       const where = (what: string) => `${width}×${height} ${locale} ${what}`;
 
-      // The level selection: Level 5 unlocked, then all five completed.
+      // The level selection: Level 5 unlocked, then completed (Level 6 up next).
       await saveV2(page, EARLIER, { locale, recent: [L4, L3, L2, L1], levelId: L4 });
       await expect(card(page, L5)).toHaveAttribute("data-up-next", "true");
       await expect(mainAction(page)).toHaveAttribute("data-level", L5);
@@ -607,10 +608,10 @@ test("Level 5 at phone and desktop sizes: level selection, every card, unanswere
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-levels-unlocked`);
       await saveV2(page, ALL_DONE, { locale, recent: [L5, L4, L3, L2, L1], levelId: L5 });
-      await expect(page.getByTestId("all-done")).toHaveText(locale === "en" ? "You've completed all 5 levels! Play any of them again whenever you like." : "Ավարտել ես բոլոր 5 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։");
-      await expectWordsWhole(page.getByTestId("all-done").locator("span"), where("completion message"));
+      await expect(card(page, L5).getByTestId("level-status")).toHaveText(locale === "en" ? "Completed" : "Ավարտված է");
+      await expect(mainAction(page)).toHaveAttribute("data-level", L6);
       await expectNoHorizontalOverflow(page);
-      await shot(page, `${locale}-levels-all-completed`);
+      await shot(page, `${locale}-levels-l5-completed`);
 
       // Discover: each country's card, with its illustration.
       const squareArt = Math.min(Math.max(112, 0.33 * width), 132) - 12;

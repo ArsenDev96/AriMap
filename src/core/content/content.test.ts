@@ -50,11 +50,11 @@ describe("country content", () => {
           expect(c.hint[locale]).toBeTruthy();
         }
         const [lon, lat] = c.capital.coordinates;
-        // Europe, from Paris to Bucharest and Athens.
+        // Europe, from Paris to Bucharest, Athens and Tallinn.
         expect(lon).toBeGreaterThan(-10);
         expect(lon).toBeLessThan(30);
         expect(lat).toBeGreaterThan(35);
-        expect(lat).toBeLessThan(58);
+        expect(lat).toBeLessThan(60);
       }
     }
   });
@@ -224,6 +224,60 @@ describe("country content", () => {
       for (const text of [c.hint, c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
     }
     expect(l5.regionName).toEqual({ en: "South-eastern Europe", hy: "Հարավարևելյան Եվրոպա" });
+  });
+
+  it("gives Level 6's new countries their capital and a localized landmark with its own illustration, and Germany and Poland their shared content", () => {
+    // Country, capital and landmark names as in the English and Armenian Wikipedia article titles where
+    // one exists (docs/CONTENT.md flags our own renderings).
+    const expected: Record<string, [string, string, string, string, string, string, string, string, string]> = {
+      LTU: ["Lithuania", "Լիտվա", "Vilnius", "Վիլնյուս", "Trakai Island Castle", "Տրակայի կղզու դղյակ", "Տրակայի կղզու դղյակը", "trakai-island-castle", "Trakai Island Castle"],
+      LVA: ["Latvia", "Լատվիա", "Riga", "Ռիգա", "House of the Black Heads", "Սևագլուխների տուն", "Սևագլուխների տունը", "house-of-the-black-heads", "the House of the Black Heads"],
+      EST: ["Estonia", "Էստոնիա", "Tallinn", "Տալլին", "Tallinn Town Hall", "Տալլինի ռատուշա", "Տալլինի ռատուշան", "tallinn-town-hall", "Tallinn Town Hall"],
+    };
+    const l6 = LESSONS["baltic-journey"];
+    expect(l6.countries).toEqual(["DEU", "POL", "LTU", "LVA", "EST"]);
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, illustration, landmarkInTextEn]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      expect(countryName(id), id).toEqual({ en, hy });
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      expect(landmark.nameInText.hy, id).toBe(landmarkInText);
+      // Its own map location, stored apart from the capital's (even in the same old town).
+      expect(landmark.coordinates, id).toBeDefined();
+      expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // Its own artwork (supplied 2026-10-03), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkInTextEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
+    }
+    // Trakai is outside the capital; Riga's and Tallinn's landmarks are in their old towns.
+    const kmApart = (id: string) => {
+      const [[lon1, lat1], [lon2, lat2]] = [COUNTRIES[id].capital.coordinates, COUNTRIES[id].landmark!.coordinates!];
+      return Math.hypot((lon2 - lon1) * 111.32 * Math.cos((lat1 * Math.PI) / 180), (lat2 - lat1) * 110.57);
+    };
+    expect(kmApart("LTU")).toBeGreaterThan(20);
+    expect(kmApart("LVA")).toBeLessThan(1);
+    expect(kmApart("EST")).toBeLessThan(1);
+    // Germany and Poland keep their content and artwork from earlier levels; only their hints are this level's own.
+    expect(COUNTRIES.DEU.landmark!.illustration).toBe("brandenburg-gate");
+    expect(COUNTRIES.POL.landmark!.illustration).toBe("wawel-castle");
+    expect(countryHint(l6, "DEU").en).toContain("in the south-west of this region");
+    expect(countryHint(l6, "POL").en).toContain("in the south of this region, east of Germany");
+    expect(countryHint(LESSONS["central-europe"], "POL")).toEqual(COUNTRIES.POL.hint);
+    expect(COUNTRIES.POL.hint.en).toContain("in the north-east of this region");
+    // One hint per country, all different, in each language; no player-facing "lesson" wording.
+    const hints = l6.countries.map((id) => countryHint(l6, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l6.countries) {
+      const c = COUNTRIES[id];
+      for (const text of [countryHint(l6, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    expect(l6.regionName).toEqual({ en: "the Baltic Sea countries", hy: "Բալթիկ ծովի երկրներ" });
   });
 
   it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {

@@ -461,6 +461,81 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "meteora",
     },
   },
+  // Level 6's new countries (Germany and Poland are shared with earlier levels), each with
+  // its own illustration (supplied 2026-10-03).
+  LTU: {
+    id: "LTU",
+    name: { en: "Lithuania", hy: "Լիտվա" },
+    nameInText: { en: "Lithuania", hy: "Լիտվան" },
+    capital: { name: { en: "Vilnius", hy: "Վիլնյուս" }, coordinates: [25.28, 54.6872] },
+    hint: {
+      en: "A country with a short coast on the Baltic Sea, between Poland and Latvia.",
+      hy: "Երկիր Բալթիկ ծովի կարճ ափով՝ Լեհաստանի և Լատվիայի միջև։",
+    },
+    label: { coordinates: [23.9, 55.35] },
+    landmark: {
+      id: "trakai-island-castle",
+      name: { en: "Trakai Island Castle", hy: "Տրակայի կղզու դղյակ" },
+      nameInText: { en: "Trakai Island Castle", hy: "Տրակայի կղզու դղյակը" },
+      fact: {
+        // A word joiner (U+2060) after each dash or hyphen of a range keeps it on one line.
+        en: "Built in the 14th–\u206015th centuries on an island in Lake Galvė, it was home to Lithuania's Grand Dukes.",
+        hy: "Կառուցվել է 14–\u206015-\u2060րդ դարերում Գալվե լճի կղզիներից մեկի վրա և եղել է Լիտվայի մեծ իշխանների նստավայրը։",
+      },
+      // In Trakai, west of Vilnius, not the capital.
+      coordinates: [24.9331, 54.6525],
+      illustration: "trakai-island-castle",
+    },
+  },
+  LVA: {
+    id: "LVA",
+    name: { en: "Latvia", hy: "Լատվիա" },
+    nameInText: { en: "Latvia", hy: "Լատվիան" },
+    capital: { name: { en: "Riga", hy: "Ռիգա" }, coordinates: [24.1064, 56.9489] },
+    hint: {
+      en: "A country on the Baltic Sea between Lithuania and Estonia, around the Gulf of Riga.",
+      hy: "Երկիր Բալթիկ ծովի ափին՝ Լիտվայի և Էստոնիայի միջև, Ռիգայի ծոցի շուրջը։",
+    },
+    label: { coordinates: [25.9, 56.75] },
+    landmark: {
+      id: "house-of-the-black-heads",
+      name: { en: "House of the Black Heads", hy: "Սևագլուխների տուն" },
+      nameInText: { en: "the House of the Black Heads", hy: "Սևագլուխների տունը" },
+      fact: {
+        en: "Named after a brotherhood of merchants, it was destroyed in the Second World War and rebuilt in 1999.",
+        hy: "Անվանվել է առևտրականների եղբայրության անունով։ Ավերվել է Երկրորդ համաշխարհային պատերազմի ժամանակ և վերակառուցվել 1999 թվականին։",
+      },
+      // On Town Hall Square in Riga's old town, 0.2 km from the capital's point: the marker
+      // rule leaves its pin out wherever the two would meet (docs/CONTENT.md).
+      coordinates: [24.1069, 56.9472],
+      illustration: "house-of-the-black-heads",
+    },
+  },
+  EST: {
+    id: "EST",
+    name: { en: "Estonia", hy: "Էստոնիա" },
+    nameInText: { en: "Estonia", hy: "Էստոնիան" },
+    capital: { name: { en: "Tallinn", hy: "Տալլին" }, coordinates: [24.7535, 59.437] },
+    hint: {
+      en: "The northernmost country of this region, on the Gulf of Finland, with many islands.",
+      hy: "Տարածաշրջանի ամենահյուսիսային երկիրը՝ Ֆիննական ծոցի ափին, բազմաթիվ կղզիներով։",
+    },
+    label: { coordinates: [25.9, 58.75] },
+    landmark: {
+      id: "tallinn-town-hall",
+      name: { en: "Tallinn Town Hall", hy: "Տալլինի ռատուշա" },
+      nameInText: { en: "Tallinn Town Hall", hy: "Տալլինի ռատուշան" },
+      fact: {
+        // A word joiner (U+2060) after the dash keeps the years on one line.
+        en: "Built in its present form in 1402–\u20601404, it is the only surviving Gothic town hall in Northern Europe.",
+        hy: "Ներկայիս տեսքը ստացել է 1402–\u20601404 թվականներին։ Այն Հյուսիսային Եվրոպայում պահպանված միակ գոթական ռատուշան է։",
+      },
+      // On Town Hall Square in Tallinn's old town, 0.5 km from the capital's point: the marker
+      // rule leaves its pin out wherever the two would meet (docs/CONTENT.md).
+      coordinates: [24.7455, 59.4371],
+      illustration: "tallinn-town-hall",
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

@@ -17,11 +17,14 @@ import dubrovnikCityWalls from "@/assets/landmarks/dubrovnik-city-walls.webp";
 import eiffelTower from "@/assets/landmarks/eiffel-tower.webp";
 import esztergomBasilica from "@/assets/landmarks/esztergom-basilica.webp";
 import golubacFortress from "@/assets/landmarks/golubac-fortress.webp";
+import houseOfTheBlackHeads from "@/assets/landmarks/house-of-the-black-heads.webp";
 import meteora from "@/assets/landmarks/meteora.webp";
 import ostrogMonastery from "@/assets/landmarks/ostrog-monastery.webp";
 import rilaMonastery from "@/assets/landmarks/rila-monastery.webp";
 import schonbrunnPalace from "@/assets/landmarks/schonbrunn-palace.webp";
 import stariMost from "@/assets/landmarks/stari-most.webp";
+import tallinnTownHall from "@/assets/landmarks/tallinn-town-hall.webp";
+import trakaiIslandCastle from "@/assets/landmarks/trakai-island-castle.webp";
 import wawelCastle from "@/assets/landmarks/wawel-castle.webp";
 import { useI18n } from "../i18n";
 import styles from "./LandmarkCard.module.css";
@@ -50,6 +53,9 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
   "golubac-fortress": golubacFortress,
   "rila-monastery": rilaMonastery,
   meteora,
+  "trakai-island-castle": trakaiIslandCastle,
+  "house-of-the-black-heads": houseOfTheBlackHeads,
+  "tallinn-town-hall": tallinnTownHall,
 };
 
 /**
@@ -59,7 +65,7 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
  * tile's height; in the shallow tile (about 262×62px at 320×568) it is drawn no larger than in
  * the square one until about 2:1 (Adolphe Bridge, 1.71: 100×58px square, about 106×62px wide),
  * but well beyond it (Schönbrunn Palace, 3.26: 100×30px square, about 200×62px wide). The current
- * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24). Desktop is unaffected.
+ * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25). Desktop is unaffected.
  */
 export const WIDE_ART_ASPECT = 2;
 

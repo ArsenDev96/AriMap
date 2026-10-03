@@ -37,12 +37,15 @@ const BBOX = "-27,29.5,48,62";
 // the Adriatic) added Slovenia, Croatia, Bosnia and Herzegovina and Montenegro,
 // and Serbia, Kosovo and Albania beside Montenegro. Level 5 (Towards Greece)
 // added Hungary, Romania, Bulgaria and Greece, and North Macedonia, Moldova,
-// Turkey and Ukraine beside them; see docs/DATA.md.
+// Turkey and Ukraine beside them. Level 6 (Baltic Journey) added Lithuania,
+// Latvia and Estonia, and Belarus, Russia (Kaliningrad, and beside Estonia and
+// Latvia) and Finland (across the Gulf of Finland) beside them; see docs/DATA.md.
 const DETAIL_IDS = [
   "FRA", "BEL", "NLD", "LUX", "DEU",
   "GBR", "IRL", "ESP", "AND", "MCO", "ITA", "SMR", "VAT", "CHE", "LIE", "AUT", "CZE", "POL", "DNK", "SVK",
   "SVN", "HRV", "BIH", "MNE", "SRB", "KOS", "ALB",
   "HUN", "ROU", "BGR", "GRC", "MKD", "MDA", "TUR", "UKR",
+  "LTU", "LVA", "EST", "BLR", "RUS", "FIN",
 ];
 
 // TopoJSON quantization, fixed: the transform mapshaper computed for the data of
