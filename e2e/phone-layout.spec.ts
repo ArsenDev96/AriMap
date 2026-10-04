@@ -60,6 +60,8 @@ const L3_DONE = done(L3_COUNTRIES, "pol-to-aut", ["POL", "CZE", "AUT"]);
 const L4_DONE = done(L4_COUNTRIES, "ita-to-mne", ["ITA", "SVN", "HRV", "MNE"]);
 const L5_DONE = done(L5_COUNTRIES, "hun-to-grc", ["HUN", "ROU", "BGR", "GRC"]);
 const L6_DONE = done(L6_COUNTRIES, "deu-to-est", ["DEU", "POL", "LTU", "LVA", "EST"]);
+const L7 = "iberian-journey";
+const L7_DONE = done(["PRT", "ESP", "AND", "FRA", "ITA"], "prt-to-ita", ["PRT", "ESP", "FRA", "ITA"]);
 
 async function appReady(page: Page) {
   await expect(page.locator(".splash")).toHaveCount(0);
@@ -114,7 +116,8 @@ const SCENARIOS: { name: string; levels: Record<string, object>; recent: string[
   { name: "l5-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE }, recent: [L4, L3, L2, L1], current: L5 },
   { name: "l6-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE }, recent: [L5, L4, L3, L2, L1], current: L6 },
   { name: "l6-in-progress", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: inFind(L6_COUNTRIES) }, recent: [L6, L5, L4, L3, L2, L1], current: L6 },
-  { name: "all-completed", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE }, recent: [L6, L5, L4, L3, L2, L1], current: null },
+  { name: "l7-ready", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE }, recent: [L6, L5, L4, L3, L2, L1], current: L7 },
+  { name: "all-completed", levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE, [L7]: L7_DONE }, recent: [L7, L6, L5, L4, L3, L2, L1], current: null },
 ];
 
 /** Where things are on the level selection, in viewport pixels. */
@@ -467,8 +470,8 @@ test.describe("level cards", () => {
       const projects = width > 1000 ? ["desktop", "webkit-phone"] : ["small-phone", "webkit-phone"];
       test.skip(!projects.includes(project()), `Runs on the ${projects.join(" and ")} projects.`);
       // Level 3 ready and in progress, Level 4 ready and in progress (Bosnia and Herzegovina's long name in
-      // its card), Levels 5 and 6 ready, and all six completed.
-      const scenarios = SCENARIOS.filter((s) => ["l3-ready", "l3-in-progress", "l4-ready", "l4-in-progress", "l5-ready", "l6-ready", "all-completed"].includes(s.name));
+      // its card), Levels 5, 6 and 7 ready, and all seven completed.
+      const scenarios = SCENARIOS.filter((s) => ["l3-ready", "l3-in-progress", "l4-ready", "l4-in-progress", "l5-ready", "l6-ready", "l7-ready", "all-completed"].includes(s.name));
       await page.setViewportSize({ width, height });
       for (const s of scenarios) {
         for (const locale of ["en", "hy"] as const) {

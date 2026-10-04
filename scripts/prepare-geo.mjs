@@ -30,6 +30,13 @@ mkdirSync(dirname(output), { recursive: true });
 // edge from 32°N to 29.5°N (north of the Canary Islands, which would otherwise
 // add a clipped piece of Spain); the west and north edges are unchanged.
 const BBOX = "-27,29.5,48,62";
+// Portugal's Atlantic autonomous regions, erased like the Canary Islands are left
+// out: Madeira (850–1,000 km off the mainland) and the two Azores islands the box's
+// west edge reaches (São Miguel and Santa Maria, 1,400 km off; the other seven lie
+// beyond it). Kept, they would widen Level 7's frame by a third, and the Azores
+// would be a clipped piece of an archipelago. Only Portugal has land here (west of
+// 13°W, south of 40.5°N); see docs/DATA.md, "Level 7".
+const ATLANTIC_ISLANDS = "-27,29.5,-13,40.5";
 
 // Countries kept at full (~400 m) detail: every playable country, and the
 // neighbours visible when zoomed in. Slovakia was added with Level 3 (Central
@@ -39,13 +46,16 @@ const BBOX = "-27,29.5,48,62";
 // added Hungary, Romania, Bulgaria and Greece, and North Macedonia, Moldova,
 // Turkey and Ukraine beside them. Level 6 (Baltic Journey) added Lithuania,
 // Latvia and Estonia, and Belarus, Russia (Kaliningrad, and beside Estonia and
-// Latvia) and Finland (across the Gulf of Finland) beside them; see docs/DATA.md.
+// Latvia) and Finland (across the Gulf of Finland) beside them. Level 7 (Iberian
+// Journey) added Portugal, and Morocco and Gibraltar beside Spain (Spain and
+// Andorra already were); see docs/DATA.md.
 const DETAIL_IDS = [
   "FRA", "BEL", "NLD", "LUX", "DEU",
   "GBR", "IRL", "ESP", "AND", "MCO", "ITA", "SMR", "VAT", "CHE", "LIE", "AUT", "CZE", "POL", "DNK", "SVK",
   "SVN", "HRV", "BIH", "MNE", "SRB", "KOS", "ALB",
   "HUN", "ROU", "BGR", "GRC", "MKD", "MDA", "TUR", "UKR",
   "LTU", "LVA", "EST", "BLR", "RUS", "FIN",
+  "PRT", "MAR", "GIB",
 ];
 
 // TopoJSON quantization, fixed: the transform mapshaper computed for the data of
@@ -63,6 +73,7 @@ const commands = [
   `-filter-fields ADM0_A3,NAME_EN`,
   `-rename-fields id=ADM0_A3,name=NAME_EN`,
   `-clip bbox=${BBOX} remove-slivers`,
+  `-erase bbox=${ATLANTIC_ISLANDS}`,
   // Simplification: ~400 m for the western-European core (lesson countries and
   // the neighbours visible when zoomed in), ~1.5 km for distant context that
   // only appears at the edges of wide screens. Shared borders are stored as a

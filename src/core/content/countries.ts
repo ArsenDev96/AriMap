@@ -536,6 +536,83 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "tallinn-town-hall",
     },
   },
+  // Level 7's new countries (France and Italy are shared with earlier levels), each with
+  // its own illustration (supplied 2026-10-04).
+  PRT: {
+    id: "PRT",
+    name: { en: "Portugal", hy: "Պորտուգալիա" },
+    nameInText: { en: "Portugal", hy: "Պորտուգալիան" },
+    capital: { name: { en: "Lisbon", hy: "Լիսաբոն" }, coordinates: [-9.15, 38.7253] },
+    hint: {
+      en: "The westernmost country of this region, with a long coast on the Atlantic Ocean.",
+      hy: "Տարածաշրջանի ամենաարևմտյան երկիրը՝ Ատլանտյան օվկիանոսի երկար ափով։",
+    },
+    // In the Alentejo, south of the middle: on a phone the open close-up (top-left in Level 7) covers
+    // Portugal's north, and a name whose leader dot is under it is left out.
+    label: { coordinates: [-8.0, 38.6] },
+    landmark: {
+      id: "belem-tower",
+      name: { en: "Belém Tower", hy: "Բելեմի աշտարակ" },
+      nameInText: { en: "Belém Tower", hy: "Բելեմի աշտարակը" },
+      fact: {
+        // A word joiner (U+2060) after the dash keeps the years on one line.
+        en: "Built in 1514–\u20601519 as a fortress on the Tagus, it defended the entrance to Lisbon's harbour.",
+        hy: "Կառուցվել է 1514–\u20601519 թվականներին Տախո գետի ափին՝ որպես Լիսաբոնի նավահանգստի մուտքը պաշտպանող ամրոց։",
+      },
+      // In Belém, on the Tagus west of the city centre, 6 km from the capital's point.
+      coordinates: [-9.2161, 38.6917],
+      illustration: "belem-tower",
+    },
+  },
+  ESP: {
+    id: "ESP",
+    name: { en: "Spain", hy: "Իսպանիա" },
+    nameInText: { en: "Spain", hy: "Իսպանիան" },
+    capital: { name: { en: "Madrid", hy: "Մադրիդ" }, coordinates: [-3.7033, 40.4169] },
+    hint: {
+      en: "A large country covering most of the Iberian Peninsula, between Portugal and France.",
+      hy: "Մեծ երկիր, որը զբաղեցնում է Պիրենեյան թերակղզու մեծ մասը՝ Պորտուգալիայի և Ֆրանսիայի միջև։",
+    },
+    label: { coordinates: [-3.6, 39.6] },
+    landmark: {
+      id: "sagrada-familia",
+      name: { en: "Sagrada Família", hy: "Սագրադա Ֆամիլիա" },
+      nameInText: { en: "the Sagrada Família", hy: "Սագրադա Ֆամիլիան" },
+      fact: {
+        en: "Antoni Gaudí took over its design in 1883 and from 1914 worked on nothing else until his death in 1926.",
+        hy: "Անտոնիո Գաուդին ստանձնել է դրա նախագիծը 1883 թվականին, իսկ 1914-\u2060ից մինչև իր մահը՝ 1926 թվականը, աշխատել է միայն դրա վրա։",
+      },
+      // In Barcelona, not the capital.
+      coordinates: [2.1743, 41.4037],
+      illustration: "sagrada-familia",
+    },
+  },
+  AND: {
+    id: "AND",
+    name: { en: "Andorra", hy: "Անդորրա" },
+    nameInText: { en: "Andorra", hy: "Անդորրան" },
+    capital: { name: { en: "Andorra la Vella", hy: "Անդորրա լա Վելյա" }, coordinates: [1.5217, 42.5061] },
+    hint: {
+      en: "A tiny landlocked country high in the Pyrenees, between Spain and France.",
+      hy: "Փոքրիկ երկիր առանց ծովի՝ Պիրենեյան լեռներում, Իսպանիայի և Ֆրանսիայի միջև։",
+    },
+    // Too small for an in-place label in Level 7 (its `smallCountries`): drawn beside the country with a leader line.
+    label: { coordinates: [1.58, 42.55] },
+    landmark: {
+      id: "casa-de-la-vall",
+      name: { en: "Casa de la Vall", hy: "Կասա դե լա Վալ" },
+      nameInText: { en: "Casa de la Vall", hy: "Կասա դե լա Վալը" },
+      fact: {
+        // A word joiner (U+2060) after each dash or hyphen keeps the years and the century on one line.
+        en: "Built as a family manor house in the late 16th century, it housed Andorra's parliament from 1702 to 2011.",
+        hy: "Կառուցվել է 16-\u2060րդ դարի վերջին որպես ընտանեկան կալվածատուն, իսկ 1702–\u20602011 թվականներին եղել է Անդորրայի խորհրդարանի նստավայրը։",
+      },
+      // In Andorra la Vella's old quarter, 0.1 km from the capital's point: the marker
+      // rule leaves its pin out wherever the two would meet (docs/CONTENT.md).
+      coordinates: [1.5206, 42.5067],
+      illustration: "casa-de-la-vall",
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

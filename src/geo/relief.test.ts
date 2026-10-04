@@ -285,4 +285,24 @@ describe("painted relief", () => {
     const open: Record<string, LonLat> = { "Zemgale plain": [23.95, 56.5], "Joniškis plain": [23.6, 56.2], Kuyavia: [18.6, 52.75] };
     for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
   });
+  // Level 7 reaches south and west to Iberia: the Pyrenees (Andorra among them), the Cantabrian Mountains,
+  // the Sistema Central, Serra da Estrela and the Sierra Nevada are high and rough; the Meseta's plains, the
+  // Tierra de Campos and the Guadalquivir valley are open farmland. Summits: the Wikipedia articles'
+  // coordinates (checked 2026-10-03); forest and plain points lie inside those areas (see docs/TERRAIN.md).
+  it("Level 7: paints the Pyrenees, Andorra's peaks and the Iberian ranges, the Landes forest; the Meseta's plains stay bare", async () => {
+    const alphaNear = await alphaSampler("iberian-journey", regionMapFor(LESSONS["iberian-journey"]));
+    const summits: Record<string, LonLat> = {
+      "Aneto (Pyrenees)": [0.6578, 42.6314],
+      "Coma Pedrosa (Andorra)": [1.4447, 42.5917],
+      "Torre de Cerredo (Picos de Europa)": [-4.8519, 43.1972],
+      "Torre (Serra da Estrela, Portugal's mainland highest)": [-7.6114, 40.3217],
+      "Mulhacén (Sierra Nevada)": [-3.3116, 37.0532],
+    };
+    for (const [name, p] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(200);
+    // The Landes forest is flat: what shows there is the forest alone.
+    const forests: Record<string, LonLat> = { "Landes forest": [-0.9, 44.2], "Serra de Monchique": [-8.55, 37.3], Bussaco: [-8.37, 40.38] };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    const open: Record<string, LonLat> = { "La Mancha": [-3.0, 39.3], "Tierra de Campos": [-5.0, 42.0], "Guadalquivir valley": [-5.6, 37.45] };
+    for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+  });
 });

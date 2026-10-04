@@ -30,9 +30,11 @@ export interface LessonDefinition {
      * Magnified inset for a small country: the area shown, as [south-west,
      * north-east] corners, and the country it is centred on (named in the inset
      * title only while that country's name is visible on the map). Levels
-     * without one have no close-up.
+     * without one have no close-up. On wide maps it sits top-left; on smaller ones
+     * bottom-left, opening upwards, unless `smallMapCorner` says top-left (Level 7,
+     * whose bottom-left corner is Portugal).
      */
-    inset?: { bounds: readonly [LonLat, LonLat]; country: CountryId };
+    inset?: { bounds: readonly [LonLat, LonLat]; country: CountryId; smallMapCorner?: "bottom-left" | "top-left" };
     /**
      * Countries too small for an in-place name at the whole-map view: their
      * names are drawn beside them with a leader line to the label point until
