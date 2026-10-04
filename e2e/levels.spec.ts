@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * The level selection, Level 2 (Around the Alps) from Discover to Results, and
@@ -203,7 +204,7 @@ test.describe("level selection", () => {
     await saveV1(page, LEVEL1_DONE);
     await mainAction(page).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeAttached();
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     await expect(card(page, L1).getByTestId("level-status")).toHaveText("Completed");
     await expect(card(page, L2).getByTestId("level-status")).toHaveText("In progress: Discover");
     // A backup of the old save was kept.
@@ -287,7 +288,7 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
       await expect(page.getByTestId("panel")).toContainText(LANDMARKS[target]);
       await shot(page, "find-hint-en");
       // Home and a refresh keep the question exactly; Continue resumes it.
-      await page.getByTestId("home").click();
+      await homeToEurope(page);
       await expect(mainAction(page)).toHaveText(/^Continue\s*Level 2 · Around the Alps$/);
       await page.reload();
       await mainAction(page).click();
@@ -340,7 +341,7 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   // Replay journey: only Travel starts again, and the level stays completed.
   await page.getByRole("button", { name: "Replay journey" }).click();
   await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   await expect(card(page, L2).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L1).getByTestId("level-status")).toHaveText("Completed");
   // Completing Level 2 unlocks Level 3: the main action starts it; Levels 4–5 stay out of reach.
@@ -375,7 +376,7 @@ test.describe("progress per level", () => {
     await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     await page.reload();
     await mainAction(page).click();
     await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
@@ -395,7 +396,7 @@ test.describe("progress per level", () => {
     await dialog.getByRole("button", { name: "Start over" }).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeAttached();
     await expect(page.getByTestId("discover-progress")).toContainText("0/5");
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     // Level 1, completed and being replayed, is untouched: its Play again asks too.
     await expect(card(page, L1).getByTestId("level-status")).toHaveText("Completed");
     await expand(page, L1);
@@ -505,10 +506,14 @@ test.describe("returning players", () => {
   test("a new player still gets the full introduction and artwork", async ({ page }) => {
     test.skip(test.info().project.name !== "small-phone", "Runs once.");
     for (const locale of ["en", "hy"] as const) {
-      await saveV2(page, {}, { locale });
-      await expect(page.getByTestId("welcome")).toHaveAttribute("data-returning", "false");
+      // On the continents (the home screen), above the continents themselves.
+      await saveV2(page, {}, { locale, screen: "continents" });
+      await expect(page.getByTestId("continents")).toHaveAttribute("data-returning", "false");
       await expect(page.getByTestId("welcome-art")).toBeVisible();
-      await expect(page.getByTestId("welcome-hero")).toContainText(locale === "en" ? "Learn where countries are on the map" : "Սովորիր");
+      await expect(page.getByTestId("continents-scroll")).toContainText(locale === "en" ? "Learn where countries are on the map" : "Սովորիր");
+      // Europe's levels: nothing marked or folded for a new player.
+      await page.getByTestId("explore-europe").click();
+      await expect(page.getByTestId("welcome")).toHaveAttribute("data-returning", "false");
       await expect(page.getByTestId("up-next")).toHaveCount(0);
       await expect(page.locator("[data-compact]")).toHaveCount(0);
     }
@@ -524,11 +529,12 @@ test.describe("returning players", () => {
           const where = `${width}×${height} ${locale}`;
           await saveV2(page, s.levels, { locale, recent: s.recent, levelId: s.recent[0] });
           await expect(page.getByTestId("welcome")).toHaveAttribute("data-returning", "true");
-          // The name, tagline and language switch stay; the introduction gives way to the levels.
+          // Back to the continents (where AriMap and its tagline are) and the language switch stay above the
+          // list, titled with the continent; the introduction gives way to the levels.
           const hero = page.getByTestId("welcome-hero");
-          await expect(hero.getByRole("heading", { level: 1 })).toHaveText(locale === "en" ? "AriMap" : "ԱրիՄապ");
-          await expect(hero).toContainText(locale === "en" ? "Discover the world." : "Բացահայտիր աշխարհը");
+          await expect(hero.getByTestId("back-to-continents")).toHaveAccessibleName(locale === "en" ? "Back to continents" : "Վերադառնալ մայրցամաքներին");
           await expect(hero.getByRole("group")).toBeVisible();
+          await expect(page.getByRole("heading", { level: 1 })).toHaveText(locale === "en" ? "Europe" : "Եվրոպա");
           await expect(page.getByText(locale === "en" ? "Learn where countries are on the map" : "Սովորիր, թե որտեղ")).toHaveCount(0);
           // The artwork is a slim ribbon, left out on short screens.
           if (height <= 700) await expect(page.getByTestId("welcome-art")).toBeHidden();
@@ -680,13 +686,13 @@ test.describe("confirmations", () => {
     await mainAction(page).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeAttached();
     await tapCountry(page, "BEL");
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     // Home: back to the levels, with the place kept; Continue (the main action) resumes it at once.
     await expect(mainAction(page)).toHaveAttribute("data-kind", "continue");
     expect((await saved(page)).levels[L1].stage).toBe("discover");
     await mainAction(page).click();
     await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "BEL");
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     // The card's own Continue does the same.
     await card(page, L1).getByRole("button", { name: /^Continue/ }).click();
     await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "BEL");
@@ -695,7 +701,7 @@ test.describe("confirmations", () => {
     await saveV2(page, { [L1]: LEVEL1_DONE }, { recent: [L1] });
     await card(page, L2).getByRole("button", { name: /^Start/ }).click();
     await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Map of the Alpine countries");
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     await expect(mainAction(page)).toHaveText(/^Continue\s*Level 2/);
     await mainAction(page).click();
     await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Map of the Alpine countries");
@@ -729,7 +735,7 @@ test.describe("confirmations", () => {
       expect(after.levels[L2].stage).toBe("discover");
       expect(after.levels[L2].records).toEqual(before.levels[L2].records);
       expect(after.levels[L1]).toEqual(before.levels[L1]);
-      await page.getByTestId("home").click();
+      await homeToEurope(page);
       await expect(card(page, L1).getByTestId("level-status")).toHaveText(locale === "en" ? "Completed" : "Ավարտված է");
     }
   });
@@ -753,7 +759,7 @@ test.describe("confirmations", () => {
       expect(after.levels[L1].stage).toBe("discover");
       expect(after.levels[L1].records).toEqual(before.levels[L1].records);
       expect(after.levels[L2]).toEqual(before.levels[L2]);
-      await page.getByTestId("home").click();
+      await homeToEurope(page);
       // Level 1 is still completed, Level 2 still unlocked and where it was.
       await expect(card(page, L1).getByTestId("level-status")).toHaveText(locale === "en" ? "Completed" : "Ավարտված է");
       await expect(card(page, L2).getByTestId("level-status")).toHaveText(locale === "en" ? "In progress: Find" : "Ընթացքի մեջ է՝ Գտիր");

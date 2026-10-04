@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { countGameSaves, openWithSave, writeSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 // A saved state is written only once the game has made its own first save (see helpers/save.ts).
 test.beforeEach(async ({ page }) => {
@@ -178,7 +179,9 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page).toHaveTitle("ԱրիՄապ — Բացահայտիր աշխարհը");
   await shot(page, "welcome-hy");
   await setLanguage(page, "English");
-  // A new player's main action starts Level 1.
+  // A new player chooses Europe (the main action there: nothing to continue yet), whose main action starts Level 1.
+  await expect(page.getByTestId("explore-europe")).toHaveAttribute("data-primary", "true");
+  await page.getByTestId("explore-europe").click();
   await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Start\s*Level 1 · France and its neighbours$/);
   await page.getByTestId("welcome-actions").getByRole("button").click();
 
@@ -339,8 +342,9 @@ test("complete lesson flow", async ({ page }) => {
       const wrong = target === "DEU" ? "FRA" : "DEU";
       await tapActive(page, wrong);
       await page.getByRole("button", { name: "Hint" }).click();
+      // Home opens the continents, whose Continue resumes it at once, also after a refresh.
       await page.getByRole("button", { name: "Home" }).click();
-      const main = page.getByTestId("welcome-actions").getByRole("button");
+      const main = page.getByTestId("continents-actions").getByRole("button");
       await expect(main).toHaveText(/^Continue/);
       await page.reload();
       await main.click();
@@ -480,9 +484,9 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("badge")).toHaveCount(0);
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*Hint/);
 
-  // Home → Welcome shows completion and no accidental reset, and Level 2 unlocked;
+  // Home → Europe shows completion and no accidental reset, and Level 2 unlocked;
   // Level 1's Continue returns to these results.
-  await page.getByRole("button", { name: "Home" }).click();
+  await homeToEurope(page);
   const level1 = page.getByTestId("level-western-europe-1");
   await expect(level1.getByTestId("level-status")).toHaveText("Completed");
   await page.reload();

@@ -96,7 +96,7 @@ describe("lesson flow", () => {
     ];
     for (const s of states) {
       const home = run(s, { type: "goHome" });
-      expect(home.screen).toBe("welcome");
+      expect(home.screen).toBe("continents");
       expect(home.levels).toBe(s.levels);
       // Also across a refresh while on the home screen.
       const back = run(refresh(home), OPEN);
@@ -111,7 +111,7 @@ describe("lesson flow", () => {
     expect(progressOf(s).stage).toBe("discover");
     expect(progressOf(s).records.findDone).toBe(true);
     s = run(s, { type: "goHome" });
-    expect(s.screen).toBe("welcome");
+    expect(s.screen).toBe("continents");
   });
 });
 

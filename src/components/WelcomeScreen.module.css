@@ -36,40 +36,6 @@
   background: var(--bg);
 }
 
-.top {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 4px;
-}
-
-/* Wraps (mark above the name) rather than squeezing, with very large text. */
-.titleRow > svg {
-  flex-shrink: 0;
-}
-
-.titleRow {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-items: center;
-  gap: 4px 10px;
-  margin-top: 6px;
-}
-
-.title {
-  /* Enlarged with the text, up to what the narrowest screens fit (the name is never broken). */
-  font-size: min(2.4rem, 16vw);
-  font-weight: 900;
-  line-height: 1.1;
-}
-
 /* The adventure's opening page: the five landmarks as stickers along a dashed
    route, on a pale-blue notebook page with a light dot grid. Static: no animation. */
 .art {
@@ -150,9 +116,6 @@
     width: clamp(46px, 13vw, 70px);
     border-width: 2px;
   }
-  .titleRow {
-    margin-top: 2px;
-  }
 }
 
 @media (max-height: 600px) {
@@ -168,10 +131,11 @@
   }
 }
 
-/* Returning players --------------------------------------------------- */
+/* Header ---------------------------------------------------------------- */
 /* The name, tagline and language share one row (wrapping with very large text) in a header
-   above the scrolling list, so they stay in view; the artwork becomes a slim ribbon at the
-   top of the list, left out on short screens: the levels come first. */
+   above the scrolling list, so they stay in view, on the continents and on a continent's level
+   selection. For returning players the artwork becomes a slim ribbon at the top of the list,
+   left out on short screens: the continents and levels come first. */
 .compactHeader {
   flex: none;
   padding: 10px max(16px, calc((100% - 508px) / 2));
@@ -239,7 +203,24 @@
 
 /* A screen short for its text (under 32 lines of it: a 568 px phone from 150% text, an 844 px
    one at 200%): the header is one row, the name and the language, so the fixed header keeps
-   no more than it must from the list. The mark and the tagline stay in the new-player intro. */
+   no more than it must from the list. */
+/* Short and narrow for its text (enlarged text on a phone held upright): Back to the continents as its
+   arrow only (a 44 px target), so it shares the row with the language and the list keeps its room; its
+   words stay its accessible name. */
+@container welcome (max-height: 32rem) and (max-width: 30rem) {
+  .backLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .back {
+    min-width: 44px;
+  }
+}
+
 @container welcome (max-height: 32rem) {
   .compactBrand {
     display: flex;
@@ -269,12 +250,6 @@
   }
 }
 
-.tagline {
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: var(--coral-dark);
-}
-
 .intro {
   margin-top: 8px;
   font-size: 1.05rem;
@@ -283,6 +258,26 @@
 }
 
 /* Level selection ------------------------------------------------------ */
+/* A continent's level selection: Back to the continents in the header, beside the language. */
+.back {
+  gap: 6px;
+  min-height: 44px;
+  margin-left: -10px;
+  padding: 4px 10px;
+  font-size: 1rem;
+  text-align: left;
+  text-decoration: none;
+}
+
+.back:hover {
+  text-decoration: underline;
+}
+
+.back > svg {
+  flex: none;
+}
+
+
 .levelsSection {
   display: flex;
   flex-direction: column;
@@ -765,11 +760,6 @@
 @media (min-width: 720px) {
   .content {
     max-width: 1080px;
-  }
-  .hero {
-    max-width: 540px;
-    width: 100%;
-    margin: 0 auto;
   }
   .levels {
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));

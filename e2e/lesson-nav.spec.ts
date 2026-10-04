@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Home and Continue, Start over, and saves from before Find became one round
@@ -152,8 +153,8 @@ test.describe("Home", () => {
       await save(page, stage.lesson);
       await stage.ready(page);
       const panel = await page.getByTestId("panel").innerText();
-      await page.getByTestId("home").click();
-      await expect(page.getByRole("heading", { name: "AriMap" })).toBeVisible();
+      await homeToEurope(page);
+      await expect(page.getByRole("heading", { level: 1, name: "Europe" })).toBeVisible();
       await page.reload();
       await showLevel1(page);
       await expect(page.getByRole("button", { name: stage.name === "Results" ? /^Play again/ : /^Start over/ })).toBeVisible();
@@ -170,7 +171,8 @@ test.describe("Home", () => {
     await page.keyboard.press("Tab");
     await expect(page.getByTestId("home")).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(continueLevel1(page)).toBeVisible();
+    // The continents, whose Continue names the continent and level for assistive technology.
+    await expect(page.getByTestId("continents-actions").getByRole("button", { name: "Continue: Europe, Level 1, France and its neighbours" })).toBeVisible();
   });
 });
 
@@ -208,7 +210,7 @@ test.describe("Start over", () => {
     await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
 
     // Armenian, then confirm.
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     await page.getByRole("button", { name: "Հայերեն" }).click();
     await page.getByRole("button", { name: "Սկսել նորից" }).click();
     await expect(dialog.getByRole("heading", { name: "Սկսե՞լ «Ֆրանսիան և իր հարևանները» մակարդակը նորից" })).toBeVisible();
@@ -218,7 +220,7 @@ test.describe("Start over", () => {
     await expect(page.getByRole("heading", { name: "Հպիր երկրին՝ դրա մասին իմանալու համար։" })).toBeVisible();
     await page.getByRole("button", { name: "English" }).click();
     // Completed steps stay ticked on the home screen.
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     await expect(page.getByText("Discover: done")).toBeAttached();
     await expect(page.getByText("Find: done")).toBeAttached();
     await expect(page.getByText("Travel: not done yet")).toBeAttached();
@@ -292,7 +294,7 @@ test.describe("saves from the two-round Find", () => {
     await expect(page.getByTestId("result-find")).toContainText("4/5");
     await expect(page.getByTestId("result-find")).not.toContainText("/10");
     await expect(page.getByTestId("result-find-answers").locator("li")).toHaveCount(5);
-    await page.getByTestId("home").click();
+    await homeToEurope(page);
     await expect(page.getByTestId(`level-${LESSON}`).getByTestId("level-status")).toHaveText("Completed");
     await showLevel1(page);
     await continueLevel1(page).click();

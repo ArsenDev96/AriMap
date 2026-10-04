@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Level 3 (Central Europe) from Discover to Results, its unlock and place on the
@@ -268,7 +269,7 @@ test("Level 3, Central Europe: Discover, Find, Travel and Results", async ({ pag
       await expect(page.locator(`[data-testid="map-main"] path[data-country="${target}"][data-tone]:not([data-tone="default"])`)).toHaveCount(0);
       await expect(page.locator("[data-marker-text]")).toHaveCount(0);
       // Home and a refresh keep the question exactly; Continue resumes it.
-      await page.getByTestId("home").click();
+      await homeToEurope(page);
       await expect(mainAction(page)).toHaveText(/^Continue\s*Level 3 · Central Europe$/);
       await expect(card(page, L3).getByTestId("level-status")).toHaveText("In progress: Find");
       await page.reload();
@@ -334,7 +335,7 @@ test("Level 3, Central Europe: Discover, Find, Travel and Results", async ({ pag
   await expect(page.getByTestId("badge")).toBeVisible();
 
   // The level selection: Level 3 completed unlocks Level 4, the main action starts it; Level 5 stays locked, with no way in.
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   for (const id of [L1, L2, L3]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, "along-the-adriatic").getByTestId("level-status")).toHaveText("Ready to play");
   await expect(mainAction(page)).toHaveText(/^Start\s*Level 4 · Along the Adriatic$/);

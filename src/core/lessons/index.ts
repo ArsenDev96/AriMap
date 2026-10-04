@@ -14,5 +14,6 @@ export function getLesson(id: string): LessonDefinition | undefined {
   return LESSONS[id];
 }
 
-export { getLevel, LEVELS, type LevelInfo } from "./levels";
+export { getLevel, hasPlayableLevels, LEVELS, levelsOf, type LevelInfo } from "./levels";
+export { CONTINENTS, getContinent, isContinentId, type ContinentId, type ContinentInfo } from "./continents";
 export type { LessonDefinition, TravelMission } from "./types";

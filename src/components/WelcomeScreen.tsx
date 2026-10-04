@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
-import { LEVELS, type LevelInfo } from "@/core/lessons";
+import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
 import { allLevelsComplete, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
-import { BrandMark, LanguageToggle, STEPS } from "./Header";
+import { LanguageToggle, STEPS } from "./Header";
 import { useI18n } from "./i18n";
 import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
 import styles from "./WelcomeScreen.module.css";
@@ -23,13 +23,20 @@ export function isReturning(state: AppState): boolean {
   return Object.values(state.levels).some((p) => p.started || p.records.discoverDone);
 }
 
+/**
+ * A continent's level selection (`state.continent`; Europe's holds the seven levels): Back to
+ * the continents, the continent's name, its levels, and the main action in its own area below.
+ */
 export function WelcomeScreen({ state, dispatch }: Props) {
   const { t, l } = useI18n();
   const confirmRef = useRef<HTMLDialogElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLOListElement>(null);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
-  const main = mainAction(state);
+  const continent = getContinent(state.continent);
+  const levels = levelsOf(continent.id);
+  const main = mainAction(state, continent.id);
+  const allComplete = allLevelsComplete(state, continent.id);
   // Known from the save on the first render (the game renders on the client only), so the
   // page never switches layout after it appears.
   const returning = isReturning(state);
@@ -96,62 +103,43 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   }, [confirm]);
 
   return (
-    <main className={styles.page} data-returning={returning} data-testid="welcome">
-      {returning && (
-        // Returning players: the name, tagline and language in one row, above the scrolling list,
-        // so they stay in view however far the levels are scrolled.
-        <header className={styles.compactHeader} data-testid="welcome-hero">
-          <div className={styles.compactTop}>
-            <div className={styles.compactBrand}>
-              <BrandMark size={40} />
-              <div>
-                <h1 className={styles.compactTitle}>{t("app.name")}</h1>
-                <p className={styles.compactTagline}>{t("app.tagline")}</p>
-              </div>
-            </div>
-            <LanguageToggle dispatch={dispatch} />
-          </div>
-        </header>
-      )}
-      {/* Everything else but the main action scrolls here, between the header (returning players)
-          and the action's own area: nothing is covered. */}
+    <main className={styles.page} data-returning={returning} data-continent={continent.id} data-testid="welcome">
+      {/* Back to the continents (where AriMap and its tagline are) and the language, in one row above
+          the scrolling list, so they stay in view however far the levels are scrolled (the list may
+          start scrolled to the next level). It takes no more room than the continents' header. */}
+      <header className={styles.compactHeader} data-testid="welcome-hero">
+        <div className={styles.compactTop}>
+          <button type="button" className={`btn btn-ghost ${styles.back}`} onClick={() => dispatch({ type: "goHome" })} data-testid="back-to-continents">
+            <BackIcon />
+            <span className={styles.backLabel}>{t("continents.back")}</span>
+          </button>
+          <LanguageToggle dispatch={dispatch} />
+        </div>
+      </header>
+      {/* Everything else but the main action scrolls here, between the header and the action's own
+          area: nothing is covered. */}
       <div ref={scrollRef} className={styles.scroll} data-testid="welcome-scroll">
         <div className={styles.content}>
-          {returning ? (
+          {returning && (
             // The artwork as a slim ribbon (only where there is room for it), so the levels come first.
             <WelcomeArt compact />
-          ) : (
-            <>
-              <div className={styles.top}>
-                <LanguageToggle dispatch={dispatch} large />
-              </div>
-
-              <section className={styles.hero} data-testid="welcome-hero">
-                <WelcomeArt />
-                <div className={styles.titleRow}>
-                  <BrandMark size={48} />
-                  <h1 className={styles.title}>{t("app.name")}</h1>
-                </div>
-                <p className={styles.tagline}>{t("app.tagline")}</p>
-                <p className={styles.intro}>{t("welcome.intro")}</p>
-              </section>
-            </>
           )}
 
           <section aria-labelledby="levels-title" className={styles.levelsSection}>
-            <h2 id="levels-title" className={styles.levelsTitle}>
-              {t("welcome.levels")}
-            </h2>
+            {/* The page's title: the continent, where "Choose a level" was. */}
+            <h1 id="levels-title" className={styles.levelsTitle} data-testid="continent-title">
+              {l(continent.name)}
+            </h1>
             {returning && !main && (
               // Nothing left to start. Once every level is completed (none coming soon), it says
               // so; every card still offers Play again.
-              <p className={styles.allDone} data-testid="all-done" data-all-complete={allLevelsComplete(state) || undefined}>
+              <p className={styles.allDone} data-testid="all-done" data-all-complete={allComplete || undefined}>
                 <CheckIcon />
-                <span>{allLevelsComplete(state) ? t("welcome.allComplete", { count: LEVELS.length }) : t("welcome.allDone")}</span>
+                <span>{allComplete ? t("welcome.allComplete", { count: levels.length }) : t("welcome.allDone")}</span>
               </p>
             )}
             <ol ref={listRef} className={styles.levels} data-testid="levels">
-              {LEVELS.map((level) => {
+              {levels.map((level) => {
                 const status = levelStatus(state, level);
                 return (
                   <li key={level.id}>
@@ -465,6 +453,14 @@ function widestWord(element: Element): number {
   return widest;
 }
 
+function BackIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14.5 5.5 8 12l6.5 6.5" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 function ChevronIcon() {
   return (
     <svg className={styles.chevron} width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" data-level-side="">
@@ -528,7 +524,7 @@ function StatusIcon({ kind }: { kind: LevelStatus["kind"] }) {
 const ART = ["eiffel-tower", "atomium", "amsterdam-canal-houses", "adolphe-bridge", "brandenburg-gate"] as const;
 
 /** `compact`: a slim ribbon for returning players, shown only where the screen has room (see the CSS). */
-function WelcomeArt({ compact = false }: { compact?: boolean }) {
+export function WelcomeArt({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`${styles.art} ${compact ? styles.artCompact : ""}`} aria-hidden="true" data-testid="welcome-art">
       <svg className={styles.artRoute} viewBox="0 0 300 100" preserveAspectRatio="none">

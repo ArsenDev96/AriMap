@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Level 6 (Baltic Journey) from Discover to Results, its unlock from Level 5 (an existing save),
@@ -492,7 +493,7 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
       await expect(page.locator(`[data-testid="map-main"] path[data-country="${target}"][data-tone]:not([data-tone="default"])`)).toHaveCount(0);
       await expect(page.locator("[data-marker-text]")).toHaveCount(0);
       // Home and a refresh keep the question exactly; Continue resumes it.
-      await page.getByTestId("home").click();
+      await homeToEurope(page);
       await expect(mainAction(page)).toHaveText(/^Continue\s*Level 6 · Baltic Journey$/);
       await expect(card(page, L6).getByTestId("level-status")).toHaveText("In progress: Find");
       await page.reload();
@@ -565,7 +566,7 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
 
   // The level selection: Levels 1–6 completed, Level 7 unlocked and up next (e2e/level7.spec.ts plays it and
   // checks all seven completed); every completed level still open to play again.
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L7).getByTestId("level-status")).toHaveText("Ready to play");
   await expect(mainAction(page)).toHaveText(/^Start\s*Level 7 · Iberian Journey$/);
@@ -592,13 +593,13 @@ test("Level 6: independent saves; Start over and Play again change only this lev
   await card(page, L5).getByTestId("level-details-toggle").click();
   await card(page, L5).getByRole("button", { name: /^Continue/ }).click();
   await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "HUN,SRB");
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   await card(page, L6).getByRole("button", { name: /^Continue/ }).click();
   await expect(page.getByTestId("find-prompt")).toHaveText("Find Latvia");
   await expect(page.getByTestId("panel")).toContainText("Its capital is Riga.");
   await page.reload();
   await expect(page.getByTestId("find-prompt")).toHaveText("Find Latvia");
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
 
   // Start over asks, naming the level; confirming resets only Level 6.
   const dialog = page.getByTestId("start-over-dialog");
@@ -609,13 +610,13 @@ test("Level 6: independent saves; Start over and Play again change only this lev
   await card(page, L6).getByRole("button", { name: /^Start over/ }).click();
   await dialog.getByRole("button", { name: "Start over" }).click();
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L6).getByTestId("level-status")).toHaveText("In progress: Discover");
   await card(page, L5).getByTestId("level-details-toggle").click();
   await card(page, L5).getByRole("button", { name: /^Continue/ }).click();
   await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "HUN,SRB");
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
 
   // All seven completed: playing Level 6 again keeps it (and the others) completed, and the completion
   // message stays; nothing was reset automatically.
@@ -626,14 +627,14 @@ test("Level 6: independent saves; Start over and Play again change only this lev
   await expect(dialog.getByRole("heading")).toHaveText("Play “Baltic Journey” again?");
   await dialog.getByRole("button", { name: "Play again" }).click();
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6, L7]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(page.getByTestId("all-done")).toHaveAttribute("data-all-complete", "true");
   // Level 5 played again keeps Level 6 open.
   await card(page, L5).getByTestId("level-details-toggle").click();
   await card(page, L5).getByRole("button", { name: /^Play again/ }).click();
   await dialog.getByRole("button", { name: "Play again" }).click();
-  await page.getByTestId("home").click();
+  await homeToEurope(page);
   await page.reload();
   await expect(card(page, L6).getByTestId("level-status")).toHaveText("Completed");
   await card(page, L6).getByTestId("level-details-toggle").click();
@@ -654,7 +655,7 @@ test("Level 6 on the level selection: its title and status in view on arrival; a
         // Arriving with the text size already set: from inside Level 5, by Home.
         await saveV2(page, EARLIER, { locale, screen: "lesson", levelId: L5, recent: EARLIER_RECENT });
         await textSize(page, size);
-        await page.getByTestId("home").click();
+        await homeToEurope(page);
         await expect(page.getByTestId("welcome")).toBeVisible();
         await fontsSettled(page);
         await expect(card(page, L6)).toHaveAttribute("data-up-next", "true");
