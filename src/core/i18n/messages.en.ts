@@ -11,7 +11,6 @@ export const en = {
 
   "welcome.intro":
     "Learn where countries are on the map, then plan the shortest journey between them.",
-  "welcome.levels": "Choose a level",
   "welcome.start": "Start",
   "welcome.continue": "Continue",
   "welcome.startOver": "Start over",
@@ -27,6 +26,17 @@ export const en = {
   "welcome.allComplete": "You've completed all {count} levels! Play any of them again whenever you like.",
   "welcome.stepDone": "{step}: done",
   "welcome.stepTodo": "{step}: not done yet",
+
+  "continents.title": "Choose a continent",
+  "continents.levels.one": "{count} level",
+  "continents.levels.other": "{count} levels",
+  "continents.completed.one": "{completed} of {count} level completed",
+  "continents.completed.other": "{completed} of {count} levels completed",
+  "continents.explore": "Explore {continent}",
+  "continents.comingSoon": "Coming soon",
+  "continents.comingSoonHint": "Levels for this continent are on their way.",
+  "continents.continueLabel": "{action}: {continent}, {level}, {title}",
+  "continents.back": "Back to continents",
 
   "level.number": "Level {number}",
   "level.countries": "Countries:",

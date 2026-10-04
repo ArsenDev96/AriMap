@@ -1,5 +1,6 @@
 import type { CountryId } from "../content/types";
 import type { LocalizedText } from "../i18n/locales";
+import type { ContinentId } from "./continents";
 import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { balticJourneyLesson } from "./baltic-journey";
@@ -10,15 +11,19 @@ import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
 
 /**
- * A level as shown on the level selection. `lesson` holds its playable content;
- * a level without one is still being prepared: its card says "Coming soon" and
+ * A level as shown on its continent's level selection. `lesson` holds its playable
+ * content; a level without one is still being prepared: its card says "Coming soon" and
  * it can never be started. A level with `unlockedBy` opens once that level is
- * completed (its journey finished once), and stays open.
+ * completed (its journey finished once), and stays open. Unlocking runs within a
+ * continent: a continent's first level has no `unlockedBy`, so no continent waits
+ * for another (checked in levels.test.ts).
  */
 export interface LevelInfo {
   /** Stable id: the key of the level's saved progress. Never reuse or rename one. */
   id: string;
-  /** Position in the list, shown on the card ("Level 2"). */
+  /** The continent it belongs to: its levels are listed there, in this list's order. */
+  continent: ContinentId;
+  /** Position in its continent's list, shown on the card ("Level 2"). */
   number: number;
   title: LocalizedText;
   description: LocalizedText;
@@ -30,6 +35,7 @@ export interface LevelInfo {
 export const LEVELS: readonly LevelInfo[] = [
   {
     id: westernEuropeLesson.id,
+    continent: "europe",
     number: 1,
     title: { en: "France and its neighbours", hy: "Ֆրանսիան և իր հարևանները" },
     description: {
@@ -41,6 +47,7 @@ export const LEVELS: readonly LevelInfo[] = [
   },
   {
     id: alpsLesson.id,
+    continent: "europe",
     number: 2,
     title: { en: "Around the Alps", hy: "Ալպերի շուրջը" },
     description: {
@@ -53,6 +60,7 @@ export const LEVELS: readonly LevelInfo[] = [
   },
   {
     id: centralEuropeLesson.id,
+    continent: "europe",
     number: 3,
     title: { en: "Central Europe", hy: "Կենտրոնական Եվրոպա" },
     description: {
@@ -65,6 +73,7 @@ export const LEVELS: readonly LevelInfo[] = [
   },
   {
     id: adriaticLesson.id,
+    continent: "europe",
     number: 4,
     title: { en: "Along the Adriatic", hy: "Ադրիատիկի ափով" },
     description: {
@@ -77,6 +86,7 @@ export const LEVELS: readonly LevelInfo[] = [
   },
   {
     id: towardsGreeceLesson.id,
+    continent: "europe",
     number: 5,
     title: { en: "Towards Greece", hy: "Դեպի Հունաստան" },
     description: {
@@ -89,6 +99,7 @@ export const LEVELS: readonly LevelInfo[] = [
   },
   {
     id: balticJourneyLesson.id,
+    continent: "europe",
     number: 6,
     title: { en: "Baltic Journey", hy: "Բալթյան ճամփորդություն" },
     description: {
@@ -101,6 +112,7 @@ export const LEVELS: readonly LevelInfo[] = [
   },
   {
     id: iberianJourneyLesson.id,
+    continent: "europe",
     number: 7,
     title: { en: "Iberian Journey", hy: "Պիրենեյան ճամփորդություն" },
     description: {
@@ -115,4 +127,14 @@ export const LEVELS: readonly LevelInfo[] = [
 
 export function getLevel(id: string): LevelInfo | undefined {
   return LEVELS.find((level) => level.id === id);
+}
+
+/** A continent's levels, in order (none yet for a continent that is coming soon). */
+export function levelsOf(continent: ContinentId): readonly LevelInfo[] {
+  return LEVELS.filter((level) => level.continent === continent);
+}
+
+/** Whether a continent has a level that can be played: otherwise it is coming soon. */
+export function hasPlayableLevels(continent: ContinentId): boolean {
+  return levelsOf(continent).some((level) => level.lesson);
 }

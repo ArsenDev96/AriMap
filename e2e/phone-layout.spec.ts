@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Phone layout regressions: the level selection keeps the brand and language
@@ -134,7 +135,8 @@ const welcomeLayout = (page: Page) =>
     return {
       viewport: { width: window.innerWidth, height: window.innerHeight },
       scroll: { ...box(scroll)!, scrollTop: scroll.scrollTop, scrollHeight: scroll.scrollHeight, clientHeight: scroll.clientHeight },
-      brand: box(hero?.querySelector("h1") ?? null),
+      // Back to the continents, in the header where AriMap was before continents (AriMap is on the continents).
+      brand: box(hero?.querySelector('[data-testid="back-to-continents"]') ?? null),
       toggle: box(hero?.querySelector('[role="group"]') ?? null),
       heroInScroll: !!hero && scroll.contains(hero),
       action: box(document.querySelector('[data-testid="welcome-actions"]')),
@@ -148,7 +150,7 @@ const welcomeLayout = (page: Page) =>
   });
 
 test.describe("level selection", () => {
-  test("the brand and language switch stay in view above the scrolling list; the current level is in view; every card and action reachable", async ({ page }) => {
+  test("Back to continents and the language switch stay in view above the scrolling list; the current level is in view; every card and action reachable", async ({ page }) => {
     test.setTimeout(600_000);
     const sizes = project() === "desktop" ? [[1366, 800]] : project() === "small-phone" ? [[320, 568], [390, 844]] : project() === "webkit-phone" ? [[320, 568], [390, 664]] : [];
     test.skip(sizes.length === 0, "Runs on the small-phone, webkit-phone and desktop projects.");
@@ -160,7 +162,7 @@ test.describe("level selection", () => {
             // Arriving with the text size already enlarged: from inside the last level, by Home.
             await save(page, s.levels, { locale, screen: "lesson", recent: s.recent, levelId: s.recent[0] });
             await textSize(page, size);
-            await page.getByTestId("home").click();
+            await homeToEurope(page);
             await expect(page.getByTestId("welcome")).toBeVisible();
             await fontsSettled(page);
             const where = `${width}×${height} ${s.name} ${locale} ${size}%`;
@@ -168,9 +170,9 @@ test.describe("level selection", () => {
             expect.soft(await page.evaluate(() => document.documentElement.style.fontSize), `${where}: text size`).toBe(size === 100 ? "" : `${size}%`);
             await shot(page, `welcome-${s.name}-${locale}-text${size}`);
 
-            // The brand and the language switch: outside the scrolling list, whole and on screen.
-            expect.soft(at.heroInScroll, `${where}: brand inside the scrolling list`).toBe(false);
-            for (const [what, b] of [["brand", at.brand], ["language switch", at.toggle]] as const) {
+            // Back to the continents and the language switch: outside the scrolling list, whole and on screen.
+            expect.soft(at.heroInScroll, `${where}: header inside the scrolling list`).toBe(false);
+            for (const [what, b] of [["Back to continents", at.brand], ["language switch", at.toggle]] as const) {
               expect.soft(b, `${where}: ${what}`).not.toBeNull();
               if (!b) continue;
               expect.soft(b.top, `${where}: ${what} above the screen`).toBeGreaterThanOrEqual(-0.5);
@@ -194,7 +196,7 @@ test.describe("level selection", () => {
               if (size === 100) expect.soft(at.currentStatus.bottom, `${where}: current level's status hidden`).toBeLessThanOrEqual(at.scroll.bottom + 0.5);
             }
 
-            // Scrolling the list: the brand stays put; Level 1 is reachable at the top, the last card at the end.
+            // Scrolling the list: Back to continents stays put; Level 1 is reachable at the top, the last card at the end.
             const list = page.getByTestId("welcome-scroll");
             await list.evaluate((el) => el.scrollTo(0, 0));
             const top = await welcomeLayout(page);
@@ -202,7 +204,7 @@ test.describe("level selection", () => {
             await list.evaluate((el) => el.scrollTo(0, el.scrollHeight));
             const end = await welcomeLayout(page);
             expect.soft(end.last!.bottom, `${where}: last card under the action`).toBeLessThanOrEqual(end.scroll.bottom + 0.5);
-            if (at.brand && end.brand) expect.soft(end.brand.top, `${where}: brand moved with the list`).toBeCloseTo(at.brand.top, 0);
+            if (at.brand && end.brand) expect.soft(end.brand.top, `${where}: Back to continents moved with the list`).toBeCloseTo(at.brand.top, 0);
             if (size === 200 && width <= 390) await shot(page, `welcome-${s.name}-${locale}-text${size}-scrolled-end`);
             await list.evaluate((el) => el.scrollTo(0, 0));
           }
@@ -249,11 +251,14 @@ test.describe("level selection", () => {
   test("a new player still gets the full introduction in the scrolling page", async ({ page }) => {
     test.skip(project() !== "small-phone" && project() !== "webkit-phone", "Phones.");
     await page.setViewportSize({ width: 320, height: 568 });
-    await save(page, {});
-    await expect(page.getByTestId("welcome")).toHaveAttribute("data-returning", "false");
+    // On the continents (the home screen): the artwork and the introduction scroll with the continents,
+    // under the header with the name, tagline and language.
+    await save(page, {}, { screen: "continents" });
+    await expect(page.getByTestId("continents")).toHaveAttribute("data-returning", "false");
     await expect(page.getByTestId("welcome-art")).toBeVisible();
-    expect(await page.evaluate(() => document.querySelector('[data-testid="welcome-scroll"]')!.contains(document.querySelector('[data-testid="welcome-hero"]')))).toBe(true);
-    expect(await page.getByTestId("welcome-scroll").evaluate((el) => el.scrollTop)).toBe(0);
+    expect(await page.evaluate(() => document.querySelector('[data-testid="continents-scroll"]')!.contains(document.querySelector('[data-testid="welcome-art"]')))).toBe(true);
+    await expect(page.getByTestId("continents-scroll")).toContainText("Learn where countries are on the map");
+    expect(await page.getByTestId("continents-scroll").evaluate((el) => el.scrollTop)).toBe(0);
     await shot(page, "welcome-new-en-text100");
   });
 });
@@ -479,7 +484,7 @@ test.describe("level cards", () => {
             // Arriving with the text size already enlarged: from inside the last level, by Home.
             await save(page, s.levels, { locale, screen: "lesson", recent: s.recent, levelId: s.recent[0] });
             await textSize(page, size);
-            await page.getByTestId("home").click();
+            await homeToEurope(page);
             await expect(page.getByTestId("welcome")).toBeVisible();
             await fontsSettled(page);
             const where = `${width}×${height} ${s.name} ${locale} ${size}%`;

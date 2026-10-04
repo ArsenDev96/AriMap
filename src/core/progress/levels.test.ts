@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFindOrder } from "../game/find";
 import { shortestDistance } from "../game/graph";
 import { seededRandom } from "../game/random";
-import { LESSONS, LEVELS } from "../lessons";
+import { CONTINENTS, hasPlayableLevels, LESSONS, LEVELS, levelsOf } from "../lessons";
 import { alpsLesson as alps } from "../lessons/alps";
 import { balticJourneyLesson as baltic } from "../lessons/baltic-journey";
 import { adriaticLesson as adriatic } from "../lessons/adriatic";
@@ -12,7 +12,19 @@ import { towardsGreeceLesson as greece } from "../lessons/towards-greece";
 import { westernEuropeLesson as france } from "../lessons/western-europe";
 import { buildMapView } from "../lesson/mapView";
 import type { LessonAction } from "../lesson/progress";
-import { allLevelsComplete, appReducer, canPlay, createInitialState, levelStatus, mainAction, startFindingAction, type AppAction, type AppState } from "./appState";
+import {
+  allLevelsComplete,
+  appReducer,
+  canPlay,
+  continentProgress,
+  createInitialState,
+  levelStatus,
+  levelToContinue,
+  mainAction,
+  startFindingAction,
+  type AppAction,
+  type AppState,
+} from "./appState";
 import { BACKUP_KEY, loadAppState, parseSavedState, saveAppState, STORAGE_KEY, type KeyValueStorage } from "./storage";
 
 const L1 = france.id;
@@ -174,10 +186,10 @@ describe("levels", () => {
     s = run(s, open(L2), play({ type: "discoverSelect", country: "CHE" }), play(startFindingAction(alps, seededRandom(1))));
     const inFind = s.levels[L2];
     s = run(s, { type: "goHome" });
-    expect(s).toMatchObject({ screen: "welcome", levelId: L2 });
+    expect(s).toMatchObject({ screen: "continents", levelId: L2 });
     expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L2 } });
     s = refresh(s);
-    expect(s).toMatchObject({ screen: "welcome", levelId: L2 });
+    expect(s).toMatchObject({ screen: "continents", levelId: L2 });
     s = run(s, open(L2));
     expect(s.screen).toBe("lesson");
     expect(s.levels[L2]).toEqual(inFind);
@@ -205,10 +217,102 @@ describe("levels", () => {
     const raw = JSON.parse(JSON.stringify(s));
     delete raw.levels[L1];
     const loaded = parseSavedState(JSON.stringify(raw));
-    expect(loaded.screen).toBe("welcome");
+    expect(loaded.screen).toBe("continents");
     expect(canPlay(loaded, L2)).toBe(false);
     // Its progress is still kept, for when Level 1 is completed again.
     expect(loaded.levels[L2]?.started).toBe(true);
+  });
+});
+
+describe("continents", () => {
+  const openContinent = (continent: AppState["continent"]): AppAction => ({ type: "openContinent", continent });
+
+  it("lists five continents in order; Europe holds the seven levels in their order, the other four are coming soon", () => {
+    expect(CONTINENTS.map((c) => c.id)).toEqual(["europe", "asia", "africa", "north-america", "south-america"]);
+    expect(CONTINENTS.map((c) => c.name.en)).toEqual(["Europe", "Asia", "Africa", "North America", "South America"]);
+    expect(CONTINENTS.map((c) => c.name.hy)).toEqual(["Եվրոպա", "Ասիա", "Աֆրիկա", "Հյուսիսային Ամերիկա", "Հարավային Ամերիկա"]);
+    expect(levelsOf("europe").map((l) => l.id)).toEqual([L1, L2, L3, L4, L5, L6, L7]);
+    expect(levelsOf("europe").map((l) => l.number)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    for (const id of ["asia", "africa", "north-america", "south-america"] as const) {
+      expect(levelsOf(id), id).toEqual([]);
+      expect(hasPlayableLevels(id), id).toBe(false);
+    }
+    // Every level belongs to exactly one listed continent (grouped by that, not by a separate list).
+    expect(LEVELS.every((l) => CONTINENTS.some((c) => c.id === l.continent))).toBe(true);
+    expect(CONTINENTS.flatMap((c) => levelsOf(c.id)).length).toBe(LEVELS.length);
+  });
+
+  it("unlocks within a continent: each continent's first level is open, and no level waits for another continent's", () => {
+    for (const continent of CONTINENTS) {
+      const levels = levelsOf(continent.id);
+      levels.forEach((level, i) => {
+        expect(level.number, level.id).toBe(i + 1);
+        if (i === 0) expect(level.unlockedBy, level.id).toBeUndefined();
+        else expect(levels.slice(0, i).map((l) => l.id), level.id).toContain(level.unlockedBy);
+      });
+    }
+    // The seven levels' chain is unchanged.
+    expect(levelsOf("europe").map((l) => l.unlockedBy ?? null)).toEqual([null, L1, L2, L3, L4, L5, L6]);
+  });
+
+  it("navigates continents → a continent's levels → a level, and Home and Back return to the continents", () => {
+    let s = createInitialState();
+    expect(s).toMatchObject({ screen: "continents", continent: "europe" });
+    // Coming soon: nothing to open.
+    for (const id of ["asia", "africa", "north-america", "south-america"] as const) expect(run(s, openContinent(id))).toBe(s);
+    s = run(s, openContinent("europe"));
+    expect(s).toMatchObject({ screen: "levels", continent: "europe" });
+    expect(refresh(s)).toMatchObject({ screen: "levels", continent: "europe" });
+    expect(run(s, { type: "goHome" }).screen).toBe("continents");
+    s = run(s, open(L1));
+    expect(s).toMatchObject({ screen: "lesson", continent: "europe", levelId: L1 });
+    s = run(s, { type: "goHome" });
+    expect(s.screen).toBe("continents");
+    expect(refresh(s).screen).toBe("continents");
+  });
+
+  it("reopens a save's screen: a level, a continent's levels, or the continents; a save from before continents opens Europe's levels", () => {
+    const base = run(createInitialState(), open(L1));
+    const saved = (screen: string, extra: object = {}) => parseSavedState(JSON.stringify({ ...base, screen, ...extra }));
+    expect(saved("lesson")).toMatchObject({ screen: "lesson", continent: "europe" });
+    expect(saved("levels")).toMatchObject({ screen: "levels", continent: "europe" });
+    expect(saved("continents").screen).toBe("continents");
+    // Before continents: "welcome" was the level selection, Europe's levels only; no continent field.
+    const { continent: _ignored, ...old } = { ...base, screen: "welcome" };
+    void _ignored;
+    expect(parseSavedState(JSON.stringify(old))).toMatchObject({ screen: "levels", continent: "europe" });
+    // A continent with nothing to play, or an unknown one, opens the continents instead.
+    expect(saved("levels", { continent: "asia" }).screen).toBe("continents");
+    expect(saved("levels", { continent: "atlantis" })).toMatchObject({ screen: "continents", continent: "europe" });
+    expect(saved("somewhere").screen).toBe("continents");
+  });
+
+  it("counts a continent's completed levels from the permanent records: replays and starting over never lower it", () => {
+    expect(continentProgress(createInitialState(), "europe")).toEqual({ total: 7, completed: 0 });
+    let s = level3Done();
+    expect(continentProgress(s, "europe")).toEqual({ total: 7, completed: 3 });
+    for (const id of [L1, L2, L3]) {
+      s = run(s, restart(id));
+      expect(continentProgress(s, "europe"), id).toEqual({ total: 7, completed: 3 });
+    }
+    expect(continentProgress(refresh(s), "europe")).toEqual({ total: 7, completed: 3 });
+    expect(continentProgress(level7Done(), "europe")).toEqual({ total: 7, completed: 7 });
+    for (const id of ["asia", "africa", "north-america", "south-america"] as const) expect(continentProgress(s, id)).toEqual({ total: 0, completed: 0 });
+  });
+
+  it("Continue on the continents resumes the most recently active unfinished level at exactly its place", () => {
+    expect(levelToContinue(createInitialState())).toBeNull();
+    let s = run(level2Done(), open(L3), play({ type: "discoverSelect", country: "POL" }), play(startFindingAction(central, seededRandom(4))));
+    s = run(s, play({ type: "findGuess", country: s.levels[L3].find!.question.target }));
+    const inFind = s.levels[L3];
+    s = refresh(run(s, { type: "goHome" }));
+    expect(s.screen).toBe("continents");
+    expect(levelToContinue(s)?.id).toBe(L3);
+    s = run(s, open(levelToContinue(s)!.id));
+    expect(s).toMatchObject({ screen: "lesson", levelId: L3 });
+    expect(s.levels[L3]).toEqual(inFind);
+    // Replaying a completed level isn't an unfinished level: nothing to continue once all are completed.
+    expect(levelToContinue(run(level7Done(), restart(L2)))).toBeNull();
   });
 });
 
@@ -356,7 +460,7 @@ describe("Level 3: Central Europe", () => {
     const [l1, l2, inFind] = [s.levels[L1], s.levels[L2], s.levels[L3]];
     expect(inFind).toMatchObject({ stage: "find", discover: { explored: ["SVK"] }, find: { question: { hintLevel: 1 } }, records: { discoverDone: true } });
     s = refresh(run(s, { type: "goHome" }));
-    expect(s).toMatchObject({ screen: "welcome", levelId: L3 });
+    expect(s).toMatchObject({ screen: "continents", levelId: L3 });
     expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L3 } });
     expect(levelStatus(s, LEVELS[2])).toMatchObject({ kind: "inProgress", stage: "find" });
     // Visiting a completed level doesn't change which one Continue opens.
@@ -480,7 +584,7 @@ describe("Level 4: Along the Adriatic", () => {
     const [l1, l2, l3, inFind] = [s.levels[L1], s.levels[L2], s.levels[L3], s.levels[L4]];
     expect(inFind).toMatchObject({ stage: "find", discover: { explored: ["BIH"] }, find: { question: { hintLevel: 1 } }, records: { discoverDone: true } });
     s = refresh(run(s, { type: "goHome" }));
-    expect(s).toMatchObject({ screen: "welcome", levelId: L4 });
+    expect(s).toMatchObject({ screen: "continents", levelId: L4 });
     expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L4 } });
     // Visiting a completed level doesn't change which one Continue opens.
     s = refresh(run(s, open(L3), { type: "goHome" }));

@@ -13,7 +13,6 @@ export const hy: Record<keyof typeof en, string> = {
 
   "welcome.intro":
     "Սովորիր, թե որտեղ են երկրները քարտեզի վրա, ապա գտիր նրանց միջև ամենակարճ ճանապարհը։",
-  "welcome.levels": "Ընտրիր մակարդակը",
   "welcome.start": "Սկսել",
   "welcome.continue": "Շարունակել",
   "welcome.startOver": "Սկսել նորից",
@@ -29,6 +28,17 @@ export const hy: Record<keyof typeof en, string> = {
   "welcome.allComplete": "Ավարտել ես բոլոր {count} մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
   "welcome.stepDone": "{step}՝ արված է",
   "welcome.stepTodo": "{step}՝ դեռ արված չէ",
+
+  "continents.title": "Ընտրիր մայրցամաքը",
+  "continents.levels.one": "{count} մակարդակ",
+  "continents.levels.other": "{count} մակարդակ",
+  "continents.completed.one": "{count} մակարդակից ավարտված է {completed}-ը",
+  "continents.completed.other": "{count} մակարդակից ավարտված է {completed}-ը",
+  "continents.explore": "Բացահայտել {continent}",
+  "continents.comingSoon": "Շուտով",
+  "continents.comingSoonHint": "Այս մայրցամաքի մակարդակները դեռ պատրաստվում են։",
+  "continents.continueLabel": "{action}՝ {continent}, {level}, {title}",
+  "continents.back": "Վերադառնալ մայրցամաքներին",
 
   "level.number": "Մակարդակ {number}",
   "level.countries": "Երկրներ՝",

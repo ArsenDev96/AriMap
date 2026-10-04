@@ -3,7 +3,7 @@ import { isValidOrder, MAX_HINT_LEVEL, type FindAnswer, type FindFeedback, type 
 import { crossingBudget, type TravelAttempt, type TravelStatus } from "../game/travel";
 import { isConnectedRoute } from "../game/graph";
 import { isLocale } from "../i18n/locales";
-import { LESSONS } from "../lessons";
+import { getLevel, hasPlayableLevels, isContinentId, LESSONS } from "../lessons";
 import type { LessonDefinition } from "../lessons/types";
 import {
   createLessonProgress,
@@ -76,10 +76,18 @@ const STAGES: readonly LessonStage[] = ["discover", "find", "travel", "results"]
 
 /**
  * Reads a save. Version 2 holds every level's progress (`levels`), the level
- * being played (`levelId`) and the order the levels were last active in
- * (`recent`). Version 1 held one level (`lessonId`, `lessons`): its progress
- * becomes Level 1's, which it always was. Saves from the two-round Find are
- * converted as before (see migrateLegacyFind).
+ * being played (`levelId`), the order the levels were last active in
+ * (`recent`), the screen, and the continent whose levels were last shown
+ * (`continent`, since continents were added). Version 1 held one level
+ * (`lessonId`, `lessons`): its progress becomes Level 1's, which it always was.
+ * Saves from the two-round Find are converted as before (see migrateLegacyFind).
+ *
+ * The screen reopens as saved: a level only if it is started and can be played;
+ * a continent's level selection only if that continent has playable levels. A
+ * save from before continents existed says "welcome" for the level selection,
+ * which held Europe's levels then: it reopens there. Anything else opens the
+ * continents. Builds from before continents read "continents" and "levels" as
+ * their level selection, and ignore `continent`.
  */
 export function parseSavedState(raw: string | null): AppState {
   if (!raw) return createInitialState();
@@ -117,7 +125,14 @@ export function parseSavedState(raw: string | null): AppState {
   const listed = Array.isArray(recent) ? recent.filter((id): id is string => typeof id === "string" && id in LESSONS) : [];
   const started = Object.keys(state.levels).filter((id) => state.levels[id].started);
   state.recent = [...new Set([...(state.levels[state.levelId]?.started ? [state.levelId] : []), ...listed, ...started])];
-  if (data.screen === "lesson" && state.levels[state.levelId]?.started && canPlay(state, state.levelId)) state.screen = "lesson";
+  const continent = isContinentId(data.continent) && hasPlayableLevels(data.continent) ? data.continent : null;
+  state.continent = continent ?? getLevel(state.levelId)!.continent;
+  if (data.screen === "lesson" && state.levels[state.levelId]?.started && canPlay(state, state.levelId)) {
+    state.screen = "lesson";
+    state.continent = getLevel(state.levelId)!.continent;
+  } else if (data.screen === "welcome" || (data.screen === "levels" && continent)) {
+    state.screen = "levels";
+  }
   return state;
 }
 

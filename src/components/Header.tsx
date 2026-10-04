@@ -115,7 +115,7 @@ export function Header({ progress, dispatch }: { progress: LessonProgress; dispa
         <BrandMark />
         <span className={styles.brandName}>{t("app.name")}</span>
       </div>
-      {/* Back to the lesson overview; progress is kept, and Continue there resumes it. */}
+      {/* Back to the continents; progress is kept, and Continue there resumes it. */}
       <button type="button" className={styles.home} onClick={() => dispatch({ type: "goHome" })} data-testid="home">
         <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M3.5 11 12 4l8.5 7M6 9.5V20h4.5v-5.5h3V20H18V9.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
