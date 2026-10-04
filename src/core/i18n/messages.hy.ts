@@ -11,12 +11,11 @@ export const hy: Record<keyof typeof en, string> = {
 
   "language.label": "Լեզու",
 
-  "welcome.intro":
-    "Սովորիր, թե որտեղ են երկրները քարտեզի վրա, ապա գտիր նրանց միջև ամենակարճ ճանապարհը։",
   "welcome.start": "Սկսել",
   "welcome.continue": "Շարունակել",
   "welcome.startOver": "Սկսել նորից",
   "welcome.playAgain": "Խաղալ նորից",
+  "welcome.viewResults": "Դիտել արդյունքը",
   "welcome.startOverTitle": "Սկսե՞լ «{level}» մակարդակը նորից",
   "welcome.startOverText": "Այս մակարդակը նորից կսկսես «Բացահայտիր» քայլից, և դրանում քո ընթացիկ առաջընթացը կկորի։ Ավարտված քայլերը կմնան նշված, իսկ մյուս մակարդակները չեն փոխվի։",
   "welcome.startOverKeep": "Պահել առաջընթացը",
@@ -32,11 +31,11 @@ export const hy: Record<keyof typeof en, string> = {
   "continents.title": "Ընտրիր մայրցամաքը",
   "continents.levels.one": "{count} մակարդակ",
   "continents.levels.other": "{count} մակարդակ",
-  "continents.completed.one": "{count} մակարդակից ավարտված է {completed}-ը",
-  "continents.completed.other": "{count} մակարդակից ավարտված է {completed}-ը",
+  "continents.completed.one": "{continent} {count} մակարդակից ավարտված է {completed}-ը",
+  "continents.completed.other": "{continent} {count} մակարդակից ավարտված է {completed}-ը",
+  "continents.completedShort": "Ավարտված՝",
   "continents.explore": "Բացահայտել {continent}",
   "continents.comingSoon": "Շուտով",
-  "continents.comingSoonHint": "Այս մայրցամաքի մակարդակները դեռ պատրաստվում են։",
   "continents.continueLabel": "{action}՝ {continent}, {level}, {title}",
   "continents.back": "Վերադառնալ մայրցամաքներին",
 
@@ -147,5 +146,9 @@ export const hy: Record<keyof typeof en, string> = {
   "results.noBadge": "Կրկնիր առանց հուշման և հետարկման՝ «Առանց օգնության» նշանը ստանալու համար։",
   "results.findTitle": "Գտիր",
   "results.find": "Գտնված առաջին փորձից՝ առանց հուշման",
-  "results.replay": "Կրկնել ճամփորդությունը",
+  "results.replay": "Նորից ճամփորդել",
+  "results.nextLevel": "Հաջորդ մակարդակը",
+  "results.nextLevelLabel": "Հաջորդ մակարդակը՝ {level}, {title}",
+  "results.backToLevels": "Վերադառնալ ցանկին",
+  "results.backToLevelsLabel": "Վերադառնալ ցանկին՝ {continent} մակարդակներին",
 };

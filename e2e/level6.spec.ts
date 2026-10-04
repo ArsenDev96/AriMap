@@ -576,7 +576,8 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   for (const id of [L1, L2, L3, L4, L5, L6]) {
     await card(page, id).getByTestId("level-details-toggle").click();
     await expect(card(page, id).getByRole("button", { name: /^Play again/ })).toBeVisible();
-    await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toBeVisible();
+    // Finished (at its Results): nothing to continue.
+    await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toHaveCount(0);
   }
   expect(errors).toEqual([]);
 });
@@ -629,7 +630,9 @@ test("Level 6: independent saves; Start over and Play again change only this lev
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
   await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6, L7]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("all-done")).toHaveAttribute("data-all-complete", "true");
+  // The replay is an attempt under way: the main action continues it, in place of the completion message.
+  await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Continues*Level 6 · Baltic Journey$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   // Level 5 played again keeps Level 6 open.
   await card(page, L5).getByTestId("level-details-toggle").click();
   await card(page, L5).getByRole("button", { name: /^Play again/ }).click();

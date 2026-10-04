@@ -344,9 +344,11 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   await homeToEurope(page);
   await expect(card(page, L2).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L1).getByTestId("level-status")).toHaveText("Completed");
-  // Completing Level 2 unlocks Level 3: the main action starts it; Levels 4–5 stay out of reach.
+  // Completing Level 2 unlocks Level 3 (ready to start); Levels 4–5 stay out of reach. The replay of
+  // Level 2's journey is an attempt under way, so the main action continues it.
   await expect(card(page, "central-europe").getByTestId("level-status")).toHaveText("Ready to play");
-  await expect(mainAction(page)).toHaveText(/^Start\s*Level 3 · Central Europe$/);
+  await expect(card(page, "central-europe").getByRole("button", { name: /^Start/ })).toBeVisible();
+  await expect(mainAction(page)).toHaveText(/^Continue\s*Level 2 · Around the Alps$/);
   for (const id of ["along-the-adriatic", "towards-greece"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
   await shot(page, "levels-both-completed-en");
   expect(errors).toEqual([]);
@@ -371,12 +373,10 @@ test.describe("progress per level", () => {
     await saveV2(page, { [L1]: LEVEL1_DONE, [L2]: inTravel }, { levelId: L1, recent: [L1, L2] });
     // Level 1 is completed, so Continue goes to Level 2, the most recent unfinished one.
     await expect(mainAction(page)).toHaveText(/^Continue\s*Level 2/);
+    // Level 1's attempt is finished (at its Results): Play again, which asks first, and no Continue.
     await expand(page, L1);
-    await card(page, L1).getByRole("button", { name: /^Continue/ }).click();
-    await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
-    await page.reload();
-    await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
-    await homeToEurope(page);
+    await expect(card(page, L1).getByRole("button", { name: /^Continue/ })).toHaveCount(0);
+    await expect(card(page, L1).getByRole("button", { name: /^Play again/ })).toHaveAttribute("aria-haspopup", "dialog");
     await page.reload();
     await mainAction(page).click();
     await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
@@ -503,14 +503,13 @@ async function shownWithoutScrolling(page: Page, locator: ReturnType<Page["locat
 }
 
 test.describe("returning players", () => {
-  test("a new player still gets the full introduction and artwork", async ({ page }) => {
+  test("a new player gets the world map, then Europe's levels with nothing marked or folded", async ({ page }) => {
     test.skip(test.info().project.name !== "small-phone", "Runs once.");
     for (const locale of ["en", "hy"] as const) {
-      // On the continents (the home screen), above the continents themselves.
+      // On the continents (the home screen): the world map is the page, with no artwork or introduction competing with it.
       await saveV2(page, {}, { locale, screen: "continents" });
-      await expect(page.getByTestId("continents")).toHaveAttribute("data-returning", "false");
-      await expect(page.getByTestId("welcome-art")).toBeVisible();
-      await expect(page.getByTestId("continents-scroll")).toContainText(locale === "en" ? "Learn where countries are on the map" : "Սովորիր");
+      await expect(page.getByTestId("world-map")).toBeVisible();
+      await expect(page.getByTestId("welcome-art")).toHaveCount(0);
       // Europe's levels: nothing marked or folded for a new player.
       await page.getByTestId("explore-europe").click();
       await expect(page.getByTestId("welcome")).toHaveAttribute("data-returning", "false");
@@ -584,7 +583,9 @@ test.describe("returning players", () => {
             await expect(c.getByText(locale === "en" ? "Play again" : "Խաղալ նորից")).toBeHidden();
             await expand(page, id);
             await expect(c).toContainText(FIRST_COUNTRY[id][locale === "en" ? 0 : 1]);
-            for (const button of [c.getByRole("button", { name: locale === "en" ? /^Continue/ : /^Շարունակել/ }), c.getByRole("button", { name: locale === "en" ? /^Play again/ : /^Խաղալ նորից/ })]) {
+            // Finished (at its Results): Play again alone, no Continue.
+            await expect(c.getByRole("button", { name: locale === "en" ? /^Continue/ : /^Շարունակել/ })).toHaveCount(0);
+            for (const button of [c.getByRole("button", { name: locale === "en" ? /^Play again/ : /^Խաղալ նորից/ })]) {
               await button.scrollIntoViewIfNeeded();
               const b = (await button.boundingBox())!;
               expect(b.height).toBeGreaterThanOrEqual(44);

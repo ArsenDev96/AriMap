@@ -107,22 +107,57 @@ export function canPlay(state: AppState, levelId: string): boolean {
 }
 
 /**
- * The level Continue resumes: the most recently active level (of a continent, if given) that
- * is started but not yet completed, on any continent otherwise. Null when there is none.
+ * Whether a level has an attempt under way to resume: started, and not at the Results of a
+ * finished attempt. A level never completed that is started always has one; a completed level
+ * has one while it is being played again (after Play again or Replay journey). Continue is
+ * offered only for these; a finished attempt offers Play again instead.
+ */
+export function hasUnfinishedAttempt(state: AppState, levelId: string): boolean {
+  const progress = state.levels[levelId];
+  return progress?.started === true && progress.stage !== "results";
+}
+
+/**
+ * Whether a level's finished attempt has its Results saved: at Results, with the route of the
+ * journey that ended it (a save is only ever at Results with one, see storage.ts). View results
+ * reopens them as they are. A completion record alone (an older save) has none, and none is made up.
+ */
+export function hasSavedResults(state: AppState, levelId: string): boolean {
+  const progress = state.levels[levelId];
+  return progress?.started === true && progress.stage === "results" && progress.lastTravelResult != null;
+}
+
+/**
+ * The level Continue resumes: the most recently active playable level (of a continent, if
+ * given) with an unfinished attempt (hasUnfinishedAttempt), on any continent otherwise. Null
+ * when there is none.
  */
 export function levelToContinue(state: AppState, continent?: ContinentId): LevelInfo | null {
   for (const id of state.recent) {
     const level = getLevel(id);
-    if (level && (!continent || level.continent === continent) && levelStatus(state, level).kind === "inProgress") return level;
+    if (level && (!continent || level.continent === continent) && canPlay(state, id) && hasUnfinishedAttempt(state, id)) return level;
   }
   return null;
 }
 
 /**
- * A continent's level selection's main action: continue its most recently active level that
- * is started but not yet completed; otherwise start its first playable level not started
- * yet (a new player's Level 1, or the level just unlocked). Null when every playable level
- * there is completed and none is in progress.
+ * The level after this one in its continent, when it is playable and open (completing a level
+ * opens the next): Results offers it as Next level. Null after the last playable level (the
+ * next is coming soon, or there is none), and never a coming-soon one.
+ */
+export function nextLevel(state: AppState, levelId: string): LevelInfo | null {
+  const level = getLevel(levelId);
+  if (!level) return null;
+  const levels = levelsOf(level.continent);
+  const next = levels[levels.findIndex((l) => l.id === level.id) + 1];
+  return next && canPlay(state, next.id) ? next : null;
+}
+
+/**
+ * A continent's level selection's main action: continue its most recently active level with an
+ * unfinished attempt (levelToContinue, a replay included); otherwise start its first playable
+ * level not started yet (a new player's Level 1, or the level just unlocked). Null when every
+ * playable level there is completed and none has an attempt under way.
  */
 export function mainAction(state: AppState, continent: ContinentId = "europe"): { kind: "continue" | "start"; level: LevelInfo } | null {
   const resume = levelToContinue(state, continent);

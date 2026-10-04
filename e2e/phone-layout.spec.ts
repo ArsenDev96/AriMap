@@ -248,16 +248,14 @@ test.describe("level selection", () => {
     }
   });
 
-  test("a new player still gets the full introduction in the scrolling page", async ({ page }) => {
+  test("a new player gets the world map in the scrolling page, under the header", async ({ page }) => {
     test.skip(project() !== "small-phone" && project() !== "webkit-phone", "Phones.");
     await page.setViewportSize({ width: 320, height: 568 });
-    // On the continents (the home screen): the artwork and the introduction scroll with the continents,
-    // under the header with the name, tagline and language.
+    // On the continents (the home screen): the world map scrolls with the continents' names, under the
+    // header with the name, tagline and language, and starts at the top, wholly in view.
     await save(page, {}, { screen: "continents" });
-    await expect(page.getByTestId("continents")).toHaveAttribute("data-returning", "false");
-    await expect(page.getByTestId("welcome-art")).toBeVisible();
-    expect(await page.evaluate(() => document.querySelector('[data-testid="continents-scroll"]')!.contains(document.querySelector('[data-testid="welcome-art"]')))).toBe(true);
-    await expect(page.getByTestId("continents-scroll")).toContainText("Learn where countries are on the map");
+    expect(await page.evaluate(() => document.querySelector('[data-testid="continents-scroll"]')!.contains(document.querySelector('[data-testid="world-map"]')))).toBe(true);
+    await expect(page.getByTestId("world-map")).toBeInViewport({ ratio: 1 });
     expect(await page.getByTestId("continents-scroll").evaluate((el) => el.scrollTop)).toBe(0);
     await shot(page, "welcome-new-en-text100");
   });
@@ -948,6 +946,10 @@ function wordProblems(page: Page, within: string, box?: string, fitsIn?: string)
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const parent = node.parentElement!;
         if (parent.closest(".visually-hidden, [aria-hidden='true']")) continue;
+        // Hidden by clipping (as Next level's title is, on a narrow phone with enlarged text): not shown.
+        let clipped = false;
+        for (let e: Element | null = parent; e && !clipped; e = e.parentElement) clipped = getComputedStyle(e).clipPath !== "none";
+        if (clipped) continue;
         for (const m of (node.textContent ?? "").matchAll(/[^\s-]+-?|-/g)) {
           range.setStart(node, m.index!);
           range.setEnd(node, m.index! + m[0].length);
@@ -1003,8 +1005,8 @@ test.describe("enlarged text", () => {
             expect.soft(covered, `${where}: the star covers the title`).toBe(false);
             const b = (await banner.boundingBox())!;
             expect.soft(b.x >= 0 && b.x + b.width <= width, `${where}: banner off screen`).toBe(true);
-            // The pinned Replay journey button: its name inside it, and on screen.
-            expect.soft(await wordProblems(page, '[data-testid="panel"] .btn-block'), `${where}: Replay journey`).toEqual([]);
+            // The pinned main action (Next level): its name inside it, and on screen.
+            expect.soft(await wordProblems(page, '[data-testid="panel"] .btn-block'), `${where}: Next level`).toEqual([]);
             if (level === L4 && locale === "hy") await shot(page, `results-${level}-${locale}-text${size}`);
           }
         }

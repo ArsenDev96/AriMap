@@ -1,11 +1,23 @@
 "use client";
 
+import { useState } from "react";
+import { getContinent, getLevel, type LevelInfo } from "@/core/lessons";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
+import { RestartDialog, type RestartRequest } from "../RestartDialog";
 import styles from "../LessonScreen.module.css";
 
-export function ResultsPanel({ progress, act }: PanelProps) {
-  const { t, name } = useI18n();
+/**
+ * A finished journey: the route, the Find score, and what to do next. The main action, pinned at
+ * the bottom, is Next level when another playable level follows in the same continent (opening it
+ * at Discover, or where it was left: opening never resets it), otherwise Back to levels (never a
+ * coming-soon level). Above it, in the page: Replay journey, and Play again for the whole level,
+ * which asks first (RestartDialog). Nothing advances by itself, and nothing here clears a result.
+ */
+export function ResultsPanel({ lesson, progress, act, dispatch, next }: PanelProps & { next: LevelInfo | null }) {
+  const { t, l, name } = useI18n();
+  const [confirm, setConfirm] = useState<RestartRequest | null>(null);
+  const level = getLevel(lesson.id)!;
   const result = progress.lastTravelResult;
   if (!result) return null;
   const used = result.route.length - 1;
@@ -36,9 +48,11 @@ export function ResultsPanel({ progress, act }: PanelProps) {
                 className={`${styles.stop} ${role === "start" ? styles.stopStart : role === "end" ? styles.stopEnd : ""}`}
               >
                 <span className={styles.stopMarker} aria-hidden="true" />
-                <span className={styles.stopName}>{name(id)}</span>
-                <span className={styles.stopRole}>
-                  {t(role === "start" ? "travel.from" : role === "end" ? "travel.to" : "results.stop")}
+                <span className={styles.stopText}>
+                  <span className={styles.stopName}>{name(id)}</span>
+                  <span className={styles.stopRole}>
+                    {t(role === "start" ? "travel.from" : role === "end" ? "travel.to" : "results.stop")}
+                  </span>
                 </span>
               </li>
             );
@@ -94,12 +108,60 @@ export function ResultsPanel({ progress, act }: PanelProps) {
         </section>
       )}
 
-      {/* Home is in the header; the lesson overview is one tap away there. */}
-      <div className={`${styles.footer} ${styles.footerSticky}`}>
-        <button type="button" className="btn btn-primary btn-block" onClick={() => act({ type: "replayTravel" })}>
+      {/* The other ways on, in the page above the pinned main action (Home is in the header). */}
+      <div className={styles.resultsActions} data-testid="results-actions">
+        <button
+          type="button"
+          className="btn btn-secondary"
+          aria-label={t("level.forLevel", { action: t("results.replay"), level: l(level.title) })}
+          data-testid="replay-journey"
+          onClick={() => act({ type: "replayTravel" })}
+        >
           {t("results.replay")}
         </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          aria-haspopup="dialog"
+          aria-label={t("level.forLevel", { action: t("welcome.playAgain"), level: l(level.title) })}
+          data-testid="results-play-again"
+          onClick={() => setConfirm({ level, mode: "playAgain" })}
+        >
+          {t("welcome.playAgain")}
+        </button>
       </div>
+
+      <div className={`${styles.footer} ${styles.footerSticky} ${styles.resultsMain}`}>
+        {next ? (
+          <button
+            type="button"
+            className={`btn btn-primary btn-block ${styles.nextAction}`}
+            data-testid="next-level"
+            data-level={next.id}
+            // The level it opens in full, also when narrow screens show less of it.
+            aria-label={t("results.nextLevelLabel", { level: t("level.number", { number: next.number }), title: l(next.title) })}
+            onClick={() => dispatch({ type: "openLevel", levelId: next.id })}
+          >
+            <span>{t("results.nextLevel")}</span>
+            <span className={styles.nextActionLevel}>
+              {t("level.number", { number: next.number })}
+              <span className={styles.nextActionTitle}> · {l(next.title)}</span>
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary btn-block"
+            aria-label={t("results.backToLevelsLabel", { continent: l(getContinent(level.continent).nameOf) })}
+            data-testid="back-to-levels"
+            onClick={() => dispatch({ type: "openContinent", continent: level.continent })}
+          >
+            {t("results.backToLevels")}
+          </button>
+        )}
+      </div>
+
+      <RestartDialog request={confirm} onClose={() => setConfirm(null)} dispatch={dispatch} />
     </>
   );
 }

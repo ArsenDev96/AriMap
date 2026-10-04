@@ -419,3 +419,38 @@ Level 7's crossings were computed by a script with Level 2's rule 1: the vertex 
 ## Content coordinates
 
 Capital and landmark positions (WGS84, `src/core/content/countries.ts`) are city-centre or monument coordinates, rounded to about 4 decimals: Lisbon 38.7253, −9.1500 · Madrid 40.4169, −3.7033 · Andorra la Vella 42.5061, 1.5217 (Wikipedia, checked against GeoNames; see CONTENT.md, "Level 7") · Paris 48.8566, 2.3522 · Brussels 50.8503, 4.3517 · Amsterdam 52.3676, 4.9041 · Luxembourg City 49.6116, 6.1319 · Berlin 52.5200, 13.4050 · Bern 46.9481, 7.4475 · Vienna 48.2083, 16.3725 · Rome 41.8933, 12.4828 · Warsaw 52.2300, 21.0111 · Prague 50.0875, 14.4214 · Bratislava 48.1439, 17.1097 · Ljubljana 46.0514, 14.5061 · Zagreb 45.8131, 15.9775 · Sarajevo 43.8564, 18.4131 · Podgorica 42.4414, 19.2628 · Vilnius 54.6872, 25.2800 · Riga 56.9489, 24.1064 · Tallinn 59.4370, 24.7535 (GeoNames; see CONTENT.md, "Level 6"). They match commonly published values (Wikipedia/GeoNames). Landmark positions and their sources are listed in [CONTENT.md](CONTENT.md). The tests above confirm each point falls inside its country.
+
+## World map (home screen)
+
+The continent menu is a small world map of geographic continents, drawn from real coastlines. It is separate from the playable map above: no AI-generated image, tiles, terrain or runtime map service, and nothing is downloaded when it shows.
+
+| | |
+|---|---|
+| Dataset | Natural Earth — Admin 0 – Countries, 1:110m cultural vectors |
+| Version | 5.1.1 (from `ne_110m_admin_0_countries.VERSION.txt`) |
+| Download | https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip (listed at https://www.naturalearthdata.com/downloads/110m-cultural-vectors/) |
+| License | Public domain. Natural Earth's terms of use: https://www.naturalearthdata.com/about/terms-of-use/ (attribution not required, but appreciated: "Made with Natural Earth.") |
+| Prepared file | `src/data/geo/world-map.ts` (SVG path data, already projected: ~40 KiB, ~16 KiB gzipped) |
+
+```bash
+# download + unzip the Natural Earth archive first
+node scripts/prepare-world-map.mjs path/to/ne_110m_admin_0_countries.shp
+```
+
+What the script does:
+
+1. **Simplifies** the 1:110m countries by half (mapshaper, `-simplify 50% keep-shapes`): at the map's largest size (about 1000 px wide) the coastlines are unchanged to the eye, and the land's path data is about half the size. Islands below 1:110m's own threshold (most of the Pacific's, the Canary Islands, the Azores) are not in the data.
+2. **Assigns each country to a geographic continent**, starting from Natural Earth's `CONTINENT` field, which is political in a few places. The map treats continents as land, not as whole countries:
+   - **Europe–Asia** (simplified): the Ural Mountains' watershed from the Kara Sea (east of Novaya Zemlya) to the Ural River's source, the Ural River to the Caspian Sea, across the Caspian, the Greater Caucasus' main ridge to the Black Sea at Anapa, then the Bosporus, the Sea of Marmara and the Dardanelles. The line is a list of 46 lon/lat points in the script, accurate to a degree or so (a few pixels at most on screen). It cuts only the countries that span it: Russia (European Russia, Kaliningrad, Novaya Zemlya and Franz Josef Land are Europe; Siberia and the Far East are Asia), Kazakhstan (west of the Ural River is Europe), Turkey (Thrace is Europe, Anatolia Asia), and Georgia and Azerbaijan (their slivers north of the Caucasus ridge are Europe; the rest, like Armenia, is Asia). Colouring all of Russia as Europe would have stretched Europe across northern Asia.
+   - **Africa–Asia**: the Suez Canal and the Gulf of Suez. Egypt's Sinai is Asia.
+   - **Oceania**: all of New Guinea (Indonesia's western half with Papua New Guinea's, the island being part of the Australian continent), and Hawaii (Polynesia, not North America).
+   - **South America**: French Guiana (France) and Trinidad and Tobago (on South America's continental shelf).
+   - **North America**: Central America to the Panama–Colombia border, the Caribbean, and Greenland. **Europe**: Iceland, Svalbard. **Asia**: Cyprus.
+   - The French Southern and Antarctic Lands (Kerguelen), which Natural Earth puts in no continent, are drawn as context with Antarctica.
+3. **Merges** each continent into one outline (polygon-clipping), so no country borders are drawn inside it. Land just east of 180° (Chukotka, Wrangel Island, Fiji's eastern islands) is first moved beside the rest of its land, so it merges with no seam.
+4. **Projects** it with d3-geo's Natural Earth projection, centred on 11°E so the map's edge (169°W) falls in the Bering Strait: Chukotka stays whole with Asia and Alaska with North America. The whole sphere fits 1000 × 520 units (Natural Earth's own proportions; the page scales it, never stretching or cropping it). Paths are rounded to 0.1 unit. A 30° graticule is drawn faintly under the land (resampled more coarsely, to whole units).
+5. **Places the names**: the centre of each category's name on the map, as fractions of its width and height (Europe's just south of the continent, over the Mediterranean, so its land stays in view; the others on their land). Oceania and Antarctica have none.
+
+Only Europe, Asia, Africa, North America and South America are categories; Oceania and Antarctica stay on the map as context, with their land neither removed nor reshaped.
+
+**Verification:** `src/geo/worldMap.test.ts` checks there is land and a name's place for every continent category (and land for Oceania and Antarctica), that all land lies within the map at Natural Earth's proportions, and that the continents are where they belong relative to one another. `e2e/continents.spec.ts` checks the map keeps those proportions on every screen, is wholly on screen, and that loading the home screen fetches no image, relief or data file.

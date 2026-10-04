@@ -543,7 +543,8 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and Leve
   for (const id of [L1, L2, L3, L4, L5]) {
     await card(page, id).getByTestId("level-details-toggle").click();
     await expect(card(page, id).getByRole("button", { name: /^Play again/ })).toBeVisible();
-    await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toBeVisible();
+    // Finished (at its Results): nothing to continue.
+    await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toHaveCount(0);
   }
   expect(errors).toEqual([]);
 });

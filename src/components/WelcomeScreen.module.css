@@ -250,13 +250,6 @@
   }
 }
 
-.intro {
-  margin-top: 8px;
-  font-size: 1.05rem;
-  color: var(--ink-soft);
-  max-width: 34ch;
-}
-
 /* Level selection ------------------------------------------------------ */
 /* A continent's level selection: Back to the continents in the header, beside the language. */
 .back {
@@ -650,6 +643,12 @@
 
 .levelActions .btn {
   font-size: 1rem;
+}
+
+/* The side padding: 20px at the usual text size, giving way to 8px at 200%, so words stay whole.
+   (`.btn` above is local to this module, so the buttons are selected as buttons here.) */
+.levelActions > button {
+  padding-inline: clamp(8px, calc(40px - 1.25rem), 20px);
 }
 
 /* The main action names the level it opens, on a second line. */

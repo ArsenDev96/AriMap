@@ -158,6 +158,12 @@ test.describe("Home", () => {
       await page.reload();
       await showLevel1(page);
       await expect(page.getByRole("button", { name: stage.name === "Results" ? /^Play again/ : /^Start over/ })).toBeVisible();
+      if (stage.name === "Results") {
+        // A finished attempt: nothing to continue, and its Results stay saved.
+        await expect(continueLevel1(page)).toHaveCount(0);
+        expect(await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem("arimap:state")!).levels as Record<string, { stage: string }>)[0].stage)).toBe("results");
+        return;
+      }
       await continueLevel1(page).click();
       await stage.ready(page);
       expect(await page.getByTestId("panel").innerText()).toBe(panel);
@@ -281,7 +287,7 @@ test.describe("saves from the two-round Find", () => {
     await expect(page.getByTestId("panel")).not.toContainText("Փուլ");
   });
 
-  test("in Results after both rounds: scored out of five, and Home and Continue keep it", async ({ page }) => {
+  test("in Results after both rounds: scored out of five; Home keeps it, and the finished level offers Play again", async ({ page }) => {
     await save(page, {
       started: true,
       stage: "results",
@@ -297,8 +303,10 @@ test.describe("saves from the two-round Find", () => {
     await homeToEurope(page);
     await expect(page.getByTestId(`level-${LESSON}`).getByTestId("level-status")).toHaveText("Completed");
     await showLevel1(page);
-    await continueLevel1(page).click();
-    await expect(page.getByTestId("result-find")).toContainText("4/5");
+    await expect(continueLevel1(page)).toHaveCount(0);
+    await expect(page.getByTestId(`level-${LESSON}`).getByRole("button", { name: /^Play again/ })).toBeVisible();
+    const kept = await page.evaluate(() => Object.values(JSON.parse(localStorage.getItem("arimap:state")!).levels as Record<string, { stage: string; records: object }>)[0]);
+    expect(kept).toMatchObject({ stage: "results", records: { travelDone: true, lastFindScore: { independent: 4, total: 5 } } });
   });
 });
 
@@ -383,7 +391,7 @@ test.describe("interface", () => {
     await expect(page.locator("img")).toHaveCount(0);
   });
 
-  test("Results: a completion banner, the route and Find, and one replay action; Home is the header's", async ({ page }) => {
+  test("Results: a completion banner, the route and Find; Replay journey and Play again, then Next level; Home is the header's", async ({ page }) => {
     test.skip(test.info().project.name !== "desktop", "Runs once.");
     for (const reducedMotion of ["no-preference", "reduce"] as const) {
       await page.emulateMedia({ reducedMotion });
@@ -397,7 +405,7 @@ test.describe("interface", () => {
       await expect(page.getByTestId("result-route")).toBeVisible();
       await expect(page.getByTestId("result-find")).toContainText("4/5");
       const actions = page.getByTestId("panel").getByRole("button");
-      await expect(actions).toHaveText(["Replay journey"]);
+      await expect(actions).toHaveText(["Replay journey", "Play again", /^Next level\s*Level 2 · Around the Alps$/]);
       await expect(page.getByRole("button", { name: "Return to lesson" })).toHaveCount(0);
       await expect(page.getByTestId("home")).toBeVisible();
     }
@@ -474,7 +482,7 @@ test.describe("corrections", () => {
       await expect(banner).toHaveText(locale === "en" ? "Journey complete!" : "Ճամփորդությունն ավարտվեց։");
       await expect(banner.locator("svg")).toHaveCount(1);
 
-      await page.getByTestId("panel").getByRole("button").last().click();
+      await page.getByTestId("replay-journey").click();
       await expect(page.getByTestId("crossings-left")).toBeVisible();
       await expect(page.locator('header li[aria-current="step"]')).toContainText(locale === "en" ? "Travel" : "Ճամփորդիր");
       await expect(page.locator('header li[aria-current="step"]')).toHaveAttribute("data-accent", "travel");

@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch } 
 import type { CountryId } from "@/core/content/types";
 import { buildMapView } from "@/core/lesson/mapView";
 import type { LessonAction, LessonProgress } from "@/core/lesson/progress";
+import type { LevelInfo } from "@/core/lessons";
 import type { LessonDefinition } from "@/core/lessons/types";
 import type { AppAction } from "@/core/progress/appState";
 import { accentFor, Header } from "./Header";
@@ -19,6 +20,8 @@ const TRAVEL_HINT_MS = 6000;
 interface Props {
   lesson: LessonDefinition;
   progress: LessonProgress;
+  /** The level Results offers next (nextLevel in appState.ts), or null after the last playable one. */
+  next: LevelInfo | null;
   dispatch: Dispatch<AppAction>;
 }
 
@@ -29,7 +32,7 @@ export interface PanelProps {
   dispatch: Dispatch<AppAction>;
 }
 
-export function LessonScreen({ lesson, progress, dispatch }: Props) {
+export function LessonScreen({ lesson, progress, next, dispatch }: Props) {
   const act = (action: LessonAction) => dispatch({ type: "lesson", action });
 
   // Travel hint labels are transient UI state: shown for a few seconds and only
@@ -85,7 +88,7 @@ export function LessonScreen({ lesson, progress, dispatch }: Props) {
               }}
             />
           )}
-          {progress.stage === "results" && <ResultsPanel {...panelProps} />}
+          {progress.stage === "results" && <ResultsPanel {...panelProps} next={next} />}
         </section>
       </main>
     </div>
