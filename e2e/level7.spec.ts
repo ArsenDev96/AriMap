@@ -642,7 +642,8 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   for (const id of [L1, L2, L3, L4, L5, L6, L7]) {
     await card(page, id).getByTestId("level-details-toggle").click();
     await expect(card(page, id).getByRole("button", { name: /^Play again/ })).toBeVisible();
-    await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toBeVisible();
+    // Finished (at its Results): nothing to continue.
+    await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toHaveCount(0);
   }
   expect(errors).toEqual([]);
 });
@@ -694,7 +695,9 @@ test("Level 7: independent saves; Start over and Play again change only this lev
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
   await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6, L7]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("all-done")).toHaveAttribute("data-all-complete", "true");
+  // The replay is an attempt under way: the main action continues it, in place of the completion message.
+  await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Continues*Level 7 · Iberian Journey$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   // Level 6 played again keeps Level 7 open.
   await card(page, L6).getByTestId("level-details-toggle").click();
   await card(page, L6).getByRole("button", { name: /^Play again/ }).click();
@@ -1306,7 +1309,8 @@ test("Level 7 loads its own landscape overview, and zoomed tiles only for the vi
   expect(requests.filter((u) => /-(land|tone)\.[\w-]*\.?webp|\/relief\//.test(u)), "landscape on the level selection").toEqual([]);
   // Level 6 (and the zoomed tiles it shares with every level): never Level 7's overview.
   await card(page, L6).getByTestId("level-details-toggle").click();
-  await card(page, L6).getByRole("button", { name: /^Continue/ }).click();
+  await card(page, L6).getByRole("button", { name: /^Play again/ }).click();
+  await page.getByTestId("start-over-dialog").getByRole("button", { name: "Play again" }).click();
   await expect.poll(() => requests.some((u) => /baltic-journey-land/.test(u))).toBe(true);
   for (let i = 0; i < 2; i++) {
     await page.getByRole("button", { name: "Zoom in" }).click();

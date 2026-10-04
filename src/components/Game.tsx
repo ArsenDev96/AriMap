@@ -3,7 +3,7 @@
 import { useEffect, useReducer } from "react";
 import { LOCALE_META } from "@/core/i18n/locales";
 import { translate } from "@/core/i18n/translate";
-import { activeLesson, activeProgress, appReducer } from "@/core/progress/appState";
+import { activeLesson, activeProgress, appReducer, nextLevel } from "@/core/progress/appState";
 import { loadAppState, saveAppState, type KeyValueStorage } from "@/core/progress/storage";
 import { ContinentScreen } from "./ContinentScreen";
 import { I18nProvider } from "./i18n";
@@ -41,7 +41,7 @@ export default function Game() {
       ) : state.screen === "levels" ? (
         <WelcomeScreen state={state} dispatch={dispatch} />
       ) : (
-        <LessonScreen lesson={lesson} progress={progress} dispatch={dispatch} />
+        <LessonScreen lesson={lesson} progress={progress} next={nextLevel(state, lesson.id)} dispatch={dispatch} />
       )}
     </I18nProvider>
   );

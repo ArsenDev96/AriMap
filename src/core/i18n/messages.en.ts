@@ -9,12 +9,11 @@ export const en = {
 
   "language.label": "Language",
 
-  "welcome.intro":
-    "Learn where countries are on the map, then plan the shortest journey between them.",
   "welcome.start": "Start",
   "welcome.continue": "Continue",
   "welcome.startOver": "Start over",
   "welcome.playAgain": "Play again",
+  "welcome.viewResults": "View results",
   "welcome.startOverTitle": "Start “{level}” over?",
   "welcome.startOverText": "You'll start this level again from Discover, and your place in it will be lost. Its completed steps stay ticked, and your other levels don't change.",
   "welcome.startOverKeep": "Keep my progress",
@@ -30,11 +29,11 @@ export const en = {
   "continents.title": "Choose a continent",
   "continents.levels.one": "{count} level",
   "continents.levels.other": "{count} levels",
-  "continents.completed.one": "{completed} of {count} level completed",
-  "continents.completed.other": "{completed} of {count} levels completed",
+  "continents.completed.one": "{completed} of {count} {continent} level completed",
+  "continents.completed.other": "{completed} of {count} {continent} levels completed",
+  "continents.completedShort": "Completed:",
   "continents.explore": "Explore {continent}",
   "continents.comingSoon": "Coming soon",
-  "continents.comingSoonHint": "Levels for this continent are on their way.",
   "continents.continueLabel": "{action}: {continent}, {level}, {title}",
   "continents.back": "Back to continents",
 
@@ -146,4 +145,8 @@ export const en = {
   "results.findTitle": "Find",
   "results.find": "Found on the first try, without hints",
   "results.replay": "Replay journey",
+  "results.nextLevel": "Next level",
+  "results.nextLevelLabel": "Next level: {level}, {title}",
+  "results.backToLevels": "Back to levels",
+  "results.backToLevelsLabel": "Back to levels: {continent}",
 } as const;

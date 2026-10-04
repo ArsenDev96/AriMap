@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFindOrder } from "../game/find";
 import { shortestDistance } from "../game/graph";
 import { seededRandom } from "../game/random";
-import { CONTINENTS, hasPlayableLevels, LESSONS, LEVELS, levelsOf } from "../lessons";
+import { CONTINENTS, getLevel, hasPlayableLevels, LESSONS, LEVELS, levelsOf } from "../lessons";
 import { alpsLesson as alps } from "../lessons/alps";
 import { balticJourneyLesson as baltic } from "../lessons/baltic-journey";
 import { adriaticLesson as adriatic } from "../lessons/adriatic";
@@ -20,6 +20,9 @@ import {
   createInitialState,
   levelStatus,
   levelToContinue,
+  hasSavedResults,
+  hasUnfinishedAttempt,
+  nextLevel,
   mainAction,
   startFindingAction,
   type AppAction,
@@ -311,8 +314,63 @@ describe("continents", () => {
     s = run(s, open(levelToContinue(s)!.id));
     expect(s).toMatchObject({ screen: "lesson", levelId: L3 });
     expect(s.levels[L3]).toEqual(inFind);
-    // Replaying a completed level isn't an unfinished level: nothing to continue once all are completed.
-    expect(levelToContinue(run(level7Done(), restart(L2)))).toBeNull();
+    // Once all are completed, every finished attempt is at Results: nothing to continue. Playing one again
+    // (Play again, or Replay journey) starts an attempt that Continue then resumes, at exactly its place.
+    expect(levelToContinue(level7Done())).toBeNull();
+    const again = run(level7Done(), restart(L2), play({ type: "discoverSelect", country: "CHE" }), { type: "goHome" });
+    expect(levelToContinue(again)?.id).toBe(L2);
+    expect(run(again, open(L2)).levels[L2]).toEqual(again.levels[L2]);
+    const travel = run(level7Done(), open(L5), play({ type: "replayTravel" }), { type: "goHome" });
+    expect(travel.levels[L5]).toMatchObject({ stage: "travel", records: { travelDone: true } });
+    expect(levelToContinue(travel)?.id).toBe(L5);
+  });
+
+  it("offers Continue only for an attempt under way: never for a finished one at Results", () => {
+    let s = level2Done();
+    expect(s.levels[L2]).toMatchObject({ stage: "results", started: true });
+    expect(hasUnfinishedAttempt(s, L2)).toBe(false);
+    expect(hasUnfinishedAttempt(s, L3)).toBe(false);
+    s = run(s, open(L3));
+    expect(hasUnfinishedAttempt(s, L3)).toBe(true);
+    // Replay journey on a finished level: an attempt under way again, until its journey ends.
+    s = run(s, open(L2), play({ type: "replayTravel" }));
+    expect(hasUnfinishedAttempt(s, L2)).toBe(true);
+    expect(levelToContinue(s)?.id).toBe(L2);
+  });
+
+  it("View results: a finished attempt with saved Results reopens them unchanged; a completion record alone has none", () => {
+    const s = level2Done();
+    expect(hasSavedResults(s, L2)).toBe(true);
+    const viewed = run(s, open(L2));
+    expect(viewed).toMatchObject({ screen: "lesson", levelId: L2 });
+    expect(viewed.levels[L2]).toEqual(s.levels[L2]);
+    expect(viewed.levels[L1]).toEqual(s.levels[L1]);
+    // A replay under way: Continue, not View results.
+    expect(hasSavedResults(run(s, open(L2), play({ type: "replayTravel" })), L2)).toBe(false);
+    // Never started, or in progress: none.
+    expect(hasSavedResults(s, L3)).toBe(false);
+    expect(hasSavedResults(run(s, open(L3)), L3)).toBe(false);
+    // An older save with only the completion record (or Results without their route) keeps no Results: none are made up.
+    const records = { discoverDone: true, findDone: true, travelDone: true, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false };
+    for (const level of [{ started: false, stage: "discover", records }, { started: true, stage: "results", records }]) {
+      const old = parseSavedState(JSON.stringify({ version: 2, locale: "en", screen: "levels", continent: "europe", levelId: L1, recent: [L1], levels: { [L1]: level } }));
+      expect(levelStatus(old, getLevel(L1)!).kind).toBe("completed");
+      expect(hasSavedResults(old, L1)).toBe(false);
+    }
+  });
+
+  it("Next level from Results: the next playable level of the continent, never a coming-soon one", () => {
+    expect(nextLevel(level2Done(), L2)?.id).toBe(L3);
+    expect(nextLevel(level2Done(), L1)?.id).toBe(L2);
+    // The last playable level has none.
+    expect(nextLevel(level7Done(), L7)).toBeNull();
+    // A level still locked is never offered.
+    expect(nextLevel(createInitialState(), L1)).toBeNull();
+    // Opening it: Discover if never started, its saved place otherwise (opening never resets it).
+    const fresh = run(level2Done(), open(L3));
+    expect(fresh.levels[L3]).toMatchObject({ started: true, stage: "discover" });
+    const placed = run(fresh, play({ type: "discoverSelect", country: "POL" }), open(L2), open(L3));
+    expect(placed.levels[L3]).toEqual(run(fresh, play({ type: "discoverSelect", country: "POL" })).levels[L3]);
   });
 });
 
@@ -452,7 +510,10 @@ describe("Level 3: Central Europe", () => {
     expect(levelStatus(s, LEVELS[1])).toMatchObject({ kind: "completed", stage: "discover" });
     expect(levelStatus(s, LEVELS[2])).toMatchObject({ kind: "inProgress", stage: "discover" });
     expect(s.levels[L3]).toEqual(l3);
-    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L3 } });
+    // Level 1, started over last, is the most recent attempt under way: Continue resumes it, and
+    // Level 3 keeps its place for when it is opened again.
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L1 } });
+    expect(run(s, open(L3)).levels[L3]).toEqual(l3);
   });
 
   it("keeps its progress apart: Home, Continue, a refresh, and starting it over", () => {
@@ -576,7 +637,9 @@ describe("Level 4: Along the Adriatic", () => {
     expect(levelStatus(s, LEVELS[2])).toMatchObject({ kind: "completed", stage: "discover" });
     expect(levelStatus(s, LEVELS[3])).toMatchObject({ kind: "inProgress", stage: "discover" });
     expect(s.levels[L4]).toEqual(l4);
-    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L4 } });
+    // Level 1, started over last, is the most recent attempt under way (see Level 3's test above).
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L1 } });
+    expect(run(s, open(L4)).levels[L4]).toEqual(l4);
   });
 
   it("keeps its progress apart: Home, Continue, a refresh, and starting it over", () => {
@@ -693,7 +756,9 @@ describe("Level 5: Towards Greece", () => {
     s = refresh(run(s, open(L4), play({ type: "replayTravel" }), restart(L4), { type: "goHome" }));
     expect(canPlay(s, L5)).toBe(true);
     expect(s.levels[L5]).toEqual(l5);
-    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L5 } });
+    // Level 4, started over last, is the most recent attempt under way; Level 5 keeps its place.
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L4 } });
+    expect(run(s, open(L5)).levels[L5]).toEqual(l5);
   });
 
   it("travels Hungary → Greece in three crossings, by either shortest route", () => {
@@ -996,8 +1061,8 @@ describe("Level 7: Iberian Journey", () => {
       expect(again.levels[id]).toMatchObject({ stage: "discover", records: { travelDone: true } });
       for (const other of [L1, L2, L3, L4, L5, L6, L7].filter((x) => x !== id)) expect(again.levels[other]).toBe(s.levels[other]);
       expect(allLevelsComplete(again)).toBe(true);
-      // A replay under way doesn't turn the main action into Continue: the level stays completed.
-      expect(mainAction(again)).toBeNull();
+      // A replay under way is an attempt to resume: the main action continues it. The level stays completed.
+      expect(mainAction(again)).toMatchObject({ kind: "continue", level: { id } });
     }
   });
 });

@@ -1,22 +1,20 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
+import { useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
 import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
-import { allLevelsComplete, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
+import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
 import { LanguageToggle, STEPS } from "./Header";
 import { useI18n } from "./i18n";
 import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
+import { RestartDialog, type RestartRequest } from "./RestartDialog";
 import styles from "./WelcomeScreen.module.css";
 
 interface Props {
   state: AppState;
   dispatch: Dispatch<AppAction>;
 }
-
-/** A level to start over (or, once completed, to play again), waiting for the player to confirm. */
-type Confirm = { level: LevelInfo; mode: "startOver" | "playAgain" };
 
 /** Whether the player has played before: then the page leads with the levels, not the introduction. */
 export function isReturning(state: AppState): boolean {
@@ -29,10 +27,9 @@ export function isReturning(state: AppState): boolean {
  */
 export function WelcomeScreen({ state, dispatch }: Props) {
   const { t, l } = useI18n();
-  const confirmRef = useRef<HTMLDialogElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLOListElement>(null);
-  const [confirm, setConfirm] = useState<Confirm | null>(null);
+  const [confirm, setConfirm] = useState<RestartRequest | null>(null);
   const continent = getContinent(state.continent);
   const levels = levelsOf(continent.id);
   const main = mainAction(state, continent.id);
@@ -96,11 +93,6 @@ export function WelcomeScreen({ state, dispatch }: Props) {
       active = false;
     };
   }, []);
-
-  useEffect(() => {
-    const dialog = confirmRef.current;
-    if (confirm && dialog && !dialog.open) dialog.showModal();
-  }, [confirm]);
 
   return (
     <main className={styles.page} data-returning={returning} data-continent={continent.id} data-testid="welcome">
@@ -183,34 +175,7 @@ export function WelcomeScreen({ state, dispatch }: Props) {
       )}
 
       {/* Starting a level over discards the player's place in it, so it asks first. Keeping it is the default. */}
-      <dialog
-        ref={confirmRef}
-        className={styles.dialog}
-        aria-labelledby="start-over-title"
-        aria-describedby="start-over-text"
-        data-testid="start-over-dialog"
-        onClose={() => setConfirm(null)}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) e.currentTarget.close();
-        }}
-      >
-        {confirm && (
-          <form method="dialog" className={styles.dialogBody}>
-            <h2 id="start-over-title" className={styles.dialogTitle}>
-              {t(confirm.mode === "playAgain" ? "welcome.playAgainTitle" : "welcome.startOverTitle", { level: l(confirm.level.title) })}
-            </h2>
-            <p id="start-over-text">{t(confirm.mode === "playAgain" ? "welcome.playAgainText" : "welcome.startOverText")}</p>
-            <div className={styles.dialogActions}>
-              <button type="submit" className="btn btn-primary btn-block" autoFocus>
-                {t(confirm.mode === "playAgain" ? "welcome.playAgainKeep" : "welcome.startOverKeep")}
-              </button>
-              <button type="submit" className="btn btn-secondary btn-block" onClick={() => dispatch({ type: "restartLevel", levelId: confirm.level.id })}>
-                {t(confirm.mode === "playAgain" ? "welcome.playAgain" : "welcome.startOver")}
-              </button>
-            </div>
-          </form>
-        )}
-      </dialog>
+      <RestartDialog request={confirm} onClose={() => setConfirm(null)} dispatch={dispatch} />
     </main>
   );
 }
@@ -222,7 +187,7 @@ interface CardProps {
   status: LevelStatus;
   state: AppState;
   dispatch: Dispatch<AppAction>;
-  onConfirm: (confirm: Confirm) => void;
+  onConfirm: (confirm: RestartRequest) => void;
   /** The level the main action opens: marked "Up next". */
   upNext: boolean;
   /** Completed, for a returning player: a one-line summary that opens to show the rest. */
@@ -234,12 +199,16 @@ interface CardProps {
  * colour. A level that is coming soon or locked has no action at all.
  *
  * A playable one's actions, and when they ask first:
- * - Start (never started) and Continue open the level at once: nothing is lost.
- * - Start over (in progress) and Play again (completed, with a saved place: its
- *   Results, or a replay under way) ask first, naming the level. Confirming clears
- *   only that level's place; its records, its completion and the levels it
- *   unlocked stay, and no other level changes (restartLevel in appState.ts).
- * - Play again on a completed level with no saved place starts it at once.
+ * - Start (never started) opens the level at once.
+ * - Continue appears only for an attempt under way (hasUnfinishedAttempt: started and not at
+ *   the Results of a finished attempt, a replay included) and resumes it at once. Beside it,
+ *   Start over (never completed) or Play again (completed) asks first.
+ * - A finished attempt (completed, at its Results) never offers Continue. View results reopens
+ *   its saved Results at once, changing nothing; Play again beside it asks first, since they
+ *   would be cleared. A completion record alone (an older save, no Results kept) offers Play again.
+ * - Asking first names the level. Confirming clears only that level's place; its records, its
+ *   completion and the levels it unlocked stay, and no other level changes (restartLevel in
+ *   appState.ts). Play again on a completed level with no saved place starts it at once.
  */
 function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact }: CardProps) {
   const { t, l, name } = useI18n();
@@ -254,7 +223,13 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
   const done = [records?.discoverDone, records?.findDone, records?.travelDone].map(Boolean);
   const title = l(level.title);
   const forLevel = (action: string) => t("level.forLevel", { action, level: title });
-  const open = t(started ? "welcome.continue" : completed ? "welcome.playAgain" : "welcome.start");
+  // An attempt under way to resume; a finished one (at its Results) is played again instead, after asking.
+  const resumable = hasUnfinishedAttempt(state, level.id);
+  const finished = completed && started && !resumable;
+  // Its Results, saved: viewed again as they are, without asking (nothing is reset).
+  const viewable = completed && hasSavedResults(state, level.id);
+  const openLevel = () => dispatch({ type: "openLevel", levelId: level.id });
+  const open = t(resumable ? "welcome.continue" : completed ? "welcome.playAgain" : "welcome.start");
   const restart = t(completed ? "welcome.playAgain" : "welcome.startOver");
 
   let statusText: string;
@@ -323,10 +298,27 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
       {playable && (
         <div className={styles.levelActions}>
           {/* Named with the level (the visible word first), so each card's buttons can be told apart. */}
-          <button type="button" className="btn btn-secondary" aria-label={forLevel(open)} onClick={() => dispatch({ type: "openLevel", levelId: level.id })}>
-            {open}
-          </button>
-          {started && (
+          {viewable ? (
+            <>
+              <button type="button" className="btn btn-secondary" aria-label={forLevel(t("welcome.viewResults"))} data-testid="view-results" onClick={openLevel}>
+                {t("welcome.viewResults")}
+              </button>
+              <button type="button" className="btn btn-ghost" aria-haspopup="dialog" aria-label={forLevel(restart)} onClick={() => onConfirm({ level, mode: "playAgain" })}>
+                {restart}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              aria-label={forLevel(open)}
+              aria-haspopup={finished ? "dialog" : undefined}
+              onClick={() => (finished ? onConfirm({ level, mode: "playAgain" }) : openLevel())}
+            >
+              {open}
+            </button>
+          )}
+          {resumable && (
             <button
               type="button"
               className="btn btn-ghost"
@@ -524,7 +516,7 @@ function StatusIcon({ kind }: { kind: LevelStatus["kind"] }) {
 const ART = ["eiffel-tower", "atomium", "amsterdam-canal-houses", "adolphe-bridge", "brandenburg-gate"] as const;
 
 /** `compact`: a slim ribbon for returning players, shown only where the screen has room (see the CSS). */
-export function WelcomeArt({ compact = false }: { compact?: boolean }) {
+function WelcomeArt({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`${styles.art} ${compact ? styles.artCompact : ""}`} aria-hidden="true" data-testid="welcome-art">
       <svg className={styles.artRoute} viewBox="0 0 300 100" preserveAspectRatio="none">

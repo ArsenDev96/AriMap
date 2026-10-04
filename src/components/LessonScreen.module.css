@@ -482,6 +482,59 @@
   }
 }
 
+/* Results: Replay journey and Play again side by side where they fit (stacked on a narrow phone or
+   with enlarged text), in the page above the pinned main action, so scrolling to the end reaches them. */
+.resultsActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The text keeps its full enlarged size: a label wraps between words, the button growing taller.
+   The side padding gives way as the text grows (20px at the usual size, 8px at 200%), so a word
+   stays whole whenever it fits the button at all; only a word wider than the whole button would
+   break, and none of these labels has one (the Armenian ones are short enough). */
+.resultsActions > button,
+.resultsMain > button {
+  padding-inline: clamp(8px, calc(40px - 1.25rem), 20px);
+}
+
+.resultsActions > button {
+  flex: 1 1 min(100%, 11rem);
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+}
+
+/* For its query below: how much room the main action has, in rem (so it follows the text size). */
+.resultsMain {
+  container-type: inline-size;
+}
+
+/* Next level names the level it opens on a second line. */
+.nextAction {
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nextActionLevel {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+/* Enlarged text on a phone: the level's number only, so the pinned button stays small and the
+   page keeps room to scroll. The title stays in the button's accessible name. */
+@container (max-width: 14rem) {
+  .nextActionTitle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;
@@ -615,12 +668,16 @@
   list-style: none;
 }
 
+/* A country and its result side by side; where both don't fit (enlarged text), the result goes
+   under the name, at full size and in full. */
 .resultList li {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 4px 8px;
+  /* Side padding 12px, giving way to 6px as the text grows (more of each long name fits). */
+  padding: 8px clamp(6px, calc(36px - 1.5rem), 12px);
   border-radius: var(--radius-sm);
   background: var(--surface);
   font-weight: 700;
@@ -629,9 +686,19 @@
 .tag {
   font-size: 0.8rem;
   font-weight: 800;
-  padding: 2px 10px;
+  padding: 2px clamp(6px, calc(20px - 0.625rem), 10px);
   border-radius: 999px;
   white-space: nowrap;
+}
+
+.resultList li > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* On a line of its own, a result still too long for it wraps between its words. */
+.resultList .tag {
+  white-space: normal;
 }
 
 .tagGood {
@@ -813,13 +880,31 @@
   list-style: none;
 }
 
+/* The marker, then the country and its role side by side or, where both don't fit (enlarged text),
+   the role under the name: in full, at full size. The marker keeps its place by the first line. */
 .stop {
   position: relative;
   display: grid;
-  grid-template-columns: 22px 1fr auto;
-  align-items: center;
-  column-gap: 10px;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: start;
+  /* 10px at the usual text size, 6px from 200%: room for the role on its own line. */
+  column-gap: clamp(6px, calc(18px - 0.5rem), 10px);
   min-height: 36px;
+}
+
+.stopText {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 2px 10px;
+  min-width: 0;
+  min-height: 36px;
+}
+
+.stopText > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* Rail between stops. */
@@ -833,6 +918,7 @@
 }
 
 .stopMarker {
+  margin-top: 7px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
@@ -857,7 +943,8 @@
 .stopRole {
   font-size: 0.8rem;
   font-weight: 800;
-  padding: 2px 10px;
+  /* Side padding 10px, giving way to 6px as the text grows (so «Նպատակակետ» fits a phone at 200%). */
+  padding: 2px clamp(6px, calc(20px - 0.625rem), 10px);
   border-radius: 999px;
   white-space: nowrap;
   color: var(--ink-soft);
@@ -882,6 +969,12 @@
   gap: 4px 12px;
   padding-top: 10px;
   border-top: 2px solid var(--line);
+}
+
+/* A label wider than the whole row (Armenian in capitals at 200% text) breaks rather than widening the panel. */
+.statRow > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .statRow + .statRow {

@@ -18,14 +18,16 @@ export interface ContinentInfo {
   name: LocalizedText;
   /** Name as used inside a phrase, e.g. "Explore Europe" / «Բացահայտել Եվրոպան». */
   nameInText: LocalizedText;
+  /** Name describing something of the continent's, e.g. "2 of 7 Europe levels" / «Եվրոպայի 7 մակարդակից». */
+  nameOf: LocalizedText;
 }
 
 export const CONTINENTS: readonly ContinentInfo[] = [
-  { id: "europe", name: { en: "Europe", hy: "Եվրոպա" }, nameInText: { en: "Europe", hy: "Եվրոպան" } },
-  { id: "asia", name: { en: "Asia", hy: "Ասիա" }, nameInText: { en: "Asia", hy: "Ասիան" } },
-  { id: "africa", name: { en: "Africa", hy: "Աֆրիկա" }, nameInText: { en: "Africa", hy: "Աֆրիկան" } },
-  { id: "north-america", name: { en: "North America", hy: "Հյուսիսային Ամերիկա" }, nameInText: { en: "North America", hy: "Հյուսիսային Ամերիկան" } },
-  { id: "south-america", name: { en: "South America", hy: "Հարավային Ամերիկա" }, nameInText: { en: "South America", hy: "Հարավային Ամերիկան" } },
+  { id: "europe", name: { en: "Europe", hy: "Եվրոպա" }, nameInText: { en: "Europe", hy: "Եվրոպան" }, nameOf: { en: "Europe", hy: "Եվրոպայի" } },
+  { id: "asia", name: { en: "Asia", hy: "Ասիա" }, nameInText: { en: "Asia", hy: "Ասիան" }, nameOf: { en: "Asia", hy: "Ասիայի" } },
+  { id: "africa", name: { en: "Africa", hy: "Աֆրիկա" }, nameInText: { en: "Africa", hy: "Աֆրիկան" }, nameOf: { en: "Africa", hy: "Աֆրիկայի" } },
+  { id: "north-america", name: { en: "North America", hy: "Հյուսիսային Ամերիկա" }, nameInText: { en: "North America", hy: "Հյուսիսային Ամերիկան" }, nameOf: { en: "North America", hy: "Հյուսիսային Ամերիկայի" } },
+  { id: "south-america", name: { en: "South America", hy: "Հարավային Ամերիկա" }, nameInText: { en: "South America", hy: "Հարավային Ամերիկան" }, nameOf: { en: "South America", hy: "Հարավային Ամերիկայի" } },
 ];
 
 export function isContinentId(value: unknown): value is ContinentId {

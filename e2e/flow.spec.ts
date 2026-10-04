@@ -441,7 +441,9 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("result-crossings")).toHaveText(/Crossings used\s*2 of 2/);
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*Undo/);
   await expect(page.getByTestId("badge")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Next level/i })).toHaveCount(0);
+  // Level 2 follows: Next level is the main action, naming it; nothing advances by itself.
+  await expect(page.getByTestId("next-level")).toHaveAttribute("data-level", "around-the-alps");
+  await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 2, Around the Alps");
   // Find: the five questions just played, two found first try without hints (hints on three).
   await expect(page.getByTestId("result-find")).toContainText("2/5");
   const findAnswers = page.getByTestId("result-find-answers").locator("li");
@@ -485,7 +487,7 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*Hint/);
 
   // Home → Europe shows completion and no accidental reset, and Level 2 unlocked;
-  // Level 1's Continue returns to these results.
+  // Level 1, finished, keeps these results (and offers Play again, not Continue).
   await homeToEurope(page);
   const level1 = page.getByTestId("level-western-europe-1");
   await expect(level1.getByTestId("level-status")).toHaveText("Completed");
@@ -494,12 +496,15 @@ test("complete lesson flow", async ({ page }) => {
   await expect(page.getByTestId("level-around-the-alps").getByTestId("level-status")).toHaveText("Ready to play");
   await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Start\s*Level 2 · Around the Alps$/);
   await shot(page, "welcome-complete");
-  // Completed: a one-line summary for a returning player, opened to show its buttons.
+  // Completed: a one-line summary for a returning player, opened to show its buttons. Its attempt is
+  // finished (at its Results), so it offers Play again, which asks first, and no Continue; cancelling keeps it.
   await level1.getByTestId("level-details-toggle").click();
-  await level1.getByRole("button", { name: /^Continue/ }).click();
-  await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
-  await expect(page.getByTestId("result-help")).toHaveText(/Help useds*Hint/);
-  await expect(page.getByTestId("result-find")).toContainText("2/5");
+  await expect(level1.getByRole("button", { name: /^Continue/ })).toHaveCount(0);
+  await level1.getByRole("button", { name: /^Play again/ }).click();
+  await page.getByTestId("start-over-dialog").getByRole("button", { name: "Not now" }).click();
+  await expect(level1.getByTestId("level-status")).toHaveText("Completed");
+  const kept = await page.evaluate(() => JSON.parse(localStorage.getItem("arimap:state")!).levels["western-europe-1"]);
+  expect(kept).toMatchObject({ stage: "results", records: { travelDone: true, lastFindScore: { independent: 2, total: 5 } } });
 
   expect(errors).toEqual([]);
 });
