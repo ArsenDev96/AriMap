@@ -1064,6 +1064,83 @@
   overflow: visible;
 }
 
+/* Results: the stars, under the banner. Each row a label, the stars and their count in words,
+   wrapping (never shrinking) with enlarged text. */
+.rating {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: var(--card-border);
+}
+
+.ratingRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin: 0;
+}
+
+.ratingRow > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ratingLabel {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.ratingRow .ratingCount {
+  font-weight: 900;
+}
+
+/* The attempt's stars large; the best, when shown beside them, smaller. */
+.ratingRow:not(.ratingBest) {
+  font-size: 1.15rem;
+}
+
+.ratingRow:not(.ratingBest) .ratingLabel {
+  font-size: 0.7rem;
+}
+
+.newBest {
+  align-self: flex-start;
+  margin: 0;
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: #fff1d6;
+  border: 2px solid var(--amber);
+  color: #7a4f00;
+  font-weight: 900;
+  animation: new-best 520ms cubic-bezier(0.3, 1.5, 0.6, 1) 300ms backwards;
+}
+
+@keyframes new-best {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .newBest {
+    animation: none;
+  }
+}
+
+.ratingNext {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
 /* Played once when the results appear; about half a second, then still. */
 .celebrationStar {
   transform-box: fill-box;

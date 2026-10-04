@@ -1,0 +1,63 @@
+.stars {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.12em;
+  line-height: 1;
+}
+
+/* Sized with the text: 1.4 times its size, so they grow with enlarged text. */
+.star {
+  width: 1.4em;
+  height: 1.4em;
+  overflow: visible;
+}
+
+/* Not earned: an empty star with a dashed outline. */
+.star path {
+  fill: var(--surface);
+  stroke: var(--ink-soft);
+  stroke-width: 1.6;
+  stroke-dasharray: 2.6 1.8;
+  stroke-linejoin: round;
+}
+
+/* Earned: warm gold, outlined in ink. */
+.star[data-earned] path {
+  fill: var(--amber);
+  stroke: var(--ink);
+  stroke-width: 1.8;
+  stroke-dasharray: none;
+}
+
+/* A new best: the earned stars pop in, one after another, once. */
+.stars[data-celebrate] .star[data-earned] {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: star-earned 480ms cubic-bezier(0.3, 1.5, 0.6, 1) backwards;
+}
+
+.stars[data-celebrate] .star[data-earned]:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.stars[data-celebrate] .star[data-earned]:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+@keyframes star-earned {
+  from {
+    opacity: 0;
+    transform: scale(0.3) rotate(-25deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stars[data-celebrate] .star[data-earned] {
+    animation: none;
+  }
+}

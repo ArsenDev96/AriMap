@@ -342,7 +342,8 @@ describe("saves from the two-round Find", () => {
 
   it("drops old scores it cannot rescore, keeping the completed steps", () => {
     const s = load({ stage: "discover", records: { discoverDone: true, findDone: true, travelDone: true, lastFindScore: { independent: 9, total: 10 }, bestFindScore: { independent: 10, total: 10 }, travelWithoutHelp: true } });
-    expect(progressOf(s).records).toEqual({ discoverDone: true, findDone: true, travelDone: true, lastFindScore: null, bestFindScore: null, travelWithoutHelp: true });
+    // A completion record alone: completed, with no stars made up.
+    expect(progressOf(s).records).toEqual({ discoverDone: true, findDone: true, travelDone: true, lastFindScore: null, bestFindScore: null, travelWithoutHelp: true, bestRating: null });
   });
 
   it("drops an inconsistent old session and resumes at Discover", () => {

@@ -9,6 +9,7 @@ import { LanguageToggle, STEPS } from "./Header";
 import { useI18n } from "./i18n";
 import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
 import { RestartDialog, type RestartRequest } from "./RestartDialog";
+import { Stars } from "./Stars";
 import styles from "./WelcomeScreen.module.css";
 
 interface Props {
@@ -260,9 +261,18 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
       {completed ? <CheckIcon /> : level.number}
     </span>
   );
+  // The best stars earned (a completed full-level attempt's), once there are any, in the status pill
+  // in place of its icon, before "Completed": no extra line, so a compact card stays as short. One
+  // description for the group; none for a level never rated, which is not shown as a failed attempt.
+  const best = completed ? (progress?.records.bestRating ?? null) : null;
+  const stars = best !== null && (
+    <span className={styles.levelStars} role="img" aria-label={t("stars.bestLabel", { stars: t("stars.count", { count: best }) })} data-testid="level-stars" data-stars={best}>
+      <Stars count={best} />
+    </span>
+  );
   const statusLine = (
     <span className={styles.status} data-testid="level-status">
-      <StatusIcon kind={status.kind} />
+      {stars || <StatusIcon kind={status.kind} />}
       <span>
         <span className={styles.statusText}>{statusText}</span>
         {detail && <span className={styles.statusDetail}>{detail}</span>}
@@ -424,7 +434,9 @@ function stackLevelHeads(list: HTMLElement) {
     const status = head.querySelector("[data-testid='level-status']");
     const statusText = status?.lastElementChild;
     if (status && statusText) need = Math.max(need, widestWord(statusText) + status.getBoundingClientRect().width - statusText.getBoundingClientRect().width);
-    head.toggleAttribute("data-stacked", need > room + 0.5);
+    // Stacked as soon as it needs more than the room, however little: a fraction of a pixel too wide is
+    // enough for the browser to break the word (a completed card's status, with its stars, can come that close).
+    head.toggleAttribute("data-stacked", need > room);
   }
 }
 

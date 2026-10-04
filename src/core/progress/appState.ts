@@ -4,6 +4,7 @@ import type { RandomSource } from "../game/random";
 import { DEFAULT_LESSON_ID, getLesson, getLevel, hasPlayableLevels, LEVELS, levelsOf, type ContinentId, type LevelInfo } from "../lessons";
 import type { LessonDefinition } from "../lessons/types";
 import { createLessonProgress, lessonReducer, type LessonAction, type LessonProgress, type LessonStage } from "../lesson/progress";
+import { attemptRating } from "../lesson/rating";
 
 /** Version 2: several levels. Version 1 (one level) is migrated on load (see storage.ts). */
 export const STATE_VERSION = 2;
@@ -28,6 +29,12 @@ export interface AppState {
   recent: string[];
   /** Each level's own progress, by level id. */
   levels: Record<string, LessonProgress>;
+  /**
+   * The level whose full-level attempt has just improved its earlier best rating, for "New best!"
+   * on the Results it reached. Only until the next action, and never saved (storage.ts), so a
+   * refresh, a language change or View results never shows it again.
+   */
+  newBest?: string;
 }
 
 export type AppAction =
@@ -179,6 +186,11 @@ function withProgress(state: AppState, progress: LessonProgress): AppState {
 const touch = (recent: readonly string[], id: string) => [id, ...recent.filter((r) => r !== id)];
 
 export function appReducer(state: AppState, action: AppAction): AppState {
+  // "New best!" lasts until the next action, whatever it is.
+  return reduce(state.newBest === undefined ? state : { ...state, newBest: undefined }, action);
+}
+
+function reduce(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "setLocale":
       // Language is independent of gameplay: nothing else changes.
@@ -199,7 +211,13 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return state.screen === "continents" ? state : { ...state, screen: "continents" };
     case "lesson": {
       const lesson = activeLesson(state);
-      return withProgress(state, lessonReducer(lesson, progressOf(state, lesson), action.action));
+      const before = progressOf(state, lesson);
+      const after = lessonReducer(lesson, before, action.action);
+      const next = withProgress(state, after);
+      // A full-level attempt just completed, better than the level's earlier best (not its first rating).
+      const rating = before.stage === "results" ? null : attemptRating(after);
+      const previous = before.records.bestRating;
+      return rating !== null && previous !== null && rating > previous ? { ...next, newBest: lesson.id } : next;
     }
   }
 }

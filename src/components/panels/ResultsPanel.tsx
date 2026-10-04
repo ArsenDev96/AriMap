@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { attemptRating, nextStar } from "@/core/lesson/rating";
 import { getContinent, getLevel, type LevelInfo } from "@/core/lessons";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
 import { RestartDialog, type RestartRequest } from "../RestartDialog";
+import { Stars } from "../Stars";
 import styles from "../LessonScreen.module.css";
 
 /**
@@ -13,8 +15,12 @@ import styles from "../LessonScreen.module.css";
  * at Discover, or where it was left: opening never resets it), otherwise Back to levels (never a
  * coming-soon level). Above it, in the page: Replay journey, and Play again for the whole level,
  * which asks first (RestartDialog). Nothing advances by itself, and nothing here clears a result.
+ *
+ * Under the banner, the stars (rating.ts): this attempt's, and the level's best when it differs;
+ * "New best!" when this attempt has just beaten an earlier best; for 1 or 2 stars, what earns the
+ * next. A journey replay has no rating of its own: the best is shown, with a word on how to earn more.
  */
-export function ResultsPanel({ lesson, progress, act, dispatch, next }: PanelProps & { next: LevelInfo | null }) {
+export function ResultsPanel({ lesson, progress, act, dispatch, next, newBest }: PanelProps & { next: LevelInfo | null; newBest: boolean }) {
   const { t, l, name } = useI18n();
   const [confirm, setConfirm] = useState<RestartRequest | null>(null);
   const level = getLevel(lesson.id)!;
@@ -26,6 +32,11 @@ export function ResultsPanel({ lesson, progress, act, dispatch, next }: PanelPro
   const findScore = progress.records.lastFindScore;
   // Each of the five questions of the Find just played (the score above counts the same answers).
   const findAnswers = progress.find?.status === "complete" ? progress.find.results : [];
+  const rating = attemptRating(progress);
+  const best = progress.records.bestRating;
+  const need = rating !== null ? nextStar(findAnswers, result) : null;
+  const total = findAnswers.length;
+  const stars = (count: number) => t("stars.count", { count });
 
   return (
     <>
@@ -34,6 +45,43 @@ export function ResultsPanel({ lesson, progress, act, dispatch, next }: PanelPro
         <CelebrationArt />
         <h1 className={styles.title}>{t("results.title")}</h1>
       </div>
+
+      {(rating !== null || best !== null || progress.journeyReplay) && (
+        <section className={styles.rating} aria-labelledby="results-stars" data-testid="rating">
+          <h2 className="visually-hidden" id="results-stars">
+            {t("stars.title")}
+          </h2>
+          {rating !== null && (
+            <p className={styles.ratingRow} data-testid="rating-attempt" data-stars={rating}>
+              <span className={styles.ratingLabel}>{t("stars.thisAttempt")}</span>
+              <Stars count={rating} celebrate={newBest} />
+              <span className={styles.ratingCount}>{stars(rating)}</span>
+            </p>
+          )}
+          {best !== null && best !== rating && (
+            <p className={`${styles.ratingRow} ${styles.ratingBest}`} data-testid="rating-best" data-stars={best}>
+              <span className={styles.ratingLabel}>{t("stars.best")}</span>
+              <Stars count={best} />
+              <span className={styles.ratingCount}>{stars(best)}</span>
+            </p>
+          )}
+          {newBest && (
+            <p className={styles.newBest} data-testid="new-best">
+              {t("stars.newBest")}
+            </p>
+          )}
+          {need && (
+            <p className={styles.ratingNext} data-testid="rating-next" data-need={need}>
+              {t(`stars.next.${need}`, { most: total - 1, total })}
+            </p>
+          )}
+          {rating === null && (
+            <p className={styles.ratingNext} data-testid="rating-replay">
+              {t(best !== null ? "stars.journeyReplay" : "stars.journeyReplayNone")}
+            </p>
+          )}
+        </section>
+      )}
 
       <section className={styles.card} aria-labelledby="results-travel">
         <h2 className={styles.sectionTitle} id="results-travel">

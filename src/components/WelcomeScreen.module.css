@@ -509,6 +509,14 @@
   grid-area: 3 / 1 / 4 / -1;
 }
 
+/* A completed level's best stars, in its status pill in place of the icon, sized with its text. */
+.status > .levelStars {
+  display: inline-flex;
+  flex: none;
+  margin-top: 0.05em;
+  font-size: 0.8em;
+}
+
 .details {
   display: flex;
   flex-direction: column;

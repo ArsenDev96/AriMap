@@ -462,6 +462,9 @@ const openAllCards = async (page: Page) => {
     if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.evaluate((el: HTMLElement) => el.click());
   }
   await fontsSettled(page);
+  // Each chevron turns over as its card opens (0.2s): measured once still, never mid-turn (a turning
+  // chevron's box is wider, which would understate the title's room).
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
 };
 
 test.describe("level cards", () => {

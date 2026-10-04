@@ -22,6 +22,8 @@ interface Props {
   progress: LessonProgress;
   /** The level Results offers next (nextLevel in appState.ts), or null after the last playable one. */
   next: LevelInfo | null;
+  /** This attempt has just improved the level's best rating (AppState.newBest). */
+  newBest: boolean;
   dispatch: Dispatch<AppAction>;
 }
 
@@ -32,7 +34,7 @@ export interface PanelProps {
   dispatch: Dispatch<AppAction>;
 }
 
-export function LessonScreen({ lesson, progress, next, dispatch }: Props) {
+export function LessonScreen({ lesson, progress, next, newBest, dispatch }: Props) {
   const act = (action: LessonAction) => dispatch({ type: "lesson", action });
 
   // Travel hint labels are transient UI state: shown for a few seconds and only
@@ -88,7 +90,7 @@ export function LessonScreen({ lesson, progress, next, dispatch }: Props) {
               }}
             />
           )}
-          {progress.stage === "results" && <ResultsPanel {...panelProps} next={next} />}
+          {progress.stage === "results" && <ResultsPanel {...panelProps} next={next} newBest={newBest} />}
         </section>
       </main>
     </div>

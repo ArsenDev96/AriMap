@@ -19,6 +19,7 @@ import {
   type TravelAttempt,
 } from "../game/travel";
 import type { LessonDefinition } from "../lessons/types";
+import { betterRating, rateAttempt, type StarRating } from "./rating";
 
 export type LessonStage = "discover" | "find" | "travel" | "results";
 
@@ -44,6 +45,8 @@ export interface LessonRecords {
   lastFindScore: FindScore | null;
   bestFindScore: FindScore | null;
   travelWithoutHelp: boolean;
+  /** The best star rating of a completed full-level attempt (rating.ts); null until one is earned. Never lowered. */
+  bestRating: StarRating | null;
 }
 
 export interface LessonProgress {
@@ -54,6 +57,12 @@ export interface LessonProgress {
   find: FindSession | null;
   travel: TravelAttempt | null;
   lastTravelResult: TravelResult | null;
+  /**
+   * The journey under way (or just finished) is Replay journey: Travel alone, after an earlier
+   * Find. Its Results are rated by no one, so an old Find never combines with a new route to
+   * raise the rating; a full-level attempt (from Discover) clears it.
+   */
+  journeyReplay: boolean;
   records: LessonRecords;
 }
 
@@ -81,6 +90,7 @@ export const EMPTY_RECORDS: LessonRecords = {
   lastFindScore: null,
   bestFindScore: null,
   travelWithoutHelp: false,
+  bestRating: null,
 };
 
 export function createLessonProgress(lesson: LessonDefinition, records: LessonRecords = EMPTY_RECORDS): LessonProgress {
@@ -92,6 +102,7 @@ export function createLessonProgress(lesson: LessonDefinition, records: LessonRe
     find: null,
     travel: null,
     lastTravelResult: null,
+    journeyReplay: false,
     records,
   };
 }
@@ -173,6 +184,8 @@ export function lessonReducer(lesson: LessonDefinition, state: LessonProgress, a
       if (outcome === "invalid") return state;
       if (outcome !== "arrived") return { ...state, travel: attempt };
       const independent = isIndependentCompletion(attempt);
+      // A full-level attempt is rated as it completes; a journey replay is not.
+      const rating = !state.journeyReplay && state.find?.status === "complete" ? rateAttempt(state.find.results, { independent }) : null;
       return {
         ...state,
         travel: attempt,
@@ -189,6 +202,7 @@ export function lessonReducer(lesson: LessonDefinition, state: LessonProgress, a
           ...state.records,
           travelDone: true,
           travelWithoutHelp: state.records.travelWithoutHelp || independent,
+          bestRating: betterRating(state.records.bestRating, rating),
         },
       };
     }
@@ -207,6 +221,6 @@ export function lessonReducer(lesson: LessonDefinition, state: LessonProgress, a
 
     case "replayTravel":
       if (!state.records.findDone) return state;
-      return { ...state, started: true, stage: "travel", travel: createAttempt(lesson.borders, lesson.travel.mission) };
+      return { ...state, started: true, stage: "travel", travel: createAttempt(lesson.borders, lesson.travel.mission), journeyReplay: true };
   }
 }
