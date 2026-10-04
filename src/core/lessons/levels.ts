@@ -4,6 +4,7 @@ import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { balticJourneyLesson } from "./baltic-journey";
 import { centralEuropeLesson } from "./central-europe";
+import { iberianJourneyLesson } from "./iberian-journey";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
@@ -97,6 +98,18 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: balticJourneyLesson.countries,
     lesson: balticJourneyLesson,
     unlockedBy: towardsGreeceLesson.id,
+  },
+  {
+    id: iberianJourneyLesson.id,
+    number: 7,
+    title: { en: "Iberian Journey", hy: "Պիրենեյան ճամփորդություն" },
+    description: {
+      en: "From Lisbon across Spain and France to Rome, past tiny Andorra in the Pyrenees.",
+      hy: "Լիսաբոնից Իսպանիայով և Ֆրանսիայով մինչև Հռոմ՝ Պիրենեյներում գտնվող փոքրիկ Անդորրայի մոտով։",
+    },
+    countries: iberianJourneyLesson.countries,
+    lesson: iberianJourneyLesson,
+    unlockedBy: balticJourneyLesson.id,
   },
 ];
 

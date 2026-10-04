@@ -198,6 +198,21 @@ export function viewLimits(map: RegionMap, width: number, height: number, paddin
   return { base, minScale: Math.min(base.k, regionBase.k), translateExtent };
 }
 
+/**
+ * The widest a map `height` px tall can be shown with its countries whole. The view never extends past
+ * the data coverage, so a wider map (an ultra-wide screen) must zoom in to fill its width, cutting the
+ * countries at the top and bottom. A little zoom is allowed, as before, while the countries keep at
+ * least half their padding (viewLimits', for a map at least as wide as it is tall); at this width they
+ * keep exactly that. The map is shown no wider, centred, with the page around it, so maps that never
+ * zoomed in that far keep their full width.
+ */
+export function maxMapWidth(map: RegionMap, height: number): number {
+  const [[c0x], [c1x]] = map.coverage;
+  const [[, y0], [, y1]] = map.focusBounds;
+  const padding = Math.max(10, height * 0.04);
+  return ((c1x - c0x) * (height - padding)) / (y1 - y0);
+}
+
 /** A bound on the translation along one axis, linear in the zoom k: t ≥ p − k·q (lower) or t ≤ p − k·q (upper). */
 type Bound = { p: number; q: number };
 interface AxisBounds {

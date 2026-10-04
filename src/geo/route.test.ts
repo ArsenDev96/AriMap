@@ -167,6 +167,10 @@ for (const lesson of Object.values(LESSONS)) {
       if (lesson.id === "towards-greece") {
         expect(paths.map((p) => p.join("→")).sort()).toEqual(["HUN→ROU→BGR→GRC", "HUN→SRB→BGR→GRC"]);
       }
+      // One: Spain, then France. Through Andorra is a crossing more.
+      if (lesson.id === "iberian-journey") {
+        expect(paths.map((p) => p.join("→"))).toEqual(["PRT→ESP→FRA→ITA"]);
+      }
       for (const path of paths) {
         const line = routeLine(path, settings);
         const others = lesson.countries.filter((id) => !path.includes(id));
@@ -223,5 +227,36 @@ describe("towards-greece: Greece's leg runs up its own mainland", () => {
         for (const id of ["MKD", "TUR", "ALB"]) expect(geoContains(shapeOf(id), [...p]), `${p} in ${id}`).toBe(false);
       }
     }
+  });
+});
+
+describe("iberian-journey: reuses Level 2's France–Italy line; Lisbon's leg goes round the Tagus estuary", () => {
+  const lesson = LESSONS["iberian-journey"];
+  const settings = routeSettings(lesson);
+
+  it("draws France → Italy exactly as Level 2 does, with its turning point inland of La Spezia", () => {
+    expect(routeLine(["FRA", "ITA"], settings)).toEqual(routeLine(["FRA", "ITA"], routeSettings(LESSONS["around-the-alps"])));
+    expect(routeLine(["FRA", "ITA"], settings)).toHaveLength(4);
+    // The only other turning point is Portugal's, north of Lisbon; no fixed links.
+    expect(Object.keys(lesson.map.routeVia ?? {}).sort()).toEqual(["ITA@FRA-ITA", "PRT@ESP-PRT"]);
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+  });
+
+  it("never crosses the sea or the Tagus: the whole journey is on Portuguese, Spanish, French or Italian land, clear of Andorra", () => {
+    const path = ["PRT", "ESP", "FRA", "ITA"];
+    const line = routeLine(path, settings);
+    // Lisbon, the turning point near Torres Vedras, the crossing, Madrid, the Pyrenees, Paris, the Alps, Lunigiana, Rome.
+    expect(line).toHaveLength(9);
+    const crossings = Object.values(lesson.map.routeCrossings ?? {});
+    for (let i = 1; i < line.length; i++) {
+      for (const p of drawnSamples(lesson, line[i - 1], line[i], 300)) {
+        if (crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+        expect(path.some((id) => geoContains(shapeOf(id), [...p])), `${p} at sea or abroad`).toBe(true);
+        for (const id of ["AND", "MCO", "CHE", "SMR", "VAT"]) expect(geoContains(shapeOf(id), [...p]), `${p} in ${id}`).toBe(false);
+      }
+    }
+    // A straight line from Lisbon to the crossing would cross the estuary.
+    const straight = drawnSamples(lesson, COUNTRIES.PRT.capital.coordinates, lesson.map.routeCrossings!["ESP-PRT"], 300);
+    expect(straight.some((p) => !geoContains(shapeOf("PRT"), [...p]))).toBe(true);
   });
 });

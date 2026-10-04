@@ -13,6 +13,7 @@ import type { LessonDefinition } from "@/core/lessons/types";
 import {
   applyTransform,
   fitTransform,
+  maxMapWidth,
   projectBounds,
   regionMapFor,
   viewLimits,
@@ -36,8 +37,16 @@ import styles from "./RegionMap.module.css";
 const MAX_ZOOM = 8;
 /** On smaller maps the inset would cover playable countries, so it starts collapsed. */
 const INSET_AUTO_OPEN = { width: 600, height: 420 };
-/** Inset layout (see CSS): 8px from the corner, 44px toggle and 6px gap (above it on wide maps), 2px frame, caption strip. */
-const INSET_CHROME_HEIGHT = 8 + 44 + 6 + 4 + 20 + 8;
+/**
+ * The shortest map that is shown narrower rather than cropped (see maxMapWidth). A shorter one (a phone with
+ * enlarged text, 112–150 px tall) would become too small to use: 163 px wide for Level 7 in Armenian at 200%
+ * on a 320px phone, under its open close-up. It keeps its width, and its start view crops north and south.
+ */
+const MIN_CAPPED_HEIGHT = 300;
+/** Inset layout (see CSS): 8px from the corner, 44px toggle and 6px gap (above it on wide maps), 2px frame; then the caption strip. */
+const INSET_CHROME_HEIGHT = 8 + 44 + 6 + 4 + 8;
+/** The caption strip's height at the usual text size; it is measured once shown (enlarged text makes it taller). */
+const INSET_CAPTION_HEIGHT = 20;
 const INSET_MIN_WIDTH = 88;
 /** Area the collapsed close-up toggle covers in the top-left corner: 8px margin, 44px button, 4px clearance. */
 const INSET_TOGGLE_EXTENT = 8 + 44 + 4;
@@ -121,7 +130,7 @@ function prefersReducedMotion() {
 export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const { t, l, name, countryParams } = useI18n();
   const map = useMemo(() => regionMapFor(lesson), [lesson]);
-  // Countries named in a callout until zoomed in (Level 1's Luxembourg); none in most levels.
+  // Countries named in a callout until zoomed in (Level 1's Luxembourg, Level 7's Andorra); none in most levels.
   const small = useMemo(() => new Set(lesson.map.smallCountries ?? []), [lesson]);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -177,6 +186,10 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
     return () => observer.disconnect();
   }, []);
 
+  // On a screen wider than the map can be shown with its countries whole (an ultra-wide desktop), the map
+  // stops at that width, centred, with the page around it, rather than cropping the countries to fill it.
+  // A map under MIN_CAPPED_HEIGHT keeps its full width (see maxMapWidth).
+  const maxWidth = size.height >= MIN_CAPPED_HEIGHT ? Math.floor(maxMapWidth(map, size.height)) : undefined;
   const padding = Math.max(10, Math.min(size.width, size.height) * 0.04);
   // The pan limits, and the start view for the countries alone. The map is set up
   // (and set to its start view) again only when these change: with the map's size.
@@ -204,6 +217,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // A change of start view that waits for the player's gesture to end.
   const pendingRef = useRef<(() => void) | null>(null);
   const margin = useMemo(() => ({ x: Math.round(size.width * OVERSCAN), y: Math.round(size.height * OVERSCAN) }), [size]);
+  // The map's size and data the camera was last set up for (see below).
+  const setupRef = useRef<{ map: RegionMapData; width: number; height: number } | null>(null);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -309,11 +324,32 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       });
     const selection = select(stage);
     selection.call(behavior).on("dblclick.zoom", null);
-    const first = startRef.current?.base ?? limits.base;
+    // The first view: the start view; or, when the map is set up again for a new size (the phone turned, the
+    // browser's bars shown or hidden, the window resized), the view the player chose, if they moved away from
+    // the start view: the same place in its middle, zoomed as far past the start view as before.
+    const startView = startRef.current?.base ?? limits.base;
+    let first = startView;
+    const before = setupRef.current;
+    const shown = shownBaseRef.current;
+    const was = live.get();
+    if (before && before.map === map && shown && !sameView(was, shown)) {
+      const k = Math.min(limits.base.k * MAX_ZOOM, Math.max(startRef.current?.minScale ?? limits.base.k, (startView.k * was.k) / shown.k));
+      const [cx, cy] = [(before.width / 2 - was.x) / was.k, (before.height / 2 - was.y) / was.k];
+      const kept = behavior.constrain()(
+        zoomIdentity.translate(size.width / 2 - k * cx, size.height / 2 - k * cy).scale(k),
+        [
+          [0, 0],
+          [size.width, size.height],
+        ],
+        limits.translateExtent as [[number, number], [number, number]],
+      );
+      first = { k: kept.k, x: kept.x, y: kept.y };
+    }
+    setupRef.current = { map, width: size.width, height: size.height };
     quiet = true;
     selection.call(behavior.transform, zoomIdentity.translate(first.x, first.y).scale(first.k));
     quiet = false;
-    shownBaseRef.current = first;
+    shownBaseRef.current = startView;
     zoomRef.current = behavior;
     return () => {
       gestureRef.current = false;
@@ -326,7 +362,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       stage.removeAttribute("data-moving");
       wrapper.removeAttribute("data-gesture");
     };
-  }, [limits, size, margin, live, copyMode]);
+  }, [limits, size, margin, live, copyMode, map]);
 
   // The start view changed with the markers (the traveller arrived in Tallinn, or
   // left it), not with the map's size. The minimum zoom follows. The camera moves to
@@ -394,6 +430,23 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
 
   const inset = lesson.map.inset;
   const insetBounds = useMemo(() => (inset ? projectBounds(map, inset.bounds) : null), [map, inset]);
+  // The caption strip's height as drawn: taller with enlarged text, where its word may wrap. The tallest
+  // seen for this map size, text size and language counts, so the panel's width (which the wrapping
+  // follows) can't flip the layout back and forth.
+  const [caption, setCaption] = useState<HTMLElement | null>(null);
+  const [captionFit, setCaptionFit] = useState({ key: "", height: INSET_CAPTION_HEIGHT });
+  useEffect(() => {
+    if (!caption) return;
+    const observer = new ResizeObserver(() => {
+      const root = document.documentElement;
+      const key = `${size.width}x${size.height}|${getComputedStyle(root).fontSize}|${root.lang}`;
+      const height = Math.ceil(caption.offsetHeight);
+      setCaptionFit((c) => (c.key !== key ? { key, height } : height > c.height ? { key, height } : c));
+    });
+    observer.observe(caption);
+    return () => observer.disconnect();
+  }, [caption, size.width, size.height]);
+  const captionHeight = Math.max(INSET_CAPTION_HEIGHT, captionFit.height);
   const insetSize = useMemo(() => {
     if (!insetBounds || size.width === 0) return null;
     const [[x0, y0], [x1, y1]] = insetBounds;
@@ -401,10 +454,19 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
     const min = size.width < COMPACT_MAP_WIDTH ? INSET_WIDTH.compactMin : INSET_WIDTH.min;
     let width = Math.round(Math.min(INSET_WIDTH.max, Math.max(min, size.width * 0.3)));
     // On short maps the panel shrinks so it always fits below its toggle.
-    const room = size.height - INSET_CHROME_HEIGHT;
-    if (width * aspect > room) width = Math.max(INSET_MIN_WIDTH, Math.floor(room / aspect));
-    return { width, height: Math.round(width * aspect) };
-  }, [insetBounds, size.width, size.height]);
+    const room = size.height - INSET_CHROME_HEIGHT - captionHeight;
+    if (width * aspect <= room) return { width, height: Math.round(width * aspect), beside: false };
+    if (Math.floor(room / aspect) >= INSET_MIN_WIDTH) {
+      width = Math.floor(room / aspect);
+      return { width, height: Math.round(width * aspect), beside: false };
+    }
+    // Too short even at its smallest (enlarged text on a phone, which shortens the map and
+    // makes the caption taller): the panel opens beside its toggle instead, using the map's
+    // whole height. Before, it ran off the map's edge, under the panel below the map.
+    const beside = size.height - 8 - 4 - captionHeight - 8;
+    width = Math.max(INSET_MIN_WIDTH, Math.min(width, Math.floor(beside / aspect)));
+    return { width, height: Math.round(width * aspect), beside: true };
+  }, [insetBounds, size.width, size.height, captionHeight]);
   const insetTransform = useMemo(
     () => (insetBounds && insetSize ? fitTransform(insetBounds, insetSize.width, insetSize.height, 0) : null),
     [insetBounds, insetSize],
@@ -412,6 +474,10 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
 
   const ready = base !== null;
   const wideMap = size.width >= INSET_AUTO_OPEN.width && size.height >= INSET_AUTO_OPEN.height;
+  // The close-up's corner: top-left on wide maps; on smaller ones bottom-left, opening
+  // upwards, unless the level puts it top-left there too (Level 7, whose bottom-left
+  // corner is Portugal).
+  const insetTop = wideMap || inset?.smallMapCorner === "top-left";
 
   // Track the inset panel's footprint so map labels can avoid it.
   useEffect(() => {
@@ -447,14 +513,14 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
     if (controlsBox) boxes.push({ x0: controlsBox.x0 - 4, y0: controlsBox.y0 - 4, x1: size.width, y1: size.height });
     // "About the map", in the top-right corner.
     boxes.push({ x0: size.width - ABOUT_BUTTON_EXTENT - 4, y0: 0, x1: size.width, y1: ABOUT_BUTTON_EXTENT + 4 });
-    // The inset sits in a left-hand corner (top on wide maps, bottom otherwise);
-    // its area runs to the map edges it touches.
+    // The inset sits in a left-hand corner (see insetTop); its area runs to the map
+    // edges it touches.
     if (insetBox) {
-      const top = wideMap;
+      const top = insetTop;
       boxes.push({ x0: 0, y0: top ? 0 : insetBox.y0 - 4, x1: insetBox.x1 + 4, y1: top ? insetBox.y1 + 4 : size.height });
     }
     return boxes;
-  }, [size, insetBox, controlsBox, wideMap]);
+  }, [size, insetBox, controlsBox, insetTop]);
 
   // Would Luxembourg's name (or another small country's) fit on the main map at
   // the whole-map view, in a nearby callout clear of names, markers and controls?
@@ -462,7 +528,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // Only names the view already shows count, so this never reveals an answer.
   const crowded = useMemo(() => {
     if (!base || size.width === 0 || !lesson.map.inset) return false;
-    const toggle: Box = { x0: 0, y0: size.height - INSET_TOGGLE_EXTENT, x1: INSET_TOGGLE_EXTENT, y1: size.height };
+    const toggle: Box = insetTop
+      ? { x0: 0, y0: 0, x1: INSET_TOGGLE_EXTENT, y1: INSET_TOGGLE_EXTENT }
+      : { x0: 0, y0: size.height - INSET_TOGGLE_EXTENT, x1: INSET_TOGGLE_EXTENT, y1: size.height };
     const closedObstacles = [...obstacles.filter((o) => o.x0 !== 0), toggle];
     const layout = layoutOverlay({
       map,
@@ -480,7 +548,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, lesson.countries, obstacles, wideMap, map, view, route, routeStops, small, l, name]);
+  }, [base, size, lesson.map.inset, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -531,7 +599,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   return (
     // data-crowded: a small country's name has no nearby clear spot on the whole-map view.
     // The same illustrated landscape (atlas surface and relief) in every stage.
-    <div className={`${styles.wrapper} ${styles.atlas}`} ref={wrapperRef} data-crowded={crowded || undefined} data-map-style="atlas" data-gesture-mode={gestureMode}>
+    <div className={`${styles.wrapper} ${styles.atlas}`} ref={wrapperRef} style={{ maxWidth }} data-crowded={crowded || undefined} data-map-style="atlas" data-gesture-mode={gestureMode}>
       {/* The stage takes the gestures and taps; taps reach the countries in the drawn layer. */}
       <div
         ref={stageRef}
@@ -602,9 +670,16 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
 
       {ready && insetBounds && insetSize && insetTransform && (
         // Wide maps: top-left, over sea and neighbours. Smaller (phone) maps:
-        // bottom-left, opposite the zoom controls, opening upwards over western
-        // France, which leaves the crowded Low Countries and their names clear.
-        <div className={`${styles.inset} ${wideMap ? "" : styles.insetBottom}`} ref={insetRef}>
+        // bottom-left, opposite the zoom controls, opening upwards (in Level 1 over
+        // western France, which leaves the crowded Low Countries and their names
+        // clear), or top-left where the level says so (Level 7: over the Bay of
+        // Biscay, clear of Portugal).
+        <div
+          className={`${styles.inset} ${insetTop ? "" : styles.insetBottom} ${insetSize.beside ? styles.insetBeside : ""}`}
+          ref={insetRef}
+          data-corner={insetTop ? "top-left" : "bottom-left"}
+          data-beside={insetSize.beside || undefined}
+        >
           <button
             type="button"
             className={styles.insetToggle}
@@ -623,7 +698,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
           {insetOpen && (
             <figure className={styles.insetPanel} style={{ width: insetSize.width }}>
               {/* Visible caption is just "Close-up"; the dashed key ties it to the outlined area on the map. */}
-              <figcaption className={styles.insetCaption} data-testid="inset-title">
+              <figcaption className={styles.insetCaption} data-testid="inset-title" ref={setCaption}>
                 <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true" className={styles.insetKey}>
                   <rect x="1.5" y="1.5" width="11" height="11" rx="2" />
                 </svg>
@@ -1066,7 +1141,7 @@ function calloutCandidates(
   chrome: Box[] = [],
   /** Callouts already placed: never covered, even as a last resort (two neighbours' callouts, Level 4's Balkans on a 320px map). */
   placed: Box[] = [],
-): { ranked: Box[]; between: Box[] } {
+): { ranked: Box[]; between: Box[]; edge: Box[] } {
   const [ax, ay] = anchor;
   const candidates: { box: Box; step: number }[] = [];
   const between: { box: Box; step: number }[] = [];
@@ -1115,6 +1190,11 @@ function calloutCandidates(
   const edgeX = clamp(ax - width / 2, m, viewport.width - m - width);
   for (const y of [viewport.height - m - h, m]) candidates.push({ box: { x0: edgeX, y0: y, x1: edgeX + width, y1: y + h }, step: 5 });
   const onScreen = (b: Box) => b.x0 >= m && b.y0 >= m && b.x1 <= viewport.width - m && b.y1 <= viewport.height - m;
+  const slide = (b: Box): Box => {
+    const x0 = clamp(b.x0, m, Math.max(m, viewport.width - m - width));
+    const y0 = clamp(b.y0, m, Math.max(m, viewport.height - m - h));
+    return { x0, y0, x1: x0 + width, y1: y0 + h };
+  };
   // The anchor's own marker (e.g. Luxembourg City) is where the leader starts, so it can't block it.
   const blockers = [...hard.filter((o) => !inBox(anchor, o)), ...chrome];
   const clear = ({ box }: { box: Box }) =>
@@ -1131,16 +1211,24 @@ function calloutCandidates(
       .map((c) => ({ box: c.box, cost: score(c) }))
       .sort((a, b) => a.cost - b.cost)
       .map((c) => c.box);
+  // Positions that run past the map's edge, slid back into the view, a step further out (main map only):
+  // a fallback for a country at the edge whose usual positions all lie across its neighbours (see
+  // layoutOverlay). Never over the country's dot itself.
+  const edge: { box: Box; step: number }[] = [];
+  if (viewport.width >= 160) {
+    const dot: Box = { x0: ax - 6, y0: ay - 6, x1: ax + 6, y1: ay + 6 };
+    for (const c of candidates) {
+      if (c.step === 5 || onScreen(c.box)) continue;
+      const box = slide(c.box);
+      if (overlaps(box, dot) || [...candidates, ...edge].some((o) => Math.abs(o.box.x0 - box.x0) < 1 && Math.abs(o.box.y0 - box.y0) < 1)) continue;
+      edge.push({ box, step: c.step + 1 });
+    }
+  }
   const ranked = rank(candidates.filter(clear));
   if (ranked.length === 0) {
     // Nothing clear: the same positions slid sideways or up and down into the view, for a
     // long name near the map's edge (Bosnia and Herzegovina on a 320px map), under the
     // same rules. Only when no position is clear as it is, so layouts that fit don't change.
-    const slide = (b: Box): Box => {
-      const x0 = clamp(b.x0, m, Math.max(m, viewport.width - m - width));
-      const y0 = clamp(b.y0, m, Math.max(m, viewport.height - m - h));
-      return { x0, y0, x1: x0 + width, y1: y0 + h };
-    };
     ranked.push(...rank(candidates.map((c) => ({ box: slide(c.box), step: c.step + 1 })).filter(clear)));
   }
   if (ranked.length === 0) {
@@ -1160,6 +1248,7 @@ function calloutCandidates(
       return { x0, y0, x1: x0 + width, y1: y0 + h };
     }),
     between: rank(between.filter(clear)),
+    edge: rank(edge.filter(clear)),
   };
 }
 
@@ -1175,6 +1264,22 @@ const NEAR_BEYOND = 18;
 const BADGE = { r: 6, gap: 3 };
 const COMPACT_BADGE = { r: 5, gap: 2 };
 const INSET_BADGE = { r: 4.5, gap: 2 };
+/**
+ * A callout's dot this close to its own capital marker (px) lies on the marker's centre and would hide it: the
+ * marker stands for the dot (Andorra la Vella, 1.1 px from Andorra's dot on a 320px phone). Dots further off
+ * (Luxembourg's, about 3 px from Luxembourg City; Estonia's, 2 px from Tallinn) are drawn as before.
+ */
+const CAPITAL_ON_DOT = 1.5;
+/** The capital marker's outer edge (its ring and white outline), where a leader starting at it begins. */
+const CAPITAL_EDGE = 6.5;
+
+/** The point `r` from `from` towards `to`; `to` itself when it is nearer. */
+function edgeToward(from: Point, to: Point, r: number): Point {
+  const d = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  if (d <= r) return to;
+  return [from[0] + ((to[0] - from[0]) * r) / d, from[1] + ((to[1] - from[1]) * r) / d];
+}
+
 /** Traveller pin: tip at the capital, head above it. */
 const PIN_BOX = { x0: -8, y0: -23, x1: 8, y1: 2 };
 /** How far each marker reaches from its point on screen: the pin, or the round capital marker and the landmark's diamond. */
@@ -1184,7 +1289,10 @@ function markerExtent(kind: MapMarker["kind"]) {
 
 type TextMode = "all" | "noCallouts" | "callouts" | "none";
 
-type MarkerText = { key: string; at: Point; below: boolean; text: string; x: number; y: number; anchor: "start" | "end"; dark: boolean; hidden?: boolean };
+/** Where a marker's name starts (beside it), ends (beside it, on its left) or is centred (above or below it). */
+type TextAnchor = "start" | "end" | "middle";
+
+type MarkerText = { key: string; at: Point; below: boolean; text: string; x: number; y: number; anchor: TextAnchor; dark: boolean; hidden?: boolean };
 
 type Label = {
   id: CountryId;
@@ -1241,6 +1349,8 @@ interface OverlayLayout {
   markerFont: number;
   calloutHeight: number;
   badge: { r: number; gap: number };
+  /** Whether a callout was moved off its neighbours to a position slid in from the map's edge (see placeOverlay). */
+  fellBack?: boolean;
   /** Small countries whose callout found no nearby, clear position. */
   crowded: CountryId[];
 }
@@ -1250,7 +1360,21 @@ interface OverlayLayout {
  * measuring, so the map can also ask how the base view would look (see
  * RegionMap: a crowded Luxembourg label moves into the close-up).
  */
-function layoutOverlay({ map, active, view, route: routeWorld, small, transform, viewport, textMode, obstacles, insetArea, l, name }: LayoutInput): OverlayLayout {
+function layoutOverlay(input: LayoutInput): OverlayLayout {
+  const layout = placeOverlay(input, true);
+  if (!layout.fellBack) return layout;
+  // A callout moved off its neighbours to the map's edge (see placeOverlay) must not cost another name
+  // its place (Level 4's Slovenia at the top edge of a 740×360 map would take Croatia's only spot): the
+  // layout without that move wins wherever it names more.
+  const plain = placeOverlay(input, false);
+  const named = (o: OverlayLayout) => o.labels.filter((x) => x.callout || x.box).length + o.markerTexts.filter((m) => !m.hidden).length;
+  return named(plain) > named(layout) ? plain : layout;
+}
+
+function placeOverlay(
+  { map, active, view, route: routeWorld, small, transform, viewport, textMode, obstacles, insetArea, l, name }: LayoutInput,
+  edgeFallback: boolean,
+): OverlayLayout {
   const showText = textMode === "all" || textMode === "noCallouts";
   const toScreen = (p: Point) => applyTransform(transform, p);
   const toWorld = ([x, y]: Point): Point => [(x - transform.x) / transform.k, (y - transform.y) / transform.k];
@@ -1387,6 +1511,7 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
   // to the nearest free spot inside its own country.
   const labelAvoid = [...obstacles, ...markerPoints];
   const leaderZones: Box[] = [];
+  const leaderZoneOf = new Map<Box, Label>();
   for (const label of labels) {
     if (!small.has(label.id)) continue;
     const [[x0, y0], [x1, y1]] = shapeById(label.id).bounds;
@@ -1398,7 +1523,9 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     // so the leader line can leave in any direction.
     if (!label.inline) {
       const [ax, ay] = label.anchor;
-      leaderZones.push({ x0: ax - 12, y0: ay - 12, x1: ax + 12, y1: ay + 12 });
+      const zone = { x0: ax - 12, y0: ay - 12, x1: ax + 12, y1: ay + 12 };
+      leaderZones.push(zone);
+      leaderZoneOf.set(zone, label);
     }
   }
   labelAvoid.push(...leaderZones);
@@ -1439,6 +1566,7 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
   const visible = ([x, y]: Point) => x >= 0 && y >= 0 && x <= viewport.width && y <= viewport.height;
   const leaders: [Point, Point][] = [];
   const crowded: CountryId[] = [];
+  let fellBack = false;
   // Smallest countries first, as for inline names: Luxembourg has fewest options.
   for (const label of [...labels].sort((a, b) => screenArea(a.id) - screenArea(b.id))) {
     if (label.inline) continue;
@@ -1483,7 +1611,7 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     const [ax0, ay0] = label.anchor;
     const otherDots = leaderZones.filter((z) => !(ax0 >= z.x0 && ax0 <= z.x1 && ay0 >= z.y0 && ay0 <= z.y1));
     const placed = labels.flatMap((o) => (o.callout ? [o.callout] : []));
-    const { ranked: candidates, between } = calloutCandidates(label.anchor, reach, width, calloutHeight, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed);
+    const { ranked: candidates, between, edge } = calloutCandidates(label.anchor, reach, width, calloutHeight, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed);
     // Nowhere clear of the map controls and the close-up: no callout.
     if (candidates.length === 0) {
       crowded.push(label.id);
@@ -1504,7 +1632,9 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     const besideMarker = markerPoints.some((b) => Math.hypot(Math.max(b.x0 - dotX, 0, dotX - b.x1), Math.max(b.y0 - dotY, 0, dotY - b.y1)) <= labelHalf);
     const nearBetween = new Set(besideMarker && !small.has(label.id) ? between.filter(isNear) : []);
     let best: { callout: Box; moves: Map<Label, Point>; left: number; near: boolean } | null = null;
-    for (const callout of [...near, ...nearBetween, ...far]) {
+    // Country names a callout position covers, or that its leader line (with those already drawn) crosses,
+    // each moved to the nearest free spot inside its own country; `left` counts those that can't move.
+    const assess = (callout: Box) => {
       const lines = [...leaders, [label.anchor, nearestOn(callout, label.anchor)] as [Point, Point]];
       const crossed = (b: Box) => lines.some(([a, e]) => segmentHits(a, e, b));
       const boxes = new Map(labels.filter((o) => o.box).map((o) => [o, o.box as Box]));
@@ -1519,6 +1649,10 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
           boxes.set(other, labelBox(other, spot[0], spot[1]));
         } else left++;
       }
+      return { crossed, boxes, moves, left };
+    };
+    for (const callout of [...near, ...nearBetween, ...far]) {
+      const { crossed, boxes, moves, left } = assess(callout);
       if (nearBetween.has(callout)) {
         if (left > 0) continue;
         const blocked = [...boxes.values(), ...placed, callout, ...obstacles, ...leaderZones];
@@ -1533,6 +1667,23 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
       }
       if (!best || left < best.left) best = { callout, moves, left, near: isNear(callout) };
       if (left === 0) break;
+    }
+    // A country at the map's edge whose chosen callout reads as a neighbour's: its leader ends on another of
+    // the level's countries (Portugal at the left edge of a phone's map, its name over Spain, while the sea
+    // below it runs past the map's bottom edge). A position slid back into the view instead, if it is as near
+    // (its leader no longer), its leader ends off the level's other countries, it lies less over them (and
+    // mostly off them), and it leaves every name clear. Every other callout keeps its position.
+    const endsOnNeighbour = (b: Box) => others.some((sh) => insideShape(sh, toWorld(nearestOn(b, label.anchor))));
+    if (edgeFallback && best && best.left === 0 && endsOnNeighbour(best.callout)) {
+      const over = depth(best.callout);
+      const longest = leaderOf(best.callout) + 1;
+      for (const callout of edge.filter((b) => leaderOf(b) <= longest && !endsOnNeighbour(b) && depth(b) < Math.min(0.5, over))) {
+        const { moves, left } = assess(callout);
+        if (left > 0) continue;
+        best = { callout, moves, left, near: true };
+        fellBack = true;
+        break;
+      }
     }
     if (!best) continue;
     if (!best.near || best.left > 0) crowded.push(label.id);
@@ -1560,6 +1711,15 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
   const markerTextBoxes: Box[] = [];
   const callouts = labels.flatMap((o) => (o.callout ? [o.callout] : []));
   const crossesLeader = (b: Box) => leaders.some(([a, e]) => segmentHits(a, e, b));
+  // Room kept around small countries' leader dots. Once a callout is placed its leader is drawn and
+  // checked as a line (crossesLeader), so only its dot is kept clear: a capital beside the dot
+  // (Andorra la Vella, beside Andorra's) can then name itself right beside its marker.
+  const dotZones = leaderZones.map((zone) => {
+    const label = leaderZoneOf.get(zone) as Label;
+    if (!label.callout) return zone;
+    const [ax, ay] = label.anchor;
+    return { x0: ax - 5, y0: ay - 5, x1: ax + 5, y1: ay + 5 };
+  });
   for (const m of markerTexts) {
     const [x, y] = m.at;
     const w = textWidth(m.text, markerFont, MARKER_WEIGHT);
@@ -1570,28 +1730,43 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     const near = markers
       .filter((o) => Math.hypot(o.x - x, o.y - y) > 1 && Math.hypot(o.x - x, o.y - y) < NEAR_MARKER_PX && Math.abs(o.x - x) >= 4)
       .sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0];
-    if (near) {
-      const away = (c: [number, number, "start" | "end"]) => (c[2] === "start") === near.x < x;
-      sides.sort((a, b) => Number(away(b)) - Number(away(a)));
-    }
-    const boxOf = (side: [number, number, "start" | "end"]) => markerNameBox(side, w, markerFont);
+    const away = (c: [number, number, TextAnchor]) => near !== undefined && (c[2] === "start") === near.x < x;
+    const boxOf = (side: [number, number, TextAnchor]) => markerNameBox(side, w, markerFont);
     const fits = (b: Box) => b.x0 >= 0 && b.x1 <= viewport.width && b.y0 >= 0 && b.y1 <= viewport.height;
     // Marker names also keep clear of small countries' leader dots (see above).
     const free = (b: Box) =>
-      fits(b) && !crossesLeader(b) && ![...taken, ...callouts, ...markerTextBoxes, ...obstacles, ...leaderZones].some((o) => overlaps(b, o));
-    let side = sides.find((c) => free(boxOf(c)));
-    if (!side) {
-      // No free side (e.g. Amsterdam or Luxembourg City on a small map): take the
-      // first side whose covered country names can all move to a free spot inside
-      // their own country, and move them.
-      for (const c of sides) {
+      fits(b) && !crossesLeader(b) && ![...taken, ...callouts, ...markerTextBoxes, ...obstacles, ...dotZones].some((o) => overlaps(b, o));
+    // The sides are tried in groups: the four right beside the marker, then the ones a little further
+    // out, then centred above or below it (with a marker close beside, the sides facing away from it,
+    // then the rest). In each group, a free side, or else one whose covered country names can all move
+    // aside (below). So a name sits right beside its marker wherever a country name can make way for it,
+    // rather than further out, where it reads as belonging to the land around it.
+    const groups = near
+      ? [sides.slice(0, 12).filter(away), sides.slice(0, 12).filter((c) => !away(c)), sides.slice(12)]
+      : [sides.slice(0, 4), sides.slice(4, 12), sides.slice(12)];
+    // A name above or below its marker spans it: it keeps 8 px clear of every other marker, so it never
+    // covers one or sits nearer it than its own (Sagrada Família's Armenian name below Barcelona would reach
+    // Madrid's marker on a 320px map).
+    const others = markers
+      .filter((o) => Math.hypot(o.x - x, o.y - y) > 1)
+      .map((o) => {
+        const e = markerExtent(o.kind);
+        return { x0: o.x + e.x0 - 8, y0: o.y + e.y0 - 8, x1: o.x + e.x1 + 8, y1: o.y + e.y1 + 8 };
+      });
+    const spanning = sides.slice(12);
+    const ownSide = (c: [number, number, TextAnchor]) => !spanning.includes(c) || !others.some((o) => overlaps(boxOf(c), o));
+    // No free side (e.g. Amsterdam or Luxembourg City on a small map): take the
+    // first side whose covered country names can all move to a free spot inside
+    // their own country, and move them.
+    const makeRoom = (group: [number, number, TextAnchor][]) => {
+      for (const c of group) {
         const b = boxOf(c);
-        if (!fits(b) || crossesLeader(b) || [...callouts, ...markerTextBoxes, ...obstacles, ...leaderZones].some((o) => overlaps(b, o))) continue;
+        if (!ownSide(c) || !fits(b) || crossesLeader(b) || [...callouts, ...markerTextBoxes, ...obstacles, ...dotZones].some((o) => overlaps(b, o))) continue;
         const moves = new Map<Label, Point>();
         const placed = (o: Label) => (moves.has(o) ? labelBox(o, ...(moves.get(o) as Point)) : (o.box as Box));
         const movable = labels.every((label) => {
           if (!label.box || !overlaps(label.box, b)) return true;
-          const others = [...labelAvoid, ...callouts, ...markerTextBoxes, b, ...labels.filter((o) => o !== label && o.box).map(placed)];
+          const others = [...labelAvoid.filter((o) => !leaderZones.includes(o)), ...dotZones, ...callouts, ...markerTextBoxes, b, ...labels.filter((o) => o !== label && o.box).map(placed)];
           const spot = labelSpot(label, (lb) => onScreen(lb) && !crossesLeader(lb) && !others.some((o) => overlaps(lb, o)));
           if (spot) moves.set(label, spot);
           return spot !== null;
@@ -1603,9 +1778,14 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
           label.box = labelBox(label, dx, dy);
           taken.splice(taken.indexOf(old), 1, label.box);
         }
-        side = c;
-        break;
+        return c;
       }
+      return undefined;
+    };
+    let side: [number, number, TextAnchor] | undefined;
+    for (const group of groups) {
+      side = group.find((c) => ownSide(c) && free(boxOf(c))) ?? makeRoom(group);
+      if (side) break;
     }
     // Still no room (e.g. Brussels on a 320px map): leave the name out rather than
     // print it over a country name. The marker stays, and zooming in brings it back.
@@ -1619,11 +1799,11 @@ function layoutOverlay({ map, active, view, route: routeWorld, small, transform,
     m.dark = onDark([(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]);
   }
 
-  return { route, area, insetRect, markers, markerTexts, labels, labelFont, markerFont, calloutHeight, badge, crowded };
+  return { route, area, insetRect, markers, markerTexts, labels, labelFont, markerFont, calloutHeight, badge, crowded, fellBack };
 }
 
 /** Where a capital's or landmark's name may go beside its marker at (x, y), preferred side first. */
-function markerNameSides(x: number, y: number, below: boolean): [number, number, "start" | "end"][] {
+function markerNameSides(x: number, y: number, below: boolean): [number, number, TextAnchor][] {
   const up = y - 8;
   const down = y + 18;
   return [
@@ -1640,12 +1820,21 @@ function markerNameSides(x: number, y: number, below: boolean): [number, number,
     [x - 16, up - 6, "end"],
     [x + 16, down + 6, "start"],
     [x - 16, down + 6, "end"],
+    // Above or below it, spanning it: centred, or starting (or ending) just past it, for a name too long for
+    // either side (Andorra la Vella in Armenian on a 320px map, between the map's left edge, or the open
+    // close-up, and its controls).
+    [x, y - 13, "middle"],
+    [x, y + 22, "middle"],
+    [x - 4, y - 13, "start"],
+    [x + 4, y - 13, "end"],
+    [x - 4, y + 22, "start"],
+    [x + 4, y + 22, "end"],
   ];
 }
 
 /** The box of a capital's or landmark's name, `w` wide, on one side of its marker. */
-function markerNameBox([tx, ty, anchor]: [number, number, "start" | "end"], w: number, font: number): Box {
-  const x0 = anchor === "start" ? tx : tx - w;
+function markerNameBox([tx, ty, anchor]: [number, number, TextAnchor], w: number, font: number): Box {
+  const x0 = anchor === "start" ? tx : anchor === "middle" ? tx - w / 2 : tx - w;
   return { x0, y0: ty - font - 2, x1: x0 + w, y1: ty + 5 };
 }
 
@@ -1832,11 +2021,12 @@ function keepInView(layout: OverlayLayout, map: RegionMapData, view: Transform, 
   const markerTexts = layout.markerTexts.map((m) => {
     if (m.hidden) return m;
     const w = textWidth(m.text, layout.markerFont, MARKER_WEIGHT);
-    const boxOf = (x: number, anchor: "start" | "end"): Box => {
-      const x0 = anchor === "start" ? x : x - w;
+    const boxOf = (x: number, anchor: TextAnchor): Box => {
+      const x0 = anchor === "start" ? x : anchor === "middle" ? x - w / 2 : x - w;
       return { x0, y0: m.y - layout.markerFont - 2, x1: x0 + w, y1: m.y + 5 };
     };
-    const other = m.anchor === "start" ? "end" : "start";
+    // The other side; a centred name (above or below its marker) has only its own place.
+    const other: TextAnchor = m.anchor === "start" ? "end" : m.anchor === "end" ? "start" : "middle";
     for (const [x, anchor] of [
       [m.x, m.anchor],
       [2 * m.at[0] - m.x, other],
@@ -1985,12 +2175,17 @@ function Overlay({ motion, layout: given, ...input }: OverlayProps) {
         const ex = clamp(ax, callout.x0, callout.x1);
         const ey = clamp(ay, callout.y0, callout.y1);
         const mid = (callout.x0 + callout.x1) / 2 - shift;
+        // The country's own capital marker on the dot (Andorra la Vella's on Andorra's, when it is selected on a
+        // phone): the marker stands for the dot, as the traveller's pin does, so the capital stays in view; the
+        // leader starts at the marker's edge.
+        const capital = label.pinAnchored ? undefined : layout.markers.find((m) => m.kind === "capital" && m.country === id && Math.hypot(m.x - ax, m.y - ay) <= CAPITAL_ON_DOT);
+        const [sx, sy] = capital ? edgeToward([capital.x, capital.y], [ex, ey], CAPITAL_EDGE) : [ax, ay];
         return (
-          <g key={`label-${id}`} data-callout={id} data-label={id}>
-            <line className={styles.leader} x1={ax} y1={ay} x2={ex} y2={ey} />
+          <g key={`label-${id}`} data-callout={id} data-label={id} data-leader-from={capital ? "capital" : undefined}>
+            {Math.hypot(ex - sx, ey - sy) > 0.5 && <line className={styles.leader} x1={sx} y1={sy} x2={ex} y2={ey} />}
             {/* With the traveller on it, the pin replaces the dot. While the pin is
                 still landing, the dot shows until it arrives. */}
-            {!label.pinAnchored ? (
+            {capital ? null : !label.pinAnchored ? (
               <circle className={styles.leaderDot} cx={ax} cy={ay} r={3.2} data-leader-dot="" />
             ) : (
               growing && <circle key={`handoff-${motion?.seq}`} className={`${styles.leaderDot} ${styles.leaderDotHandoff}`} cx={ax} cy={ay} r={3.2} />

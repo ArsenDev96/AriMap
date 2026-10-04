@@ -7,7 +7,7 @@ import topologyJson from "@/data/geo/europe-west.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import { LESSONS, LEVELS } from "@/core/lessons";
 import { shortestDistance, validateGraph, type BorderGraph } from "@/core/game/graph";
-import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, MARK_EDGE_CLEARANCE, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds, type ScreenMark, type Transform } from "./regionMap";
+import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, MARK_EDGE_CLEARANCE, maxMapWidth, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds, type ScreenMark, type Transform } from "./regionMap";
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
 const geometries = topology.objects.countries.geometries;
@@ -21,9 +21,10 @@ function shapeOf(id: string) {
  * Landmarks on a coast that Natural Earth's 1:10m data draws coarser than the
  * monument: its real position may lie this far off the country's land in the data.
  * Dubrovnik's old town is about 0.5 km beyond the data's coastline (docs/DATA.md,
- * "Level 4"); every other landmark must lie inside its country.
+ * "Level 4"), and Belém Tower, which stands at the edge of the Tagus, 0.32 km beyond it
+ * ("Level 7"); every other landmark must lie inside its country.
  */
-const COAST_MARGIN_KM: Readonly<Record<string, number>> = { "dubrovnik-city-walls": 0.6 };
+const COAST_MARGIN_KM: Readonly<Record<string, number>> = { "dubrovnik-city-walls": 0.6, "belem-tower": 0.4 };
 
 /** Whether some point within `km` of `p` lies inside the country. */
 function withinKm(id: string, p: readonly [number, number], km: number) {
@@ -115,6 +116,39 @@ describe("prepared map data", () => {
     // The Curonian Spit is split between Lithuania (Nida) and Russia's Kaliningrad (Rybachy).
     expect(geoContains(shapeOf("LTU"), [21.0, 55.32])).toBe(true);
     expect(geoContains(shapeOf("RUS"), [20.82, 55.16])).toBe(true);
+  });
+
+  it("iberian-journey: shows Spain's islands and enclaves as Spain, leaves Madeira and the Azores out, and keeps Andorra's real outline", () => {
+    // Madeira and the two Azores islands inside the clip box are erased (scripts/prepare-geo.mjs,
+    // docs/DATA.md "Level 7"): no country has land there, so they can't stretch the frame.
+    const atlantic = { Funchal: [-16.92, 32.65], "Porto Santo": [-16.34, 33.07], "Ponta Delgada": [-25.67, 37.74], "Santa Maria": [-25.1, 36.97] };
+    for (const [name, p] of Object.entries(atlantic))
+      for (const g of geometries) expect(geoContains(shapeOf(String(g.id)), p as [number, number]), `${name} in ${g.id}`).toBe(false);
+    const portugal = shapeOf("PRT");
+    const points = (f: Feature<Polygon | MultiPolygon>) => (JSON.stringify(f.geometry.coordinates).match(/-?[\d.]+,-?[\d.]+/g) ?? []).map((p) => p.split(",").map(Number));
+    expect(Math.min(...points(portugal).map((p) => p[0]))).toBeGreaterThan(-9.6);
+    // Spain: the Balearic Islands, Ceuta and Melilla on the African coast, and Llívia, its exclave inside France.
+    const spain = { Palma: [2.65, 39.57], Mahón: [4.26, 39.89], Ibiza: [1.43, 38.98], Ceuta: [-5.32, 35.89], Melilla: [-2.94, 35.29], Llívia: [1.98, 42.465] };
+    for (const [name, p] of Object.entries(spain)) {
+      expect(geoContains(shapeOf("ESP"), p as [number, number]), `${name} in Spain`).toBe(true);
+      for (const other of ["FRA", "MAR"]) expect(geoContains(shapeOf(other), p as [number, number]), `${name} in ${other}`).toBe(false);
+    }
+    // Andorra is one shape of its real size (about 30 × 24 km), between Spain and France only.
+    const andorra = shapeOf("AND");
+    expect(andorra.geometry.type).toBe("Polygon");
+    const xs = points(andorra).map((p) => p[0]);
+    const ys = points(andorra).map((p) => p[1]);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(0.36, 1);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(0.22, 1);
+    // Everything of the five lies in the focus, and the focus well inside the coverage.
+    const map = regionMapFor(LESSONS["iberian-journey"]);
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    for (const id of LESSONS["iberian-journey"].countries) {
+      const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === id)!.bounds;
+      expect(x0 >= fx0 && y0 >= fy0 && x1 <= fx1 && y1 <= fy1, id).toBe(true);
+    }
+    // Portugal's west coast and Lampedusa set the frame's sides: Madeira would have widened it by a third.
+    expect(fx1 - fx0).toBeLessThan(1600);
   });
 
   it("draws every level in the same projection, so the painted landscape lines up with each", () => {
@@ -266,6 +300,27 @@ describe("map coverage", () => {
         expect(sy0).toBeGreaterThanOrEqual(0);
         expect(sx1).toBeLessThanOrEqual(width);
         expect(sy1).toBeLessThanOrEqual(height);
+      }
+    });
+
+    it(`${lesson.id}: an ultra-wide map is shown no wider than keeps every lesson country whole, with half its padding`, () => {
+      // Ultra-wide desktops (2560×1080, 3440×1440) and a short desktop window (1280×600): the map's height
+      // there. At the widest width shown the countries keep half their padding; any wider and the coverage
+      // would make the start view zoom in further, towards cutting them (Level 2 and Level 7 were cut at
+      // 2560×1080 before).
+      const margin = (width: number, height: number, padding: number) => {
+        const { base } = viewLimits(map, width, height, padding);
+        const [[x0, y0], [x1, y1]] = map.focusBounds;
+        const [sx0, sy0] = applyTransform(base, [x0, y0]);
+        const [sx1, sy1] = applyTransform(base, [x1, y1]);
+        return Math.min(sx0, sy0, width - sx1, height - sy1);
+      };
+      for (const height of [992, 1352, 512, 300]) {
+        const width = Math.floor(maxMapWidth(map, height));
+        const padding = Math.max(10, height * 0.04);
+        expect(width).toBeGreaterThan(height);
+        expect(margin(width, height, padding)).toBeGreaterThanOrEqual(padding / 2 - 0.5);
+        expect(margin(width + 40, height, padding)).toBeLessThan(padding / 2);
       }
     });
   }

@@ -94,6 +94,29 @@
   }
 }
 
+/* Short landscape screens (a phone turned sideways): stacked, the map keeps its minimum height
+   and leaves the panel a strip of a line or two above its pinned action. Under 600px tall that
+   strip is less than half of what is left below the header, while a screen wider than tall has
+   room for two columns of at least 280px: the map goes on the left at the screen's full height,
+   the panel on the right in a phone-wide column (its cards keep their phone layout), scrolling
+   above its pinned action. Text sizes and touch targets are unchanged. */
+@media (max-width: 899.98px) and (min-width: 560px) and (max-height: 599.98px) and (orientation: landscape) {
+  .main {
+    flex-direction: row;
+  }
+  .mapArea {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: auto;
+    min-height: 0;
+    padding: 8px 0 8px 8px;
+  }
+  .panel {
+    flex: 0 0 clamp(280px, 46vw, 400px);
+    padding-top: 12px;
+  }
+}
+
 /* Shared panel pieces ------------------------------------------------- */
 
 .heading {

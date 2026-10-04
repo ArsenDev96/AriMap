@@ -692,14 +692,18 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
   }
   await page.emulateMedia({ reducedMotion: "no-preference" });
 
-  // A Travel move that leaves Luxembourg's name without a nearby spot (800×500,
-  // where the close-up starts closed) still doesn't open the close-up: the name
-  // takes the best clear spot on the main map, or is left out, never overprinted.
+  // A Travel move doesn't open the close-up (800×500, where it starts closed): the
+  // name takes the best clear spot on the main map, or is left out, never overprinted.
+  // This size used to give a 784×202 map, cropped north and south, where Luxembourg's
+  // name had no nearby spot after the move ([data-crowded]). Since short landscape
+  // screens show the map beside the panel and no map is cropped to fill its width,
+  // no size leaves it crowded in Travel (measured from 300×520 to 800×640, and with
+  // 150% and 200% text on phones); the move must still leave the close-up closed.
   await page.setViewportSize({ width: 800, height: 500 });
   await save({ started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "BEL"] } });
   await expect(closeUp).toHaveCount(0);
   await page.getByTestId("move-LUX").click();
-  await expect(page.locator("[data-crowded]")).toHaveCount(1);
+  await expect(page.locator('[data-testid="map-main"] [data-traveller]')).toHaveAttribute("data-traveller", "LUX");
   await page.waitForTimeout(300);
   await expect(closeUp).toHaveCount(0);
   await expectMapTextClear(page);
