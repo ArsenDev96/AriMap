@@ -613,6 +613,79 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "casa-de-la-vall",
     },
   },
+  // Level 8's new countries. Their landmarks have no illustration yet: the cards show
+  // them as text (docs/CONTENT.md, "Level 8: Eastern Europe", has the briefs).
+  BLR: {
+    id: "BLR",
+    name: { en: "Belarus", hy: "Բելառուս" },
+    nameInText: { en: "Belarus", hy: "Բելառուսը" },
+    capital: { name: { en: "Minsk", hy: "Մինսկ" }, coordinates: [27.5586, 53.9006] },
+    hint: {
+      en: "A flat country with no coast in the north of this region, with many forests, lakes and marshes.",
+      hy: "Հարթ երկիր առանց ծովի՝ տարածաշրջանի հյուսիսում, բազմաթիվ անտառներով, լճերով և ճահիճներով։",
+    },
+    label: { coordinates: [28.0, 53.25] },
+    landmark: {
+      id: "mir-castle",
+      name: { en: "Mir Castle", hy: "Միրի ամրոց" },
+      nameInText: { en: "Mir Castle", hy: "Միրի ամրոցը" },
+      fact: {
+        // A word joiner (U+2060) after the hyphen keeps the century on one line.
+        en: "Begun in Gothic style in the late 15th century, it was later rebuilt in Renaissance and Baroque styles.",
+        hy: "Կառուցումը սկսվել է 15-\u2060րդ դարի վերջին՝ գոթական ոճով, իսկ հետագայում ամրոցը վերակառուցվել է վերածննդի և բարոկկո ոճերով։",
+      },
+      // In the village of Mir, about 85 km south-west of Minsk.
+      coordinates: [26.4727, 53.4511],
+    },
+  },
+  UKR: {
+    id: "UKR",
+    name: { en: "Ukraine", hy: "Ուկրաինա" },
+    nameInText: { en: "Ukraine", hy: "Ուկրաինան" },
+    capital: { name: { en: "Kyiv", hy: "Կիև" }, coordinates: [30.5233, 50.45] },
+    hint: {
+      en: "The largest country in this region, with a long coast on the Black Sea and the Sea of Azov.",
+      hy: "Տարածաշրջանի ամենամեծ երկիրը՝ Սև ծովի և Ազովի ծովի երկար ափով։",
+    },
+    label: { coordinates: [31.9, 48.75] },
+    landmark: {
+      id: "saint-sophia-cathedral",
+      name: { en: "Saint Sophia Cathedral", hy: "Սուրբ Սոֆիայի տաճար" },
+      nameInText: { en: "Saint Sophia Cathedral", hy: "Սուրբ Սոֆիայի տաճարը" },
+      fact: {
+        en: "Built in the early 11th century to rival Hagia Sophia in Constantinople, it keeps mosaics from that time.",
+        hy: "Կառուցվել է 11-\u2060րդ դարի սկզբին՝ Կոստանդնուպոլսի Սուրբ Սոֆիայի տաճարի հետ մրցելու համար, և պահպանում է այդ ժամանակի խճանկարները։",
+      },
+      // In Kyiv's historic centre, 0.6 km from the capital's point: the marker rule
+      // leaves its pin out wherever the two would meet (docs/CONTENT.md).
+      coordinates: [30.5144, 50.4528],
+    },
+  },
+  MDA: {
+    id: "MDA",
+    name: { en: "Moldova", hy: "Մոլդովա" },
+    nameInText: { en: "Moldova", hy: "Մոլդովան" },
+    // "Chisinau", without the Romanian ș and ă: the spelling of the CIA World Factbook and the
+    // UN, and drawn in the app's own font (docs/CONTENT.md, "Level 8").
+    capital: { name: { en: "Chisinau", hy: "Քիշնև" }, coordinates: [28.8353, 47.0228] },
+    hint: {
+      en: "A small country with no coast, between Romania and Ukraine.",
+      hy: "Փոքր երկիր առանց ծովի՝ Ռումինիայի և Ուկրաինայի միջև։",
+    },
+    label: { coordinates: [28.45, 47.55] },
+    landmark: {
+      id: "soroca-fortress",
+      name: { en: "Soroca Fortress", hy: "Սորոկիի ամրոց" },
+      nameInText: { en: "Soroca Fortress", hy: "Սորոկիի ամրոցը" },
+      fact: {
+        // A word joiner (U+2060) after the hyphen keeps the century on one line.
+        en: "Rebuilt in stone in the 16th century, this round fortress with five towers stands on the Dniester River.",
+        hy: "16-\u2060րդ դարում քարից վերակառուցված այս կլոր ամրոցը՝ հինգ աշտարակով, կանգնած է Դնեստր գետի ափին։",
+      },
+      // In Soroca, on the Dniester, not the capital.
+      coordinates: [28.3055, 48.1612],
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

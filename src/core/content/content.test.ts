@@ -50,9 +50,9 @@ describe("country content", () => {
           expect(c.hint[locale]).toBeTruthy();
         }
         const [lon, lat] = c.capital.coordinates;
-        // Europe, from Lisbon to Bucharest, Athens and Tallinn.
+        // Europe, from Lisbon to Bucharest, Athens, Tallinn and Kyiv (30.5°E, Level 8).
         expect(lon).toBeGreaterThan(-10);
-        expect(lon).toBeLessThan(30);
+        expect(lon).toBeLessThan(31);
         expect(lat).toBeGreaterThan(35);
         expect(lat).toBeLessThan(60);
       }
@@ -330,6 +330,62 @@ describe("country content", () => {
       for (const text of [countryHint(l7, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
     }
     expect(l7.regionName).toEqual({ en: "South-western Europe", hy: "Հարավարևմտյան Եվրոպա" });
+  });
+
+  it("gives Level 8's new countries their capital and a localized landmark shown as text (no artwork yet), and Poland and Romania their shared content", () => {
+    // Country and capital names as in the English and Armenian Wikipedia article titles; Chisinau without
+    // diacritics (the CIA World Factbook's and the UN's spelling). Landmark names in Armenian are our own
+    // renderings where no article exists (docs/CONTENT.md flags them).
+    const expected: Record<string, [string, string, string, string, string, string, string, string]> = {
+      BLR: ["Belarus", "Բելառուս", "Minsk", "Մինսկ", "Mir Castle", "Միրի ամրոց", "Միրի ամրոցը", "Mir Castle"],
+      UKR: ["Ukraine", "Ուկրաինա", "Kyiv", "Կիև", "Saint Sophia Cathedral", "Սուրբ Սոֆիայի տաճար", "Սուրբ Սոֆիայի տաճարը", "Saint Sophia Cathedral"],
+      MDA: ["Moldova", "Մոլդովա", "Chisinau", "Քիշնև", "Soroca Fortress", "Սորոկիի ամրոց", "Սորոկիի ամրոցը", "Soroca Fortress"],
+    };
+    const l8 = LESSONS["eastern-europe"];
+    expect(l8.countries).toEqual(["POL", "BLR", "UKR", "MDA", "ROU"]);
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, landmarkInTextEn]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      expect(countryName(id), id).toEqual({ en, hy });
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      expect(landmark.nameInText, id).toEqual({ en: landmarkInTextEn, hy: landmarkInText });
+      expect(landmark.coordinates, id).toBeDefined();
+      expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // No artwork yet: the card shows the landmark as text, with no empty frame (docs/CONTENT.md has the briefs).
+      expect(landmark.illustration, id).toBeUndefined();
+      // Names drawn in the app's fonts: no Latin letters beyond the "latin" subset it loads.
+      for (const text of [c.name.en, c.capital.name.en, landmark.name.en, landmark.fact.en]) expect(text, id).toMatch(/^[\u0000-\u00ff\u2013\u2060]*$/u);
+    }
+    // Mir is south-west of Minsk, Soroca on the Dniester; Saint Sophia is in Kyiv's historic centre.
+    const kmApart = (id: string) => {
+      const [[lon1, lat1], [lon2, lat2]] = [COUNTRIES[id].capital.coordinates, COUNTRIES[id].landmark!.coordinates!];
+      return Math.hypot((lon2 - lon1) * 111.32 * Math.cos((lat1 * Math.PI) / 180), (lat2 - lat1) * 110.57);
+    };
+    expect(kmApart("BLR")).toBeGreaterThan(50);
+    expect(kmApart("MDA")).toBeGreaterThan(100);
+    expect(kmApart("UKR")).toBeLessThan(1);
+    // Poland and Romania keep their content and artwork from earlier levels; only their hints are this level's own.
+    expect(COUNTRIES.POL.landmark!.illustration).toBe("wawel-castle");
+    expect(COUNTRIES.ROU.landmark!.illustration).toBe("bran-castle");
+    expect(countryHint(l8, "POL").en).toContain("westernmost country of this region");
+    expect(countryHint(l8, "ROU").en).toContain("southernmost country of this region");
+    expect(countryHint(LESSONS["central-europe"], "POL")).toEqual(COUNTRIES.POL.hint);
+    expect(countryHint(LESSONS["towards-greece"], "ROU")).toEqual(COUNTRIES.ROU.hint);
+    // Ukraine's own hint fits here: the largest of the five.
+    expect(countryHint(l8, "UKR")).toEqual(COUNTRIES.UKR.hint);
+    // One hint per country, all different, in each language; no player-facing "lesson" wording.
+    const hints = l8.countries.map((id) => countryHint(l8, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l8.countries) {
+      const c = COUNTRIES[id];
+      for (const text of [countryHint(l8, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    expect(l8.regionName).toEqual({ en: "Eastern Europe", hy: "Արևելյան Եվրոպա" });
   });
 
   it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {

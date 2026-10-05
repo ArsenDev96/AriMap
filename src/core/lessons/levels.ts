@@ -5,6 +5,7 @@ import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { balticJourneyLesson } from "./baltic-journey";
 import { centralEuropeLesson } from "./central-europe";
+import { easternEuropeLesson } from "./eastern-europe";
 import { iberianJourneyLesson } from "./iberian-journey";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
@@ -122,6 +123,19 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: iberianJourneyLesson.countries,
     lesson: iberianJourneyLesson,
     unlockedBy: balticJourneyLesson.id,
+  },
+  {
+    id: easternEuropeLesson.id,
+    continent: "europe",
+    number: 8,
+    title: { en: "Eastern Europe", hy: "Արևելյան Եվրոպա" },
+    description: {
+      en: "From Warsaw across Ukraine to Chisinau, between the Baltic and the Black Sea.",
+      hy: "Վարշավայից Ուկրաինայով մինչև Քիշնև՝ Բալթիկ և Սև ծովերի միջև։",
+    },
+    countries: easternEuropeLesson.countries,
+    lesson: easternEuropeLesson,
+    unlockedBy: iberianJourneyLesson.id,
   },
 ];
 

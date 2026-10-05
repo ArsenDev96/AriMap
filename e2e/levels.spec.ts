@@ -120,7 +120,7 @@ async function expectMapTextClear(page: Page) {
 }
 
 test.describe("level selection", () => {
-  test("seven levels with their number, name, countries and status in words; only playable ones can be started", async ({ page }) => {
+  test("eight levels with their number, name, countries and status in words; only playable ones can be started", async ({ page }) => {
     shotIndex = 0;
     const phone = test.info().project.name !== "desktop";
     for (const [state, label] of [
@@ -130,21 +130,24 @@ test.describe("level selection", () => {
       for (const locale of ["en", "hy"] as const) {
         await saveV1(page, state, { locale });
         const cards = page.getByTestId("levels").locator(":scope > li > article");
-        await expect(cards).toHaveCount(7);
+        await expect(cards).toHaveCount(8);
         const statuses = await page.getByTestId("level-status").allTextContents();
         const expected =
           locale === "en"
-            ? [state ? "Completed" : "Ready to play", state ? "Ready to play" : "Locked", "Locked", "Locked", "Locked", "Locked", "Locked"]
-            : [state ? "Ավարտված է" : "Պատրաստ է խաղալու", state ? "Պատրաստ է խաղալու" : "Փակ է", "Փակ է", "Փակ է", "Փակ է", "Փակ է", "Փակ է"];
+            ? [state ? "Completed" : "Ready to play", state ? "Ready to play" : "Locked", "Locked", "Locked", "Locked", "Locked", "Locked", "Locked"]
+            : [state ? "Ավարտված է" : "Պատրաստ է խաղալու", state ? "Պատրաստ է խաղալու" : "Փակ է", "Փակ է", "Փակ է", "Փակ է", "Փակ է", "Փակ է", "Փակ է"];
         statuses.forEach((text, i) => expect(text.startsWith(expected[i]), `${label} ${locale} card ${i + 1}: ${text}`).toBe(true));
         // Number and name on every card, and its countries.
-        for (const [i, id] of [L1, L2, "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey"].entries()) {
+        for (const [i, id] of [L1, L2, "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe"].entries()) {
           await expect(card(page, id)).toContainText(locale === "en" ? `Level ${i + 1}` : `Մակարդակ ${i + 1}`);
         }
         await expect(card(page, L2)).toContainText(locale === "en" ? "France · Switzerland · Germany · Austria · Italy" : "Ֆրանսիա · Շվեյցարիա · Գերմանիա · Ավստրիա · Իտալիա");
         await expect(card(page, "towards-greece")).toContainText(locale === "en" ? "Hungary · Romania · Serbia · Bulgaria · Greece" : "Հունգարիա · Ռումինիա · Սերբիա · Բուլղարիա · Հունաստան");
         // Locked: names what unlocks it, and has no action at all.
-        for (const id of ["central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
+        for (const id of ["central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe"]) await expect(card(page, id).getByRole("button")).toHaveCount(0);
+        // Level 8 opens after Level 7.
+        await expect(card(page, "eastern-europe")).toContainText(locale === "en" ? "Poland · Belarus · Ukraine · Moldova · Romania" : "Լեհաստան · Բելառուս · Ուկրաինա · Մոլդովա · Ռումինիա");
+        await expect(card(page, "eastern-europe")).toContainText(locale === "en" ? "Complete “Iberian Journey” to unlock it." : "Բացելու համար ավարտիր «Պիրենեյան ճամփորդություն» մակարդակը։");
         // Level 7 opens after Level 6.
         await expect(card(page, "iberian-journey")).toContainText(locale === "en" ? "Portugal · Spain · Andorra · France · Italy" : "Պորտուգալիա · Իսպանիա · Անդորրա · Ֆրանսիա · Իտալիա");
         await expect(card(page, "iberian-journey")).toContainText(locale === "en" ? "Complete “Baltic Journey” to unlock it." : "Բացելու համար ավարտիր «Բալթյան ճամփորդություն» մակարդակը։");
@@ -479,6 +482,14 @@ const L7_DONE = {
   travel: { missionId: "prt-to-ita", path: ["PRT", "ESP", "FRA", "ITA"], hintUsed: false, undoUsed: false },
   lastTravelResult: { missionId: "prt-to-ita", route: ["PRT", "ESP", "FRA", "ITA"], hintUsed: false, undoUsed: false },
 };
+const L8 = "eastern-europe";
+const L8_COUNTRIES = ["POL", "BLR", "UKR", "MDA", "ROU"];
+const L8_DONE = {
+  ...LEVEL1_DONE,
+  find: { order: L8_COUNTRIES, index: 4, question: { target: "ROU", wrongGuesses: [], hintLevel: 0, solved: true, feedback: null }, results: answers(L8_COUNTRIES), status: "complete" },
+  travel: { missionId: "pol-to-mda", path: ["POL", "UKR", "MDA"], hintUsed: false, undoUsed: false },
+  lastTravelResult: { missionId: "pol-to-mda", route: ["POL", "UKR", "MDA"], hintUsed: false, undoUsed: false },
+};
 const RETURNING: { name: string; levels: Record<string, object>; recent: string[]; next: string | null; compact: string[] }[] = [
   { name: "Level 1 in progress", levels: { [L1]: L1_IN_FIND }, recent: [L1], next: L1, compact: [] },
   { name: "Level 1 completed, Level 2 ready", levels: { [L1]: LEVEL1_DONE }, recent: [L1], next: L2, compact: [L1] },
@@ -491,10 +502,11 @@ const RETURNING: { name: string; levels: Record<string, object>; recent: string[
   { name: "Levels 1–5 completed, Level 6 ready", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE }, recent: [L5, L4, L3, L2, L1], next: L6, compact: [L1, L2, L3, L4, L5] },
   { name: "Level 6 in progress", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_IN_FIND }, recent: [L6, L5, L4, L3, L2, L1], next: L6, compact: [L1, L2, L3, L4, L5] },
   { name: "Levels 1–6 completed, Level 7 ready", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE }, recent: [L6, L5, L4, L3, L2, L1], next: L7, compact: [L1, L2, L3, L4, L5, L6] },
-  { name: "all seven levels completed", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE, [L7]: L7_DONE }, recent: [L7, L6, L5, L4, L3, L2, L1], next: null, compact: [L1, L2, L3, L4, L5, L6, L7] },
+  { name: "Levels 1–7 completed, Level 8 ready", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE, [L7]: L7_DONE }, recent: [L7, L6, L5, L4, L3, L2, L1], next: L8, compact: [L1, L2, L3, L4, L5, L6, L7] },
+  { name: "all eight levels completed", levels: { [L1]: LEVEL1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE, [L7]: L7_DONE, [L8]: L8_DONE }, recent: [L8, L7, L6, L5, L4, L3, L2, L1], next: null, compact: [L1, L2, L3, L4, L5, L6, L7, L8] },
 ];
 /** The first country each level's card lists. */
-const FIRST_COUNTRY: Record<string, [string, string]> = { [L1]: ["France ·", "Ֆրանսիա ·"], [L2]: ["France ·", "Ֆրանսիա ·"], [L3]: ["Germany ·", "Գերմանիա ·"], [L4]: ["Italy ·", "Իտալիա ·"], [L5]: ["Hungary ·", "Հունգարիա ·"], [L6]: ["Germany ·", "Գերմանիա ·"], [L7]: ["Portugal ·", "Պորտուգալիա ·"] };
+const FIRST_COUNTRY: Record<string, [string, string]> = { [L1]: ["France ·", "Ֆրանսիա ·"], [L2]: ["France ·", "Ֆրանսիա ·"], [L3]: ["Germany ·", "Գերմանիա ·"], [L4]: ["Italy ·", "Իտալիա ·"], [L5]: ["Hungary ·", "Հունգարիա ·"], [L6]: ["Germany ·", "Գերմանիա ·"], [L7]: ["Portugal ·", "Պորտուգալիա ·"], [L8]: ["Poland ·", "Լեհաստան ·"] };
 
 /** The part of a box inside the scrolling area and above the action area: what shows without scrolling. */
 async function shownWithoutScrolling(page: Page, locator: ReturnType<Page["locator"]>) {
@@ -539,9 +551,9 @@ test.describe("returning players", () => {
           if (height <= 700) await expect(page.getByTestId("welcome-art")).toBeHidden();
           else expect((await page.getByTestId("welcome-art").boundingBox())!.height, where).toBeLessThanOrEqual(64);
 
-          // Seven levels, in order.
+          // Eight levels, in order.
           const cards = page.getByTestId("levels").locator(":scope > li > article");
-          expect(await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))).toEqual([L1, L2, "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey"].map((id) => `level-${id}`));
+          expect(await cards.evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")))).toEqual([L1, L2, "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe"].map((id) => `level-${id}`));
 
           if (s.next) {
             // The main action names its level, and that level's card says "Up next", once.
@@ -571,7 +583,7 @@ test.describe("returning players", () => {
           } else {
             await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
             // Every level completed: said in words, with no level to start and none "coming soon".
-            await expect(page.getByTestId("all-done")).toHaveText(locale === "en" ? "You've completed all 7 levels! Play any of them again whenever you like." : "Ավարտել ես բոլոր 7 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։");
+            await expect(page.getByTestId("all-done")).toHaveText(locale === "en" ? "You've completed all 8 levels! Play any of them again whenever you like." : "Ավարտել ես բոլոր 8 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։");
           }
 
           // Completed levels: one line with the status in words, the rest (and replaying) a tap away.

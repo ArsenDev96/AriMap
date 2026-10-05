@@ -196,6 +196,7 @@ const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
   "towards-greece": "GRC",
   "baltic-journey": "LTU",
   "iberian-journey": "ESP",
+  "eastern-europe": "ROU",
 };
 
 function levelArt(level: LevelInfo) {

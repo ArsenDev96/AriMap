@@ -531,7 +531,7 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and Leve
   await expect(route).toHaveAttribute("data-route", "HUN,SRB,BGR,GRC");
 
   // The level selection: Levels 1–5 completed, Level 6 unlocked and up next (e2e/level6.spec.ts plays it;
-  // e2e/level7.spec.ts checks all seven completed); every completed level still open to play again.
+  // e2e/level8.spec.ts checks all eight completed); every completed level still open to play again.
   await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L6).getByTestId("level-status")).toHaveText("Ready to play");

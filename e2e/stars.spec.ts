@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
 
 /*
- * Star ratings (src/core/lesson/rating.ts), one rule for all seven levels, earned by a completed
+ * Star ratings (src/core/lesson/rating.ts), one rule for every level, earned by a completed
  * full-level attempt: 1 star for completing; 2 with at least 4 of 5 Find answers on the first try
  * without hints; 3 with all 5 and the journey "Without help".
  * - Results: this attempt's stars, the best separately when different, "New best!" only as an
@@ -329,7 +329,7 @@ test.describe("level cards: the best stars", () => {
     }
     // Continent progress counts completion, as before.
     await page.getByTestId("back-to-continents").click();
-    await expect(page.getByTestId("continent-progress").first()).toContainText("3/7");
+    await expect(page.getByTestId("continent-progress").first()).toContainText("3/8");
   });
 });
 
