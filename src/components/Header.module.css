@@ -278,3 +278,34 @@
   min-height: var(--tap);
   font-size: 1.1rem;
 }
+
+/* Bright atlas style: the lesson's header as the navigation screens' (ContinentScreen.module.css),
+   a frosted white strip edged in a pale sky line, Home a white pill. Same sizes as before. */
+.header {
+  border-bottom-color: rgba(38, 139, 196, 0.2);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: none;
+}
+
+.home {
+  border-color: #dae7f0;
+  background: #fff;
+}
+
+.home:hover {
+  background: #f1f8fd;
+}
+
+/* EN and ՀՅ: each a full 44 × 44 px touch target here, as on the navigation screens (the shared
+   toggle's buttons are 40 px tall). The toggle stays within the header's 56 px row. */
+.header .langButton {
+  min-height: 44px;
+}
+
+/* In one row, 4px above and below the toggle instead of 6px: with its taller buttons the header keeps
+   its height (62px at the usual text size), so the map and the panel keep theirs. The stacked and
+   tight layouts keep their own spacing. */
+.header:not([data-layout="stacked"], [data-layout="tight"]) {
+  padding-top: 4px;
+  padding-bottom: 4px;
+}

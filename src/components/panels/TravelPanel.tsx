@@ -97,7 +97,8 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
             <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M6 21V4M6 4h11l-2.5 4L17 12H6" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            {name(attempt.to)}
+            {/* Its own box, so a name wider than the whole line can break rather than run out of the chip. */}
+            <span className={styles.chipName}>{name(attempt.to)}</span>
           </span>
         </h1>
         <p className={`${styles.lead} ${styles.travelLead}`}>{tp("travel.mission", attempt.budget)}</p>
@@ -122,7 +123,8 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
       </div>
 
       {stuck ? (
-        <div ref={stuckRef} className={`${styles.feedback} ${styles.feedbackWrong}`} data-testid="out-of-crossings">
+        // Its own element (not the neighbours' box restyled), so it is at full size when scrolled into view.
+        <div key="stuck" ref={stuckRef} className={`${styles.feedback} ${styles.feedbackWrong}`} data-testid="out-of-crossings">
           <p>{t("travel.outOfCrossings")}</p>
           <div className={styles.row} style={{ marginTop: 10 }}>
             <button type="button" className="btn btn-primary" onClick={() => act({ type: "travelUndo" })}>

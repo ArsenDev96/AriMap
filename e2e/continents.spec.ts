@@ -11,8 +11,9 @@ import { openWithSave } from "./helpers/save";
  * Europe's level selection with Back to the continents; Home from a level to the continents; starting
  * over or playing again keeping completion and unlocks; a save from before continents opening Europe's
  * levels. In English and Armenian at 320×568, 390×844, a phone in landscape (740×360) and on desktop,
- * with enlarged text, keyboard focus and accessible names. The names are on the map where it has room
- * for them (desktop), otherwise beside it (landscape) or under it (upright). Screens are never pushed
+ * with enlarged text, keyboard focus and accessible names. The names are cards off the map: beside it
+ * where the screen is short and wide for its text (landscape, desktop), otherwise under it (upright).
+ * (The "on" layout, names over the map, is no longer used; its checks stay for reference.) Screens are never pushed
  * onto the browser's history (the app keeps its screen in the save, as before), and a refresh opens
  * the saved screen with no other screen first.
  */
@@ -302,7 +303,7 @@ async function expectNames(page: Page, locale: "en" | "hy", completed: number) {
   await expect(progressArea(page).locator(".visually-hidden")).toHaveText(t.completed(completed));
   await expect(progressArea(page).locator(":scope p > [aria-hidden='true']")).toHaveText(onMap ? [t.europe, t.short(completed)] : [t.short(completed)]);
   await expect(label(page, "europe")).toHaveAttribute("data-status", "open");
-  // The two Americas clearly apart: powder blue and rose.
+  // The two Americas clearly apart: periwinkle blue and rose.
   const fill = (id: string) => page.getByTestId(`map-region-${id}`).evaluate((el) => getComputedStyle(el).fill.match(/\d+/g)!.map(Number));
   const [[nr, ng, nb], [sr, sg, sb]] = [await fill("north-america"), await fill("south-america")];
   expect(nb - nr, "North America blue").toBeGreaterThan(30);
@@ -349,7 +350,7 @@ test.describe("continents", () => {
             await expect(continueButton(page)).toHaveAttribute("data-testid", "explore-europe");
             await expect(continueButton(page)).toHaveAttribute("data-primary", "true");
           }
-          await expectMapLayout(page, where, { layout: width > 1000 ? "on" : width === 740 ? "beside" : "under" });
+          await expectMapLayout(page, where, { layout: width > 1000 || width === 740 ? "beside" : "under" });
           await expectNamesWhole(page, where);
           await shot(page, `${locale}-${s.name}`);
         }
@@ -538,8 +539,8 @@ test.describe("continents", () => {
     // The map is drawn from data in the page's own code: no images, relief, map tiles or geographic data are fetched.
     expect(requests.filter((p) => !p.startsWith("/_next/static/") && p !== "/" && !/^\/(icon\.svg|manifest\.webmanifest|favicon)/.test(p))).toEqual([]);
     expect(requests.filter((p) => /\.(png|jpe?g|webp|avif|tif|json)$/.test(p))).toEqual([]);
-    // One page, resized: the names on the map, beside it, under it, and back.
-    for (const [width, height, where] of [[1366, 800, "on"], [740, 360, "beside"], [390, 844, "under"], [1280, 900, "on"]] as const) {
+    // One page, resized: the names beside the map, under it, and back.
+    for (const [width, height, where] of [[1366, 800, "beside"], [740, 360, "beside"], [390, 844, "under"], [1280, 900, "beside"]] as const) {
       await page.setViewportSize({ width, height });
       const map = (await page.getByTestId("world-map").locator("svg").boundingBox())!;
       const asia = (await label(page, "asia").boundingBox())!;
@@ -584,7 +585,8 @@ test.describe("continents", () => {
       expect(ring.style).not.toBe("none");
       expect(ring.width).toBeGreaterThanOrEqual(2);
       const land = page.getByTestId("map-region-europe");
-      expect(await land.evaluate((el) => getComputedStyle(el).fill)).toBe("rgb(111, 211, 191)");
+      // Lit brighter green with its card (--europe-lit in ContinentScreen.module.css).
+      expect(await land.evaluate((el) => getComputedStyle(el).fill)).toBe("rgb(54, 207, 96)");
       if (locale === "en") await shot(page, "keyboard-europe-focus");
       await page.keyboard.press("Enter");
       await expect(page.getByTestId("welcome")).toBeVisible();
