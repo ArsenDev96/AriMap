@@ -5,7 +5,8 @@
   margin: 0;
   padding: 12px;
   border-radius: var(--radius-sm);
-  background: var(--bg);
+  /* A breath of sky inside the white country card (the lesson's bright atlas style). */
+  background: #f1f8fc;
 }
 
 /* The illustration sits on a soft sky-to-mint tile. */

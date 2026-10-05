@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
+import { getCountry } from "@/core/content/countries";
 import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
 import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
@@ -96,7 +97,7 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   }, []);
 
   return (
-    <main className={styles.page} data-returning={returning} data-continent={continent.id} data-testid="welcome">
+    <main className={`${styles.page} ${styles.levelsPage}`} data-returning={returning} data-continent={continent.id} data-testid="welcome">
       {/* Back to the continents (where AriMap and its tagline are) and the language, in one row above
           the scrolling list, so they stay in view however far the levels are scrolled (the list may
           start scrolled to the next level). It takes no more room than the continents' header. */}
@@ -182,6 +183,26 @@ export function WelcomeScreen({ state, dispatch }: Props) {
 }
 
 const stepOf = (stage: LessonStage) => STEPS.find((s) => s.stages.includes(stage))!;
+
+/**
+ * Each level's picture on its card: the landmark of one of its own countries, one no other level
+ * has (decorative; the level's name and countries say where it goes).
+ */
+const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
+  "western-europe-1": "FRA",
+  "around-the-alps": "CHE",
+  "central-europe": "CZE",
+  "along-the-adriatic": "HRV",
+  "towards-greece": "GRC",
+  "baltic-journey": "LTU",
+  "iberian-journey": "ESP",
+};
+
+function levelArt(level: LevelInfo) {
+  const country = LEVEL_ART_COUNTRY[level.id];
+  const key = country ? getCountry(country).landmark?.illustration : undefined;
+  return key ? LANDMARK_IMAGES[key] : undefined;
+}
 
 interface CardProps {
   level: LevelInfo;
@@ -350,6 +371,7 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
       <article
         className={styles.levelCard}
         data-status={status.kind}
+        data-tone={level.number}
         data-compact=""
         data-up-next={upNext || undefined}
         data-testid={`level-${level.id}`}
@@ -385,8 +407,18 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
     );
   }
 
+  // The level's landmark beside its name, where the name keeps its room (stackLevelHeads); never on a
+  // compact card, which stays one line.
+  const art = levelArt(level);
   return (
-    <article className={styles.levelCard} data-status={status.kind} data-up-next={upNext || undefined} data-testid={`level-${level.id}`} aria-labelledby={titleId}>
+    <article
+      className={styles.levelCard}
+      data-status={status.kind}
+      data-tone={level.number}
+      data-up-next={upNext || undefined}
+      data-testid={`level-${level.id}`}
+      aria-labelledby={titleId}
+    >
       <div className={styles.levelHead} data-level-head="">
         {badge}
         <div className={styles.levelHeading}>
@@ -402,6 +434,11 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
             {title}
           </h3>
         </div>
+        {art && (
+          <span className={styles.levelArt} aria-hidden="true" data-level-art="">
+            <Image src={art} alt="" fill sizes="64px" className={styles.levelArtImage} />
+          </span>
+        )}
       </div>
       {body}
     </article>
@@ -441,6 +478,15 @@ function stackLevelHeads(list: HTMLElement) {
       const s = getComputedStyle(status);
       const chrome = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight) + parseFloat(s.borderLeftWidth) + parseFloat(s.borderRightWidth);
       need = Math.max(need, chrome + icon.getBoundingClientRect().width + (parseFloat(s.columnGap) || 0) + widestWord(statusText));
+    }
+    // The level's picture (a full card's) takes room beside the title only where the title keeps
+    // every word whole and at least about 10rem: otherwise it gives way to the words. Its width as
+    // set (shown or not), so the choice never flips back and forth.
+    const art = head.querySelector(":scope > [data-level-art]");
+    if (art) {
+      const withArt = room - (parseFloat(getComputedStyle(art).width) || 0) - gap;
+      const comfortable = 10 * parseFloat(getComputedStyle(document.documentElement).fontSize);
+      head.toggleAttribute("data-art", withArt >= Math.max(need, comfortable));
     }
     // Stacked as soon as it needs more than the room, however little: a fraction of a pixel too wide is
     // enough for the browser to break the word (a completed card's status, with its stars, can come that close).
