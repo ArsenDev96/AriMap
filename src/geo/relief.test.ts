@@ -305,4 +305,26 @@ describe("painted relief", () => {
     const open: Record<string, LonLat> = { "La Mancha": [-3.0, 39.3], "Tierra de Campos": [-5.0, 42.0], "Guadalquivir valley": [-5.6, 37.45] };
     for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
   });
+  // Level 8 reaches east to the Sea of Azov: the Carpathians (Ukraine's Chornohora and Romania's Făgăraș)
+  // and the Crimean Mountains are high and rough; Belarus and Polesia are flat and forested; the steppe of
+  // southern Ukraine and Moldova is open farmland. Summits, forests and plains: the Wikipedia articles'
+  // coordinates (checked 2026-10-05; see docs/TERRAIN.md).
+  it("Level 8: paints the Carpathians and the Crimean Mountains, the forests of Belarus, Polesia and the Codru; the steppe stays bare", async () => {
+    const alphaNear = await alphaSampler("eastern-europe", regionMapFor(LESSONS["eastern-europe"]));
+    const summits: Record<string, LonLat> = {
+      "Hoverla (Chornohora, Ukraine's highest)": [24.5003, 48.16],
+      "Moldoveanu (Făgăraș, Romania's highest)": [24.7378, 45.6],
+      "Roman-Kosh (Crimean Mountains)": [34.2433, 44.6131],
+    };
+    for (const [name, p] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(200);
+    const forests: Record<string, LonLat> = {
+      "Białowieża Forest": [23.95, 52.75],
+      "Naliboki Forest": [26.4425, 53.8844],
+      "Pripyatsky National Park (Polesia)": [28.0124, 52.0162],
+      "Codru (Moldova)": [28.3, 47.1],
+    };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    const open: Record<string, LonLat> = { "Black Sea Lowland": [33.0, 47.0], Budjak: [29.5, 46.0], "Bălți Steppe": [27.8333, 47.7667] };
+    for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+  });
 });

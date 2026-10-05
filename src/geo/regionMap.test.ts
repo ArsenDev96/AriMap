@@ -151,6 +151,42 @@ describe("prepared map data", () => {
     expect(fx1 - fx0).toBeLessThan(1600);
   });
 
+  it("eastern-europe: draws Ukraine within its internationally recognised borders, Crimea included, and Moldova whole", () => {
+    // Crimea is part of Ukraine (UN General Assembly resolution 68/262); the data does not follow
+    // military control (scripts/prepare-geo.mjs, docs/DATA.md "Level 8"). Simferopol, Sevastopol,
+    // Kerch and Yalta are in Ukraine, not Russia; so are Donetsk, Luhansk, Mariupol, Melitopol, Enerhodar, Nova Kakhovka and Kherson.
+    const ukraine = shapeOf("UKR");
+    for (const [name, p] of Object.entries({ Simferopol: [34.1, 44.95], Sevastopol: [33.52, 44.6], Kerch: [36.47, 45.36], Yalta: [34.16, 44.5], Donetsk: [37.8, 48.0], Luhansk: [39.3, 48.57], Mariupol: [37.55, 47.1], Melitopol: [35.37, 46.85], Enerhodar: [34.65, 47.5], NovaKakhovka: [33.36, 46.75], Kherson: [32.61, 46.64] })) {
+      expect(geoContains(ukraine, p as [number, number]), `${name} in Ukraine`).toBe(true);
+      expect(geoContains(shapeOf("RUS"), p as [number, number]), `${name} in Russia`).toBe(false);
+    }
+    // Russia keeps its own side of the Kerch Strait (Taman) and its mainland.
+    for (const p of [[37.38, 45.27], [38.98, 45.04], [39.72, 47.24]]) expect(geoContains(shapeOf("RUS"), p as [number, number])).toBe(true);
+    // Crimea joins the mainland at the Perekop isthmus: one part of Ukraine holds Kyiv and Simferopol, with no
+    // border drawn between them.
+    expect(geoContains(ukraine, [33.68, 46.15])).toBe(true);
+    const parts = ukraine.geometry.type === "MultiPolygon" ? ukraine.geometry.coordinates : [ukraine.geometry.coordinates];
+    const mainland = parts.find((rings) => geoContains({ type: "Polygon", coordinates: rings }, [30.52, 50.45]))!;
+    expect(geoContains({ type: "Polygon", coordinates: mainland }, [34.1, 44.95])).toBe(true);
+    const adjacency = neighbors(geometries);
+    const rus = geometries.findIndex((g) => g.id === "RUS");
+    expect(adjacency[geometries.findIndex((g) => g.id === "UKR")]).toContain(rus);
+    // Transnistria is part of Moldova (Tiraspol, Rîbnița, Dubăsari), as in Natural Earth's Admin 0 data.
+    for (const p of [[29.63, 46.84], [29.0, 47.77], [29.17, 47.27]]) {
+      expect(geoContains(shapeOf("MDA"), p as [number, number])).toBe(true);
+      expect(geoContains(ukraine, p as [number, number])).toBe(false);
+    }
+    // All five countries, Crimea and the Danube delta included, lie inside the level's focus.
+    const map = regionMapFor(LESSONS["eastern-europe"]);
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    for (const id of LESSONS["eastern-europe"].countries) {
+      const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === id)!.bounds;
+      expect(x0 >= fx0 && y0 >= fy0 && x1 <= fx1 && y1 <= fy1, id).toBe(true);
+    }
+    const crimea = map.project([34.1, 44.95]);
+    expect(crimea[0] > fx0 && crimea[0] < fx1 && crimea[1] > fy0 && crimea[1] < fy1).toBe(true);
+  });
+
   it("draws every level in the same projection, so the painted landscape lines up with each", () => {
     const [l1, l2] = [regionMapFor(LESSONS["western-europe-1"]), regionMapFor(LESSONS["around-the-alps"])];
     expect(PROJECTION_FIT).toEqual(LESSONS["western-europe-1"].countries);

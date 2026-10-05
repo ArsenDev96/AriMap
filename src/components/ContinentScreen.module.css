@@ -1,99 +1,169 @@
-/* The home screen: a bright atlas page. The page's frame (header, scrolling content, action area) is
-   the level selection's, in WelcomeScreen.module.css, here on a sky that fades to white (with a
-   little warmth at the foot); its size queries ("welcome") are the page's.
+/* The home screen: an illustrated atlas page under a clean, bright sky. The page's frame (header,
+   scrolling content, action area) is the level selection's, in WelcomeScreen.module.css; here the
+   header and the action area are open to the sky, with a painted sea framed by foliage at the foot of
+   the page, behind the main action. Its size queries ("welcome") are the page's; the scrolling content
+   is its own size container ("continents"), so the map can take the height left between the header
+   and the action area.
+
+   The map is a flat, rectangular atlas map (equirectangular, src/data/geo/world-map.ts) with modestly
+   rounded corners. Its painted water and land (scripts/generate-world-art.mjs) are static images drawn
+   in the map's own units over its real geometry (ContinentScreen.tsx). The scenery is a supplied
+   painting (scripts/prepare-world-art.mjs), set as a CSS image from ART_VARS there, at its own
+   proportions. All of it is decoration: no filters, no animation, behind the text and controls, never
+   a tap's target, hidden from assistive technology.
 
    Two layouts, by the page's size in rem (so they follow the text size):
    - short and wide (a phone held sideways, a desktop, enlarged text on a laptop): the map on the
-     left, as large as the screen allows, and the title and the cards beside it;
+     left, as large as the room allows, and the title and the cards beside it, centred on it;
    - otherwise (a phone held upright, a tablet): the title, the map, then the cards under it.
    Europe's levels completed are on its card, never on the map. The map is never stretched or
    cropped: its width follows from the room, its height from its width. */
 
 .screen {
-  /* Each category's colour, for its land, its silhouette and its card's tint: fresh green Europe
-     (open), warm orange Asia, sunny yellow Africa, periwinkle North America and rose South America
-     (the two Americas clearly apart). Oceania and Antarctica are quiet context. */
-  --europe: #4cbf6a;
+  /* Each category's colour, for its land (the painted land's lowland colour, scripts/generate-world-art.mjs),
+     its silhouette and its card's tint: vivid green Europe (open), warm orange Asia, golden yellow Africa,
+     blue North America and pink South America (the two Americas clearly apart). Oceania and Antarctica
+     are quieter context. */
+  --europe: #44c95b;
   --europe-ink: #17643a;
-  --europe-lit: #36cf60;
-  --asia: #f6a25a;
-  --africa: #f2c94c;
-  --north-america: #6f8ff5;
-  --south-america: #ec6b9b;
-  --oceania: #d8d5e6;
-  --antarctica: #f2f7fa;
-  --sky-line: rgba(38, 139, 196, 0.2);
-  background:
-    radial-gradient(120% 60% at 50% 108%, #fff3e3 0%, rgba(255, 243, 227, 0) 60%),
-    linear-gradient(180deg, #d4eefb 0%, #e9f7fd 38%, #f8fcff 70%, #ffffff 100%);
+  --asia: #f8a965;
+  --africa: #f5cd47;
+  --north-america: #68a5f3;
+  --south-america: #f27aa5;
+  --oceania: #c7b8f2;
+  --antarctica: #f3f8fc;
+  --mint-line: #8fdcc4;
+  position: relative;
+  isolation: isolate;
+  /* A bright sky, deepest at the top, lighter towards the foot. */
+  background: linear-gradient(180deg, #b9e3fa 0%, #d3eefc 26%, #e8f7fe 58%, #f3fbff 82%, #e6f6fd 100%);
 }
 
-.screen [data-region="europe"],
-.screen [data-continent="europe"] {
+/* The foot of the page: a calm turquoise sea under a pale horizon with distant hills, framed by foliage
+   at the corners. Drawn at its own proportions, 118% of the screen's width (its outer edges, beyond the
+   foliage's densest part, cut by its box), so the horizon sits just above the main action and the sea
+   shows around it; above the horizon it is transparent, so the sky shows on. */
+.scenery {
+  position: absolute;
+  /* Over the sky, under everything else (the page is its own stacking context). */
+  z-index: -1;
+  pointer-events: none;
+  inset: auto 0 0;
+  aspect-ratio: 1280 / 467;
+  background: var(--scenery) center bottom / 118% auto no-repeat;
+}
+
+.screen :where([data-region="europe"], [data-coast="europe"], [data-continent="europe"]) {
   --fill: var(--europe);
 }
-.screen [data-region="asia"],
-.screen [data-continent="asia"] {
+.screen :where([data-region="asia"], [data-coast="asia"], [data-continent="asia"]) {
   --fill: var(--asia);
 }
-.screen [data-region="africa"],
-.screen [data-continent="africa"] {
+.screen :where([data-region="africa"], [data-coast="africa"], [data-continent="africa"]) {
   --fill: var(--africa);
 }
-.screen [data-region="north-america"],
-.screen [data-continent="north-america"] {
+.screen :where([data-region="north-america"], [data-coast="north-america"], [data-continent="north-america"]) {
   --fill: var(--north-america);
 }
-.screen [data-region="south-america"],
-.screen [data-continent="south-america"] {
+.screen :where([data-region="south-america"], [data-coast="south-america"], [data-continent="south-america"]) {
   --fill: var(--south-america);
 }
+.screen :where([data-region="oceania"]) {
+  --fill: var(--oceania);
+}
+.screen :where([data-region="antarctica"]) {
+  --fill: var(--antarctica);
+}
 
-/* The header and the action area: frosted white strips over the sky, edged in a pale sky line. */
+/* The header: open to the sky. */
 .screen .header {
   /* Lined up with the content, which is wider here than on the level selection. */
   padding-inline: max(16px, calc((100% - 1208px) / 2));
-  border-bottom: 1px solid var(--sky-line);
-  background: rgba(255, 255, 255, 0.94);
+  border-bottom: 0;
+  background: transparent;
 }
 
-/* EN and ՀՅ: each a full 44 × 44 px touch target (the shared toggle's buttons are 40 px tall). */
+/* The name and tagline beside the language, 8px apart (12px on the level selection): in Armenian the row
+   is then 355px of the 358px it has on a 390px phone, so it stays one row and the map keeps its room. */
+.screen .header > div {
+  column-gap: 8px;
+}
+
+/* EN and ՀՅ: each a full 44 × 44 px touch target (the shared toggle's buttons are 40 px tall), on a white
+   pill that stands out from the sky. */
+.screen .header [role="group"] {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 2px 8px rgba(31, 90, 140, 0.12);
+}
+
 .screen .header [role="group"] > button {
   min-width: 44px;
   min-height: 44px;
 }
 
+/* The action area: its own strip at the foot (it covers nothing), open to the scenery behind it. */
 .screen .actionBar {
-  padding-top: 10px;
-  border-top: 1px solid var(--sky-line);
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 -6px 18px rgba(31, 58, 95, 0.05);
+  padding-top: 14px;
+  border-top: 0;
+  background: transparent;
 }
 
-/* The content fills the room between them (the action area keeps to the foot of the screen),
-   centred in it when it is shorter. */
+/* The content fills the room between them (the action area keeps to the foot of the screen). On a phone
+   it starts right under the header (any room left over is at the foot, over the scenery); beside the map
+   (wide layouts) it sits a little above the middle of that room. */
 .screen .scroll {
   flex: 1 1 auto;
+  /* Its size is the room the header and the action area leave (never its content's): the map's size
+     follows from it (.layout). */
+  container: continents / size;
   display: flex;
   flex-direction: column;
+  /* Its last few pixels fade into the sky, so what scrolls under the action area's edge is not cut by a hard
+     line (the content's own bottom padding is wider: scrolled to the end, nothing of it is faded). */
+  mask-image: linear-gradient(180deg, #000 calc(100% - 12px), transparent);
 }
 
 .content {
   /* The map is the page: wider than the level selection's column wherever there is room. */
   max-width: 1240px;
   width: 100%;
-  margin-block: auto;
+  margin-block: 0 auto;
 }
 
-/* Continue (or Explore Europe): a compact pill in the middle of its area, not the whole width. */
+/* Continue (or Explore Europe): a coral pill in the middle of its area, as wide as its words need but at
+   least 18rem (or the whole row, if narrower), so the scenery shows beside it; with a soft light along
+   its top (above the words, so their contrast stays the usual coral's) and a raised edge. */
 .screen .mainAction {
-  max-width: 24rem;
+  display: flex;
+  width: fit-content;
+  min-width: min(100%, 18rem);
+  max-width: 100%;
   margin-inline: auto;
-  padding-block: 8px;
+  padding-block: 9px;
   /* The side padding gives way as the text grows (20px at the usual size, 8px at 200%), as on the
      level selection, so a word stays whole wherever it fits the button at all. */
   padding-inline: clamp(8px, calc(40px - 1.25rem), 20px);
-  box-shadow: 0 3px 0 #9a2d1c, 0 8px 18px rgba(201, 63, 42, 0.22);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0, rgba(255, 255, 255, 0.07) 9px, rgba(255, 255, 255, 0) 16px),
+    var(--coral-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 0 rgba(120, 30, 16, 0.18),
+    0 4px 0 #9a2d1c,
+    0 12px 22px rgba(201, 63, 42, 0.3);
+}
+
+.screen .mainAction:hover:not(:disabled) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0, rgba(255, 255, 255, 0.07) 9px, rgba(255, 255, 255, 0) 16px),
+    var(--coral-strong-hover);
+}
+
+.screen .mainAction:active:not(:disabled) {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.3),
+    0 1px 0 #9a2d1c,
+    0 6px 14px rgba(201, 63, 42, 0.25);
 }
 
 .mainActionLabel {
@@ -110,10 +180,10 @@
 }
 
 .layout {
-  --ratio: 1000 / 520;
-  /* Upright: as wide as the column, but no taller than the screen leaves it beside the header, the
-     title, Europe's card and the action area (about 22rem); on a phone, always its width. */
-  --map-width: min(100%, max(288px, (100cqh - 22rem) * (var(--ratio))));
+  --ratio: 1000 / 500;
+  /* Upright: a little wider than the column (8px into each of its margins), but no taller than the content's
+     room leaves it beside the title and Europe's card (about 12rem). */
+  --map-width: min(100% + 16px, max(288px, (100cqh - 12rem) * (var(--ratio))));
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas: "title" "map" "labels";
@@ -124,12 +194,7 @@
 /* Centred above the map, or at the top of the column beside it. Its words wrap within the room
    it has, at their full size; a word is broken only if it is wider than a whole line. */
 .title {
-  container: continents-title / inline-size;
   grid-area: title;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35em;
   min-width: 0;
   text-align: center;
   font-size: 1.4rem;
@@ -138,35 +203,7 @@
 }
 
 .titleText {
-  min-width: 0;
   overflow-wrap: break-word;
-}
-
-/* Two small sun-rays beside the words, only where the whole heading fits on one line with them
-   (its width in em, the heading's own text size: so never with enlarged text on a phone), so they
-   never take the words' room. */
-.ray {
-  flex: none;
-  width: 0.85em;
-  height: 0.85em;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M3 4l5 3M2 10.5h6M3 17l5-3' stroke='%23f2b233' stroke-width='2.6' stroke-linecap='round' fill='none'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-}
-
-.ray:last-child {
-  transform: scaleX(-1);
-}
-
-@container continents-title (max-width: 12.5em) {
-  .ray {
-    display: none;
-  }
-}
-
-@container continents-title (max-width: 14.5em) {
-  :lang(hy) .ray {
-    display: none;
-  }
 }
 
 .mapColumn {
@@ -175,83 +212,102 @@
   width: var(--map-width);
 }
 
+/* The map: a flat sheet with modestly rounded corners, a fine white edge and a soft shadow under it, as a
+   printed atlas map lies on the page. Its corners are cut from the drawing and from taps alike. */
 .mapArea {
+  --map-radius: 14px;
   width: 100%;
+  border-radius: var(--map-radius);
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 6px 18px rgba(31, 90, 140, 0.16);
 }
 
 .map {
   display: block;
   width: 100%;
   height: auto;
+  clip-path: inset(0 round var(--map-radius));
 }
 
-/* Delicate white lines of latitude and longitude on the water. */
-.graticule {
-  fill: none;
-  stroke: #fff;
-  stroke-opacity: 0.38;
-  stroke-width: 0.7px;
-  vector-effect: non-scaling-stroke;
-}
-
-/* The light, the grain and the rim: drawn over everything, never in a tap's way. */
-.overlay,
-.rim {
+/* The water until its painting loads. Like every painted layer, never a tap's target (a touch on the land
+   goes to the land, not to the water under it). */
+.water {
+  fill: #2cbbe9;
   pointer-events: none;
 }
 
-.rim {
-  fill: none;
-  stroke: #1d6f9f;
-  stroke-opacity: 0.35;
-  stroke-width: 1px;
-  vector-effect: non-scaling-stroke;
+/* The painted layers: drawn, never in a tap's way. */
+.art {
+  pointer-events: none;
 }
 
-/* The land: a vibrant colour per category, with a crisp light coast (a white edge drawn under the
-   fill, so only its outer half shows on the water). */
-.region {
+/* Delicate, straight white lines of latitude and longitude every 30° on the water (the land is painted over them). */
+.graticule {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.28;
+  stroke-width: 0.6px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* The coasts: each land in its colour (until the painted land, drawn over it, loads) with a light edge
+   on the water (a white line drawn under the fill, so only its outer half shows). */
+.coast {
   fill: var(--fill);
   stroke: #fff;
-  stroke-opacity: 0.9;
-  stroke-width: 2.4px;
+  stroke-opacity: 0.85;
+  stroke-width: 2px;
   stroke-linejoin: round;
   paint-order: stroke;
   vector-effect: non-scaling-stroke;
+  pointer-events: none;
 }
 
-.region[data-region="oceania"] {
-  --fill: var(--oceania);
+.coast:where([data-region="oceania"], [data-region="antarctica"]) {
   stroke-opacity: 0.55;
   stroke-width: 1.4px;
 }
 
-.region[data-region="antarctica"] {
-  --fill: var(--antarctica);
-  stroke-opacity: 0.6;
-  stroke-width: 1.4px;
+/* Europe, open: a brighter, wider light edge, so it stands out from its neighbours. */
+.coast[data-coast="europe"] {
+  stroke-opacity: 1;
+  stroke-width: 3.2px;
 }
 
-/* Europe, open: outlined in deep green over its fill. */
+/* The categories' land on top, for taps: its colour kept but transparent, so the painting shows through. A
+   transparent fill still counts as painted, so the whole land answers taps and clicks (pointer-events: fill
+   would not do for touch: Chromium's touch targeting then passes over the shape). */
+.region {
+  fill: var(--fill);
+  fill-opacity: 0;
+  stroke: none;
+}
+
+/* Europe, open: a fine deep-green outline inside its light edge. */
 .region[data-status="open"] {
   stroke: var(--europe-ink);
-  stroke-opacity: 1;
-  stroke-width: 1.4px;
-  paint-order: normal;
+  stroke-opacity: 0.6;
+  stroke-width: 1px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
   cursor: pointer;
 }
 
-/* Europe's land and its card light up together: a brighter green and a bolder outline. */
+/* Europe's land and its card light up together: a light wash over its land and a bolder outline. */
 .region[data-status="open"]:hover,
 .layout:has(.label[data-status="open"]:hover, .open:focus-visible) .region[data-status="open"] {
-  fill: var(--europe-lit);
-  stroke-width: 2.2px;
+  fill: #fff;
+  fill-opacity: 0.22;
+  stroke-opacity: 1;
+  stroke-width: 1.6px;
 }
 
-/* The cards. Europe's a white card across the row: its silhouette, its name and arrow (its button),
-   its levels completed. The others colour-tinted tiles, two to a row where their names fit (one,
-   with whole words, once the text is enlarged), with "Coming soon" in words under the name (with
-   an hourglass), so availability never rests on colour alone. Navy text throughout. */
+/* The cards. Europe's a white card across the row: its silhouette, its name, its levels completed and
+   a round arrow (its button). The others colour-tinted tiles, two to a row where their names fit (one,
+   with whole words, once the text is enlarged), with "Coming soon" in words under the name (with an
+   hourglass), so availability never rests on colour alone. Navy text throughout. */
 .labels {
   grid-area: labels;
   margin: 0;
@@ -259,7 +315,7 @@
   list-style: none;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 8.5rem), 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 .label {
@@ -273,6 +329,7 @@
   font-weight: 900;
 }
 
+/* A category's land: its colour with a light edge, under the painted land. */
 .silhouette {
   display: block;
   overflow: visible;
@@ -281,40 +338,45 @@
 .silhouette path {
   fill: var(--fill);
   stroke: #fff;
-  stroke-width: 1.5px;
+  stroke-width: 2px;
   stroke-linejoin: round;
   paint-order: stroke;
   vector-effect: non-scaling-stroke;
 }
 
-/* Coming soon: a tile tinted with its land's colour, its silhouette over its name. Not a button:
-   no hover, no pointer, nothing to focus. */
+/* Coming soon: a tile tinted with its land's colour, its silhouette over its name, on a soft glow. Compact,
+   so on a phone all four names and their "Coming soon" fit above the action area at the usual text size.
+   Not a button: no hover, no pointer, nothing to focus. */
 .label[data-status="comingSoon"] {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 10px 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--fill) 38%, #fff);
-  border-radius: 16px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--fill) 22%, #fff), color-mix(in srgb, var(--fill) 7%, #fff));
-  box-shadow: 0 2px 6px rgba(31, 58, 95, 0.06);
+  padding: 8px 8px 10px;
+  border: 1.5px solid color-mix(in srgb, var(--fill) 40%, #fff);
+  border-radius: 18px;
+  background:
+    radial-gradient(70% 55% at 50% 34%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--fill) 26%, #fff), color-mix(in srgb, var(--fill) 10%, #fff));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 3px 10px rgba(31, 90, 140, 0.1);
   text-align: center;
 }
 
 .label[data-status="comingSoon"] .silhouette {
   width: 100%;
-  height: min(3rem, 56px);
-  margin-bottom: 2px;
+  height: min(3.25rem, 56px);
 }
 
 .soon {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 2px 10px;
+  padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 2px rgba(31, 58, 95, 0.08);
   font-size: 0.8rem;
   font-weight: 800;
   color: var(--ink-soft);
@@ -325,62 +387,79 @@
   height: 1.1em;
 }
 
-/* Europe: the inviting card, across the row. Its silhouette on the left (where there is room for
-   it beside the words), its name and arrow, then its levels completed under them. */
+/* Europe: the inviting card, across the row, edged in mint. Its silhouette large on a mint tile on the
+   left (where there is room for it beside the words), then its name over its levels completed, and its
+   round teal arrow on the right, the height of both. The button is the name and the arrow, and the card's
+   whole right part for its focus ring (a subgrid over both rows); a tap anywhere on the card opens it. */
 .label[data-status="open"] {
   container: europe-card / inline-size;
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-areas: "art open" "art progress";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
   align-items: center;
-  column-gap: 14px;
-  row-gap: 6px;
-  padding: 12px 14px 14px 12px;
-  border: 1.5px solid color-mix(in srgb, var(--fill) 45%, #fff);
-  border-radius: 20px;
-  background: #fff;
-  box-shadow: 0 2px 0 rgba(31, 58, 95, 0.04), 0 10px 24px rgba(31, 90, 140, 0.12);
+  column-gap: 12px;
+  row-gap: 8px;
+  padding: 12px;
+  border: 2px solid var(--mint-line);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #fff 0%, #fbfffd 100%);
+  box-shadow:
+    0 0 0 4px rgba(143, 220, 196, 0.18),
+    0 2px 0 rgba(31, 58, 95, 0.04),
+    0 12px 26px rgba(31, 90, 140, 0.14);
   cursor: pointer;
 }
 
 .label[data-status="open"]:hover {
-  border-color: var(--fill);
+  border-color: var(--teal);
 }
 
 .label[data-status="open"] .silhouette {
-  grid-area: art;
-  width: 4.25rem;
-  height: 4.25rem;
-  padding: 8px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--fill) 16%, #fff);
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 6rem;
+  height: 4.75rem;
+  padding: 6px;
+  border-radius: 16px;
+  background:
+    radial-gradient(80% 70% at 50% 40%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 75%),
+    color-mix(in srgb, var(--fill) 18%, #fff);
 }
 
-.label[data-status="open"] .silhouette path {
-  stroke: var(--europe-ink);
-  stroke-width: 0.8px;
-  paint-order: normal;
+/* A narrower card (a 320px phone): a smaller silhouette and arrow, so the words keep room between them. */
+@container europe-card (max-width: 19rem) {
+  .label[data-status="open"] .silhouette {
+    width: 4.5rem;
+    height: 3.75rem;
+  }
+  .label[data-status="open"] .arrowBadge {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
 }
 
-/* Narrow for its text (enlarged text on a phone): the words take the whole card. */
+/* Narrow for its text (enlarged text on a phone): the words and the arrow take the whole card. */
 @container europe-card (max-width: 15rem) {
   .label[data-status="open"] {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "open" "progress";
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .label[data-status="open"] .silhouette {
     display: none;
   }
+  .label[data-status="open"] .arrowBadge {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
 }
 
 .open {
-  grid-area: open;
-  display: flex;
+  grid-column: -3 / -1;
+  grid-row: 1 / 3;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-template-rows: subgrid;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
   min-height: 44px;
   padding: 0;
   border: 0;
@@ -393,6 +472,9 @@
 }
 
 .open .name {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
   font-size: 1.35rem;
   line-height: 1.15;
 }
@@ -402,18 +484,28 @@
   outline-offset: 4px;
 }
 
-/* The arrow in a round teal badge, nudged along when the card is pointed at. */
+/* The arrow in a round teal badge, lit from above, nudged along when the card is pointed at. */
 .arrowBadge {
-  flex: none;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
   display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 3.25rem;
+  height: 3.25rem;
   border-radius: 50%;
-  background: var(--teal);
+  background: radial-gradient(80% 80% at 35% 25%, #2fc0ac, var(--teal) 70%);
   color: #fff;
-  box-shadow: 0 3px 8px rgba(20, 148, 134, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    0 3px 0 var(--teal-dark),
+    0 6px 14px rgba(20, 148, 134, 0.3);
   transition: transform 0.15s ease;
+}
+
+.arrowBadge .arrow {
+  width: 1.35em;
+  height: 1.35em;
 }
 
 .label[data-status="open"]:hover .arrowBadge {
@@ -436,12 +528,14 @@
   flex: none;
 }
 
-/* Europe's levels completed: "Completed: 2/7" and a bar. */
+/* Europe's levels completed: "Completed: 2/8" and a bar, under its name (over the button's lower row). */
 .progressArea {
-  grid-area: progress;
+  grid-column: -3;
+  grid-row: 2;
+  align-self: start;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   min-width: 0;
   overflow-wrap: break-word;
 }
@@ -479,9 +573,10 @@
 /* The share of levels completed, beside the same in words. */
 .bar {
   display: block;
-  height: 8px;
+  height: 10px;
   border-radius: 999px;
-  background: #e3eef4;
+  background: #e2eef2;
+  box-shadow: inset 0 1px 2px rgba(31, 58, 95, 0.1);
   overflow: hidden;
 }
 
@@ -489,23 +584,56 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--teal), var(--europe));
+  background: linear-gradient(90deg, var(--teal), #2fc59a);
 }
 
-/* Short and wide for its text (a phone held sideways, a desktop): the map on the left, as tall as the
-   screen leaves it beside the header and the action area (about 10.75rem), but at least 200px wide,
-   and the title and the cards on the right in at least 13rem (about 21rem where the page is wide).
-   When the cards run longer than the screen, the map stays in view while they scroll. */
+/* Short and wide for its text (a phone held sideways, a desktop): the map on the left and the title and
+   the cards on the right, centred on the map's height, so the two read as one composition. The cards'
+   column is 23rem where there is room (Europe's count stays on one line in Armenian), never under 13rem.
+   The map takes the content's whole height but a small margin (its room between the header and the
+   action area), as wide as that makes it, but no wider than leaves the cards their column, and at most
+   1336px (the content at most 1760px: the page's wide sky is not left empty around a small map). When
+   the cards run longer than the screen, the map stays in view while they scroll. */
 @container welcome (min-aspect-ratio: 4 / 3) and ((min-width: 36rem) or (max-height: 32rem)) {
+  .screen .header {
+    padding-inline: max(16px, calc((100% - 1728px) / 2));
+  }
+  .content {
+    max-width: 1760px;
+  }
+  /* The content a little above the middle of its room (a third of what is left over above it, two thirds
+     below), so the map sits closer to the header without crowding it. */
+  .screen .scroll::before,
+  .screen .scroll::after {
+    content: "";
+    flex: 1 0 0;
+  }
+  .screen .scroll::after {
+    flex-grow: 2;
+  }
   .layout {
-    --map-width: max(200px, min((100cqh - 10.75rem) * (var(--ratio)), 100cqw - 48px - 13rem, 1208px - 20px - 21rem));
-    grid-template-columns: auto minmax(13rem, 1fr);
-    grid-template-rows: auto 1fr;
-    grid-template-areas: "map title" "map labels";
-    column-gap: 20px;
+    --map-width: max(
+      200px,
+      min(
+        (100cqh - clamp(20px, 4cqh, 36px)) * (var(--ratio)),
+        100cqw - 56px - 13rem,
+        max(100cqw - 56px - 23rem, 55cqw),
+        1760px - 56px - 23rem
+      )
+    );
+    grid-template-columns: auto minmax(13rem, 23rem);
+    grid-template-rows: 1fr auto auto 1fr;
+    grid-template-areas: "map ." "map title" "map labels" "map .";
+    justify-content: center;
+    column-gap: 24px;
+    row-gap: 14px;
   }
   .mapColumn {
     position: sticky;
     top: 0;
+  }
+  /* The scenery is drawn for an upright phone's foot; these layouts get their own in a later pass. */
+  .scenery {
+    display: none;
   }
 }

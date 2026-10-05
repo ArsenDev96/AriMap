@@ -14,8 +14,8 @@ import { openWithSave } from "./helpers/save";
  */
 
 const project = () => test.info().project.name;
-const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey"];
-const [L1, L2, L3, , , L6, L7] = L;
+const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe"];
+const [L1, L2, L3, , , L6, L7, L8] = L;
 const COUNTRIES: Record<string, string[]> = {
   "western-europe-1": ["FRA", "BEL", "NLD", "LUX", "DEU"],
   "around-the-alps": ["FRA", "CHE", "DEU", "AUT", "ITA"],
@@ -24,6 +24,7 @@ const COUNTRIES: Record<string, string[]> = {
   "towards-greece": ["HUN", "ROU", "SRB", "BGR", "GRC"],
   "baltic-journey": ["DEU", "POL", "LTU", "LVA", "EST"],
   "iberian-journey": ["PRT", "ESP", "AND", "FRA", "ITA"],
+  "eastern-europe": ["POL", "BLR", "UKR", "MDA", "ROU"],
 };
 const ROUTES: Record<string, [string, string[]]> = {
   "western-europe-1": ["fra-to-nld", ["FRA", "BEL", "NLD"]],
@@ -33,6 +34,7 @@ const ROUTES: Record<string, [string, string[]]> = {
   "towards-greece": ["hun-to-grc", ["HUN", "ROU", "BGR", "GRC"]],
   "baltic-journey": ["deu-to-est", ["DEU", "POL", "LTU", "LVA", "EST"]],
   "iberian-journey": ["prt-to-ita", ["PRT", "ESP", "FRA", "ITA"]],
+  "eastern-europe": ["pol-to-mda", ["POL", "UKR", "MDA"]],
 };
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
 /** A level finished, at its Results. */
@@ -146,7 +148,7 @@ test.describe("Continue only for an attempt under way", () => {
   });
 
   test("everything finished: no Continue anywhere, Explore Europe stays on the home screen", async ({ page }) => {
-    await open(page, ALL_DONE, { screen: "continents", levelId: L7, recent: [...L].reverse() });
+    await open(page, ALL_DONE, { screen: "continents", levelId: L8, recent: [...L].reverse() });
     await expect(continueHome(page)).toHaveAttribute("data-testid", "explore-europe");
     await continueHome(page).click();
     for (const id of L) {
@@ -239,16 +241,20 @@ test.describe("Results: what next", () => {
     expect((await saved(page)).levels[L2]).toMatchObject({ stage: "results" });
   });
 
-  test("after the last playable level: Back to levels, never coming-soon content; Level 6 still offers Level 7", async ({ page }) => {
+  test("after the last playable level: Back to levels, never coming-soon content; Level 6 still offers Level 7, and Level 7 Level 8", async ({ page }) => {
     await open(page, ALL_DONE, { levelId: L6 });
     await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 7, Iberian Journey");
     await open(page, ALL_DONE, { levelId: L7 });
+    await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 8, Eastern Europe");
+    await expect(page.getByTestId("next-level")).toHaveAttribute("data-level", L8);
+    await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
+    await open(page, ALL_DONE, { levelId: L8 });
     await expect(journeyComplete(page)).toBeVisible();
     await expect(page.getByTestId("next-level")).toHaveCount(0);
     await page.getByTestId("back-to-levels").click();
     await expect(page.getByTestId("welcome")).toBeVisible();
     await expect(page.getByTestId("continent-title")).toHaveText("Europe");
-    expect((await saved(page)).levels[L7]).toMatchObject({ stage: "results", records: { travelDone: true } });
+    expect((await saved(page)).levels[L8]).toMatchObject({ stage: "results", records: { travelDone: true } });
   });
 
   test("Play again asks first (cancelling keeps Results, also after a refresh); Replay journey then Continue resumes it", async ({ page }) => {
@@ -294,7 +300,7 @@ test.describe("Results: what next", () => {
     await expect(next).toHaveAccessibleName("Next level: Level 2, Around the Alps");
     await expect(journeyComplete(page)).toBeVisible();
     expect((await saved(page)).levels).toEqual(before);
-    await open(page, ALL_DONE, { levelId: L7, locale: "hy" });
+    await open(page, ALL_DONE, { levelId: L8, locale: "hy" });
     await expect(page.getByTestId("back-to-levels")).toHaveText("Վերադառնալ ցանկին");
     await expect(page.getByTestId("back-to-levels")).toHaveAccessibleName("Վերադառնալ ցանկին՝ Եվրոպայի մակարդակներին");
     await page.getByRole("button", { name: "English", exact: true }).first().click();
@@ -366,7 +372,7 @@ test("Results actions and rows: full-size text, whole words, each action reachab
       for (const last of [false, true])
         for (const size of [100, 200]) {
           await page.setViewportSize({ width, height });
-          await open(page, last ? ALL_DONE : { [L1]: done(L1) }, { levelId: last ? L7 : L1, locale });
+          await open(page, last ? ALL_DONE : { [L1]: done(L1) }, { levelId: last ? L8 : L1, locale });
           await textSize(page, size);
           const where = `${width}×${height} ${locale} ${last ? "last level" : "Level 1"} ${size}%`;
           const rem = (16 * size) / 100;

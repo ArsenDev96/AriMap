@@ -3,7 +3,7 @@ import { openWithSave } from "./helpers/save";
 
 /*
  * The continents above the level selection, as a world map: Continents → a continent's levels →
- * Discover → Find → Travel → Results. Five categories (Europe with the seven levels, four coming soon
+ * Discover → Find → Travel → Results. Five categories (Europe with the eight levels, four coming soon
  * with no action) on the map's land and as names, Oceania and Antarctica as context only; Europe
  * opened from its land, its name (a button, with its levels completed under it, from the permanent
  * records) or, with nothing to continue, Explore Europe in the action area; Continue there straight
@@ -20,7 +20,7 @@ import { openWithSave } from "./helpers/save";
 
 const project = () => test.info().project.name;
 
-const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey"];
+const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe"];
 const [L1, L2, L3] = L;
 const COUNTRIES: Record<string, string[]> = {
   "western-europe-1": ["FRA", "BEL", "NLD", "LUX", "DEU"],
@@ -30,6 +30,7 @@ const COUNTRIES: Record<string, string[]> = {
   "towards-greece": ["HUN", "ROU", "SRB", "BGR", "GRC"],
   "baltic-journey": ["DEU", "POL", "LTU", "LVA", "EST"],
   "iberian-journey": ["PRT", "ESP", "AND", "FRA", "ITA"],
+  "eastern-europe": ["POL", "BLR", "UKR", "MDA", "ROU"],
 };
 const ROUTES: Record<string, [string, string[]]> = {
   "western-europe-1": ["fra-to-nld", ["FRA", "BEL", "NLD"]],
@@ -39,6 +40,7 @@ const ROUTES: Record<string, [string, string[]]> = {
   "towards-greece": ["hun-to-grc", ["HUN", "ROU", "BGR", "GRC"]],
   "baltic-journey": ["deu-to-est", ["DEU", "POL", "LTU", "LVA", "EST"]],
   "iberian-journey": ["prt-to-ita", ["PRT", "ESP", "FRA", "ITA"]],
+  "eastern-europe": ["pol-to-mda", ["POL", "UKR", "MDA"]],
 };
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
 /** A level finished, at its Results. */
@@ -81,8 +83,8 @@ const NAMES = {
 };
 const IDS = ["europe", "asia", "africa", "north-america", "south-america"];
 const TEXT = {
-  en: { levels: "7 levels", completed: (n: number) => `${n} of 7 Europe levels completed`, short: (n: number) => `Completed: ${n}/7`, explore: "Explore Europe", soon: "Coming soon", back: "Back to continents", continue: "Continue", europe: "Europe" },
-  hy: { levels: "7 մակարդակ", completed: (n: number) => `Եվրոպայի 7 մակարդակից ավարտված է ${n}-ը`, short: (n: number) => `Ավարտված՝ ${n}/7`, explore: "Բացահայտել Եվրոպան", soon: "Շուտով", back: "Վերադառնալ մայրցամաքներին", continue: "Շարունակել", europe: "Եվրոպա" },
+  en: { levels: "8 levels", completed: (n: number) => `${n} of 8 Europe levels completed`, short: (n: number) => `Completed: ${n}/8`, explore: "Explore Europe", soon: "Coming soon", back: "Back to continents", continue: "Continue", europe: "Europe" },
+  hy: { levels: "8 մակարդակ", completed: (n: number) => `Եվրոպայի 8 մակարդակից ավարտված է ${n}-ը`, short: (n: number) => `Ավարտված՝ ${n}/8`, explore: "Բացահայտել Եվրոպան", soon: "Շուտով", back: "Վերադառնալ մայրցամաքներին", continue: "Շարունակել", europe: "Եվրոպա" },
 };
 
 /** Records each screen the app shows, in order, from the first paint of every document (to catch a flash of the wrong one). */
@@ -198,10 +200,10 @@ async function expectMapLayout(page: Page, where: string, { size = 100, layout }
   expect(action.height, `${where}: main action touch target`).toBeGreaterThanOrEqual(44);
   expect(action.x + action.width, `${where}: main action off screen`).toBeLessThanOrEqual(width + 0.5);
 
-  // The whole world, never stretched: the map's proportions are its data's (1000 × 520), all of it on screen
+  // The whole world, never stretched: the map's proportions are its data's (1000 × 500), all of it on screen
   // sideways and, at the default text size (enlarged text may need a scroll), in the content's view as it opens.
   const map = (await page.getByTestId("world-map").locator("svg").boundingBox())!;
-  expect(map.width / map.height, `${where}: map proportions`).toBeCloseTo(1000 / 520, 2);
+  expect(map.width / map.height, `${where}: map proportions`).toBeCloseTo(1000 / 500, 2);
   expect(map.x >= -0.5 && map.x + map.width <= width + 0.5, `${where}: map off screen sideways`).toBe(true);
   expect(map.width, `${where}: map width`).toBeGreaterThanOrEqual(199);
   if (size === 100) expect(inside(map, scrollBox), `${where}: the whole map in view as the page opens`).toBe(true);
@@ -235,7 +237,7 @@ async function expectMapLayout(page: Page, where: string, { size = 100, layout }
     if (namesOnMap || IDS[i] !== "europe") expect(overlaps(progress, box), `${where}: Europe's progress and ${IDS[i]} overlap`).toBe(false);
   expect(overlaps(progress, europeButton), `${where}: Europe's progress over its button`).toBe(false);
   expect(progress.x >= -0.5 && progress.x + progress.width <= width + 0.5, `${where}: Europe's progress off screen sideways`).toBe(true);
-  // The count ("2/7") is kept on one line.
+  // The count ("2/8") is kept on one line.
   expect(await progressArea(page).locator('[class*="fraction"]').evaluate((el) => el.getClientRects().length), `${where}: the count broken`).toBe(1);
 
   // Text at its full size and never cut: every name, status and progress line as wide as its text.
@@ -295,7 +297,7 @@ async function expectNames(page: Page, locale: "en" | "hy", completed: number) {
   expect(await page.getByTestId("continent-list").locator(":scope > li").evaluateAll((els) => els.map((e) => e.getAttribute("data-continent")))).toEqual(IDS);
   await expect(europeName(page)).toHaveAccessibleName(t.europe);
   await expect(europeName(page)).toHaveAccessibleDescription(t.completed(completed));
-  // Europe's button is its name and arrow only. Its levels completed read "Completed: 2/7" (in full for
+  // Europe's button is its name and arrow only. Its levels completed read "Completed: 2/8" (in full for
   // assistive technology), named "Europe" only under the map, where the button is not beside them.
   await expect(europeName(page)).toHaveText(t.europe);
   await expect(progressText(page)).toHaveText(t.short(completed));
@@ -335,7 +337,7 @@ test.describe("continents", () => {
           const where = `${width}×${height} ${locale} ${s.name}`;
           await open(page, s, { locale });
           await expect(page.getByTestId("continents")).toBeVisible();
-          await expectNames(page, locale, s === NEW ? 0 : s === LEVEL3 ? 2 : 7);
+          await expectNames(page, locale, s === NEW ? 0 : s === LEVEL3 ? 2 : 8);
           if (s === LEVEL3) {
             // Continue names the continent and the level, and (where there is room) its title; always all three for assistive technology.
             await expect(continueButton(page)).toHaveAttribute("data-level", L3);
@@ -359,7 +361,7 @@ test.describe("continents", () => {
         await europeName(page).click();
         await expect(page.getByTestId("continent-title")).toHaveText(TEXT[locale].europe);
         await expect(page.getByTestId("back-to-continents")).toHaveAccessibleName(TEXT[locale].back);
-        await expect(page.getByTestId("levels").locator(":scope > li")).toHaveCount(7);
+        await expect(page.getByTestId("levels").locator(":scope > li")).toHaveCount(8);
         await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveAttribute("data-level", L3);
         expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${width}×${height} ${locale} Europe: horizontal scroll`).toBeLessThanOrEqual(0);
         await shot(page, `${locale}-europe-levels`);
@@ -449,7 +451,7 @@ test.describe("continents", () => {
     await page.getByTestId("home").click();
     await expect(page.getByTestId("continents")).toBeVisible();
     await expect(continueButton(page)).toHaveAttribute("data-level", L3);
-    await expect(progressText(page)).toHaveText("Completed: 2/7");
+    await expect(progressText(page)).toHaveText("Completed: 2/8");
     await page.reload();
     await expect(page.getByTestId("continents")).toBeVisible();
     expect(await screensSeen(page)).toEqual(["continents"]);
@@ -484,13 +486,13 @@ test.describe("continents", () => {
     await dialog.getByRole("button", { name: "Start over" }).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeVisible();
     await page.getByTestId("home").click();
-    await expect(progressText(page)).toHaveText("Completed: 2/7");
+    await expect(progressText(page)).toHaveText("Completed: 2/8");
     await expect(continueButton(page)).toHaveAttribute("data-level", L3);
     await europeName(page).click();
     await expect(page.getByTestId(`level-${L3}`).getByTestId("level-status")).toHaveText("In progress: Discover");
     await expect(page.getByTestId("level-along-the-adriatic").getByTestId("level-status")).toHaveText(/^Locked/);
 
-    // All seven completed, Level 2 played again: still seven of seven, nothing to continue, every level open.
+    // All eight completed, Level 2 played again: still eight of eight, nothing to continue, every level open.
     await open(page, ALL_DONE);
     await page.getByTestId("explore-europe").click();
     await page.getByTestId(`level-${L2}`).getByTestId("level-details-toggle").click();
@@ -498,11 +500,11 @@ test.describe("continents", () => {
     await dialog.getByRole("button", { name: "Play again" }).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeVisible();
     await page.getByTestId("home").click();
-    await expect(progressText(page)).toHaveText("Completed: 7/7");
+    await expect(progressText(page)).toHaveText("Completed: 8/8");
     // The replay of Level 2 is an attempt under way: Continue resumes it.
     await expect(continueButton(page)).toHaveAttribute("data-level", L2);
     await page.reload();
-    await expect(progressText(page)).toHaveText("Completed: 7/7");
+    await expect(progressText(page)).toHaveText("Completed: 8/8");
     await europeName(page).click();
     for (const id of L) await expect(page.getByTestId(`level-${id}`).getByTestId("level-status")).toHaveText("Completed");
   });
@@ -511,7 +513,7 @@ test.describe("continents", () => {
     test.skip(project() !== "small-phone", "Runs once.");
     await page.setViewportSize({ width: 320, height: 568 });
     await open(page, NEW);
-    await expect(progressText(page)).toHaveText("Completed: 0/7");
+    await expect(progressText(page)).toHaveText("Completed: 0/8");
     await page.getByTestId("explore-europe").click();
     await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Start\s*Level 1 · France and its neighbours$/);
     await expect(page.getByTestId(`level-${L2}`).getByTestId("level-status")).toHaveText(/^Locked/);
@@ -530,15 +532,16 @@ test.describe("continents", () => {
     await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveAttribute("data-level", L3);
   });
 
-  test("lightweight and responsive: no landscape or artwork downloads, and the layout follows the window as it changes", async ({ page }) => {
+  test("lightweight and responsive: no landscape or landmark downloads, and the layout follows the window as it changes", async ({ page }) => {
     test.skip(project() !== "desktop", "Runs once.");
     const requests: string[] = [];
     page.on("request", (r) => requests.push(new URL(r.url()).pathname));
     await open(page, LEVEL3);
     await page.waitForLoadState("networkidle");
-    // The map is drawn from data in the page's own code: no images, relief, map tiles or geographic data are fetched.
+    // The map is drawn from data in the page's own code, with only the home screen's own painted layers (the map's
+    // land and water, the scenery: static files of the app): no other image, relief, map tiles or geographic data.
     expect(requests.filter((p) => !p.startsWith("/_next/static/") && p !== "/" && !/^\/(icon\.svg|manifest\.webmanifest|favicon)/.test(p))).toEqual([]);
-    expect(requests.filter((p) => /\.(png|jpe?g|webp|avif|tif|json)$/.test(p))).toEqual([]);
+    expect(requests.filter((p) => /\.(png|jpe?g|webp|avif|tif|json)$/.test(p) && !/^\/_next\/static\/media\/(land|water|scenery)\.[\w-]+\.webp$/.test(p))).toEqual([]);
     // One page, resized: the names beside the map, under it, and back.
     for (const [width, height, where] of [[1366, 800, "beside"], [740, 360, "beside"], [390, 844, "under"], [1280, 900, "beside"]] as const) {
       await page.setViewportSize({ width, height });
@@ -546,7 +549,7 @@ test.describe("continents", () => {
       const asia = (await label(page, "asia").boundingBox())!;
       const placed = inside(asia, map) ? "on" : asia.x >= map.x + map.width - 0.5 ? "beside" : asia.y >= map.y + map.height - 0.5 ? "under" : "elsewhere";
       expect(placed, `${width}×${height}`).toBe(where);
-      expect(map.width / map.height, `${width}×${height}: map proportions`).toBeCloseTo(1000 / 520, 2);
+      expect(map.width / map.height, `${width}×${height}: map proportions`).toBeCloseTo(1000 / 500, 2);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${width}×${height}: horizontal scroll`).toBeLessThanOrEqual(0);
     }
   });

@@ -44,6 +44,7 @@ const LEVEL_AREAS = [
   { id: "towards-greece", countries: ["HUN", "ROU", "SRB", "BGR", "GRC"], coverageHalf: [1100, 600] },
   { id: "baltic-journey", countries: ["DEU", "POL", "LTU", "LVA", "EST"], coverageHalf: [1100, 570] },
   { id: "iberian-journey", countries: ["PRT", "ESP", "AND", "FRA", "ITA"], coverageHalf: [910, 885] },
+  { id: "eastern-europe", countries: ["POL", "BLR", "UKR", "MDA", "ROU"], coverageHalf: [720, 675] },
 ];
 /**
  * Where the zoomed tile grids are anchored: the corner of Level 1's pan area,

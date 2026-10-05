@@ -8,6 +8,7 @@
 //
 // See docs/DATA.md for the rationale behind each step.
 import mapshaper from "mapshaper";
+import { mergeArcs } from "topojson-client";
 import { readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
@@ -85,10 +86,35 @@ const commands = [
 
 await mapshaper.runCommands(commands);
 
-// Quantize on the fixed grid (as mapshaper's own export does: x * mx + bx, rounded),
-// delta-encode, and name the object `countries`.
 const topo = JSON.parse(readFileSync(raw, "utf8"));
 rmSync(raw);
+
+// Crimea is drawn as part of Ukraine, its internationally recognised country (UN General
+// Assembly resolution 68/262). Natural Earth's default Admin 0 file draws it as part of
+// Russia, the side in control ("de facto"); the map does not follow military control. So
+// the one part of Russia's shape that is the peninsula (with Sevastopol and the Arabat
+// Spit, all within CRIMEA) moves to Ukraine and is merged along the arc they share at
+// Perekop and Chonhar, which then belongs to no shape and is never drawn. No vertex moves,
+// and every other country's geometry is unchanged. Added with Level 8; see docs/DATA.md.
+const CRIMEA = [32.3, 44.3, 36.7, 46.3];
+{
+  const [key] = Object.keys(topo.objects);
+  const geometries = topo.objects[key].geometries;
+  const parts = (g) => (g.type === "Polygon" ? [g.arcs] : g.arcs);
+  const arcPoints = (i) => topo.arcs[i < 0 ? ~i : i];
+  const inCrimea = (polygon) => polygon.flat().flatMap(arcPoints).every(([x, y]) => x >= CRIMEA[0] && x <= CRIMEA[2] && y >= CRIMEA[1] && y <= CRIMEA[3]);
+  const rus = geometries.find((g) => g.id === "RUS");
+  const ukr = geometries.find((g) => g.id === "UKR");
+  const crimea = parts(rus).filter(inCrimea);
+  if (crimea.length !== 1) throw new Error(`Expected one part of Russia's shape in Crimea, found ${crimea.length}`);
+  const rest = parts(rus).filter((p) => !crimea.includes(p));
+  Object.assign(rus, rest.length === 1 ? { type: "Polygon", arcs: rest[0] } : { type: "MultiPolygon", arcs: rest });
+  const merged = mergeArcs(topo, [ukr, { type: "Polygon", arcs: crimea[0] }]);
+  Object.assign(ukr, merged.arcs.length === 1 ? { type: "Polygon", arcs: merged.arcs[0] } : { type: "MultiPolygon", arcs: merged.arcs });
+}
+
+// Quantize on the fixed grid (as mapshaper's own export does: x * mx + bx, rounded),
+// delta-encode, and name the object `countries`.
 const mx = GRID.xq / (GRID.xmax - GRID.xmin);
 const my = GRID.yq / (GRID.ymax - GRID.ymin);
 const [bx, by] = [0 - mx * GRID.xmin, 0 - my * GRID.ymin];

@@ -171,6 +171,10 @@ for (const lesson of Object.values(LESSONS)) {
       if (lesson.id === "iberian-journey") {
         expect(paths.map((p) => p.join("→"))).toEqual(["PRT→ESP→FRA→ITA"]);
       }
+      // One: Ukraine, the only country that borders both Poland and Moldova.
+      if (lesson.id === "eastern-europe") {
+        expect(paths.map((p) => p.join("→"))).toEqual(["POL→UKR→MDA"]);
+      }
       for (const path of paths) {
         const line = routeLine(path, settings);
         const others = lesson.countries.filter((id) => !path.includes(id));
@@ -225,6 +229,33 @@ describe("towards-greece: Greece's leg runs up its own mainland", () => {
         if (km(p, crossing) <= BORDER_TOLERANCE_KM) continue;
         expect(geoContains(shapeOf("GRC"), [...p]) || geoContains(shapeOf("BGR"), [...p]), `${p} at sea or abroad`).toBe(true);
         for (const id of ["MKD", "TUR", "ALB"]) expect(geoContains(shapeOf(id), [...p]), `${p} in ${id}`).toBe(false);
+      }
+    }
+  });
+});
+
+describe("eastern-europe: straight legs through real border crossings, on land", () => {
+  const lesson = LESSONS["eastern-europe"];
+  const settings = routeSettings(lesson);
+
+  it("needs no turning points and no fixed links: every leg is one straight line from a capital to a crossing", () => {
+    expect(lesson.map.routeVia ?? {}).toEqual({});
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+    // Romania and Ukraine meet twice (Maramureș and Bukovina; the Danube delta): the crossing is on the northern border.
+    expect(lesson.map.routeCrossings!["ROU-UKR"][1]).toBeGreaterThan(47.5);
+  });
+
+  it("draws Poland → Ukraine → Moldova on Polish, Ukrainian and Moldovan land, never in Belarus, Romania, Russia or at sea", () => {
+    const path = ["POL", "UKR", "MDA"];
+    const line = routeLine(path, settings);
+    // Warsaw, the Polish–Ukrainian crossing, Kyiv, the Ukrainian–Moldovan crossing, Chisinau.
+    expect(line).toHaveLength(5);
+    const crossings = Object.values(lesson.map.routeCrossings ?? {});
+    for (let i = 1; i < line.length; i++) {
+      for (const p of drawnSamples(lesson, line[i - 1], line[i], 300)) {
+        if (crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+        expect(path.some((id) => geoContains(shapeOf(id), [...p])), `${p} at sea or abroad`).toBe(true);
+        for (const id of ["BLR", "ROU", "RUS", "SVK", "HUN", "LTU"]) expect(geoContains(shapeOf(id), [...p]), `${p} in ${id}`).toBe(false);
       }
     }
   });
