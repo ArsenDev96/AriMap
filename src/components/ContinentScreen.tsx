@@ -1,6 +1,9 @@
 "use client";
 
-import type { Dispatch } from "react";
+import type { CSSProperties, Dispatch } from "react";
+import landArt from "@/assets/map/world/land.webp";
+import scenery from "@/assets/map/world/scenery.webp";
+import waterArt from "@/assets/map/world/water.webp";
 import { CONTINENTS, getContinent, hasPlayableLevels, type ContinentId, type ContinentInfo } from "@/core/lessons";
 import { continentProgress, levelToContinue, type AppAction, type AppState } from "@/core/progress/appState";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS, WORLD_SPHERE } from "@/data/geo/world-map";
@@ -18,39 +21,44 @@ interface Props {
 const CONTEXT_REGIONS = ["oceania", "antarctica"] as const;
 type Region = keyof typeof WORLD_REGIONS;
 
-/** Ids for the map's paints and its land clip (one world map on the page at a time). */
+/** Ids of the map's coastlines (one world map on the page at a time), reused by the cards' silhouettes. */
 const ID = {
-  water: "continents-water",
-  waterGrain: "continents-water-grain",
-  landGrain: "continents-land-grain",
-  landLight: "continents-land-light",
-  softLight: "continents-soft-light",
-  softShade: "continents-soft-shade",
-  land: "continents-land",
   region: (region: Region) => `continents-region-${region}`,
+  silhouette: (continent: ContinentId) => `continents-silhouette-${continent}`,
 };
+
+/**
+ * The page's painted scenery (a supplied painting, prepared by scripts/prepare-world-art.mjs): the sea and
+ * foliage at the foot of the page, as a CSS image (ContinentScreen.module.css). The map's own painted water
+ * and land (scripts/generate-world-art.mjs) are drawn in the map itself, in its own units, so they stay
+ * aligned with its coasts.
+ */
+const ART_VARS = {
+  "--scenery": `url(${scenery.src})`,
+} as CSSProperties;
 
 /**
  * Each category's silhouette on its card: a crop of the map's own land (the same geometry, in map
- * units), around its main landmass. North America's takes in Greenland; Europe's leaves out Svalbard.
+ * units), around its main landmass. North America's takes in Greenland but not the far Aleutians (past
+ * the map's edge, on its right); Europe's leaves out Svalbard and Franz Josef Land.
  */
 const SILHOUETTE_VIEW: Record<ContinentId, string> = {
-  europe: "418 30 202 118",
-  asia: "534 14 360 284",
-  africa: "418 135 197 242",
-  "north-america": "84 4 378 236",
-  "south-america": "239 216 139 225",
+  europe: "396 31 267 124",
+  asia: "533 15 474 273",
+  africa: "417 142 198 209",
+  "north-america": "-9 8 454 230",
+  "south-america": "239 211 138 197",
 };
 
 /**
- * The home screen: a world map of the continents, then the categories as cards under it (or beside
+ * The home screen: a flat world map of the continents, then the categories as cards under it (or beside
  * it, when the screen is short and wide for its text: a phone held sideways, a desktop). A continent
  * with playable levels (Europe) opens its level selection, from its land or its card (its name is the
  * card's one button, for the keyboard and assistive technology); the others are tiles that say
  * "Coming soon" and do nothing. Oceania and Antarctica are drawn as context only. Europe's levels
  * completed ("Completed: 2/8") are shown once, on its card, never on the map. The action area below
- * the content resumes the most recently active unfinished level (Continue), or else opens Europe
- * (Explore Europe). The page's frame (header, scrolling content, action area) is the level
+ * the content resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
+ * the level's title too in its accessible name), or else opens Europe (Explore Europe). The page's frame (header, scrolling content, action area) is the level
  * selection's (WelcomeScreen.module.css), in this screen's sky colours.
  */
 export function ContinentScreen({ state, dispatch }: Props) {
@@ -60,7 +68,9 @@ export function ContinentScreen({ state, dispatch }: Props) {
   const open = (continent: ContinentId) => dispatch({ type: "openContinent", continent });
 
   return (
-    <main className={`${page.page} ${styles.screen}`} data-testid="continents">
+    <main className={`${page.page} ${styles.screen}`} style={ART_VARS} data-testid="continents">
+      {/* Decoration only, behind everything: the sea and foliage at the foot of the page. */}
+      <div className={styles.scenery} aria-hidden="true" />
       <header className={`${page.compactHeader} ${styles.header}`} data-testid="welcome-hero">
         <div className={page.compactTop}>
           <div className={page.compactBrand}>
@@ -77,11 +87,8 @@ export function ContinentScreen({ state, dispatch }: Props) {
       <div className={`${page.scroll} ${styles.scroll}`} data-testid="continents-scroll">
         <div className={`${page.content} ${styles.content}`}>
           <section aria-labelledby="continents-title" className={styles.layout}>
-            {/* Between two small sun-rays, where the whole heading fits on one line beside them (see the CSS). */}
             <h2 id="continents-title" className={styles.title}>
-              <span className={styles.ray} aria-hidden="true" />
               <span className={styles.titleText}>{t("continents.title")}</span>
-              <span className={styles.ray} aria-hidden="true" />
             </h2>
 
             <div className={styles.mapColumn}>
@@ -93,17 +100,29 @@ export function ContinentScreen({ state, dispatch }: Props) {
                   aria-hidden="true"
                   focusable="false"
                 >
-                  <MapPaints />
-                  <path d={WORLD_SPHERE} fill={`url(#${ID.water})`} />
-                  <path className={styles.overlay} d={WORLD_SPHERE} fill={`url(#${ID.waterGrain})`} />
+                  {/* The painted water (a plain colour until it loads), and the straight lines of latitude and
+                      longitude on it. */}
+                  <path className={styles.water} d={WORLD_SPHERE} />
+                  <image className={styles.art} href={waterArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" />
                   <path className={styles.graticule} d={WORLD_GRATICULE} />
-                  {CONTEXT_REGIONS.map((region) => (
-                    <path key={region} id={ID.region(region)} className={styles.region} data-region={region} d={WORLD_REGIONS[region]} />
+                  {/* The coasts: each land in its colour (until the painted land loads) with a light edge on the water. */}
+                  {[...CONTEXT_REGIONS, ...CONTINENTS.map((c) => c.id)].map((region) => (
+                    <path
+                      key={region}
+                      id={ID.region(region)}
+                      className={styles.coast}
+                      // Oceania and Antarctica are drawn once, here; the categories again, on top, for taps.
+                      {...((CONTEXT_REGIONS as readonly string[]).includes(region) ? { "data-region": region } : { "data-coast": region })}
+                      d={WORLD_REGIONS[region]}
+                    />
                   ))}
+                  {/* The painted land: each continent's colour, shaded by its real terrain. */}
+                  <image className={styles.art} href={landArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" />
+                  {/* The categories' land, for taps (Europe's, the one that opens) and Europe's outline: unpainted
+                      inside, so the painted land shows through. */}
                   {CONTINENTS.map((c) => (
                     <path
                       key={c.id}
-                      id={ID.region(c.id)}
                       className={styles.region}
                       data-region={c.id}
                       data-status={hasPlayableLevels(c.id) ? "open" : "comingSoon"}
@@ -112,10 +131,6 @@ export function ContinentScreen({ state, dispatch }: Props) {
                       onClick={hasPlayableLevels(c.id) ? () => open(c.id) : undefined}
                     />
                   ))}
-                  {/* An atlas's light and grain on the land: still, drawn once, and never in a tap's way. */}
-                  <rect className={styles.overlay} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} fill={`url(#${ID.landGrain})`} clipPath={`url(#${ID.land})`} />
-                  <rect className={styles.overlay} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} fill={`url(#${ID.landLight})`} clipPath={`url(#${ID.land})`} />
-                  <path className={styles.rim} d={WORLD_SPHERE} />
                 </svg>
               </div>
             </div>
@@ -149,9 +164,9 @@ export function ContinentScreen({ state, dispatch }: Props) {
               {t("welcome.continue")}
               <ArrowIcon />
             </span>
+            {/* The continent and level, short, so the action area stays low; the title is in its accessible name. */}
             <span className={page.mainActionLevel}>
               {l(getContinent(resume.continent).name)} · {t("level.number", { number: resume.number })}
-              <span className={page.mainActionTitle}> · {l(resume.title)}</span>
             </span>
           </button>
         ) : (
@@ -174,64 +189,25 @@ export function ContinentScreen({ state, dispatch }: Props) {
 }
 
 /**
- * The map's paints: turquoise water, lighter at the centre; and, for an illustrated atlas's feel,
- * soft still blotches of light and shade on the water and the land, and light from above on the
- * land. Patterns and gradients only (no filters): drawn once, at any size, with nothing to download.
+ * A category's land, from the world map, alone: decorative (its name is beside it). Its outline in its colour
+ * with a light edge, and the map's painted land over it, clipped to that land (the image is already loaded for
+ * the map, and in the same units, so it lines up).
  */
-function MapPaints() {
-  // Soft blotches, each wholly inside its tile (one cut by the tile's edge would show a straight line).
-  const blots: [number, number, number, string][] = [
-    [40, 42, 36, ID.softLight],
-    [128, 34, 26, ID.softShade],
-    [104, 100, 34, ID.softLight],
-    [26, 112, 22, ID.softShade],
-    [158, 108, 20, ID.softShade],
-  ];
-  return (
-    <defs>
-      <radialGradient id={ID.water} cx="50%" cy="44%" r="64%">
-        <stop offset="0" stopColor="#8fe1f1" />
-        <stop offset="0.55" stopColor="#4cbbe0" />
-        <stop offset="1" stopColor="#268bc4" />
-      </radialGradient>
-      <radialGradient id={ID.softLight}>
-        <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
-        <stop offset="1" stopColor="#fff" stopOpacity="0" />
-      </radialGradient>
-      <radialGradient id={ID.softShade}>
-        <stop offset="0" stopColor="#0b3a5c" stopOpacity="0.5" />
-        <stop offset="1" stopColor="#0b3a5c" stopOpacity="0" />
-      </radialGradient>
-      <pattern id={ID.landGrain} width="180" height="140" patternUnits="userSpaceOnUse">
-        {blots.map(([cx, cy, r, paint]) => (
-          <circle key={`${cx},${cy}`} cx={cx} cy={cy} r={r} fill={`url(#${paint})`} opacity={paint === ID.softLight ? 0.4 : 0.14} />
-        ))}
-      </pattern>
-      <pattern id={ID.waterGrain} width="300" height="220" patternUnits="userSpaceOnUse">
-        {blots.map(([cx, cy, r, paint]) => (
-          <circle key={`${cx},${cy}`} cx={cx * 1.65} cy={cy * 1.55} r={r * 1.5} fill={`url(#${paint})`} opacity={paint === ID.softLight ? 0.22 : 0.1} />
-        ))}
-      </pattern>
-      <linearGradient id={ID.landLight} x1="0" y1="0" x2="0.35" y2="1">
-        <stop offset="0" stopColor="#fff" stopOpacity="0.22" />
-        <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
-        <stop offset="1" stopColor="#0b3a5c" stopOpacity="0.12" />
-      </linearGradient>
-      {/* All the land, from the paths drawn below (their shapes only). */}
-      <clipPath id={ID.land}>
-        {[...CONTEXT_REGIONS, ...CONTINENTS.map((c) => c.id)].map((region) => (
-          <use key={region} href={`#${ID.region(region)}`} />
-        ))}
-      </clipPath>
-    </defs>
-  );
-}
-
-/** A category's land, from the world map, alone: decorative (its name is beside it). */
 function Silhouette({ continent }: { continent: ContinentId }) {
   return (
     <svg className={styles.silhouette} viewBox={SILHOUETTE_VIEW[continent]} aria-hidden="true" focusable="false">
+      <clipPath id={ID.silhouette(continent)}>
+        <use href={`#${ID.region(continent)}`} />
+      </clipPath>
       <path d={WORLD_REGIONS[continent]} />
+      <image
+        className={styles.art}
+        href={landArt.src}
+        width={WORLD_MAP_WIDTH}
+        height={WORLD_MAP_HEIGHT}
+        preserveAspectRatio="none"
+        clipPath={`url(#${ID.silhouette(continent)})`}
+      />
     </svg>
   );
 }

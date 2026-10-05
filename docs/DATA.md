@@ -478,7 +478,7 @@ Capital and landmark positions (WGS84, `src/core/content/countries.ts`) are city
 
 ## World map (home screen)
 
-The continent menu is a small world map of geographic continents, drawn from real coastlines. It is separate from the playable map above: no AI-generated image, tiles, terrain or runtime map service, and nothing is downloaded when it shows.
+The continent menu is a flat, rectangular world map of geographic continents, drawn from real coastlines. It is separate from the playable map above: no AI-generated image, map tiles or runtime map service. Its geometry, taps and outlines are the SVG path data below; its illustrated look comes from a few small static images: the painted water and land, drawn over that geometry in the same units, and painted scenery at the foot of the page ("Illustrated layers", below).
 
 | | |
 |---|---|
@@ -486,7 +486,7 @@ The continent menu is a small world map of geographic continents, drawn from rea
 | Version | 5.1.1 (from `ne_110m_admin_0_countries.VERSION.txt`) |
 | Download | https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip (listed at https://www.naturalearthdata.com/downloads/110m-cultural-vectors/) |
 | License | Public domain. Natural Earth's terms of use: https://www.naturalearthdata.com/about/terms-of-use/ (attribution not required, but appreciated: "Made with Natural Earth.") |
-| Prepared file | `src/data/geo/world-map.ts` (SVG path data, already projected: ~40 KiB, ~16 KiB gzipped) |
+| Prepared file | `src/data/geo/world-map.ts` (SVG path data, already projected: ~37 KiB, ~15 KiB gzipped) |
 
 ```bash
 # download + unzip the Natural Earth archive first
@@ -504,9 +504,30 @@ What the script does:
    - **North America**: Central America to the Panama–Colombia border, the Caribbean, and Greenland. **Europe**: Iceland, Svalbard. **Asia**: Cyprus.
    - The French Southern and Antarctic Lands (Kerguelen), which Natural Earth puts in no continent, are drawn as context with Antarctica.
 3. **Merges** each continent into one outline (polygon-clipping), so no country borders are drawn inside it. Land just east of 180° (Chukotka, Wrangel Island, Fiji's eastern islands) is first moved beside the rest of its land, so it merges with no seam.
-4. **Projects** it with d3-geo's Natural Earth projection, centred on 11°E so the map's edge (169°W) falls in the Bering Strait: Chukotka stays whole with Asia and Alaska with North America. The whole sphere fits 1000 × 520 units (Natural Earth's own proportions; the page scales it, never stretching or cropping it). Paths are rounded to 0.1 unit. A 30° graticule is drawn faintly under the land (resampled more coarsely, to whole units).
+4. **Projects** it with d3-geo's equirectangular projection (plate carrée: a flat, rectangular map, longitude and latitude as straight lines), centred on 11°E so the map's edge (169°W) falls in the Bering Strait: Chukotka stays whole with Asia and Alaska with North America. The whole world, pole to pole, fits 1000 × 500 units (2:1; the page scales it, never stretching or cropping it), so Antarctica is a wide strip of ice along the bottom, as on any such map. Paths are rounded to 0.1 unit. A 30° graticule of straight lines is drawn faintly under the land, each line across the whole map (none along its edges). Until October 2026 the projection was Natural Earth (an oval, 1000 × 520); the continents, their boundaries and the rules above are unchanged.
 5. **Places the names**: the centre of each category's name on the map, as fractions of its width and height (Europe's just south of the continent, over the Mediterranean, so its land stays in view; the others on their land). Oceania and Antarctica have none.
 
 Only Europe, Asia, Africa, North America and South America are categories; Oceania and Antarctica stay on the map as context, with their land neither removed nor reshaped.
 
-**Verification:** `src/geo/worldMap.test.ts` checks there is land and a name's place for every continent category (and land for Oceania and Antarctica), that all land lies within the map at Natural Earth's proportions, and that the continents are where they belong relative to one another. `e2e/continents.spec.ts` checks the map keeps those proportions on every screen, is wholly on screen, and that loading the home screen fetches no image, relief or data file.
+### Illustrated layers
+
+The home screen's static images are in `src/assets/map/world/`. The page imports them like the landmark copies, so they are served from the app's own static files. Two scripts write them, and neither writes the other's files:
+
+- `node scripts/generate-world-art.mjs` draws the map's own layers, `land.webp` and `water.webp`, and nothing else.
+- `node scripts/prepare-world-art.mjs` makes the display copies of the supplied paintings. The originals (`cloud-corner.png`, `cloud-bank.png`, `scenery.png`, beside the copies) are kept unchanged (the two clouds are prepared but not drawn on the home screen); each copy is trimmed to its visible pixels and downsized to about 3× the widest it is drawn on a 390px phone (CSS images are served as they are, not resized by next/image), as WebP with transparency at quality 65 (indistinguishable from 82 at 1:1, at about half the size).
+
+| File | Size | What it is |
+|---|---|---|
+| `land.webp` | 2000×1000, 80 KiB | Each continent's land in its colour (Europe vivid green, Asia warm orange, Africa golden yellow, North America blue, South America pink; Oceania lavender and Antarctica ice-white as context). Lowlands lighter and highlands deeper, softened hillshade (light from the north-west) and a light rim inside the coast. A fine painted grain. Unshaded towards the poles (the terrain tiles stop at 85°). Transparent off the land. |
+| `water.webp` | 2000×1000, 32 KiB | The ocean across the whole map, bright turquoise: a little deeper in the open ocean, lighter over the shelves and pale by the coasts (from blurs of the land's own mask, not bathymetry), with soft brush strokes and broad, slow swells of lighter and deeper tone. Nothing follows the map's centre or edges (no globe-like shading, no glow at the edge). Opaque. |
+| `cloud-corner.webp`, `cloud-bank.webp` | 720×395, 26 KiB; 1280×266, 37 KiB (from 1604×980 and 2152×731 paintings) | Painted clouds, kept but not drawn on the home screen (their cut edges showed at the screen's corners and made the map look as if it floated). The page does not import them, so they are not part of its build. |
+| `scenery.webp` | 1280×396, 57 KiB (from 2048×768, 2.2 MB) | A painted calm turquoise sea under a pale horizon with distant hills, framed by tropical foliage at the corners, at the foot of the page behind the main action on a phone held upright (118% of the screen's width, at its own proportions); not drawn in the wide layouts. Transparent above the horizon. |
+
+- **Aligned with the geometry.** The land and water are rasterised at 2× the map's own units (the painted grain kept at the size it was tuned at), from the same paths (`WORLD_REGIONS`) and the same equirectangular projection (checked by the script). The page draws them as `<image>`s filling the map's viewBox, and rounds the map's corners (a CSS `clip-path`, which cuts drawing and taps alike). The coasts, Europe's outline and every tap target stay vector paths on top: the painted land is never a hit area, and Europe's land answers taps exactly as before. The cards' silhouettes reuse `land.webp`, clipped to their continent's path.
+- **Elevation**: Terrain Tiles (Mapzen/Tilezen "Terrarium", AWS Open Data) at zoom 3, cached in `node_modules/.cache/arimap-terrain` like the relief's (docs/TERRAIN.md has the sources and their credits). It shades the land only; the colours are the continents' categories, not land cover.
+- **Painted and procedural.** The scenery is a supplied painting. The land's colour and the water's texture are procedural (terrain shading and noise), not hand-painted.
+- **Decoration only.** The scenery is a CSS image on an empty `aria-hidden` layer, behind the text and controls and never a tap's target; drawn at their own proportions, never stretched.
+- **Reused on Europe's level selection.** Its banner (`EuropeBanner` in `src/components/WelcomeScreen.tsx`) is the same map cropped to Europe (30–78°N, Crete to Novaya Zemlya with a little sea around them; Svalbard's north is cut): `water.webp`, Europe's painted land from `land.webp` clipped to Europe's path, the other land as a pale vector fill, and the same grid. No other image or download; decorative and hidden from assistive technology.
+- Static and cheap to show: no filters, no animation and no live effects. The only extra compositing is a short fade (`mask-image`) where the scrolling content meets the action area.
+
+**Verification:** `src/geo/worldMap.test.ts` checks there is land and a name's place for every continent category (and land for Oceania and Antarctica), that all land lies within the map at its 2:1 proportions, and that the continents are where they belong relative to one another. `e2e/continents.spec.ts` checks the map keeps those proportions on every screen, is wholly on screen, and that loading the home screen fetches no image but its own three painted layers, and no relief or data file.

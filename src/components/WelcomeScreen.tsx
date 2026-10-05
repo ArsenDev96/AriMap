@@ -2,9 +2,12 @@
 
 import Image from "next/image";
 import { useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
+import landArt from "@/assets/map/world/land.webp";
+import waterArt from "@/assets/map/world/water.webp";
 import { getCountry } from "@/core/content/countries";
 import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
+import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS } from "@/data/geo/world-map";
 import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
 import { LanguageToggle, STEPS } from "./Header";
 import { useI18n } from "./i18n";
@@ -114,12 +117,12 @@ export function WelcomeScreen({ state, dispatch }: Props) {
           area: nothing is covered. */}
       <div ref={scrollRef} className={styles.scroll} data-testid="welcome-scroll">
         <div className={styles.content}>
-          {returning && (
-            // The artwork as a slim ribbon (only where there is room for it), so the levels come first.
-            <WelcomeArt compact />
-          )}
-
           <section aria-labelledby="levels-title" className={styles.levelsSection}>
+            {returning && continent.id === "europe" && (
+              // A small map of Europe (only where there is room for it): above the title on a phone, beside
+              // it on a wide screen, so the levels come first.
+              <EuropeBanner />
+            )}
             {/* The page's title: the continent, where "Choose a level" was. */}
             <h1 id="levels-title" className={styles.levelsTitle} data-testid="continent-title">
               {l(continent.name)}
@@ -579,21 +582,38 @@ function StatusIcon({ kind }: { kind: LevelStatus["kind"] }) {
   }
 }
 
-/** Level 1's five landmarks as stickers along a dashed route: a decorative start to the adventure. */
-const ART = ["eiffel-tower", "atomium", "amsterdam-canal-houses", "adolphe-bridge", "brandenburg-gate"] as const;
+/**
+ * The part of the home screen's world map (src/data/geo/world-map.ts, map units) the banner shows: Europe
+ * whole from Crete to Novaya Zemlya, with a little sea around it (30–78°N), centred on it, with as much of
+ * the Atlantic, Africa and Asia either side as the banner's shape leaves room for (it is cropped to fill
+ * the banner, never stretched).
+ */
+const EUROPE_VIEW = "50 33 950 134";
 
-/** `compact`: a slim ribbon for returning players, shown only where the screen has room (see the CSS). */
-function WelcomeArt({ compact = false }: { compact?: boolean }) {
+/**
+ * Europe, as a small illustrated map: the home screen's painted water and Europe's painted land (green,
+ * with its relief), clipped to Europe's own coastline, the neighbouring land a quiet pale green, and the
+ * map's faint grid. Real geography only (the world map's data and images, already in the app's files: no
+ * other download). Decorative: no names, nothing to press; the heading beside it says "Europe".
+ */
+function EuropeBanner() {
+  const clip = useId();
   return (
-    <div className={`${styles.art} ${compact ? styles.artCompact : ""}`} aria-hidden="true" data-testid="welcome-art">
-      <svg className={styles.artRoute} viewBox="0 0 300 100" preserveAspectRatio="none">
-        <path d="M18 70 C 70 20, 100 90, 150 50 S 240 20, 282 62" fill="none" />
+    <div className={styles.banner} aria-hidden="true" data-testid="welcome-art">
+      <svg className={styles.bannerMap} viewBox={EUROPE_VIEW} preserveAspectRatio="xMidYMid slice" focusable="false">
+        <image href={waterArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" />
+        <path className={styles.bannerGrid} d={WORLD_GRATICULE} />
+        {(Object.keys(WORLD_REGIONS) as (keyof typeof WORLD_REGIONS)[])
+          .filter((region) => region !== "europe")
+          .map((region) => (
+            <path key={region} className={styles.bannerLand} d={WORLD_REGIONS[region]} />
+          ))}
+        <clipPath id={clip}>
+          <path d={WORLD_REGIONS.europe} />
+        </clipPath>
+        <path className={styles.bannerEurope} d={WORLD_REGIONS.europe} />
+        <image href={landArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" clipPath={`url(#${clip})`} />
       </svg>
-      {ART.map((id) => (
-        <div key={id} className={styles.sticker}>
-          <Image src={LANDMARK_IMAGES[id]} alt="" fill sizes="96px" className={styles.stickerImage} />
-        </div>
-      ))}
     </div>
   );
 }

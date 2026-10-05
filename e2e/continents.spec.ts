@@ -200,10 +200,10 @@ async function expectMapLayout(page: Page, where: string, { size = 100, layout }
   expect(action.height, `${where}: main action touch target`).toBeGreaterThanOrEqual(44);
   expect(action.x + action.width, `${where}: main action off screen`).toBeLessThanOrEqual(width + 0.5);
 
-  // The whole world, never stretched: the map's proportions are its data's (1000 × 520), all of it on screen
+  // The whole world, never stretched: the map's proportions are its data's (1000 × 500), all of it on screen
   // sideways and, at the default text size (enlarged text may need a scroll), in the content's view as it opens.
   const map = (await page.getByTestId("world-map").locator("svg").boundingBox())!;
-  expect(map.width / map.height, `${where}: map proportions`).toBeCloseTo(1000 / 520, 2);
+  expect(map.width / map.height, `${where}: map proportions`).toBeCloseTo(1000 / 500, 2);
   expect(map.x >= -0.5 && map.x + map.width <= width + 0.5, `${where}: map off screen sideways`).toBe(true);
   expect(map.width, `${where}: map width`).toBeGreaterThanOrEqual(199);
   if (size === 100) expect(inside(map, scrollBox), `${where}: the whole map in view as the page opens`).toBe(true);
@@ -532,15 +532,16 @@ test.describe("continents", () => {
     await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveAttribute("data-level", L3);
   });
 
-  test("lightweight and responsive: no landscape or artwork downloads, and the layout follows the window as it changes", async ({ page }) => {
+  test("lightweight and responsive: no landscape or landmark downloads, and the layout follows the window as it changes", async ({ page }) => {
     test.skip(project() !== "desktop", "Runs once.");
     const requests: string[] = [];
     page.on("request", (r) => requests.push(new URL(r.url()).pathname));
     await open(page, LEVEL3);
     await page.waitForLoadState("networkidle");
-    // The map is drawn from data in the page's own code: no images, relief, map tiles or geographic data are fetched.
+    // The map is drawn from data in the page's own code, with only the home screen's own painted layers (the map's
+    // land and water, the scenery: static files of the app): no other image, relief, map tiles or geographic data.
     expect(requests.filter((p) => !p.startsWith("/_next/static/") && p !== "/" && !/^\/(icon\.svg|manifest\.webmanifest|favicon)/.test(p))).toEqual([]);
-    expect(requests.filter((p) => /\.(png|jpe?g|webp|avif|tif|json)$/.test(p))).toEqual([]);
+    expect(requests.filter((p) => /\.(png|jpe?g|webp|avif|tif|json)$/.test(p) && !/^\/_next\/static\/media\/(land|water|scenery)\.[\w-]+\.webp$/.test(p))).toEqual([]);
     // One page, resized: the names beside the map, under it, and back.
     for (const [width, height, where] of [[1366, 800, "beside"], [740, 360, "beside"], [390, 844, "under"], [1280, 900, "beside"]] as const) {
       await page.setViewportSize({ width, height });
@@ -548,7 +549,7 @@ test.describe("continents", () => {
       const asia = (await label(page, "asia").boundingBox())!;
       const placed = inside(asia, map) ? "on" : asia.x >= map.x + map.width - 0.5 ? "beside" : asia.y >= map.y + map.height - 0.5 ? "under" : "elsewhere";
       expect(placed, `${width}×${height}`).toBe(where);
-      expect(map.width / map.height, `${width}×${height}: map proportions`).toBeCloseTo(1000 / 520, 2);
+      expect(map.width / map.height, `${width}×${height}: map proportions`).toBeCloseTo(1000 / 500, 2);
       expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${width}×${height}: horizontal scroll`).toBeLessThanOrEqual(0);
     }
   });

@@ -18,8 +18,8 @@ describe("world map", () => {
     for (const id of ["oceania", "antarctica"] as const) expect(WORLD_REGIONS[id], id).toMatch(/^M/);
   });
 
-  it("keeps all land within the map, at Natural Earth's proportions", () => {
-    expect(WORLD_MAP_WIDTH / WORLD_MAP_HEIGHT).toBeCloseTo(1.92, 1);
+  it("keeps all land within the map, a flat equirectangular map twice as wide as it is tall", () => {
+    expect(WORLD_MAP_WIDTH / WORLD_MAP_HEIGHT).toBe(2);
     for (const [id, d] of Object.entries(WORLD_REGIONS))
       for (const [x, y] of points(d)) expect(x >= -0.5 && x <= WORLD_MAP_WIDTH + 0.5 && y >= -0.5 && y <= WORLD_MAP_HEIGHT + 0.5, `${id} ${x},${y}`).toBe(true);
   });

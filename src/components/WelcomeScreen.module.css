@@ -36,96 +36,15 @@
   background: var(--bg);
 }
 
-/* The adventure's opening page: the five landmarks as stickers along a dashed
-   route, on a pale-blue notebook page with a light dot grid. Static: no animation. */
-.art {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: clamp(96px, 30vw, 150px);
-  padding: 0 8px;
-  border-radius: var(--radius);
-  border: var(--card-border);
-  background:
-    radial-gradient(circle, rgba(59, 155, 220, 0.18) 1.2px, transparent 1.6px) 0 0 / 16px 16px,
-    linear-gradient(160deg, var(--sky-soft), var(--mint-soft) 60%, var(--peach));
-}
-
-.artRoute {
-  position: absolute;
-  inset: 12% 4%;
-  width: 92%;
-  height: 76%;
-}
-
-.artRoute path {
-  stroke: var(--ink);
-  stroke-opacity: 0.45;
-  stroke-width: 2.5px;
-  stroke-dasharray: 2 7;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-
-.sticker {
-  position: relative;
-  flex: 0 1 auto;
-  width: clamp(54px, 17vw, 92px);
-  aspect-ratio: 1;
-  margin: 0 -3px;
-  border-radius: 16px;
-  border: 3px solid #fff;
-  background: var(--surface);
-  box-shadow: 0 3px 8px rgba(31, 58, 95, 0.14);
-}
-
-/* A playful, uneven line of stickers. */
-.sticker:nth-of-type(1) {
-  transform: translateY(8%) rotate(-7deg);
-}
-.sticker:nth-of-type(2) {
-  transform: translateY(-10%) rotate(5deg);
-}
-.sticker:nth-of-type(3) {
-  transform: translateY(6%) rotate(-3deg);
-}
-.sticker:nth-of-type(4) {
-  transform: translateY(-8%) rotate(6deg);
-}
-.sticker:nth-of-type(5) {
-  transform: translateY(7%) rotate(-5deg);
-}
-
-.stickerImage {
-  object-fit: contain;
-  padding: 5px;
-}
-
-/* Short screens: the illustration and spacing shrink first; text keeps its size. */
+/* Short screens: the spacing shrinks first; text keeps its size. */
 @media (max-height: 700px) {
   .content {
     gap: 12px;
     padding-top: 8px;
   }
-  .art {
-    height: clamp(72px, 22vw, 110px);
-  }
-  .sticker {
-    width: clamp(46px, 13vw, 70px);
-    border-width: 2px;
-  }
 }
 
 @media (max-height: 600px) {
-  .art {
-    height: 64px;
-  }
-  .sticker {
-    width: 42px;
-    border-radius: 12px;
-  }
   .levels .levelCard {
     padding: 14px 16px 16px;
   }
@@ -234,22 +153,6 @@
   }
 }
 
-.art.artCompact {
-  height: 60px;
-}
-
-.artCompact .sticker {
-  width: 46px;
-  border-width: 2px;
-  border-radius: 12px;
-}
-
-@media (max-height: 700px) {
-  .art.artCompact {
-    display: none;
-  }
-}
-
 /* Level selection ------------------------------------------------------ */
 /* A continent's level selection: Back to the continents in the header, beside the language. */
 .back {
@@ -281,6 +184,91 @@
   font-size: 1.25rem;
   font-weight: 900;
   line-height: 1.2;
+}
+
+/* Returning players' banner: Europe as a small illustrated map (EuropeBanner in WelcomeScreen.tsx), in the
+   home screen's painted water and land. Shallow on a phone, across the column above the title; beside the
+   title on a wide screen. Left out on a short screen, and on any screen short for its text (enlarged text),
+   so the levels come first. */
+.banner {
+  flex: none;
+  width: 100%;
+  height: 64px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  border: 1px solid rgba(38, 139, 196, 0.2);
+  background: #2cbbe9;
+  box-shadow: 0 6px 16px rgba(31, 90, 140, 0.08);
+}
+
+.bannerMap {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The map's faint grid, as on the home screen. */
+.bannerGrid {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.28;
+  stroke-width: 0.6px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The neighbouring land: a quiet pale green with a light coast, so Europe leads. */
+.bannerLand {
+  fill: #d3ecd5;
+  stroke: #fff;
+  stroke-opacity: 0.8;
+  stroke-width: 1px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Europe: its green (until the painted land over it loads) and a light coast on the water. */
+.bannerEurope {
+  fill: #44c95b;
+  stroke: #fff;
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (max-height: 700px) {
+  .banner {
+    display: none;
+  }
+}
+
+@container welcome (max-height: 32rem) {
+  .banner {
+    display: none;
+  }
+}
+
+/* A wide screen: the map beside the title (and the "all completed" message), the levels under both. */
+@media (min-width: 720px) {
+  .levelsSection:has(> .banner) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px 20px;
+  }
+  .levelsSection > .banner {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    width: clamp(280px, 32vw, 380px);
+    height: 96px;
+  }
+  .levelsSection:has(> .banner) > :not(.banner) {
+    grid-column: 1;
+  }
+  .levelsSection:has(> .banner) > .levels {
+    grid-column: 1 / -1;
+  }
 }
 
 .levels {
@@ -509,19 +497,24 @@
   grid-area: 3 / 1 / 4 / -1;
 }
 
-/* A completed level's best stars, in its status pill in place of the icon, sized with its text. */
+/* A completed level's best stars, in its status pill in place of the icon: about 22px each at the usual
+   text size (1.4rem: they grow with the text, not with the pill's smaller words), a little apart. */
 .status > .levelStars {
   display: inline-flex;
   flex: none;
-  margin-top: 0.05em;
-  font-size: 0.8em;
+  font-size: 1rem;
 }
 
-/* With its stars, "Completed" goes under them when it can't fit beside them (very large text on a
-   narrow phone): the stars stay together on their line, and the words get the pill's whole width,
-   wrapping between words, at their full size. */
+.levelStars > span {
+  gap: 0.2em;
+}
+
+/* With its stars, "Completed" goes under them when it can't fit beside them (a narrow card, large
+   text): the stars stay together on their line, and the words get the pill's whole width, wrapping
+   between words, at their full size. Beside them, the words are centred on the stars. */
 .status:has(> .levelStars) {
   flex-wrap: wrap;
+  align-items: center;
   row-gap: 2px;
 }
 
@@ -859,15 +852,6 @@
 
 .levelsPage .levelsTitle {
   font-size: 1.5rem;
-}
-
-/* The returning players' ribbon of landmarks: a white strip with a breath of sky. */
-.levelsPage .art {
-  border: 1px solid var(--sky-line);
-  background:
-    radial-gradient(circle, rgba(59, 155, 220, 0.14) 1.2px, transparent 1.6px) 0 0 / 16px 16px,
-    linear-gradient(160deg, #ffffff, #eef8fd 60%, #fff6ea);
-  box-shadow: 0 6px 16px rgba(31, 90, 140, 0.08);
 }
 
 /* Each level's own colour, for its card's edge, its number and its picture's tile: decorative,

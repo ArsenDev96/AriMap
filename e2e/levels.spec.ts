@@ -547,9 +547,10 @@ test.describe("returning players", () => {
           await expect(hero.getByRole("group")).toBeVisible();
           await expect(page.getByRole("heading", { level: 1 })).toHaveText(locale === "en" ? "Europe" : "Եվրոպա");
           await expect(page.getByText(locale === "en" ? "Learn where countries are on the map" : "Սովորիր, թե որտեղ")).toHaveCount(0);
-          // The artwork is a slim ribbon, left out on short screens.
+          // The map of Europe is shallow: a strip above the title on a phone, beside it on a wide screen; left out
+          // on short screens.
           if (height <= 700) await expect(page.getByTestId("welcome-art")).toBeHidden();
-          else expect((await page.getByTestId("welcome-art").boundingBox())!.height, where).toBeLessThanOrEqual(64);
+          else expect((await page.getByTestId("welcome-art").boundingBox())!.height, where).toBeLessThanOrEqual(width >= 720 ? 96 : 64);
 
           // Eight levels, in order.
           const cards = page.getByTestId("levels").locator(":scope > li > article");
@@ -669,7 +670,7 @@ test.describe("returning players", () => {
     await page.reload();
     await expect(page.getByTestId("up-next")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
-    // Images (the ribbon's stickers) have their size before they load: nothing moves once they do.
+    // Images (the map of Europe's, the cards' pictures) have their size before they load: nothing moves once they do.
     await page.waitForLoadState("networkidle");
     const frames = await page.evaluate(() => (window as unknown as { welcomeFrames: string[] }).welcomeFrames);
     expect(frames.length, `frames: ${frames}`).toBe(1);
