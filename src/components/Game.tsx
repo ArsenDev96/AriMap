@@ -41,7 +41,7 @@ export default function Game() {
       ) : state.screen === "levels" ? (
         <WelcomeScreen state={state} dispatch={dispatch} />
       ) : (
-        <LessonScreen lesson={lesson} progress={progress} next={nextLevel(state, lesson.id)} dispatch={dispatch} />
+        <LessonScreen lesson={lesson} progress={progress} next={nextLevel(state, lesson.id)} newBest={state.newBest === lesson.id} dispatch={dispatch} />
       )}
     </I18nProvider>
   );

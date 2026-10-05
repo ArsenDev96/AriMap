@@ -149,4 +149,17 @@ export const en = {
   "results.nextLevelLabel": "Next level: {level}, {title}",
   "results.backToLevels": "Back to levels",
   "results.backToLevelsLabel": "Back to levels: {continent}",
+
+  "stars.title": "Stars",
+  "stars.count": "{count} of 3 stars",
+  "stars.thisAttempt": "This attempt",
+  "stars.best": "Best",
+  "stars.bestLabel": "Best: {stars}",
+  "stars.newBest": "New best!",
+  "stars.next.findMost": "Nice work! For the next star, find at least {most} of the {total} countries on the first try, without hints.",
+  "stars.next.findAll": "So close! For the next star, find all {total} countries on the first try, without hints.",
+  "stars.next.travel": "So close! For the next star, finish the journey without help: no Hint or Undo.",
+  "stars.next.findAllAndTravel": "Nice work! For the next star, find all {total} countries on the first try without hints, and finish the journey without help.",
+  "stars.journeyReplay": "Replaying the journey doesn't change your stars. Play the whole level again to earn more.",
+  "stars.journeyReplayNone": "Replaying the journey doesn't earn stars. Play the whole level to earn them.",
 } as const;

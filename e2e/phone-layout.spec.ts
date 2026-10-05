@@ -309,10 +309,19 @@ const cardsLayout = (page: Page) =>
         return words;
       };
       const words = wordsOf(title);
-      // A completed card's status, in its head: its words, and what its pill adds around them (icon, padding).
+      // A completed card's status, in its head: its words, and what its pill adds beside them (icon or
+      // stars, the gap, padding), from the parts, as the words may have gone under a rated pill's stars.
+      // Only padding where they can go under (a rated pill), so a word there breaks only if wider than that.
       const status = head.querySelector('[data-testid="level-status"]');
       const statusText = status?.lastElementChild;
-      const statusChrome = status && statusText ? status.getBoundingClientRect().width - statusText.getBoundingClientRect().width : 0;
+      let statusChrome = 0;
+      let statusMinChrome = 0;
+      if (status && statusText && status.firstElementChild !== statusText) {
+        const s = getComputedStyle(status);
+        statusMinChrome = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight) + parseFloat(s.borderLeftWidth) + parseFloat(s.borderRightWidth);
+        statusChrome = statusMinChrome + status.firstElementChild!.getBoundingClientRect().width + (parseFloat(s.columnGap) || 0);
+        if (!status.querySelector('[data-testid="level-stars"]')) statusMinChrome = statusChrome;
+      }
       range.selectNodeContents(title);
       const glyphs = [...range.getClientRects()].filter((r) => r.width > 0);
       const sides = [...head.querySelectorAll(":scope > [data-level-side]")];
@@ -332,6 +341,7 @@ const cardsLayout = (page: Page) =>
         words,
         statusWords: wordsOf(statusText),
         statusChrome,
+        statusMinChrome,
       };
     });
   });
@@ -365,12 +375,12 @@ async function expectCardsClear(page: Page, where: string) {
       expect.soft(c.title.left, `${w}: title not beside the badge`).toBeGreaterThanOrEqual(c.badge.right + HEAD_GAP - 0.5);
     }
     // A word is broken only when it is wider than the title's whole box; a status word only when
-    // it can't fit the card's whole width in its pill.
+    // it can't fit the card's whole width in its pill (under a rated pill's stars, if need be).
     for (const x of c.words) {
       if (x.lines > 1) expect.soft(x.natural, `${w}: «${x.text}» broken though it fits the title's ${c.title.width.toFixed(1)}px`).toBeGreaterThan(c.title.width + 0.5);
     }
     for (const x of c.statusWords) {
-      if (x.lines > 1) expect.soft(x.natural + c.statusChrome, `${w}: status word «${x.text}» broken though it fits`).toBeGreaterThan(full + 0.5);
+      if (x.lines > 1) expect.soft(x.natural + c.statusMinChrome, `${w}: status word «${x.text}» broken though it fits`).toBeGreaterThan(full + 0.5);
     }
     // Nothing overlaps; everything inside the card.
     const parts = ([["badge", c.badge], ["number", c.number], ["status", c.status], ["chevron", c.chevron], ["title", c.title]] as [string, Box | null][]).filter(
@@ -462,6 +472,9 @@ const openAllCards = async (page: Page) => {
     if ((await toggle.getAttribute("aria-expanded")) === "false") await toggle.evaluate((el: HTMLElement) => el.click());
   }
   await fontsSettled(page);
+  // Each chevron turns over as its card opens (0.2s): measured once still, never mid-turn (a turning
+  // chevron's box is wider, which would understate the title's room).
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished.catch(() => undefined))));
 };
 
 test.describe("level cards", () => {

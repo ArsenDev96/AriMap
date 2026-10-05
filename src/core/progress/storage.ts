@@ -15,6 +15,7 @@ import {
   type LessonStage,
   type TravelResult,
 } from "../lesson/progress";
+import { attemptRating, betterRating, isStarRating } from "../lesson/rating";
 import { canPlay, createInitialState, STATE_VERSION, type AppState } from "./appState";
 
 export const STORAGE_KEY = "arimap:state";
@@ -56,7 +57,8 @@ function backUpOtherVersion(storage: KeyValueStorage, raw: string | null) {
 
 export function saveAppState(storage: KeyValueStorage | null, state: AppState): void {
   try {
-    storage?.setItem(STORAGE_KEY, JSON.stringify(state));
+    // "New best!" belongs to the moment it was earned: never saved, so a refresh never shows it again.
+    storage?.setItem(STORAGE_KEY, JSON.stringify({ ...state, newBest: undefined }));
   } catch {
     // Storage full or blocked (private mode): the game keeps working in memory.
   }
@@ -165,6 +167,15 @@ export function parseLessonProgress(lesson: LessonDefinition, value: unknown): L
   const saved = value.stage === "findSummary" ? "find" : value.stage;
   const stage = STAGES.includes(saved as LessonStage) ? (saved as LessonStage) : "discover";
   progress.stage = stageIsConsistent(stage, progress) ? stage : "discover";
+
+  // A journey replay is only ever in Travel or at its Results. Saves from before ratings don't say:
+  // a journey under way in a completed level may be one, so it is taken as one (never rated).
+  const replay = typeof value.journeyReplay === "boolean" ? value.journeyReplay : progress.stage === "travel" && progress.records.travelDone;
+  progress.journeyReplay = replay && progress.records.findDone && (progress.stage === "travel" || progress.stage === "results");
+  // The rating of the Results kept (a full attempt's, with its complete Find and journey) counts
+  // towards the best: so a save from before ratings gets the stars its own results support, and a
+  // completion record alone gets none.
+  progress.records.bestRating = betterRating(progress.records.bestRating, attemptRating(progress));
   return progress;
 }
 
@@ -197,6 +208,8 @@ function parseRecords(lesson: LessonDefinition, v: unknown): LessonRecords {
     lastFindScore: parseScore(lesson, v.lastFindScore),
     bestFindScore: parseScore(lesson, v.bestFindScore),
     travelWithoutHelp: v.travelWithoutHelp === true,
+    // A rating is only ever earned by completing the level; anything else stored is ignored.
+    bestRating: isStarRating(v.bestRating) && v.travelDone === true ? v.bestRating : null,
   };
 }
 
