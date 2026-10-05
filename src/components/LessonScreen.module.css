@@ -52,6 +52,10 @@
   flex: 1 0 min(max(0px, (1rem - 16px) * 18), 100% - 120px);
   min-height: 0;
   overflow-y: auto;
+  /* The containing block of the hidden headings and labels inside (.visually-hidden is absolutely
+     positioned), so they scroll and clip with the panel: below its fold they would otherwise
+     lengthen the page itself, which could then scroll the header out of view. */
+  position: relative;
   padding: 14px 16px 0;
   display: flex;
   flex-direction: column;

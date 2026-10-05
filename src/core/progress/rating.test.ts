@@ -145,6 +145,38 @@ describe("star ratings: one rule for every level", () => {
     expect([attemptRating(at(s)), at(s).records.bestRating, s.newBest]).toEqual([3, 3, L1]);
   });
 
+  it("one full attempt, not one sitting: paused with Home, refreshed and resumed later, in Find and on the journey, it is still rated", () => {
+    const lesson = LESSONS[L1];
+    const [route, answer] = [ROUTE[L1], (target: string) => [play({ type: "findGuess", country: target }), play({ type: "findNext" })]];
+    // Away and back: Home, a refresh, another level played a little, then this one resumed where it was.
+    const pause = (s: AppState) => run(refresh(run(s, { type: "goHome" })), open(L2), play({ type: "startFinding", order: [...LESSONS[L2].countries] }), open(L1));
+    // An earlier best of 1 star, then Play again.
+    let s = run(attempt(run(createInitialState(), open(L1)), { firstTry: 3 }), restart(L1));
+    s = run(s, play({ type: "startFinding", order: [...lesson.countries] }), ...lesson.countries.slice(0, 2).flatMap(answer));
+    s = pause(s);
+    expect(at(s)).toMatchObject({ stage: "find", journeyReplay: false, records: { bestRating: 1 } });
+    s = run(s, ...lesson.countries.slice(2).flatMap(answer), play({ type: "findToTravel" }), play({ type: "travelMove", country: route[1] }));
+    s = pause(s);
+    expect(at(s)).toMatchObject({ stage: "travel", journeyReplay: false, travel: { path: route.slice(0, 2) } });
+    s = run(s, ...route.slice(2).map((country) => play({ type: "travelMove", country })));
+    // All 5 on the first try and the journey without help, across the pauses: 3 stars, a New best.
+    expect([attemptRating(at(s)), at(s).records.bestRating, s.newBest]).toEqual([3, 3, L1]);
+    expect(refresh(s).levels[L1].records.bestRating).toBe(3);
+  });
+
+  it("a journey replay paused and resumed still rates nothing; starting over during one keeps the best", () => {
+    let s = attempt(run(createInitialState(), open(L1)), { firstTry: 5, travelHelp: "hint" });
+    s = run(s, play({ type: "replayTravel" }), play({ type: "travelMove", country: ROUTE[L1][1] }));
+    s = run(refresh(run(s, { type: "goHome" })), open(L1));
+    expect(at(s)).toMatchObject({ stage: "travel", journeyReplay: true });
+    s = run(s, play({ type: "travelMove", country: ROUTE[L1][2] }));
+    expect([at(s).stage, attemptRating(at(s)), at(s).records.bestRating, s.newBest]).toEqual(["results", null, 2, undefined]);
+    // Replay again, then Play again from the level's card mid-journey: a fresh full attempt, the best kept.
+    s = run(s, play({ type: "replayTravel" }), { type: "goHome" }, restart(L1));
+    expect(at(s)).toMatchObject({ stage: "discover", journeyReplay: false, records: { bestRating: 2, travelDone: true } });
+    expect(refresh(s).levels[L1].records.bestRating).toBe(2);
+  });
+
   it("a refresh keeps the ratings with their Results; New best is never saved", () => {
     let s = attempt(run(createInitialState(), open(L1)), { firstTry: 3 });
     s = attempt(run(s, restart(L1)), { firstTry: 5 });

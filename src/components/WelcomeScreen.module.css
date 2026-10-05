@@ -517,6 +517,14 @@
   font-size: 0.8em;
 }
 
+/* With its stars, "Completed" goes under them when it can't fit beside them (very large text on a
+   narrow phone): the stars stay together on their line, and the words get the pill's whole width,
+   wrapping between words, at their full size. */
+.status:has(> .levelStars) {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+
 .details {
   display: flex;
   flex-direction: column;

@@ -426,14 +426,22 @@ function stackLevelHeads(list: HTMLElement) {
     // The title's room beside the badge and chevron: the same in either layout.
     let room = head.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
     for (const side of head.querySelectorAll(":scope > [data-level-side]")) {
-      const width = side.getBoundingClientRect().width;
+      // Its width as laid out, not its box on screen: a chevron turning over (0.2s, as a card
+      // opens) has a wider box mid-turn, which would understate the room. Hidden: none.
+      const width = side.getBoundingClientRect().width > 0 ? parseFloat(getComputedStyle(side).width) || 0 : 0;
       if (width > 0) room -= width + gap;
     }
-    // A completed card's status shares that room: its widest word, with its icon and padding, too.
+    // A completed card's status shares that room: its widest word, beside its icon (or stars), with
+    // the pill's padding. Worked out from the parts, not the pill's width, which is the same whether
+    // or not the words have gone under the stars (see .status in the CSS).
     let need = widestWord(title);
     const status = head.querySelector("[data-testid='level-status']");
-    const statusText = status?.lastElementChild;
-    if (status && statusText) need = Math.max(need, widestWord(statusText) + status.getBoundingClientRect().width - statusText.getBoundingClientRect().width);
+    const [icon, statusText] = [status?.firstElementChild, status?.lastElementChild];
+    if (status && icon && statusText && icon !== statusText) {
+      const s = getComputedStyle(status);
+      const chrome = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight) + parseFloat(s.borderLeftWidth) + parseFloat(s.borderRightWidth);
+      need = Math.max(need, chrome + icon.getBoundingClientRect().width + (parseFloat(s.columnGap) || 0) + widestWord(statusText));
+    }
     // Stacked as soon as it needs more than the room, however little: a fraction of a pixel too wide is
     // enough for the browser to break the word (a completed card's status, with its stars, can come that close).
     head.toggleAttribute("data-stacked", need > room);

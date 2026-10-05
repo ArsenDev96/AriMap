@@ -103,8 +103,58 @@ async function textSize(page: Page, size: number) {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   }, size);
 }
-/** Scrolls the Results panel so the stars show under the map. */
-const showStars = (page: Page) => page.getByTestId("rating").evaluate((el) => el.scrollIntoView({ block: "start" }));
+/**
+ * Scrolls the Results panel, and only the panel (the header and its Home stay put, as for a player),
+ * so the stars show under the map: the section's top at the panel's top, or further when the room
+ * above the pinned action is shorter, so the first row's count is whole above the action. Returns
+ * where the count, the pinned action, the panel and Home then are, and how far the page scrolled.
+ */
+const showStars = (page: Page) =>
+  page.getByTestId("rating").evaluate(async (rating) => {
+    const panel = rating.closest<HTMLElement>('[data-testid="panel"]')!;
+    const pinned = [...panel.children].find((c) => getComputedStyle(c).position === "sticky")!;
+    const count = rating.querySelector("p > :last-child") ?? rating.querySelector("p")!;
+    const top = (el: Element) => el.getBoundingClientRect().top;
+    panel.scrollTop += Math.max(top(rating) - top(panel), count.getBoundingClientRect().bottom - top(pinned) + 8);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const box = count.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + Math.min(box.width / 2, 20), (box.top + box.bottom) / 2);
+    return {
+      count: { top: box.top, bottom: box.bottom, uncovered: !!hit && count.contains(hit) },
+      pinnedTop: top(pinned),
+      panelTop: top(panel),
+      home: document.querySelector('[data-testid="home"]')!.getBoundingClientRect().top,
+      pageScroll: document.scrollingElement!.scrollTop,
+      pageTaller: document.documentElement.scrollHeight - window.innerHeight,
+    };
+  });
+
+/**
+ * A rated status pill's parts: its stars (each one's top, to tell they share a line), its words
+ * (their box, size, and any word broken across lines) and the pill's box.
+ */
+const statusParts = (c: ReturnType<typeof card>) =>
+  c.getByTestId("level-status").evaluate((pill) => {
+    const r = (el: Element) => el.getBoundingClientRect();
+    const stars = pill.querySelector('[data-testid="level-stars"]')!;
+    const text = pill.lastElementChild!;
+    const broken: string[] = [];
+    const range = document.createRange();
+    const walk = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+    for (let node = walk.nextNode(); node; node = walk.nextNode())
+      for (const word of (node.textContent ?? "").matchAll(/\S+/g)) {
+        range.setStart(node, word.index);
+        range.setEnd(node, word.index + word[0].length);
+        if (range.getClientRects().length > 1) broken.push(word[0]);
+      }
+    const s = getComputedStyle(pill);
+    return {
+      pill: { left: r(pill).left + parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth), right: r(pill).right },
+      stars: { left: r(stars).left, right: r(stars).right, bottom: r(stars).bottom, tops: [...stars.querySelectorAll("svg")].map((svg) => r(svg).top) },
+      text: { left: r(text).left, top: r(text).top, right: r(text).right, size: parseFloat(getComputedStyle(text).fontSize) },
+      broken,
+    };
+  });
 
 test.describe("Results: the stars", () => {
   test.beforeEach(() => test.skip(project() !== "small-phone", "Runs once."));
@@ -300,7 +350,16 @@ test("stars layout: Results and cards at every size, with enlarged text", async 
         await open(page, { [L1]: played(L1, { firstTry: 5, travelHelp: true, bestRating: 3 }) }, { locale });
         await textSize(page, size);
         const rating = page.getByTestId("rating");
-        await showStars(page);
+        // Only the panel scrolls: the page is never taller than the screen, so Home stays at the top.
+        const shown = await showStars(page);
+        expect(shown.pageTaller, `${where}: page taller than the screen`).toBeLessThanOrEqual(0);
+        expect(shown.pageScroll, `${where}: page scrolled`).toBe(0);
+        expect(shown.home, `${where}: Home off the top`).toBeGreaterThanOrEqual(0);
+        await expect(page.getByTestId("home")).toBeInViewport({ ratio: 1 });
+        // The count can be brought whole into the panel's room above its pinned action, and isn't covered there.
+        expect(shown.count.top, `${where}: count above the panel's top`).toBeGreaterThanOrEqual(shown.panelTop - 0.5);
+        expect(shown.count.bottom, `${where}: count under the pinned action`).toBeLessThanOrEqual(shown.pinnedTop + 0.5);
+        expect(shown.count.uncovered, `${where}: count covered`).toBe(true);
         // Full size: the attempt's count at 1.15 times the text, the stars scaling with it.
         expect(await page.getByTestId("rating-attempt").evaluate((el) => parseFloat(getComputedStyle(el).fontSize)), `${where}: stars text size`).toBeCloseTo(1.15 * rem, 0);
         const box = (await rating.boundingBox())!;
@@ -326,6 +385,18 @@ test("stars layout: Results and cards at every size, with enlarged text", async 
           expect(sb.height, `${where}: ${id} stars size`).toBeGreaterThanOrEqual(1.4 * 0.8 * 0.85 * rem - 1);
           // In the status pill, before "Completed": no line of their own.
           await expect(c.getByTestId("level-status").getByTestId("level-stars")).toHaveCount(1);
+          // The three stars together on one line; "Completed" beside them, or (when it can't fit there)
+          // under them from the pill's start, never broken inside a word, at its full size.
+          const p = await statusParts(c);
+          expect(Math.max(...p.stars.tops) - Math.min(...p.stars.tops), `${where}: ${id} stars split`).toBeLessThanOrEqual(1);
+          expect(p.broken, `${where}: ${id} status word broken`).toEqual([]);
+          expect(p.text.size, `${where}: ${id} status text size`).toBeCloseTo(0.85 * rem, 0);
+          expect(p.text.right, `${where}: ${id} status words outside the pill`).toBeLessThanOrEqual(p.pill.right + 0.5);
+          const below = p.text.top >= p.stars.bottom - 0.5;
+          if (below) expect(p.text.left, `${where}: ${id} status words under the stars, from the pill's start`).toBeCloseTo(p.pill.left, 0);
+          else expect(p.text.left, `${where}: ${id} status words beside the stars`).toBeGreaterThanOrEqual(p.stars.right);
+          // At the usual text size, as before: beside the stars.
+          if (size === 100) expect(below, `${where}: ${id} status words under the stars`).toBe(false);
         }
         expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${where}: horizontal scroll`).toBeLessThanOrEqual(0);
         await page.evaluate(() => document.querySelector('[data-testid="welcome-scroll"]')?.scrollTo({ top: 0 }));
