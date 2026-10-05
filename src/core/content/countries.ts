@@ -613,8 +613,8 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "casa-de-la-vall",
     },
   },
-  // Level 8's new countries. Their landmarks have no illustration yet: the cards show
-  // them as text (docs/CONTENT.md, "Level 8: Eastern Europe", has the briefs).
+  // Level 8's new countries (Poland and Romania are shared with earlier levels), each with
+  // its own illustration (supplied 2026-10-05).
   BLR: {
     id: "BLR",
     name: { en: "Belarus", hy: "Բելառուս" },
@@ -636,6 +636,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In the village of Mir, about 85 km south-west of Minsk.
       coordinates: [26.4727, 53.4511],
+      illustration: "mir-castle",
     },
   },
   UKR: {
@@ -659,6 +660,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       // In Kyiv's historic centre, 0.6 km from the capital's point: the marker rule
       // leaves its pin out wherever the two would meet (docs/CONTENT.md).
       coordinates: [30.5144, 50.4528],
+      illustration: "saint-sophia-cathedral",
     },
   },
   MDA: {
@@ -684,6 +686,7 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       },
       // In Soroca, on the Dniester, not the capital.
       coordinates: [28.3055, 48.1612],
+      illustration: "soroca-fortress",
     },
   },
 };

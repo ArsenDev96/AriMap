@@ -332,18 +332,18 @@ describe("country content", () => {
     expect(l7.regionName).toEqual({ en: "South-western Europe", hy: "Հարավարևմտյան Եվրոպա" });
   });
 
-  it("gives Level 8's new countries their capital and a localized landmark shown as text (no artwork yet), and Poland and Romania their shared content", () => {
+  it("gives Level 8's new countries their capital and a localized landmark with its own illustration, and Poland and Romania their shared content", () => {
     // Country and capital names as in the English and Armenian Wikipedia article titles; Chisinau without
     // diacritics (the CIA World Factbook's and the UN's spelling). Landmark names in Armenian are our own
     // renderings where no article exists (docs/CONTENT.md flags them).
-    const expected: Record<string, [string, string, string, string, string, string, string, string]> = {
-      BLR: ["Belarus", "Բելառուս", "Minsk", "Մինսկ", "Mir Castle", "Միրի ամրոց", "Միրի ամրոցը", "Mir Castle"],
-      UKR: ["Ukraine", "Ուկրաինա", "Kyiv", "Կիև", "Saint Sophia Cathedral", "Սուրբ Սոֆիայի տաճար", "Սուրբ Սոֆիայի տաճարը", "Saint Sophia Cathedral"],
-      MDA: ["Moldova", "Մոլդովա", "Chisinau", "Քիշնև", "Soroca Fortress", "Սորոկիի ամրոց", "Սորոկիի ամրոցը", "Soroca Fortress"],
+    const expected: Record<string, [string, string, string, string, string, string, string, string, string]> = {
+      BLR: ["Belarus", "Բելառուս", "Minsk", "Մինսկ", "Mir Castle", "Միրի ամրոց", "Միրի ամրոցը", "Mir Castle", "mir-castle"],
+      UKR: ["Ukraine", "Ուկրաինա", "Kyiv", "Կիև", "Saint Sophia Cathedral", "Սուրբ Սոֆիայի տաճար", "Սուրբ Սոֆիայի տաճարը", "Saint Sophia Cathedral", "saint-sophia-cathedral"],
+      MDA: ["Moldova", "Մոլդովա", "Chisinau", "Քիշնև", "Soroca Fortress", "Սորոկիի ամրոց", "Սորոկիի ամրոցը", "Soroca Fortress", "soroca-fortress"],
     };
     const l8 = LESSONS["eastern-europe"];
     expect(l8.countries).toEqual(["POL", "BLR", "UKR", "MDA", "ROU"]);
-    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, landmarkInTextEn]] of Object.entries(expected)) {
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, landmarkInTextEn, illustration]] of Object.entries(expected)) {
       const c = COUNTRIES[id];
       expect(c.name, id).toEqual({ en, hy });
       expect(countryName(id), id).toEqual({ en, hy });
@@ -356,8 +356,10 @@ describe("country content", () => {
       expect(landmark.coordinates, id).not.toEqual(c.capital.coordinates);
       expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
       for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
-      // No artwork yet: the card shows the landmark as text, with no empty frame (docs/CONTENT.md has the briefs).
-      expect(landmark.illustration, id).toBeUndefined();
+      // Its own artwork (supplied 2026-10-05), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkInTextEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
       // Names drawn in the app's fonts: no Latin letters beyond the "latin" subset it loads.
       for (const text of [c.name.en, c.capital.name.en, landmark.name.en, landmark.fact.en]) expect(text, id).toMatch(/^[\u0000-\u00ff\u2013\u2060]*$/u);
     }

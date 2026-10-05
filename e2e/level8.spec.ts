@@ -5,7 +5,9 @@ import { homeToEurope } from "./helpers/home";
 /*
  * Level 8 (Eastern Europe) from Discover to Results, its unlock from Level 7 (an existing save), its five
  * landmark cards (Poland's and Romania's artwork shared with earlier levels; Belarus's, Ukraine's and
- * Moldova's shown as text, with no artwork yet and no empty frame), Find's hints and spoiler-free map, the
+ * Moldova's own, supplied 2026-10-05: whole, unstretched, above the pinned button on phones, and reached by
+ * scrolling with enlarged text and in short landscape), Find's hints and spoiler-free map (no artwork, even
+ * after a hint names the landmark), the
  * Poland → Moldova journey (one shortest route, through Ukraine; Belarus and Romania offered too, and running
  * out of crossings there, recovered by Undo or Restart), Level 7's Next level, the level selection once all
  * eight levels are completed, and its map: framing (Crimea included, as part of Ukraine), the traveller's pin
@@ -28,8 +30,24 @@ const CAPITALS_HY: Record<string, string> = { POL: "Վարշավա", BLR: "Մի�
 const LANDMARKS: Record<string, string> = { POL: "Wawel Castle", BLR: "Mir Castle", UKR: "Saint Sophia Cathedral", MDA: "Soroca Fortress", ROU: "Bran Castle" };
 const LANDMARKS_HY: Record<string, string> = { POL: "Վավելի ամրոց", BLR: "Միրի ամրոց", UKR: "Սուրբ Սոֆիայի տաճար", MDA: "Սորոկիի ամրոց", ROU: "Բրանի դղյակ" };
 const LANDMARK_IDS: Record<string, string> = { POL: "wawel-castle", BLR: "mir-castle", UKR: "saint-sophia-cathedral", MDA: "soroca-fortress", ROU: "bran-castle" };
-/** No artwork yet: shown as text (docs/CONTENT.md has the briefs). */
-const TEXT_ONLY = ["BLR", "UKR", "MDA"];
+/** The level's own artwork (Poland's and Romania's is shared with earlier levels). */
+const EASTERN_ART = ["BLR", "UKR", "MDA"];
+const ALT: Record<"en" | "hy", Record<string, string>> = {
+  en: {
+    POL: "Illustration of Wawel Castle",
+    BLR: "Illustration of Mir Castle",
+    UKR: "Illustration of Saint Sophia Cathedral",
+    MDA: "Illustration of Soroca Fortress",
+    ROU: "Illustration of Bran Castle",
+  },
+  hy: {
+    POL: "Նկարազարդում՝ Վավելի ամրոցը",
+    BLR: "Նկարազարդում՝ Միրի ամրոցը",
+    UKR: "Նկարազարդում՝ Սուրբ Սոֆիայի տաճարը",
+    MDA: "Նկարազարդում՝ Սորոկիի ամրոցը",
+    ROU: "Նկարազարդում՝ Բրանի դղյակը",
+  },
+};
 /** The description in Discover, repeated by Find's second hint; Poland's and Romania's are this level's own. */
 const HINTS: Record<string, string> = {
   POL: "The westernmost country of this region, with a coast on the Baltic Sea.",
@@ -161,26 +179,114 @@ async function tapCountry(page: Page, id: string) {
 }
 
 /**
- * A Level 8 landmark card: Poland's and Romania's with their shared artwork; Belarus's, Ukraine's and Moldova's
- * as text (the map's landmark mark beside the name and fact, no image and no empty frame).
+ * A Level 8 landmark card, with its own illustration (Poland's and Romania's shared with earlier levels): loaded,
+ * from its own file, with alt text naming the landmark in the card's language, and the only image in the panel.
+ * Every one is well below 2:1 (1.05–1.27:1 for the Eastern three), so on phones it takes the square tile beside
+ * the country's name.
  */
 async function expectLandmarkCard(page: Page, id: string, locale: "en" | "hy") {
   const figure = page.getByTestId("landmark-card");
   await expect(figure).toHaveAttribute("data-landmark", LANDMARK_IDS[id]);
   await expect(figure).toContainText(locale === "en" ? LANDMARKS[id] : LANDMARKS_HY[id]);
   expect(((await figure.locator("figcaption span").last().textContent()) ?? "").length).toBeGreaterThan(30);
-  if (TEXT_ONLY.includes(id)) {
-    await expect(figure).toHaveAttribute("data-art", "none");
-    await expect(page.getByTestId("landmark-image")).toHaveCount(0);
-    await expect(page.getByTestId("panel").locator("img")).toHaveCount(0);
-    // No picture frame: the figure holds the mark and its caption only.
-    await expect(figure.locator("svg")).toHaveCount(1);
-    expect(await figure.evaluate((f) => [...f.children].map((c) => c.tagName.toLowerCase()))).toEqual(["svg", "figcaption"]);
-  } else {
-    await expect(figure).toHaveAttribute("data-art", "illustration");
-    await expect(page.getByTestId("landmark-image")).toHaveCount(1);
-    await expect(page.getByTestId("landmark-image")).toHaveAttribute("src", new RegExp(LANDMARK_IDS[id]));
-  }
+  await expect(figure).toHaveAttribute("data-art", "illustration");
+  await expect(figure).toHaveAttribute("data-shape", "ordinary");
+  const image = page.getByTestId("landmark-image");
+  await expect(image).toHaveCount(1);
+  await expect(page.getByTestId("panel").locator("img")).toHaveCount(1);
+  await expect(image).toHaveAttribute("alt", ALT[locale][id]);
+  await expect(image).toHaveAttribute("src", new RegExp(LANDMARK_IDS[id]));
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+}
+
+/** The artwork as drawn (object-fit: contain), not its box: where it is, its size and proportions. */
+async function drawnArt(page: Page) {
+  return page.getByTestId("landmark-image").evaluate((img: HTMLImageElement) => {
+    const r = img.getBoundingClientRect();
+    const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+    const [w, h] = [img.naturalWidth * s, img.naturalHeight * s];
+    const tile = img.closest("figure")!.querySelector("div")!.getBoundingClientRect();
+    return {
+      left: r.left + (r.width - w) / 2,
+      right: r.left + (r.width + w) / 2,
+      top: r.top + (r.height - h) / 2,
+      bottom: r.top + (r.height + h) / 2,
+      width: w,
+      height: h,
+      naturalRatio: img.naturalWidth / img.naturalHeight,
+      fit: getComputedStyle(img).objectFit,
+      tile: { left: tile.left, right: tile.right, top: tile.top, bottom: tile.bottom },
+    };
+  });
+}
+
+/**
+ * Scrolls the panel until the artwork's tile ends just above the pinned button (the button covers the
+ * panel's bottom, so "in view" for the browser isn't in view for the player), then checks that the whole
+ * artwork shows between the panel's top and the button, unstretched and inside its tile.
+ */
+async function expectArtReachable(page: Page, where: string) {
+  const panel = page.getByTestId("panel");
+  await panel.evaluate((el) => {
+    const tile = el.querySelector('[data-testid="landmark-image"]')!.closest("figure")!.querySelector("div")!.getBoundingClientRect();
+    const fold = document.querySelector('[data-testid="sticky-actions"]')!.getBoundingClientRect().top;
+    el.scrollBy(0, Math.max(0, tile.bottom - fold + 4));
+  });
+  const art = await drawnArt(page);
+  const top = (await panel.boundingBox())!.y;
+  const fold = (await page.getByTestId("sticky-actions").boundingBox())!.y;
+  expect(art.fit, `${where}: art fit`).toBe("contain");
+  expect(Math.abs(art.width / art.height - art.naturalRatio), `${where}: art stretched`).toBeLessThan(0.02);
+  expect(art.top >= art.tile.top - 0.5 && art.bottom <= art.tile.bottom + 0.5 && art.left >= art.tile.left - 0.5 && art.right <= art.tile.right + 0.5, `${where}: art outside its tile`).toBe(true);
+  expect(art.top, `${where}: art's top above the panel when its bottom shows`).toBeGreaterThanOrEqual(top - 0.5);
+  expect(art.bottom, `${where}: art under the button`).toBeLessThanOrEqual(fold + 0.5);
+}
+
+/**
+ * Every word of the card's text inside the card's padding (Belarus's «տարածաշրջանի» at 200% on a 320px phone ran
+ * 1–2px into it), and none broken across lines unless it is wider than the whole line it is on.
+ */
+async function expectCardTextInside(page: Page, where: string) {
+  const problems = await page.getByTestId("country-card").evaluate((card) => {
+    const s = getComputedStyle(card);
+    const b = card.getBoundingClientRect();
+    const [left, right] = [b.left + parseFloat(s.borderLeftWidth) + parseFloat(s.paddingLeft), b.right - parseFloat(s.borderRightWidth) - parseFloat(s.paddingRight)];
+    const out: string[] = [];
+    const range = document.createRange();
+    const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement!;
+      const style = getComputedStyle(parent);
+      // The line's width: the nearest box that isn't inline (flex items such as the capital's value are blockified).
+      let block: Element = parent;
+      while (getComputedStyle(block).display === "inline" && block.parentElement) block = block.parentElement;
+      const line = block.getBoundingClientRect().width;
+      for (const m of (node.textContent ?? "").matchAll(/\S+/g)) {
+        range.setStart(node, m.index!);
+        range.setEnd(node, m.index! + m[0].length);
+        const rects = [...range.getClientRects()].filter((r) => r.width > 0);
+        if (Math.min(...rects.map((r) => r.left)) < left - 0.5 || Math.max(...rects.map((r) => r.right)) > right + 0.5) out.push(`«${m[0]}» outside the card's padding`);
+        if (new Set(rects.map((r) => Math.round(r.top))).size > 1) {
+          const probe = document.createElement("span");
+          probe.textContent = m[0];
+          Object.assign(probe.style, { position: "absolute", visibility: "hidden", whiteSpace: "nowrap", font: style.font, letterSpacing: style.letterSpacing, textTransform: style.textTransform });
+          document.body.appendChild(probe);
+          if (probe.getBoundingClientRect().width <= line + 0.5) out.push(`«${m[0]}» broken though it fits ${line.toFixed(0)}px`);
+          probe.remove();
+        }
+      }
+    }
+    return out;
+  });
+  expect(problems, `${where}: card text`).toEqual([]);
+}
+
+/** No landmark artwork anywhere on the page (Find: the hint names the landmark in words only). */
+async function expectNoLandmarkArt(page: Page) {
+  await expect(page.getByTestId("landmark-image")).toHaveCount(0);
+  const art = new RegExp(Object.values(LANDMARK_IDS).join("|"));
+  const sources = await page.locator("img, image").evaluateAll((els) => els.map((e) => e.getAttribute("src") ?? e.getAttribute("href") ?? ""));
+  expect(sources.filter((s) => art.test(s))).toEqual([]);
 }
 
 /** Nothing on the map singles out the Find target: no names, markers, badges or state colours; no artwork. */
@@ -190,6 +296,7 @@ async function expectFindSpoilerFree(page: Page, target: string) {
   expect(await page.locator('[data-testid="map-main"] path[data-tone]:not([data-tone="default"])').count()).toBe(0);
   await expect(page.getByTestId("landmark-card")).toHaveCount(0);
   await expect(page.getByTestId("panel").locator("img")).toHaveCount(0);
+  await expectNoLandmarkArt(page);
   const styling = await page.locator('[data-testid="map-main"] path[data-country]').evaluateAll((els, ids) => {
     const byCountry: Record<string, string> = {};
     for (const e of els) {
@@ -278,10 +385,11 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
       await page.getByRole("button", { name: "Hint", exact: true }).click();
       await expect(page.getByTestId("panel")).toContainText(`Its capital is ${CAPITALS[target]}.`);
       await expect(page.getByTestId("panel")).toContainText(`You'll also find ${LANDMARKS[target]} there.`);
-      await expect(page.getByTestId("panel").locator("img")).toHaveCount(0);
+      // The hint names the landmark in words only: no artwork.
+      await expectNoLandmarkArt(page);
       await page.getByRole("button", { name: "More help" }).click();
       await expect(page.getByTestId("panel")).toContainText(HINTS[target]);
-      await expect(page.getByTestId("panel").locator("img")).toHaveCount(0);
+      await expectNoLandmarkArt(page);
     }
     await tapCountry(page, target);
     await expect(page.getByTestId("find-feedback")).toContainText(`Correct! That's ${NAMES[target]}.`);
@@ -392,28 +500,57 @@ test("Level 7's Next level opens Level 8 (or resumes it); Home, Continue, View r
 test("Level 8 at phone and desktop sizes: every card, unanswered Find, Travel and Results, in both languages and with enlarged text", async ({ page }) => {
   test.skip(!["small-phone", "desktop", "webkit-phone"].includes(project()), "Runs on small-phone, webkit-phone and desktop.");
   test.setTimeout(900_000);
-  const sizes = project() === "desktop" ? [[1366, 800]] : [[320, 568], [390, 844]];
+  const phone = project() !== "desktop";
+  const sizes = phone ? [[320, 568], [390, 844]] : [[1366, 800]];
+  const panel = page.getByTestId("panel");
   for (const [width, height] of sizes) {
     await page.setViewportSize({ width, height });
     for (const locale of ["en", "hy"] as const) {
-      for (const size of project() === "desktop" ? [100] : [100, 150, 200]) {
+      for (const size of phone ? [100, 150, 200] : [100]) {
         const where = `${width}×${height} ${locale} ${size}%`;
-        // Every card: its name, capital and landmark name in view above the pinned button at the normal size,
-        // and every part reached by scrolling at any size; no empty frame for the three text-only landmarks.
+        // Every card: at the normal size its name, capital and whole artwork above the pinned button without
+        // scrolling; at any size, the artwork whole and unstretched, and every part reached by scrolling.
         for (const id of L8_COUNTRIES) {
           await openLevel8(page, discoverAt(id), locale);
           await textSize(page, size);
           await expectLandmarkCard(page, id, locale);
           await expect(page.getByTestId("country-card").getByRole("heading", { level: 2 })).toHaveText(locale === "en" ? NAMES[id] : NAMES_HY[id]);
           await expect(page.getByTestId("country-capital")).toContainText(locale === "en" ? CAPITALS[id] : CAPITALS_HY[id]);
+          expect(await panel.evaluate((el) => el.scrollTop), `${where} ${id}: card opened scrolled`).toBe(0);
+          await expectCardTextInside(page, `${where} ${id}`);
           const fold = (await page.getByTestId("sticky-actions").boundingBox())!.y;
           if (size === 100) {
+            const panelBox = (await panel.boundingBox())!;
             for (const part of [page.getByTestId("country-card").getByRole("heading", { level: 2 }), page.getByTestId("country-capital")]) {
               const b = (await part.boundingBox())!;
+              expect(b.y, `${where} ${id}: above the panel`).toBeGreaterThanOrEqual(panelBox.y);
               expect(b.y + b.height, `${where} ${id}: under the button`).toBeLessThanOrEqual(fold + 0.5);
             }
+            // The whole artwork (every Mir tower and finial, every Saint Sophia cross, Soroca's whole ring and
+            // river), uncropped and unstretched, inside its tile and above the button.
+            const art = await drawnArt(page);
+            expect(art.fit).toBe("contain");
+            expect(Math.abs(art.width / art.height - art.naturalRatio), `${where} ${id}: art stretched`).toBeLessThan(0.02);
+            expect(art.left, `${where} ${id}: art cut on the left`).toBeGreaterThanOrEqual(Math.max(art.tile.left, panelBox.x, 0) - 0.5);
+            expect(art.right, `${where} ${id}: art cut on the right`).toBeLessThanOrEqual(Math.min(art.tile.right, panelBox.x + panelBox.width, width) + 0.5);
+            expect(art.top, `${where} ${id}: art above its tile`).toBeGreaterThanOrEqual(Math.max(art.tile.top, panelBox.y) - 0.5);
+            expect(art.bottom, `${where} ${id}: art under its tile`).toBeLessThanOrEqual(art.tile.bottom + 0.5);
+            expect(art.bottom, `${where} ${id}: art under the button`).toBeLessThanOrEqual(fold + 0.5);
+            if (phone) {
+              // The square tile, beside the capital, clear of the name and capital.
+              const capital = (await page.getByTestId("country-capital").boundingBox())!;
+              expect(art.tile.left, `${where} ${id}: tile not beside the capital`).toBeGreaterThanOrEqual(capital.x + 0.5);
+              expect(Math.round(art.tile.right - art.tile.left), `${where} ${id}: square tile`).toBe(Math.round(art.tile.bottom - art.tile.top));
+            }
+            if (EASTERN_ART.includes(id)) {
+              console.log(`${where} ${LANDMARK_IDS[id]} drawn ${art.width.toFixed(0)}×${art.height.toFixed(0)}px`);
+              await page.getByTestId("landmark-image").screenshot({ path: `screenshots/${project()}/level8-${locale}-${LANDMARK_IDS[id]}-art-${width}x${height}.png` });
+            }
+          } else {
+            // Enlarged text: the artwork keeps its size and shape, whole in its tile, brought into view by scrolling.
+            await expectArtReachable(page, `${where} ${id}`);
+            if (EASTERN_ART.includes(id) && size === 200) await shot(page, `${locale}-card-${id}-text${size}-art`);
           }
-          const panel = page.getByTestId("panel");
           await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
           const end = await panel.evaluate((el) => {
             const sticky = el.querySelector('[data-testid="sticky-actions"]')!.getBoundingClientRect().top;
@@ -424,12 +561,40 @@ test("Level 8 at phone and desktop sizes: every card, unanswered Find, Travel an
           await expectNoHorizontalOverflow(page, `${where} ${id}`);
           if (size !== 150) await shot(page, `${locale}-card-${id}${size === 100 ? "" : `-text${size}`}`);
         }
+        // Each illustrated country chosen on the map after the previous card was scrolled to its end: the new
+        // card opens at its top (at the normal size with its whole artwork above the button; enlarged, reached
+        // by scrolling).
+        if (phone && (size === 100 || width === 320)) {
+          await openLevel8(page, discoverAt("POL"), locale);
+          await textSize(page, size);
+          for (const id of EASTERN_ART) {
+            await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+            const scrolled = await panel.evaluate((el) => el.scrollTop);
+            if (size !== 100) expect(scrolled, `${where}: previous card not scrolled`).toBeGreaterThan(0);
+            await tapCountry(page, id);
+            await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
+            await expectLandmarkCard(page, id, locale);
+            await fontsSettled(page);
+            expect(await panel.evaluate((el) => el.scrollTop), `${where} ${id} chosen after scrolling ${scrolled}px: card opened scrolled`).toBe(0);
+            if (size === 100) expect((await drawnArt(page)).bottom, `${where} ${id} chosen on the map: art under the button`).toBeLessThanOrEqual((await page.getByTestId("sticky-actions").boundingBox())!.y + 0.5);
+            else await expectArtReachable(page, `${where} ${id} chosen on the map`);
+          }
+        }
         // Unanswered Find: spoiler-free, the question and hint reached.
         await openLevel8(page, findAsking("MDA"), locale);
         await textSize(page, size);
         await expectFindSpoilerFree(page, "MDA");
         await expectNoHorizontalOverflow(page, `${where} Find`);
         await shot(page, `${locale}-find${size === 100 ? "" : `-text${size}`}`);
+        // After the first hint, which names the landmark: still no artwork, for each of the three.
+        if (size === 100) {
+          for (const target of EASTERN_ART) {
+            await openLevel8(page, findAsking(target, 1), locale);
+            await expect(panel).toContainText(locale === "en" ? LANDMARKS[target] : LANDMARKS_HY[target]);
+            await expectFindSpoilerFree(page, target);
+            await shot(page, `${locale}-find-hint-${target}`);
+          }
+        }
         // Travel from Poland, and out of crossings in Ukraine (through Belarus).
         await openLevel8(page, travellingAt(["POL"]), locale);
         await textSize(page, size);
@@ -458,6 +623,50 @@ test("Level 8 at phone and desktop sizes: every card, unanswered Find, Travel an
       }
     }
   }
+});
+
+test("Level 8's illustrations in short landscape: each card opens at its top beside the map, its artwork and text reached above its action", async ({ page }) => {
+  test.skip(project() !== "mobile", "A phone in landscape (Chromium, Pixel 7).");
+  test.setTimeout(300_000);
+  await page.setViewportSize({ width: 740, height: 360 });
+  const panel = page.getByTestId("panel");
+  const report: string[] = [];
+  for (const locale of ["en", "hy"] as const) {
+    for (const id of EASTERN_ART) {
+      const where = `740×360 ${locale} ${id}`;
+      await openLevel8(page, discoverAt(id), locale);
+      await expectLandmarkCard(page, id, locale);
+      // Side by side: the map on the left, the panel beside it.
+      const [map, side] = [(await page.getByTestId("map-main").boundingBox())!, (await panel.boundingBox())!];
+      expect(map.x + map.width, `${where}: map beside the panel`).toBeLessThanOrEqual(side.x + 0.5);
+      expect(await panel.evaluate((el) => el.scrollTop), `${where}: card opened scrolled`).toBe(0);
+      const fold = (await page.getByTestId("sticky-actions").boundingBox())!.y;
+      const capital = (await page.getByTestId("country-capital").boundingBox())!;
+      expect(capital.y + capital.height, `${where}: capital under the action`).toBeLessThanOrEqual(fold + 0.5);
+      await expectCardTextInside(page, where);
+      await shot(page, `landscape-${locale}-card-${id}`);
+      await expectArtReachable(page, where);
+      const art = await drawnArt(page);
+      expect(Math.max(art.width, art.height), `${where}: art too small`).toBeGreaterThanOrEqual(100);
+      report.push(`${where} drawn ${art.width.toFixed(0)}×${art.height.toFixed(0)}px`);
+      await shot(page, `landscape-${locale}-card-${id}-art`);
+      // Scrolled to its end, the whole card above the action.
+      await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      const c = (await page.getByTestId("country-card").boundingBox())!;
+      expect(c.y + c.height, `${where}: card bottom`).toBeLessThanOrEqual((await page.getByTestId("sticky-actions").boundingBox())!.y + 0.5);
+      await expectNoHorizontalOverflow(page, where);
+    }
+    // Each chosen on the map after the previous card was scrolled to its end: the new card opens at its top.
+    await openLevel8(page, discoverAt("POL"), locale);
+    for (const id of EASTERN_ART) {
+      await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await tapCountry(page, id);
+      await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", id);
+      await fontsSettled(page);
+      expect(await panel.evaluate((el) => el.scrollTop), `740×360 ${locale} ${id} chosen on the map: card opened scrolled`).toBe(0);
+    }
+  }
+  console.log(report.join("\n"));
 });
 
 test("Level 8's map: every country whole at every size (Crimea included), the overview covering it, and the traveller's pin whole in Warsaw and Chisinau", async ({ page }) => {

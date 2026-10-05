@@ -21,10 +21,13 @@ import esztergomBasilica from "@/assets/landmarks/esztergom-basilica.webp";
 import golubacFortress from "@/assets/landmarks/golubac-fortress.webp";
 import houseOfTheBlackHeads from "@/assets/landmarks/house-of-the-black-heads.webp";
 import meteora from "@/assets/landmarks/meteora.webp";
+import mirCastle from "@/assets/landmarks/mir-castle.webp";
 import ostrogMonastery from "@/assets/landmarks/ostrog-monastery.webp";
 import rilaMonastery from "@/assets/landmarks/rila-monastery.webp";
 import sagradaFamilia from "@/assets/landmarks/sagrada-familia.webp";
+import saintSophiaCathedral from "@/assets/landmarks/saint-sophia-cathedral.webp";
 import schonbrunnPalace from "@/assets/landmarks/schonbrunn-palace.webp";
+import sorocaFortress from "@/assets/landmarks/soroca-fortress.webp";
 import stariMost from "@/assets/landmarks/stari-most.webp";
 import tallinnTownHall from "@/assets/landmarks/tallinn-town-hall.webp";
 import trakaiIslandCastle from "@/assets/landmarks/trakai-island-castle.webp";
@@ -62,6 +65,9 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
   "belem-tower": belemTower,
   "sagrada-familia": sagradaFamilia,
   "casa-de-la-vall": casaDeLaVall,
+  "mir-castle": mirCastle,
+  "saint-sophia-cathedral": saintSophiaCathedral,
+  "soroca-fortress": sorocaFortress,
 };
 
 /**
@@ -71,7 +77,7 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
  * tile's height; in the shallow tile (about 262×62px at 320×568) it is drawn no larger than in
  * the square one until about 2:1 (Adolphe Bridge, 1.71: 100×58px square, about 106×62px wide),
  * but well beyond it (Schönbrunn Palace, 3.26: 100×30px square, about 200×62px wide). The current
- * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25, Level 7's three 0.93–1.08). Desktop is unaffected.
+ * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25, Level 7's three 0.93–1.08, Level 8's three 1.05–1.27). Desktop is unaffected.
  */
 export const WIDE_ART_ASPECT = 2;
 

@@ -303,6 +303,8 @@
 
 .countryHint {
   order: -1;
+  /* Only a word wider than the whole line breaks inside, rather than running into the card's padding. */
+  overflow-wrap: break-word;
 }
 
 /* Phones: the essentials come first so they show without scrolling, above the
@@ -325,7 +327,9 @@
     grid-template-columns: minmax(0, 1fr) auto;
     column-gap: 12px;
     row-gap: 10px;
-    padding: 11px 14px 14px;
+    /* Sides: 14px up to 150% text, easing to 12px at 200%, where the line is a few pixels short of
+       the longest Armenian description words (Belarus's «տարածաշրջանի», 259px at 320px wide). */
+    padding: 11px clamp(12px, calc(20px - 0.25rem), 14px) 14px;
   }
 
   .countryCard .cardTitle {
