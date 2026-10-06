@@ -16,7 +16,7 @@ import {
 } from "../lessons";
 import type { LessonDefinition } from "../lessons/types";
 import { createLessonProgress, lessonReducer, type LessonAction, type LessonProgress, type LessonStage } from "../lesson/progress";
-import { attemptRating } from "../lesson/rating";
+import { attemptRating, MAX_STARS } from "../lesson/rating";
 
 /** Version 2: several levels. Version 1 (one level) is migrated on load (see storage.ts). */
 export const STATE_VERSION = 2;
@@ -126,6 +126,20 @@ export function allLevelsComplete(state: AppState, continent?: ContinentId): boo
 export function continentProgress(state: AppState, continent: ContinentId): { total: number; completed: number } {
   const levels = levelsOf(continent).filter((level) => level.lesson);
   return { total: levels.length, completed: levels.filter((level) => isLevelComplete(state, level.id)).length };
+}
+
+/**
+ * A continent's stars: the sum of its playable levels' best ratings, out of MAX_STARS for each
+ * playable level (none for a continent whose levels are all coming soon). A level never rated
+ * (not completed, or completed before ratings with no Results to rate) adds none. Best ratings are
+ * never lowered (betterRating), so playing a level again, starting it over or replaying its journey
+ * never lowers the sum. It measures how well the levels were played, not how many were completed
+ * (continentProgress).
+ */
+export function continentStars(state: AppState, continent: ContinentId): { earned: number; max: number } {
+  const levels = levelsOf(continent).filter((level) => level.lesson);
+  const earned = levels.reduce((sum, level) => sum + (state.levels[level.id]?.records.bestRating ?? 0), 0);
+  return { earned, max: MAX_STARS * levels.length };
 }
 
 /** Whether a level can be opened: playable and unlocked. */

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { FindAnswer } from "../game/find";
-import { LESSONS } from "../lessons";
+import { CONTINENTS, hasPlayableLevels, LESSONS, levelsOf } from "../lessons";
 import type { LessonAction } from "../lesson/progress";
 import { attemptRating, nextStar, rateAttempt, type StarRating } from "../lesson/rating";
-import { appReducer, continentProgress, createInitialState, levelStatus, type AppAction, type AppState } from "./appState";
+import { appReducer, continentProgress, continentStars, createInitialState, levelStatus, type AppAction, type AppState } from "./appState";
 import { getLevel } from "../lessons";
 import { parseSavedState, saveAppState, STORAGE_KEY } from "./storage";
 
@@ -196,7 +196,7 @@ describe("star ratings: one rule for every level", () => {
     expect([at(s, L1).records.bestRating, at(s, L2).records.bestRating]).toEqual([3, 1]);
     s = attempt(run(s, restart(L2)), { firstTry: 4 });
     expect([at(s, L1).records.bestRating, at(s, L2).records.bestRating, s.newBest]).toEqual([3, 2, L2]);
-    expect(continentProgress(s, "europe")).toEqual({ total: 7, completed: 2 });
+    expect(continentProgress(s, "europe")).toEqual({ total: 8, completed: 2 });
     expect(levelStatus(s, getLevel("central-europe")!).kind).toBe("ready");
   });
 });
@@ -277,5 +277,64 @@ describe("star ratings in saves", () => {
     // An invalid replay flag falls back to the older saves' reading: Results here are a full attempt's.
     three.levels[L1].journeyReplay = "yes";
     expect(attemptRating(parseSavedState(JSON.stringify(three)).levels[L1])).toBe(3);
+  });
+});
+
+describe("continent stars: each level's best rating summed, out of 3 per playable level", () => {
+  const playable = levelsOf("europe").filter((level) => level.lesson).map((level) => level.id);
+  /** Completed levels with only their records kept, each with the best rating given (null: none, as before ratings). */
+  const records = (best: Record<string, number | null>) =>
+    parseSavedState(
+      JSON.stringify({
+        version: 2,
+        locale: "en",
+        screen: "levels",
+        levelId: L1,
+        recent: [],
+        levels: Object.fromEntries(Object.entries(best).map(([id, bestRating]) => [id, { started: false, stage: "discover", records: { discoverDone: true, findDone: true, travelDone: true, ...(bestRating ? { bestRating } : {}) } }])),
+      }),
+    );
+
+  it("the maximum comes from the level registry: 3 for each playable level (Europe: 24), none for a continent coming soon", () => {
+    expect(continentStars(createInitialState(), "europe")).toEqual({ earned: 0, max: 3 * playable.length });
+    expect(playable.length).toBe(8);
+    expect(continentStars(createInitialState(), "europe").max).toBe(24);
+    for (const continent of CONTINENTS) if (!hasPlayableLevels(continent.id)) expect(continentStars(createInitialState(), continent.id), continent.id).toEqual({ earned: 0, max: 0 });
+  });
+
+  it("sums the best ratings; a level not rated adds none: one not completed, or completed before ratings with only its record", () => {
+    const [a, b, c, d, e] = playable;
+    const mixed = records({ [a]: 3, [b]: 2, [c]: 1, [d]: 3, [e]: null });
+    expect(continentStars(mixed, "europe")).toEqual({ earned: 9, max: 24 });
+    // Completion is counted apart: five completed, whatever their stars.
+    expect(continentProgress(mixed, "europe")).toEqual({ total: 8, completed: 5 });
+    expect(continentStars(records({ [a]: null, [b]: null, [c]: null }), "europe")).toEqual({ earned: 0, max: 24 });
+    expect(continentStars(records(Object.fromEntries(playable.map((id) => [id, 3]))), "europe")).toEqual({ earned: 24, max: 24 });
+    // A level only started adds nothing.
+    expect(continentStars(run(createInitialState(), open(L1), play({ type: "startFinding", order: [...LESSONS[L1].countries] })), "europe").earned).toBe(0);
+  });
+
+  it("follows each best as it improves; Play again, Start over, a worse attempt and Replay journey never lower it; a refresh keeps it", () => {
+    const earned = (s: AppState) => continentStars(s, "europe").earned;
+    let s = attempt(run(createInitialState(), open(L1)), { firstTry: 3 });
+    expect(earned(s)).toBe(1);
+    s = attempt(run(s, restart(L1)), { firstTry: 5 });
+    expect(earned(s)).toBe(3);
+    s = attempt(run(s, open(L2)), { firstTry: 4 });
+    expect(earned(s)).toBe(5);
+    // Play again: Level 1's place cleared, its best kept; then a worse attempt.
+    s = run(s, restart(L1));
+    expect(earned(s)).toBe(5);
+    s = attempt(s, { firstTry: 2, miss: "wrong" });
+    expect([at(s, L1).records.bestRating, earned(s)]).toEqual([3, 5]);
+    // Replay journey on Level 2, without help this time: rates nothing.
+    s = run(s, open(L2), play({ type: "replayTravel" }));
+    expect(earned(s)).toBe(5);
+    for (const country of ROUTE[L2].slice(1)) s = run(s, play({ type: "travelMove", country }));
+    expect(earned(s)).toBe(5);
+    // Start over during a journey replay, and a refresh.
+    s = run(s, play({ type: "replayTravel" }), restart(L2));
+    expect(earned(s)).toBe(5);
+    expect(continentStars(refresh(s), "europe")).toEqual({ earned: 5, max: 24 });
   });
 });

@@ -737,7 +737,7 @@ test("Level 8 loads its own landscape overview, and zoomed tiles only for the vi
   await expect(main.locator('[data-family="land"] image[data-level="overview"]')).toHaveCount(1);
   await expect.poll(() => requests.some((u) => /eastern-europe-land/.test(u))).toBe(true);
   await page.waitForTimeout(500);
-  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey|iberian-journey)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
+  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey(-r2)?|iberian-journey)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
   expect(requests.filter((u) => u.includes("/relief/")), "zoomed tiles at the whole-map view").toEqual([]);
   // A selection gives Ukraine a state colour: its overlay is loaded.
   await tapCountry(page, "UKR");

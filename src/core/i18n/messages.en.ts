@@ -32,6 +32,7 @@ export const en = {
   "continents.completed.one": "{completed} of {count} {continent} level completed",
   "continents.completed.other": "{completed} of {count} {continent} levels completed",
   "continents.completedShort": "Completed:",
+  "continents.stars": "{earned} of {max} stars earned in {continent}",
   "continents.explore": "Explore {continent}",
   "continents.comingSoon": "Coming soon",
   "continents.continueLabel": "{action}: {continent}, {level}, {title}",

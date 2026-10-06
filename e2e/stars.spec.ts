@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { homeToEurope } from "./helpers/home";
 import { openWithSave } from "./helpers/save";
 
 /*
@@ -213,8 +214,7 @@ test.describe("Results: the stars", () => {
     await page.reload();
     await expect(page.getByTestId("rating-attempt")).toHaveAttribute("data-stars", "3");
     await expect(page.getByTestId("new-best")).toHaveCount(0);
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     await card(page, L1).getByTestId("level-details-toggle").click();
     await card(page, L1).getByTestId("view-results").click();
     await expect(page.getByTestId("rating-attempt")).toHaveAttribute("data-stars", "3");
@@ -254,8 +254,7 @@ test.describe("Results: the stars", () => {
     await expect(page.getByTestId("discover-progress")).toContainText("0/5");
     s = await saved(page);
     expect(s.levels[L1]).toMatchObject({ stage: "discover", journeyReplay: false, records: { bestRating: 2, travelDone: true } });
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     await expect(card(page, L1).getByTestId("level-stars")).toHaveAttribute("data-stars", "2");
   });
 });
@@ -300,8 +299,7 @@ test.describe("level cards: the best stars", () => {
     await page.getByTestId("start-over-dialog").getByRole("button", { name: "Play again" }).click();
     await expect(page.getByTestId("discover-progress")).toContainText("0/5");
     await page.reload();
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     await expect(card(page, L2).getByTestId("level-stars")).toHaveAttribute("data-stars", "2");
     await expect(card(page, L2).getByTestId("level-status")).toHaveText("Completed");
     await expect(card(page, L1).getByTestId("level-stars")).toHaveAttribute("data-stars", "3");
@@ -327,9 +325,16 @@ test.describe("level cards: the best stars", () => {
       await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
       await expect(card(page, id).getByTestId("level-stars")).toHaveCount(0);
     }
-    // Continent progress counts completion, as before.
+    // Europe's stars: the best ratings summed (3 + none + none), out of 3 per playable level; the
+    // level list and the continent card say the same.
+    await expect(page.getByTestId("continent-stars")).toHaveAttribute("data-earned", "3");
+    await expect(page.getByTestId("continent-stars").locator("[aria-hidden='true']")).toHaveText("3/24");
+    await expect(page.getByTestId("continent-stars").locator(".visually-hidden")).toHaveText("3 of 24 stars earned in Europe");
+    // Continent progress counts completion, as before, apart from the stars.
     await page.getByTestId("back-to-continents").click();
     await expect(page.getByTestId("continent-progress").first()).toContainText("3/8");
+    await expect(page.getByTestId("continent-stars")).toHaveAttribute("data-earned", "3");
+    await expect(page.getByTestId("continent-stars").locator("[aria-hidden='true']")).toHaveText("3/24");
   });
 });
 

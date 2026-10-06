@@ -34,6 +34,7 @@ export const hy: Record<keyof typeof en, string> = {
   "continents.completed.one": "{continent} {count} մակարդակից ավարտված է {completed}-ը",
   "continents.completed.other": "{continent} {count} մակարդակից ավարտված է {completed}-ը",
   "continents.completedShort": "Ավարտված՝",
+  "continents.stars": "{continent} {max} աստղից վաստակված է {earned}-ը",
   "continents.explore": "Բացահայտել {continent}",
   "continents.comingSoon": "Շուտով",
   "continents.continueLabel": "{action}՝ {continent}, {level}, {title}",

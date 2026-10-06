@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { homeToEurope } from "./helpers/home";
 import { openWithSave } from "./helpers/save";
 
 /*
@@ -103,8 +104,7 @@ test.describe("Continue only for an attempt under way", () => {
     await expectFindAsLeft(page);
     await page.reload();
     await expectFindAsLeft(page);
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     // Level 3 (unfinished): Continue and Start over. Levels 1 and 2 (finished, at their Results): View results and Play again.
     await expect(card(page, L3).getByRole("button", { name: /^Continue/ })).toBeVisible();
     await expect(card(page, L3).getByRole("button", { name: /^Start over/ })).toBeVisible();
@@ -135,8 +135,7 @@ test.describe("Continue only for an attempt under way", () => {
     await expect(continueHome(page)).toHaveAttribute("data-level", L2);
     await continueHome(page).click();
     await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "FRA,CHE");
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     await expect(card(page, L2).getByTestId("level-status")).toHaveText("Completed");
     await expand(page, L2);
     await expect(card(page, L2).getByRole("button", { name: /^Play again/ })).toBeVisible();
@@ -184,8 +183,7 @@ test.describe("View results", () => {
     // Armenian: the same Results, and the card's label in Armenian.
     await page.getByRole("button", { name: "Հայերեն", exact: true }).first().click();
     await expect(page.getByRole("heading", { name: "Ճամփորդությունն ավարտվեց։" })).toBeVisible();
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     await expand(page, L1);
     await expect(card(page, L1).getByTestId("view-results")).toHaveText("Դիտել արդյունքը");
     await expect(card(page, L1).getByTestId("view-results")).toHaveAccessibleName("Դիտել արդյունքը՝ Ֆրանսիան և իր հարևանները");
@@ -281,8 +279,7 @@ test.describe("Results: what next", () => {
     const s = await saved(page);
     expect(s.levels[L1]).toMatchObject({ stage: "discover", records: { travelDone: true } });
     expect(s.levels[L2]).toMatchObject({ stage: "results", records: { travelDone: true } });
-    await page.getByTestId("home").click();
-    await page.getByTestId("map-label-europe").click();
+    await homeToEurope(page);
     await expect(card(page, L3).getByTestId("level-status")).toHaveText("Ready to play");
   });
 

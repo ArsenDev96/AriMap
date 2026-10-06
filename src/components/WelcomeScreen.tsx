@@ -1,19 +1,26 @@
 "use client";
 
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import { useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
+import branCastle from "@/assets/landmarks/thumbnails/bran-castle.webp";
+import chapelBridge from "@/assets/landmarks/thumbnails/chapel-bridge.webp";
+import charlesBridge from "@/assets/landmarks/thumbnails/charles-bridge.webp";
+import dubrovnikCityWalls from "@/assets/landmarks/thumbnails/dubrovnik-city-walls.webp";
+import eiffelTower from "@/assets/landmarks/thumbnails/eiffel-tower.webp";
+import meteora from "@/assets/landmarks/thumbnails/meteora.webp";
+import sagradaFamilia from "@/assets/landmarks/thumbnails/sagrada-familia.webp";
+import trakaiIslandCastle from "@/assets/landmarks/thumbnails/trakai-island-castle.webp";
 import landArt from "@/assets/map/world/land.webp";
 import waterArt from "@/assets/map/world/water.webp";
 import { getCountry } from "@/core/content/countries";
 import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS } from "@/data/geo/world-map";
-import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, versionOf, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
+import { allLevelsComplete, continentStars, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, versionOf, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
 import { STEPS } from "./Header";
 import { useI18n } from "./i18n";
-import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
 import { RestartDialog, type RestartRequest } from "./RestartDialog";
-import { Stars } from "./Stars";
+import { Stars, StarTotal } from "./Stars";
 import styles from "./WelcomeScreen.module.css";
 
 interface Props {
@@ -39,6 +46,7 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   const levels = levelsOf(continent.id);
   const main = mainAction(state, continent.id);
   const allComplete = allLevelsComplete(state, continent.id);
+  const stars = continentStars(state, continent.id);
   // Known from the save on the first render (the game renders on the client only), so the
   // page never switches layout after it appears.
   const returning = isReturning(state);
@@ -122,10 +130,14 @@ export function WelcomeScreen({ state, dispatch }: Props) {
               // it on a wide screen, so the levels come first.
               <EuropeBanner />
             )}
-            {/* The page's title: the continent, where "Choose a level" was. */}
-            <h1 id="levels-title" className={styles.levelsTitle} data-testid="continent-title">
-              {l(continent.name)}
-            </h1>
+            {/* The page's title: the continent, where "Choose a level" was; beside it (under it when there
+                is no room), the continent's stars, as on its card. */}
+            <div className={styles.levelsHeading}>
+              <h1 id="levels-title" className={styles.levelsTitle} data-testid="continent-title">
+                {l(continent.name)}
+              </h1>
+              {stars.max > 0 && <StarTotal earned={stars.earned} max={stars.max} continentOf={l(continent.nameOf)} />}
+            </div>
             {returning && !main && (
               // Nothing left to start. Once every level is completed (none coming soon), it says
               // so; every card still offers Play again.
@@ -201,10 +213,26 @@ const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
   "eastern-europe": "ROU",
 };
 
+/**
+ * Those landmarks' thumbnails, by illustration (scripts/prepare-landmarks.mjs, THUMBNAILS): 156 px on the
+ * longer side, the tile's 52 CSS px at up to 3× pixel density, 10–21 KB each instead of the display copy's
+ * 237–682 KB. Only the level cards use them; the landmark cards keep the display copies.
+ */
+const LEVEL_THUMBNAILS: Readonly<Record<string, StaticImageData>> = {
+  "eiffel-tower": eiffelTower,
+  "chapel-bridge": chapelBridge,
+  "charles-bridge": charlesBridge,
+  "dubrovnik-city-walls": dubrovnikCityWalls,
+  meteora,
+  "trakai-island-castle": trakaiIslandCastle,
+  "sagrada-familia": sagradaFamilia,
+  "bran-castle": branCastle,
+};
+
 function levelArt(level: LevelInfo) {
   const country = LEVEL_ART_COUNTRY[level.id];
   const key = country ? getCountry(country).landmark?.illustration : undefined;
-  return key ? LANDMARK_IMAGES[key] : undefined;
+  return key ? LEVEL_THUMBNAILS[key] : undefined;
 }
 
 interface CardProps {
@@ -239,6 +267,8 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
   const { t, l, name } = useI18n();
   const detailsId = useId();
   const [expanded, setExpanded] = useState(false);
+  // The level's picture, once it has arrived: its tile shows only then (never an empty box).
+  const [artLoaded, setArtLoaded] = useState(false);
   const titleId = `level-${level.id}-title`;
   const playable = status.kind !== "comingSoon" && status.kind !== "locked";
   const completed = status.kind === "completed";
@@ -442,8 +472,11 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
           </h3>
         </div>
         {art && (
-          <span className={styles.levelArt} aria-hidden="true" data-level-art="">
-            <Image src={art} alt="" fill sizes="64px" className={styles.levelArtImage} />
+          <span className={styles.levelArt} aria-hidden="true" data-level-art="" data-loaded={artLoaded || undefined}>
+            {/* The prepared thumbnail itself, as a static file, not through the image service (/_next/image): there, a
+                first request left unfinished (the page closed while it was optimised) stalls every later request
+                for the same picture and width on that server, and the tile would never fill. */}
+            <Image src={art} alt="" fill unoptimized className={styles.levelArtImage} onLoad={() => setArtLoaded(true)} />
           </span>
         )}
       </div>

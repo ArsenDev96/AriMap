@@ -1,14 +1,18 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { openWithSave } from "./helpers/save";
+import { openWithSave, SAVE_KEY } from "./helpers/save";
 import { homeToEurope } from "./helpers/home";
 
 /*
  * Level 6 (Baltic Journey) from Discover to Results, its unlock from Level 5 (an existing save),
- * its five illustrated landmark cards (Germany's and Poland's artwork shared with earlier levels;
- * Lithuania's, Latvia's and Estonia's their own, supplied 2026-10-03), the Germany → Estonia journey
- * (one shortest route), the level selection once Level 6 is completed (Level 7 up next) and once all
- * eight levels are, and its map:
- * framing (Estonia's islands included), reset, and the landscape it loads.
+ * its five illustrated landmark cards (Poland's artwork shared with earlier levels and Belarus's with
+ * Level 8; Lithuania's, Latvia's and Estonia's their own, supplied 2026-10-03), the Poland → Estonia
+ * journey (two shortest routes, through Lithuania or Belarus; a wrong turn runs out of crossings in
+ * Latvia), the level selection once Level 6 is completed (Level 7 up next) and once all eight levels
+ * are, and its map: framing (Estonia's islands included), reset, and the landscape it loads.
+ *
+ * Level 6's second version (revision 2, since 2026-10-06): fixtures for it carry `revision: 2`, as the
+ * game saves them. Attempts started on the first version (Germany, Poland, Lithuania, Latvia, Estonia;
+ * Germany → Estonia), saved without a revision, keep it: see "older attempts" below.
  */
 
 const L1 = "western-europe-1";
@@ -24,24 +28,26 @@ const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
 const L4_COUNTRIES = ["ITA", "SVN", "HRV", "BIH", "MNE"];
 const L5_COUNTRIES = ["HUN", "ROU", "SRB", "BGR", "GRC"];
-const L6_COUNTRIES = ["DEU", "POL", "LTU", "LVA", "EST"];
-const NAMES: Record<string, string> = { Germany: "DEU", Poland: "POL", Lithuania: "LTU", Latvia: "LVA", Estonia: "EST" };
+const L6_COUNTRIES = ["POL", "BLR", "LTU", "LVA", "EST"];
+/** Level 6's first version, kept for attempts started on it. */
+const L6_ORIGINAL = ["DEU", "POL", "LTU", "LVA", "EST"];
+const NAMES: Record<string, string> = { Poland: "POL", Belarus: "BLR", Lithuania: "LTU", Latvia: "LVA", Estonia: "EST", Germany: "DEU" };
 const NAME_OF = Object.fromEntries(Object.entries(NAMES).map(([name, id]) => [id, name]));
-const NAMES_HY: Record<string, string> = { DEU: "Գերմանիա", POL: "Լեհաստան", LTU: "Լիտվա", LVA: "Լատվիա", EST: "Էստոնիա" };
-const CAPITALS: Record<string, string> = { DEU: "Berlin", POL: "Warsaw", LTU: "Vilnius", LVA: "Riga", EST: "Tallinn" };
-const CAPITALS_HY: Record<string, string> = { DEU: "Բեռլին", POL: "Վարշավա", LTU: "Վիլնյուս", LVA: "Ռիգա", EST: "Տալլին" };
-const LANDMARKS: Record<string, string> = { DEU: "Brandenburg Gate", POL: "Wawel Castle", LTU: "Trakai Island Castle", LVA: "House of the Black Heads", EST: "Tallinn Town Hall" };
-const LANDMARKS_HY: Record<string, string> = { DEU: "Բրանդենբուրգյան դարպասներ", POL: "Վավելի ամրոց", LTU: "Տրակայի կղզու դղյակ", LVA: "Սևագլուխների տուն", EST: "Տալլինի ռատուշա" };
+const NAMES_HY: Record<string, string> = { POL: "Լեհաստան", BLR: "Բելառուս", LTU: "Լիտվա", LVA: "Լատվիա", EST: "Էստոնիա", DEU: "Գերմանիա" };
+const CAPITALS: Record<string, string> = { POL: "Warsaw", BLR: "Minsk", LTU: "Vilnius", LVA: "Riga", EST: "Tallinn", DEU: "Berlin" };
+const CAPITALS_HY: Record<string, string> = { POL: "Վարշավա", BLR: "Մինսկ", LTU: "Վիլնյուս", LVA: "Ռիգա", EST: "Տալլին", DEU: "Բեռլին" };
+const LANDMARKS: Record<string, string> = { POL: "Wawel Castle", BLR: "Mir Castle", LTU: "Trakai Island Castle", LVA: "House of the Black Heads", EST: "Tallinn Town Hall" };
+const LANDMARKS_HY: Record<string, string> = { POL: "Վավելի ամրոց", BLR: "Միրի ամրոց", LTU: "Տրակայի կղզու դղյակ", LVA: "Սևագլուխների տուն", EST: "Տալլինի ռատուշա" };
 /** In a sentence (Find's first hint). */
-const LANDMARKS_IN_TEXT: Record<string, string> = { DEU: "the Brandenburg Gate", POL: "Wawel Castle", LTU: "Trakai Island Castle", LVA: "the House of the Black Heads", EST: "Tallinn Town Hall" };
-const LANDMARK_IDS: Record<string, string> = { DEU: "brandenburg-gate", POL: "wawel-castle", LTU: "trakai-island-castle", LVA: "house-of-the-black-heads", EST: "tallinn-town-hall" };
-/** Germany's and Poland's artwork is shared with earlier levels; the Baltic three have their own. */
+const LANDMARKS_IN_TEXT: Record<string, string> = { POL: "Wawel Castle", BLR: "Mir Castle", LTU: "Trakai Island Castle", LVA: "the House of the Black Heads", EST: "Tallinn Town Hall" };
+const LANDMARK_IDS: Record<string, string> = { POL: "wawel-castle", BLR: "mir-castle", LTU: "trakai-island-castle", LVA: "house-of-the-black-heads", EST: "tallinn-town-hall" };
+/** Poland's artwork is shared with earlier levels and Belarus's with Level 8; the Baltic three have their own. */
 const BALTIC_ART = ["LTU", "LVA", "EST"];
 /** Each illustration's alt text: the landmark as named in a sentence. */
 const ALT: Record<"en" | "hy", Record<string, string>> = {
   en: Object.fromEntries(Object.entries(LANDMARKS_IN_TEXT).map(([id, name]) => [id, `Illustration of ${name}`])),
   hy: {
-    DEU: "Նկարազարդում՝ Բրանդենբուրգյան դարպասները",
+    BLR: "Նկարազարդում՝ Միրի ամրոցը",
     POL: "Նկարազարդում՝ Վավելի ամրոցը",
     LTU: "Նկարազարդում՝ Տրակայի կղզու դղյակը",
     LVA: "Նկարազարդում՝ Սևագլուխների տունը",
@@ -67,7 +73,11 @@ const L2_DONE = done(L2_COUNTRIES, "fra-to-aut", ["FRA", "DEU", "AUT"]);
 const L3_DONE = done(L3_COUNTRIES, "pol-to-aut", ["POL", "CZE", "AUT"]);
 const L4_DONE = done(L4_COUNTRIES, "ita-to-mne", ["ITA", "SVN", "HRV", "MNE"]);
 const L5_DONE = done(L5_COUNTRIES, "hun-to-grc", ["HUN", "ROU", "BGR", "GRC"]);
-const L6_DONE = done(L6_COUNTRIES, "deu-to-est", ["DEU", "POL", "LTU", "LVA", "EST"]);
+/** The current version's place: saved with its revision, as the game saves it. */
+const REVISED = { revision: 2 };
+const L6_DONE = { ...REVISED, ...done(L6_COUNTRIES, "pol-to-est", ["POL", "LTU", "LVA", "EST"]) };
+/** Finished on the first version (Germany → Estonia), saved before Level 6 changed: no revision. */
+const L6_ORIGINAL_DONE = done(L6_ORIGINAL, "deu-to-est", ["DEU", "POL", "LTU", "LVA", "EST"]);
 const L7_DONE = done(["PRT", "ESP", "AND", "FRA", "ITA"], "prt-to-ita", ["PRT", "ESP", "FRA", "ITA"]);
 const L8_DONE = done(["POL", "BLR", "UKR", "MDA", "ROU"], "pol-to-mda", ["POL", "UKR", "MDA"]);
 /** A save from before Level 6 existed: Levels 1–5 completed. */
@@ -78,20 +88,34 @@ const ALL_DONE = { ...EARLIER, [L6]: L6_DONE, [L7]: L7_DONE, [L8]: L8_DONE };
 const ALL_RECENT = [L6, ...EARLIER_RECENT];
 const ALL_DONE_RECENT = [L8, L7, L6, ...EARLIER_RECENT];
 
-const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
-const findAsking = (target: string, hintLevel = 0) => ({
+/** A place on the first version, as saved before Level 6 changed: no revision. */
+const ORIGINAL = {};
+const countriesOf = (version: object) => (version === ORIGINAL ? L6_ORIGINAL : L6_COUNTRIES);
+const discoverAt = (selected: string | null, version: object = REVISED) => ({
+  ...version,
   started: true,
-  stage: "find",
-  discover: { selected: null, explored: L6_COUNTRIES },
-  find: { order: [target, ...L6_COUNTRIES.filter((c) => c !== target)], index: 0, question: { target, wrongGuesses: [], hintLevel, solved: false, feedback: null }, results: [], status: "asking" },
+  stage: "discover",
+  discover: { selected, explored: selected ? [selected] : [] },
   records: records(false),
 });
-const travellingAt = (path: string[]) => ({
+const findAsking = (target: string, hintLevel = 0, version: object = REVISED) => {
+  const countries = countriesOf(version);
+  return {
+    ...version,
+    started: true,
+    stage: "find",
+    discover: { selected: null, explored: countries },
+    find: { order: [target, ...countries.filter((c) => c !== target)], index: 0, question: { target, wrongGuesses: [], hintLevel, solved: false, feedback: null }, results: [], status: "asking" },
+    records: records(false),
+  };
+};
+const travellingAt = (path: string[], version: object = REVISED) => ({
+  ...version,
   started: true,
   stage: "travel",
-  discover: { selected: null, explored: L6_COUNTRIES },
-  find: findDone(L6_COUNTRIES),
-  travel: { missionId: "deu-to-est", path, hintUsed: false, undoUsed: false },
+  discover: { selected: null, explored: countriesOf(version) },
+  find: findDone(countriesOf(version)),
+  travel: { missionId: version === ORIGINAL ? "deu-to-est" : "pol-to-est", path, hintUsed: false, undoUsed: false },
   records: { ...records(false), findDone: true },
 });
 
@@ -124,11 +148,20 @@ async function saveV2(page: Page, levels: Record<string, object>, { locale = "en
   await fontsSettled(page);
 }
 
-/** Opens Level 6 directly in a given state, Levels 1–5 completed. */
+/** Opens Level 6 directly in a given state, Levels 1–5 completed: on the version the state names. */
 async function openLevel6(page: Page, level6: object, locale = "en") {
   await saveV2(page, { ...EARLIER, [L6]: level6 }, { locale, screen: "lesson", levelId: L6, recent: ALL_RECENT });
-  for (const id of L6_COUNTRIES) await expect(page.locator(`[data-testid="map-main"] path[data-country="${id}"]`)).toBeVisible();
+  for (const id of "revision" in level6 ? L6_COUNTRIES : L6_ORIGINAL) await expect(page.locator(`[data-testid="map-main"] path[data-country="${id}"]`)).toBeVisible();
 }
+
+/** Level 6's place as the game saved it. */
+const savedLevel6 = (page: Page) => page.evaluate(([key, id]) => JSON.parse(localStorage.getItem(key)!).levels[id], [SAVE_KEY, L6] as const);
+/** The version Level 6's saved place is on: undefined for the first. */
+const savedRevision = async (page: Page) => (await savedLevel6(page)).revision;
+
+/** The countries Level 6's map lets the player choose (the others are context only), sorted. */
+const playable = (page: Page) =>
+  page.locator('[data-testid="map-main"] path[data-country][data-tone]').evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute("data-country")!))].sort());
 
 async function shot(page: Page, name: string) {
   const { width, height } = page.viewportSize()!;
@@ -304,10 +337,10 @@ async function expectFindSpoilerFree(page: Page, target: string) {
 }
 
 /**
- * A Level 6 landmark card, with its own illustration (Germany's and Poland's shared with earlier levels):
- * loaded, from its own file, with alt text naming the landmark in the card's language, and the only image
- * in the panel. Every one is well below 2:1 (0.84–1.25:1 for the Baltic three), so on phones it takes the
- * square tile beside the country's name.
+ * A Level 6 landmark card, with its own illustration (Poland's shared with earlier levels, Belarus's with
+ * Level 8): loaded, from its own file, with alt text naming the landmark in the card's language, and the only
+ * image in the panel. Every one is well below 2:1 (0.84–1.25:1 for the Baltic three), so on phones it takes
+ * the square tile beside the country's name.
  */
 async function expectLandmarkCard(page: Page, id: string, locale: "en" | "hy") {
   const figure = page.getByTestId("landmark-card");
@@ -425,7 +458,8 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   // A save from before Level 6 existed: Levels 1–5 completed, nothing for Level 6.
   await saveV2(page, EARLIER, { levelId: L5, recent: EARLIER_RECENT });
   await expect(card(page, L6).getByTestId("level-status")).toHaveText("Ready to play");
-  await expect(card(page, L6)).toContainText("Germany · Poland · Lithuania · Latvia · Estonia");
+  await expect(card(page, L6)).toContainText("Poland · Belarus · Lithuania · Latvia · Estonia");
+  await expect(card(page, L6)).toContainText("From Warsaw north to Tallinn, by one of two different ways.");
   await expect(card(page, L6)).toContainText("Baltic Journey");
   await expect(card(page, L6)).toHaveAttribute("data-up-next", "true");
   await expect(mainAction(page)).toHaveText(/^Start\s*Level 6 · Baltic Journey$/);
@@ -435,7 +469,8 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
 
   // --- Discover -----------------------------------------------------------------
   await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeAttached();
-  await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Map of the Baltic Sea countries");
+  await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Map of the Baltic states and their neighbours");
+  expect(await playable(page)).toEqual([...L6_COUNTRIES].sort());
   await expect(page.getByTestId("inset-toggle")).toHaveCount(0);
   await expect(page.getByTestId("map-inset")).toHaveCount(0);
   await expectMapTextClear(page);
@@ -451,11 +486,11 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
     await expectMarkerNamesOwn(page, `${id}`);
     await expectWordsWhole(cardEl.getByRole("heading", { level: 2 }), `${id} card title`);
   }
-  // This level's own descriptions for Germany and Poland (south-west and south here).
-  await tapCountry(page, "DEU");
-  await expect(cardEl).toContainText("in the south-west of this region");
+  // This level's own descriptions for Poland and Belarus (south-west and south-east here).
   await tapCountry(page, "POL");
-  await expect(cardEl).toContainText("in the south of this region, east of Germany");
+  await expect(cardEl).toContainText("The largest country of this region, in its south-west, with a coast on the Baltic Sea.");
+  await tapCountry(page, "BLR");
+  await expect(cardEl).toContainText("A flat country with no coast in the south-east of this region");
   await tapCountry(page, "EST");
   await expect(cardEl).toContainText("northernmost country of this region");
   await expect(page.getByTestId("discover-progress")).toContainText("5/5");
@@ -464,7 +499,9 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   await expect(cardEl.getByRole("heading", { name: "Լատվիա" })).toBeVisible();
   await expect(page.getByTestId("country-capital")).toContainText("Ռիգա");
   await expectLandmarkCard(page, "LVA", "hy");
-  await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Քարտեզ՝ Բալթիկ ծովի երկրներ");
+  await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Քարտեզ՝ Բալթյան երկրներ և նրանց հարևաններ");
+  await tapCountry(page, "BLR");
+  await expectLandmarkCard(page, "BLR", "hy");
   await expectNoHorizontalOverflow(page);
   await expectMapTextClear(page);
   await setLanguage(page, "English");
@@ -482,7 +519,7 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
     await expect(page.getByTestId("panel")).not.toContainText(LANDMARKS[target]);
     await expect(page.getByTestId("panel")).not.toContainText(CAPITALS[target]);
     if (q === 0) {
-      const wrong = target === "DEU" ? "POL" : "DEU";
+      const wrong = target === "BLR" ? "POL" : "BLR";
       await tapCountry(page, wrong);
       await expect(page.getByTestId("find-feedback")).toContainText("Try again.");
       await page.getByRole("button", { name: "Hint" }).click();
@@ -510,58 +547,76 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   expect([...asked].sort()).toEqual([...L6_COUNTRIES].sort());
 
   // --- Travel -------------------------------------------------------------------
-  await expect(page.getByRole("heading", { name: /Germany.*Estonia/ })).toBeVisible();
-  await expect(page.getByText("Shortest route: 4 crossings")).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Poland.*Estonia/ })).toBeVisible();
+  await expect(page.getByText("Shortest route: 3 crossings")).toBeVisible();
   const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
   const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
-  // Every real neighbour in the level, and no others: Germany meets only Poland here.
-  expect(await moves()).toEqual(["POL"]);
-  await page.getByTestId("move-POL").click();
-  // Germany, where the journey started, is not offered again: Lithuania is the way on.
-  expect(await moves()).toEqual(["LTU"]);
-  // Berlin → the Oder → Warsaw: straight legs.
-  await expect(route).toHaveAttribute("data-route", "DEU,POL");
+  // Every real neighbour in the level, and no others: Poland meets Belarus and Lithuania here, the two ways north.
+  expect(await moves()).toEqual(["BLR", "LTU"]);
+  await page.getByTestId("move-LTU").click();
+  // Warsaw → the Lithuanian border → Vilnius: straight legs.
+  await expect(route).toHaveAttribute("data-route", "POL,LTU");
   await expect(route).toHaveAttribute("data-points", "3");
-  await page.getByTestId("move-LTU").click();
-  expect(await moves()).toEqual(["LVA"]);
-  // Undo takes Lithuania off the route; Germany stays on it, so Poland still offers only Lithuania.
-  await page.getByTestId("travel-tools").getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByTestId("crossings-left")).toHaveText("3 crossings left");
-  expect(await moves()).toEqual(["LTU"]);
-  await page.reload();
-  // A refresh keeps the journey where it was.
-  await expect(route).toHaveAttribute("data-route", "DEU,POL");
-  await page.getByRole("button", { name: "Restart" }).click();
-  await expect(route).toHaveCount(0);
-  expect(await moves()).toEqual(["POL"]);
-  await expect(page.getByText("Help used on this journey")).toBeVisible();
-  await page.getByTestId("move-POL").click();
-  await page.getByTestId("move-LTU").click();
-  // Lithuania meets Latvia (and Poland, already on the route), not Estonia.
+  // Poland, where the journey started, is not offered again; the wrong turn south (Belarus) is.
+  expect(await moves()).toEqual(["BLR", "LVA"]);
+  await page.getByTestId("move-BLR").click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  // Belarus meets Latvia (and Poland and Lithuania, already on the route), not Estonia.
   expect(await moves()).toEqual(["LVA"]);
   await page.getByTestId("move-LVA").click();
-  expect(await moves()).toEqual(["EST"]);
+  // Out of crossings in Latvia, one crossing short of Estonia: not a dead end.
+  const stuck = page.getByTestId("out-of-crossings");
+  await expect(stuck).toContainText("No crossings left. Each move crossed a real border, but this route is longer than the shortest one.");
+  await expect(page.getByTestId("crossings-left")).toHaveText("0 crossings left");
+  await expect(page.getByTestId("dead-end")).toHaveCount(0);
+  expect(await moves()).toEqual([]);
+  // Undo from there: back in Belarus, Latvia offered again.
+  await stuck.getByRole("button", { name: "Undo" }).click();
+  await expect(route).toHaveAttribute("data-route", "POL,LTU,BLR");
+  await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves()).toEqual(["LVA"]);
+  // Undo again takes Belarus off the route: Lithuania offers Belarus and Latvia again.
+  await page.getByTestId("travel-tools").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  expect(await moves()).toEqual(["BLR", "LVA"]);
+  await page.reload();
+  // A refresh keeps the journey where it was.
+  await expect(route).toHaveAttribute("data-route", "POL,LTU");
+  await page.getByRole("button", { name: "Restart" }).click();
+  await expect(route).toHaveCount(0);
+  expect(await moves()).toEqual(["BLR", "LTU"]);
+  await expect(page.getByText("Help used on this journey")).toBeVisible();
+  // The other shortest route: through Belarus, then Latvia.
+  await page.getByTestId("move-BLR").click();
+  expect(await moves()).toEqual(["LTU", "LVA"]);
+  await page.getByTestId("move-LVA").click();
+  // Latvia offers Estonia, and Lithuania, a way back south.
+  expect(await moves()).toEqual(["EST", "LTU"]);
   await page.getByTestId("move-EST").click();
 
   // --- Results ------------------------------------------------------------------
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
-  for (const name of ["Germany", "Poland", "Lithuania", "Latvia", "Estonia"]) await expect(page.getByTestId("result-route")).toContainText(name);
-  await expect(page.getByTestId("result-crossings")).toContainText("4 of 4");
+  for (const name of ["Poland", "Belarus", "Latvia", "Estonia"]) await expect(page.getByTestId("result-route")).toContainText(name);
+  await expect(page.getByTestId("result-crossings")).toContainText("3 of 3");
   await expect(page.getByTestId("result-help")).toContainText("Undo");
   await expect(page.getByTestId("result-find-answers").locator("li")).toHaveCount(5);
   await expect(page.getByTestId("result-find")).toContainText("4/5");
-  // Capital → crossing → capital for each of the four moves: 9 points, no turning points.
-  await expect(route).toHaveAttribute("data-route", "DEU,POL,LTU,LVA,EST");
-  await expect(route).toHaveAttribute("data-points", "9");
+  // Capital → crossing → capital for each of the three moves: 7 points, no turning points.
+  await expect(route).toHaveAttribute("data-route", "POL,BLR,LVA,EST");
+  await expect(route).toHaveAttribute("data-points", "7");
   await setLanguage(page, "Հայերեն");
   await expect(page.getByRole("heading", { name: "Ճամփորդությունն ավարտվեց։" })).toBeVisible();
   await expectNoHorizontalOverflow(page);
   await setLanguage(page, "English");
+  // A new attempt is saved on the version it was played on.
+  expect(await savedRevision(page)).toBe(2);
 
-  // Replay journey without help: the badge.
+  // Replay journey without help, through Lithuania this time: the badge.
   await page.getByRole("button", { name: "Replay journey" }).click();
-  await expect(page.getByTestId("crossings-left")).toHaveText("4 crossings left");
-  for (const id of ["POL", "LTU", "LVA", "EST"]) await page.getByTestId(`move-${id}`).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("3 crossings left");
+  for (const id of ["LTU", "LVA", "EST"]) await page.getByTestId(`move-${id}`).click();
+  await expect(route).toHaveAttribute("data-route", "POL,LTU,LVA,EST");
+  await expect(route).toHaveAttribute("data-points", "7");
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
   await expect(page.getByTestId("result-help")).toHaveText(/Help used\s*None/);
   await expect(page.getByTestId("badge")).toBeVisible();
@@ -584,7 +639,7 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   expect(errors).toEqual([]);
 });
 
-test("Level 6: a journey saved with a repeat still opens; its dead end says crossings remain, and Undo or Retry go on", async ({ page }) => {
+test("Level 6: an older journey (first version) saved with a repeat still opens; its dead end says crossings remain, and Undo or Retry go on", async ({ page }) => {
   const DEAD_END = {
     en: "Dead end in Germany. All its neighbours on this journey are already on your route, and you can't enter a country twice. Undo your last move or try again.",
     hy: "Փակուղի՝ Գերմանիա։ Նրա բոլոր հարևաններն այս ճամփորդությունում արդեն քո երթուղում են, իսկ նույն երկիրը երկու անգամ մտնել չի կարելի։ Հետարկիր վերջին քայլը կամ փորձիր նորից։",
@@ -592,8 +647,9 @@ test("Level 6: a journey saved with a repeat still opens; its dead end says cros
   const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
   const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
   for (const locale of ["en", "hy"] as const) {
-    // Back in Germany from Poland (saved before a country could not be entered twice): two crossings left.
-    await openLevel6(page, travellingAt(["DEU", "POL", "DEU"]), locale);
+    // An attempt on the first version (Germany → Estonia, no revision), back in Germany from Poland: saved before a
+    // country could not be entered twice. Two crossings left. (The second version has no dead end with crossings left.)
+    await openLevel6(page, travellingAt(["DEU", "POL", "DEU"], ORIGINAL), locale);
     await expect(route).toHaveAttribute("data-route", "DEU,POL,DEU");
     const dead = page.getByTestId("dead-end");
     await expect(dead).toContainText(DEAD_END[locale]);
@@ -609,11 +665,141 @@ test("Level 6: a journey saved with a repeat still opens; its dead end says cros
     await expect(route).toHaveAttribute("data-route", "DEU,POL");
     expect(await moves()).toEqual(["LTU"]);
     // Retry from the dead end: back to Germany, Poland offered.
-    await openLevel6(page, travellingAt(["DEU", "POL", "DEU"]), locale);
+    await openLevel6(page, travellingAt(["DEU", "POL", "DEU"], ORIGINAL), locale);
     await page.getByTestId("dead-end").getByRole("button", { name: locale === "en" ? "Retry" : "Կրկին փորձել" }).click();
     await expect(route).toHaveCount(0);
     expect(await moves()).toEqual(["POL"]);
   }
+});
+
+/* Attempts started before Level 6 changed (saved without a revision) stay on its first version, everywhere: in
+   Discover, mid-Find, in Travel and at Results, through a refresh, Home and Continue, Undo and Restart, and View
+   results; the card shows that version's countries and description. Replay journey from its Results starts the
+   current journey (Poland → Estonia), keeping only the level's records; Play again and Start over start the current
+   version. A revision the level never had keeps only the records. */
+test("Level 6: older attempts keep the first version until Replay journey, Play again or Start over", async ({ page }) => {
+  test.skip(project() !== "desktop", "Runs once.");
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
+  const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
+  const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
+  const original = [...L6_ORIGINAL].sort();
+  const current = [...L6_COUNTRIES].sort();
+  const expectOriginalCard = async () => {
+    await expect(card(page, L6)).toContainText("Germany · Poland · Lithuania · Latvia · Estonia");
+    await expect(card(page, L6)).toContainText("From Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia.");
+  };
+
+  // Discover, Germany selected: the first version's map, region and hints; a refresh, Home and Continue keep it.
+  await openLevel6(page, discoverAt("DEU", ORIGINAL));
+  expect(await playable(page)).toEqual(original);
+  await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Map of the Baltic Sea countries");
+  await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "DEU");
+  await expect(page.getByTestId("country-card")).toContainText("in the south-west of this region");
+  await page.reload();
+  await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "DEU");
+  await homeToEurope(page);
+  await expectOriginalCard();
+  await expect(card(page, L6).getByTestId("level-status")).toHaveText("In progress: Discover");
+  await card(page, L6).getByRole("button", { name: /^Continue/ }).click();
+  await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "DEU");
+  expect(await playable(page)).toEqual(original);
+  expect(await savedRevision(page)).toBeUndefined();
+
+  // Find, the first hint shown: the question and its hint kept; answered on the first version.
+  await openLevel6(page, findAsking("DEU", 1, ORIGINAL));
+  await expect(page.getByTestId("find-prompt")).toHaveText("Find Germany");
+  await expect(page.getByTestId("panel")).toContainText("Its capital is Berlin.");
+  await page.reload();
+  await expect(page.getByTestId("find-prompt")).toHaveText("Find Germany");
+  await homeToEurope(page);
+  await expectOriginalCard();
+  await expect(card(page, L6).getByTestId("level-status")).toHaveText("In progress: Find");
+  await mainAction(page).click();
+  await expect(page.getByTestId("find-prompt")).toHaveText("Find Germany");
+  await tapCountry(page, "DEU");
+  await expect(page.getByTestId("find-feedback")).toBeVisible();
+  expect(await savedRevision(page)).toBeUndefined();
+
+  // Travel, Germany → Estonia, in Poland: four crossings, one way on; Undo and Restart stay on it.
+  await openLevel6(page, travellingAt(["DEU", "POL"], ORIGINAL));
+  await expect(page.getByRole("heading", { name: /Germany.*Estonia/ })).toBeVisible();
+  await expect(page.getByTestId("crossings-left")).toHaveText("3 crossings left");
+  expect(await moves()).toEqual(["LTU"]);
+  await page.getByTestId("move-LTU").click();
+  expect(await moves()).toEqual(["LVA"]);
+  await page.getByTestId("travel-tools").getByRole("button", { name: "Undo" }).click();
+  await expect(route).toHaveAttribute("data-route", "DEU,POL");
+  await page.reload();
+  await expect(route).toHaveAttribute("data-route", "DEU,POL");
+  await page.getByRole("button", { name: "Restart" }).click();
+  await expect(route).toHaveCount(0);
+  expect(await moves()).toEqual(["POL"]);
+  expect((await savedLevel6(page)).travel.missionId).toBe("deu-to-est");
+  await homeToEurope(page);
+  await expectOriginalCard();
+  await card(page, L6).getByRole("button", { name: /^Continue/ }).click();
+  await expect(page.getByRole("heading", { name: /Germany.*Estonia/ })).toBeVisible();
+  for (const id of ["POL", "LTU", "LVA", "EST"]) await page.getByTestId(`move-${id}`).click();
+  await expect(page.getByTestId("result-crossings")).toContainText("4 of 4");
+  await expect(route).toHaveAttribute("data-points", "9");
+  expect(await savedRevision(page)).toBeUndefined();
+
+  // Results: View results shows them as they were, and a refresh keeps them.
+  await saveV2(page, { ...EARLIER, [L6]: L6_ORIGINAL_DONE }, { levelId: L6, recent: ALL_RECENT });
+  await card(page, L6).getByTestId("level-details-toggle").click();
+  await expectOriginalCard();
+  await card(page, L6).getByTestId("view-results").click();
+  await expect(page.getByTestId("result-crossings")).toContainText("4 of 4");
+  await expect(route).toHaveAttribute("data-route", "DEU,POL,LTU,LVA,EST");
+  await expect(page.getByTestId("result-find-answers").locator("li")).toHaveCount(5);
+  await page.reload();
+  await expect(route).toHaveAttribute("data-route", "DEU,POL,LTU,LVA,EST");
+
+  // Replay journey: the current journey, Poland → Estonia, on the current version; only the records kept.
+  await page.getByRole("button", { name: "Replay journey" }).click();
+  await expect(page.getByRole("heading", { name: /Poland.*Estonia/ })).toBeVisible();
+  await expect(page.getByTestId("crossings-left")).toHaveText("3 crossings left");
+  expect(await moves()).toEqual(["BLR", "LTU"]);
+  expect(await playable(page)).toEqual(current);
+  const replay = await savedLevel6(page);
+  expect(replay.revision).toBe(2);
+  expect(replay.travel.missionId).toBe("pol-to-est");
+  expect(replay.lastTravelResult ?? null).toBeNull();
+  expect(replay.records.travelDone).toBe(true);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: /Poland.*Estonia/ })).toBeVisible();
+  for (const id of ["LTU", "LVA", "EST"]) await page.getByTestId(`move-${id}`).click();
+  await expect(page.getByTestId("result-crossings")).toContainText("3 of 3");
+  await expect(route).toHaveAttribute("data-points", "7");
+  await homeToEurope(page);
+  await card(page, L6).getByTestId("level-details-toggle").click();
+  await expect(card(page, L6)).toContainText("Poland · Belarus · Lithuania · Latvia · Estonia");
+
+  // Play again from older Results, and Start over from an older Find: the current version.
+  const dialog = page.getByTestId("start-over-dialog");
+  await saveV2(page, { ...EARLIER, [L6]: L6_ORIGINAL_DONE }, { levelId: L6, recent: ALL_RECENT });
+  await card(page, L6).getByTestId("level-details-toggle").click();
+  await card(page, L6).getByRole("button", { name: /^Play again/ }).click();
+  await dialog.getByRole("button", { name: "Play again" }).click();
+  await expect(page.getByTestId("discover-progress")).toContainText("0/5");
+  await expect(page.getByTestId("map-main")).toHaveAttribute("aria-label", "Map of the Baltic states and their neighbours");
+  expect(await playable(page)).toEqual(current);
+  expect(await savedRevision(page)).toBe(2);
+  await saveV2(page, { ...EARLIER, [L6]: findAsking("DEU", 0, ORIGINAL) }, { levelId: L6, recent: ALL_RECENT });
+  await card(page, L6).getByRole("button", { name: /^Start over/ }).click();
+  await dialog.getByRole("button", { name: "Start over" }).click();
+  await expect(page.getByTestId("discover-progress")).toContainText("0/5");
+  expect(await playable(page)).toEqual(current);
+  expect(await savedRevision(page)).toBe(2);
+
+  // A revision Level 6 never had (a newer build's): only its records, on the current version.
+  await openLevel6(page, { ...travellingAt(["DEU", "POL"], ORIGINAL), revision: 7 });
+  expect(await playable(page)).toEqual(current);
+  const unknown = await savedLevel6(page);
+  expect([unknown.revision, unknown.started, unknown.stage]).toEqual([2, false, "discover"]);
+  expect(errors).toEqual([]);
 });
 
 test("Level 6: independent saves; Start over and Play again change only this level; all eight stay completed", async ({ page }) => {
@@ -810,8 +996,9 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
       await expectFindSpoilerFree(page, "EST");
       await shot(page, `${locale}-find-hint`);
 
-      // Travel: at the start, and in Lithuania (two choices). The first choice whole without scrolling on phones.
-      for (const path of [["DEU"], ["DEU", "POL", "LTU"]]) {
+      // Travel: at the start (two ways north), in Lithuania (on, or back south through Belarus) and out of crossings in
+      // Latvia. The first choice whole without scrolling on phones.
+      for (const path of [["POL"], ["POL", "LTU"]]) {
         await openLevel6(page, travellingAt(path), locale);
         await expect(page.locator('[data-testid^="move-"]').first()).toBeVisible();
         await fontsSettled(page);
@@ -821,11 +1008,19 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
         await expectNoHorizontalOverflow(page);
         await shot(page, `${locale}-travel-${path.at(-1)}`);
       }
+      await openLevel6(page, travellingAt(["POL", "LTU", "BLR", "LVA"]), locale);
+      const stuck = page.getByTestId("out-of-crossings");
+      await expect(stuck.getByRole("button").first()).toBeVisible();
+      await expect(page.getByTestId("crossings-left")).toHaveText(locale === "en" ? "0 crossings left" : "Մնաց 0 սահմանահատում");
+      await expectWordsWhole(stuck.locator("p"), where("out of crossings"));
+      await expectMapTextClear(page);
+      await expectNoHorizontalOverflow(page);
+      await shot(page, `${locale}-travel-out-of-crossings`);
 
       // Results.
       await openLevel6(page, L6_DONE, locale);
-      await expect(page.getByTestId("result-crossings")).toContainText("4");
-      await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-points", "9");
+      await expect(page.getByTestId("result-crossings")).toContainText("3");
+      await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-points", "7");
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-results`);
     }
@@ -862,7 +1057,7 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
       // At 200% on the short phone, each country chosen on the map in turn after the previous card was
       // scrolled to its end: the new card opens at its top, leaves room to read, and is reached whole by scrolling.
       if (width === 320) {
-        await openLevel6(page, discoverAt("DEU"), locale);
+        await openLevel6(page, discoverAt("POL"), locale);
         await textSize(page, 200);
         for (const id of BALTIC_ART) {
           const where = `${width}×${height} ${locale} 200% ${id} chosen on the map`;
@@ -894,7 +1089,7 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-find-text200`);
       await textSize(page, 100);
-      await openLevel6(page, travellingAt(["DEU", "POL", "LTU"]), locale);
+      await openLevel6(page, travellingAt(["POL", "LTU"]), locale);
       await textSize(page, 200);
       await expectNeighboursClear(page, `${width}×${height} ${locale} Travel 200%`);
       await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
@@ -908,11 +1103,11 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
   }
 });
 
-/* The whole map: every country whole with padding (Estonia's islands included) on whole-region maps, never beyond the
-   prepared data at any size. Phones in landscape (192px maps) are cropped instead: their start view leaves Estonia
-   wholly beyond the top edge, and the player pans (docs/DATA.md, "Level 6"). Estonia's islands reached and tapped with
-   the normal controls; "Show the whole map" returns to the start. */
-test("Level 6's map: the start view and reset show all five countries with Estonia's islands on whole-region maps; no size shows past the data", async ({ page }) => {
+/* The whole map: every country whole with padding (Estonia's islands included) at every size, phones in landscape
+   included (smallest margins: 10px at 320×568, 11.2px at 740×360, 12.4px at 844×390, 28.5px at 1366×800; see
+   docs/DATA.md, "Level 6"), never beyond the prepared data. Estonia's islands reached and tapped with the normal
+   controls; "Show the whole map" returns to the start. */
+test("Level 6's map: the start view and reset show all five countries with Estonia's islands at every size; no size shows past the data", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once, across sizes.");
   test.setTimeout(400_000);
   const mapState = () =>
@@ -944,9 +1139,8 @@ test("Level 6's map: the start view and reset show all five countries with Eston
     const margin = Math.min(...start.countries.flatMap((c) => [c.left, c.top, c.right, c.bottom]));
     const sizesOf = start.countries.map((c) => `${c.id} ${c.width.toFixed(0)}×${c.height.toFixed(0)}`).join(", ");
     report.push(`${where}: smallest margin ${margin.toFixed(1)}px; ${sizesOf}`);
-    const aspect = start.map.width / start.map.height;
-    // Whole, with padding, on maps from about 1:1.2 to 1.9:1 (see docs/DATA.md); beyond, the view zooms in slightly instead.
-    if (aspect >= 1 / 1.2 && aspect <= 1.9) expect(margin, `${where}: a country touches or crosses the edge`).toBeGreaterThanOrEqual(4);
+    // Whole, with padding, at every size (10px or more in the preview: docs/DATA.md).
+    expect(margin, `${where}: a country touches or crosses the edge`).toBeGreaterThanOrEqual(4);
     await page.screenshot({ path: `screenshots/desktop/level6-map-${width}x${height}.png` });
     // Zoomed in and moved as far as it goes north, then north-east (Estonia, the Gulf of Finland, Russia):
     // the landscape still covers the view, so no edge of the prepared data shows.
@@ -1036,8 +1230,8 @@ const inEstonia = (page: Page, selector: string, at: "tip" | "centre") =>
 
 /* The traveller's pin in Tallinn (on the coast, at the top of the map): whole inside the map, with clear room, on
    arrival, at Results, after a refresh and after "Show the whole map"; its tip on Tallinn, as the capital marker is.
-   On a 320×568 phone the start view zooms in a little for it (docs/DATA.md, "Level 6"); it never moves on its own
-   while the player drags the map. */
+   On a 320×568 phone the start view zooms out a little for it (×0.987, all five still whole; docs/DATA.md, "Level 6");
+   it never moves on its own while the player drags the map. */
 test("Level 6: the traveller's pin in Tallinn is whole in the start view; the map never moves on its own during a drag", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once, across sizes.");
   test.setTimeout(400_000);
@@ -1053,7 +1247,7 @@ test("Level 6: the traveller's pin in Tallinn is whole in the start view; the ma
       const capital = await inEstonia(page, '[data-testid="map-main"] [data-marker="capital"]', "centre");
 
       // Arrival: from Latvia into Estonia, at the start view.
-      await openLevel6(page, travellingAt(["DEU", "POL", "LTU", "LVA"]), locale);
+      await openLevel6(page, travellingAt(["POL", "LTU", "LVA"]), locale);
       const travelling = await cameraOf(page);
       await page.getByTestId("move-EST").click();
       await expect(page.getByTestId("result-crossings")).toBeVisible();
@@ -1064,8 +1258,9 @@ test("Level 6: the traveller's pin in Tallinn is whole in the start view; the ma
       for (const r of await pinRoom(page)) expect(r, where("pin on arrival")).toBeGreaterThanOrEqual(ROOM);
       const tip = await inEstonia(page, '[data-testid="map-main"] [data-traveller] path', "tip");
       expect(Math.abs(tip[0] - capital[0]) + Math.abs(tip[1] - capital[1]), where("pin tip off Tallinn")).toBeLessThan(0.03);
-      // Only the 320px map needs a different start view for the pin.
-      if (width === 320) expect(arrived, where("camera on arrival")).not.toBe(travelling);
+      // Of these three sizes, only the 320px map needs a different start view for the pin: a little wider (zoomed out),
+      // all five still whole. (Phones in landscape ease out by about 1%, as they did on the first version: docs/DATA.md.)
+      if (width === 320) expect(scaleOf(arrived), where("camera on arrival")).toBeLessThan(scaleOf(travelling));
       else expect(arrived, where("camera on arrival")).toBe(travelling);
 
       // Results after a refresh: the same view.
@@ -1098,7 +1293,7 @@ test("Level 6: the traveller's pin in Tallinn is whole in the start view; the ma
   // At 320×568, the traveller arrives in Tallinn while the player drags the map: the camera stays with the drag, and
   // where they leave it, rather than easing to the new start view. "Show the whole map" then shows the pin whole.
   await page.setViewportSize({ width: 320, height: 568 });
-  await openLevel6(page, travellingAt(["DEU", "POL", "LTU", "LVA"]));
+  await openLevel6(page, travellingAt(["POL", "LTU", "LVA"]));
   const before = await cameraOf(page);
   const svg = (await page.getByTestId("map-main").boundingBox())!;
   await page.mouse.move(svg.x + svg.width * 0.5, svg.y + svg.height * 0.4);
@@ -1117,7 +1312,8 @@ test("Level 6: the traveller's pin in Tallinn is whole in the start view; the ma
   expect(await cameraOf(page), "the map moved on its own after the drag").toBe(dragged);
   await page.getByRole("button", { name: "Show the whole map" }).click();
   await page.waitForTimeout(600);
-  expect(scaleOf(await cameraOf(page))).toBeGreaterThan(scaleOf(before));
+  // The start view with the pin in Tallinn: a little wider than the one the journey was travelled in.
+  expect(scaleOf(await cameraOf(page))).toBeLessThan(scaleOf(before));
   for (const r of await pinRoom(page)) expect(r, "pin after Show the whole map").toBeGreaterThanOrEqual(ROOM);
 });
 
@@ -1184,10 +1380,10 @@ async function expectEstoniaNamedNearby(page: Page, where: string) {
   return { inline: false, leader };
 }
 
-/* Estonia selected in Discover: its name inside Estonia where it fits (390px, desktop), and on a 320px phone a callout
-   beside it, over the sea, with a short leader, in both languages; also after other selections, zoomed in and moved.
-   The callout never brings a name into Find. */
-test("Level 6: Estonia's name in Discover stays inside or close beside Estonia, clear of Tallinn and the controls", async ({ page }) => {
+/* Estonia selected in Discover: its name inside Estonia at every size, a 320px phone included (the second version's map
+   is narrower than the first's, which used a callout there), in both languages; also after other selections, zoomed in
+   and moved (where a callout close beside it would still do). Nothing names the target in Find. */
+test("Level 6: Estonia's name in Discover stays inside Estonia at every size, clear of Tallinn and the controls", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once, across sizes.");
   test.setTimeout(300_000);
   for (const [width, height] of [[320, 568], [390, 844], [1366, 800]]) {
@@ -1198,11 +1394,11 @@ test("Level 6: Estonia's name in Discover stays inside or close beside Estonia, 
       await expect(page.locator("[data-marker-text]")).toHaveText(locale === "en" ? CAPITALS.EST : CAPITALS_HY.EST);
       const at = await expectEstoniaNamedNearby(page, where("Estonia selected"));
       expect(at, where("Estonia's name left out")).not.toBeNull();
-      // Inside Estonia wherever it fits; on a 320px map it doesn't, beside Tallinn's marker and name.
-      expect(at!.inline, where("Estonia's name inline")).toBe(width !== 320);
+      // Inside Estonia at every size, beside Tallinn's marker and name.
+      expect(at!.inline, where("Estonia's name inline")).toBe(true);
       await expectMapTextClear(page);
       await expectMarkerNamesOwn(page, where("Estonia selected"));
-      if (width === 320) await shot(page, `${locale}-discover-EST-callout`);
+      if (width === 320) await shot(page, `${locale}-discover-EST-inline`);
       if (width !== 320) continue;
 
       // Another country selected, then Estonia again.
@@ -1213,7 +1409,7 @@ test("Level 6: Estonia's name in Discover stays inside or close beside Estonia, 
         expect(await expectEstoniaNamedNearby(page, where(`${id} selected`)), where(`${id} selected: Estonia's name left out`)).not.toBeNull();
         await expectMapTextClear(page);
       }
-      // Zoomed in (Estonia then lies beyond the top edge, its name not shown), then moved to bring Estonia
+      // Zoomed in (Estonia near the top edge: its name shown or left out, never cut), then moved to bring Estonia
       // towards the middle: its name inside it or close beside it.
       await page.getByRole("button", { name: locale === "en" ? "Zoom in" : "Մեծացնել" }).click();
       await page.waitForTimeout(500);
@@ -1246,7 +1442,8 @@ test("Level 6: Estonia's name in Discover stays inside or close beside Estonia, 
   }
 });
 
-/* The landscape: only Level 6's own overview, its overlay once a country has a state colour, and tiles only when zoomed. */
+/* The landscape: only the overview of Level 6's version (baltic-journey-r2 for the current one; the first version's,
+   baltic-journey, for an older attempt), its overlay once a country has a state colour, and tiles only when zoomed. */
 test("Level 6 loads its own landscape overview, and zoomed tiles only for the view", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once.");
   await saveV2(page, { ...EARLIER, [L6]: discoverAt(null) }, { levelId: L5, recent: EARLIER_RECENT });
@@ -1258,15 +1455,16 @@ test("Level 6 loads its own landscape overview, and zoomed tiles only for the vi
   await card(page, L6).getByRole("button", { name: /^Continue/ }).click();
   const main = page.getByTestId("map-main");
   await expect(main.locator('[data-family="land"] image[data-level="overview"]')).toHaveCount(1);
-  await expect.poll(() => requests.some((u) => /baltic-journey-land/.test(u))).toBe(true);
+  await expect.poll(() => requests.some((u) => /baltic-journey-r2-land/.test(u))).toBe(true);
   await page.waitForTimeout(500);
-  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
-  expect(requests.filter((u) => /baltic-journey-tone/.test(u)), "the overlay before any state colour").toEqual([]);
+  // Nor the first version's (baltic-journey-land/-tone, without "-r2").
+  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
+  expect(requests.filter((u) => /baltic-journey-r2-tone/.test(u)), "the overlay before any state colour").toEqual([]);
   expect(requests.filter((u) => u.includes("/relief/")), "zoomed tiles at the whole-map view").toEqual([]);
   // A selection gives Estonia a state colour: its overlay is loaded.
   await tapCountry(page, "EST");
   await expect(main.locator('[data-family="tone"] image[data-level="overview"]')).toHaveCount(1);
-  await expect.poll(() => requests.some((u) => /baltic-journey-tone/.test(u))).toBe(true);
+  await expect.poll(() => requests.some((u) => /baltic-journey-r2-tone/.test(u))).toBe(true);
   // Zoomed in, sharper tiles for the visible part only.
   for (let i = 0; i < 3; i++) {
     await page.getByRole("button", { name: "Zoom in" }).click();
@@ -1283,4 +1481,13 @@ test("Level 6 loads its own landscape overview, and zoomed tiles only for the vi
     }).length;
   });
   expect(outside, "tiles far outside the view").toBe(0);
+
+  // An older attempt (the first version, no revision) draws the first version's overview, never the current one's.
+  await saveV2(page, { ...EARLIER, [L6]: discoverAt(null, ORIGINAL) }, { levelId: L5, recent: EARLIER_RECENT });
+  requests.length = 0;
+  await card(page, L6).getByRole("button", { name: /^Continue/ }).click();
+  await expect(main.locator('[data-family="land"] image[data-level="overview"]')).toHaveCount(1);
+  await expect.poll(() => requests.some((u) => /baltic-journey-land/.test(u))).toBe(true);
+  await page.waitForTimeout(500);
+  expect(requests.filter((u) => /baltic-journey-r2-(land|tone)/.test(u)), "the current version's overview in an older attempt").toEqual([]);
 });

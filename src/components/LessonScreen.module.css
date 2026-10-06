@@ -1109,13 +1109,38 @@
   font-weight: 900;
 }
 
-/* The attempt's stars large; the best, when shown beside them, smaller. */
+/* The attempt's stars, the first thing in the section: its label on a line of its own, then its three
+   reward stars, large (2.875rem: 46px at the usual text size, growing with the text) and 6px apart, with
+   their count in words beside them, or under them where there is no room. Only if three would be wider
+   than the whole section (very large text on a narrow phone) do they shrink to fit, never the words. */
 .ratingRow:not(.ratingBest) {
   font-size: 1.15rem;
+  row-gap: 6px;
 }
 
 .ratingRow:not(.ratingBest) .ratingLabel {
+  flex-basis: 100%;
   font-size: 0.7rem;
+}
+
+.ratingRow:not(.ratingBest) > [aria-hidden="true"] {
+  flex: 0 1 auto;
+  max-width: 100%;
+  gap: 0.375rem;
+}
+
+.ratingRow:not(.ratingBest) svg {
+  flex: 0 1 auto;
+  min-width: 0;
+  width: 2.875rem;
+  height: auto;
+  aspect-ratio: 1;
+}
+
+/* The best, when it differs: secondary, its stars 1.5rem (24px), beside its label and count. */
+.ratingBest svg {
+  width: 1.5rem;
+  height: 1.5rem;
 }
 
 .newBest {

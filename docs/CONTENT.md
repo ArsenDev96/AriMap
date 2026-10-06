@@ -47,7 +47,7 @@ Country, capital and landmark names follow the Armenian Wikipedia article titles
 
 ## Level-specific hints
 
-A country's hint describes it within its level's region. Where Level 1's hint would be wrong in Level 2, the level has its own (`hints` in `src/core/lessons/alps.ts`): Germany is "in the north of this region" in Level 2, not "in the east". France's hint (the largest country, coasts on the Atlantic and the Mediterranean) is true in both. Level 3 has its own hints for Germany ("in the west") and Austria ("in the south"); see its section below. Level 6 has its own for Germany ("in the south-west") and Poland ("in the south of this region, east of Germany"); see its section. Level 7 has its own for France ("north of the Pyrenees"), where "the largest country" would not tell it from Spain; see its section. Level 8 has its own for Poland ("the westernmost country of this region") and Romania ("the southernmost"), where their usual hints ("in the north-east", "the largest country") would be wrong; see its section.
+A country's hint describes it within its level's region. Where Level 1's hint would be wrong in Level 2, the level has its own (`hints` in `src/core/lessons/alps.ts`): Germany is "in the north of this region" in Level 2, not "in the east". France's hint (the largest country, coasts on the Atlantic and the Mediterranean) is true in both. Level 3 has its own hints for Germany ("in the west") and Austria ("in the south"); see its section below. Level 6 has its own for Poland ("the largest country of this region, in its south-west") and Belarus ("in the south-east of this region"); its first version, kept for attempts started on it, had its own for Germany ("in the south-west") and Poland ("in the south of this region, east of Germany"); see its section. Level 7 has its own for France ("north of the Pyrenees"), where "the largest country" would not tell it from Spain; see its section. Level 8 has its own for Poland ("the westernmost country of this region") and Romania ("the southernmost"), where their usual hints ("in the north-east", "the largest country") would be wrong; see its section.
 
 ## Level 2 illustrations
 
@@ -370,6 +370,39 @@ Each starts with the shared style paragraph (Level 2's, above: clean dark navy o
    > [style paragraph] Subject: a Meteora monastery in Greece. A towering, smooth, rounded pillar of grey and honey-beige sandstone with vertical streaks, and on its flat top a monastery: cream and ochre stone walls, small windows, red-tiled roofs and a small dome, built right to the cliff's edge. A second, lower rock pillar beside it, and a little green ground with a few dark cypress trees at the base. Tall or square artwork within the frame.
 
 ## Level 6: Baltic Journey
+
+### Second version (since 2026-10-06)
+
+Since 2026-10-06 Level 6 is Poland, Belarus, Lithuania, Latvia and Estonia (`balticJourneyLesson` in `src/core/lessons/baltic-journey.ts`, revision 2), with the journey Poland → Estonia by two shortest routes (through Lithuania or Belarus; docs/DATA.md, "Level 6"). Attempts started before keep the first version (Germany in place of Belarus, Germany → Estonia), whose content is described in the rest of this section; see the README, "Saved progress". The level's id, title and unlock are unchanged.
+
+No country content is new. Belarus is shared with Level 8: its names, capital (Minsk), landmark (Mir Castle), fact and artwork are unchanged (see "Level 8: Eastern Europe"). Poland's, Lithuania's, Latvia's and Estonia's are the first version's. Every card is illustrated: Poland's Wawel Castle and Belarus's Mir Castle are shared with earlier levels, and the Baltic three keep their own.
+
+| Text | English | Armenian |
+|---|---|---|
+| The level's description (its card) | From Warsaw north to Tallinn, by one of two different ways. | Վարշավայից դեպի հյուսիս՝ մինչև Տալլին, երկու տարբեր ճանապարհներից մեկով։ |
+| The map's region name ("Map of …") | the Baltic states and their neighbours | Բալթյան երկրներ և նրանց հարևաններ |
+
+The first version's description ("From Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia.") and region name ("the Baltic Sea countries") are kept for its attempts: the level's card shows the version an attempt is on, its countries and description (`LevelInfo.earlier` in `src/core/lessons/levels.ts`).
+
+**Descriptions and Find hints (second version).** Poland's usual hint (Level 3's "in the north-east of this region") and Level 8's for Belarus ("in the north of this region") would be wrong here, where Poland is the largest country (312,685 km² against Belarus's 207,600) and lies in the south-west, and Belarus lies in the south-east. So Level 6 has its own for both; Lithuania's, Latvia's and Estonia's own hints are true here.
+
+| Country | Hint (English) |
+|---|---|
+| Poland | The largest country of this region, in its south-west, with a coast on the Baltic Sea. (Level 6's own) |
+| Belarus | A flat country with no coast in the south-east of this region, with many forests, lakes and marshes. (Level 6's own) |
+| Lithuania | A country with a short coast on the Baltic Sea, between Poland and Latvia. |
+| Latvia | A country on the Baltic Sea between Lithuania and Estonia, around the Gulf of Riga. |
+| Estonia | The northernmost country of this region, on the Gulf of Finland, with many islands. |
+
+Each is distinct within the level: only Belarus has no coast, Poland is the largest, Estonia the northernmost, and Lithuania's coast is the short one. Lithuania also borders Belarus here, but "between Poland and Latvia" stays true. Belarus's border lengths (CIA World Factbook, final edition, factbook.json mirror): Latvia 161 km, Lithuania 640 km, Poland 375 km.
+
+Flagged for a native speaker's check (our renderings, not presented as established usage):
+
+- **The description**: «Վարշավայից դեպի հյուսիս՝ մինչև Տալլին, երկու տարբեր ճանապարհներից մեկով։» ("from Warsaw north to Tallinn, by one of two different ways").
+- **The region name**: «Բալթյան երկրներ և նրանց հարևաններ». «Բալթյան երկրներ» is the Armenian article's title for the Baltic states; «և նրանց հարևաններ» ("and their neighbours") is ours, for Poland and Belarus.
+- **The new hints**: Poland's «Տարածաշրջանի ամենամեծ երկիրը՝ նրա հարավ-արևմուտքում, Բալթիկ ծովի ափով։» and Belarus's «Հարթ երկիր առանց ծովի՝ տարածաշրջանի հարավ-արևելքում, բազմաթիվ անտառներով, լճերով և ճահիճներով։» (Level 8's wording, with this level's direction).
+
+### First version (until 2026-10-06)
 
 Germany and Poland are shared with earlier levels: their names, capitals, landmarks, facts and artwork are unchanged. Only their descriptions are Level 6's own (below). Lithuania, Latvia and Estonia are new. Their content was checked on 2026-10-02. The level's stable id is `baltic-journey`.
 
@@ -750,5 +783,14 @@ The app imports the display copies statically. `next/image` serves each device a
 **Very wide art on phones.** An illustration whose display copy is at least **2:1** (width ÷ height, `WIDE_ART_ASPECT` in `src/components/landmarks/LandmarkCard.tsx`) gets a different phone layout: the country's name and capital as a compact heading, the art in a shallow tile across the card below them (the same colours and corners), then the landmark's name and fact and the country's description. The tile's height follows the art's own proportions, up to `max(56px, 11svh)` so that the name, capital and whole artwork fit above the pinned button on a 320×568 screen. Since the ratio comes from the static import, the layout is decided before the image loads, and nothing moves when it does. Everything else keeps the square tile beside the name, and desktop is unchanged.
 
 Why 2:1: in the square tile, art of aspect *a* uses 1/*a* of the tile's height. In the shallow tile (about 262×62 px at 320×568), art below about 2:1 would be drawn no larger. The Adolphe Bridge (1.71) would go from 100×58 px to about 106×62 px, so it keeps the side-by-side layout. The current copies are 0.76–1.71 or 3.26 (Level 3's are 1.47–1.50; Level 4's 0.96–1.20; Level 5's 0.90–1.24; Level 6's 0.84–1.25; Level 7's 0.93–1.08; Level 8's 1.05–1.27), so 2 sits in the gap. Today only **Schönbrunn Palace (3.26)** uses the wide layout. It is drawn at 204×62 px at 320×568 (100×30 px before), 229×70 at 320×640, 238×73 at 390×664 (117×35 before) and 302×93 at 390×844.
+
+**Level card thumbnails.** The same script also makes a thumbnail of each level card's picture (`THUMBNAILS` in the script, matching `LEVEL_ART_COUNTRY` in `src/components/WelcomeScreen.tsx`) in `src/assets/landmarks/thumbnails/`:
+- **Same trim:** the same trim as the display copy, resized once from the original. Proportions and the whole artwork are kept.
+- **Size:** 156 px on the longer side. The card's 64 px tile draws the art at most 52 CSS px, and 156 px covers that at up to 3× pixel density.
+- **Encoding:** near-lossless WebP (quality 40). Transparent and opaque pixels stay so, and soft edges and colours move by at most a few levels. At the drawn size this is at least 44 dB against a lossless thumbnail, at 1×, 2× and 3×. Lossy WebP of the same size blurred the outlines at 3×.
+- **Sizes:** Eiffel Tower 119×156, 9.8 KiB; Chapel Bridge 156×156, 15.3 KiB; Charles Bridge 156×104, 10.4 KiB; City Walls of Dubrovnik 156×150, 20.3 KiB; Meteora 140×156, 17.2 KiB; Trakai Island Castle 156×125, 14.8 KiB; Sagrada Família 144×156, 21.4 KiB; Bran Castle 156×156, 18.5 KiB. Together 128 KiB, against 3.8 MiB for their display copies.
+- **Served as is:** the level cards load them unoptimised, as static files, not through `/_next/image`. Only the level cards use them; the landmark cards keep the display copies through `next/image`.
+
+Adding a thumbnail left all twenty-nine display copies byte-identical and all twenty-nine originals unchanged, both checked by SHA-256; a rerun reproduces the thumbnails byte for byte.
 
 To replace an illustration, overwrite the original in `public/images/landmarks/` and rerun the script.
