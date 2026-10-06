@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createFindOrder } from "../game/find";
 import { shortestDistance } from "../game/graph";
+import { availableMoves, createAttempt, isDeadEnd, move, undo } from "../game/travel";
 import { seededRandom } from "../game/random";
-import { CONTINENTS, getLevel, hasPlayableLevels, LESSONS, LEVELS, levelsOf } from "../lessons";
+import { CONTINENTS, getLevel, hasPlayableLevels, LESSON_VERSIONS, LESSONS, LEVELS, levelsOf } from "../lessons";
 import { alpsLesson as alps } from "../lessons/alps";
-import { balticJourneyLesson as baltic } from "../lessons/baltic-journey";
+import { balticJourneyLesson as baltic, balticJourneyOriginalLesson as balticOriginal } from "../lessons/baltic-journey";
 import { adriaticLesson as adriatic } from "../lessons/adriatic";
 import { centralEuropeLesson as central } from "../lessons/central-europe";
 import { easternEuropeLesson as eastern } from "../lessons/eastern-europe";
@@ -14,6 +15,7 @@ import { westernEuropeLesson as france } from "../lessons/western-europe";
 import { buildMapView } from "../lesson/mapView";
 import type { LessonAction } from "../lesson/progress";
 import {
+  activeLesson,
   allLevelsComplete,
   appReducer,
   canPlay,
@@ -23,9 +25,11 @@ import {
   levelToContinue,
   hasSavedResults,
   hasUnfinishedAttempt,
+  isLevelComplete,
   nextLevel,
   mainAction,
   startFindingAction,
+  versionOf,
   type AppAction,
   type AppState,
 } from "./appState";
@@ -61,9 +65,9 @@ function complete(s: AppState, route: string[]): AppState {
 const level1Done = () => complete(run(createInitialState(), open(L1)), ["FRA", "BEL", "NLD"]);
 const level2Done = () => complete(run(level1Done(), open(L2)), ["FRA", "CHE", "AUT"]);
 const level3Done = () => complete(run(level2Done(), open(L3)), ["POL", "CZE", "AUT"]);
-const level4Done = () => complete(run(level3Done(), open(L4)), ["ITA", "SVN", "HRV", "MNE"]);
+const level4Done = () => complete(run(level3Done(), open(L4)), ["MNE", "HRV", "SVN", "ITA"]);
 const level5Done = () => complete(run(level4Done(), open(L5)), ["HUN", "ROU", "BGR", "GRC"]);
-const level6Done = () => complete(run(level5Done(), open(L6)), ["DEU", "POL", "LTU", "LVA", "EST"]);
+const level6Done = () => complete(run(level5Done(), open(L6)), ["POL", "LTU", "LVA", "EST"]);
 const level7Done = () => complete(run(level6Done(), open(L7)), ["PRT", "ESP", "FRA", "ITA"]);
 const level8Done = () => complete(run(level7Done(), open(L8)), ["POL", "UKR", "MDA"]);
 
@@ -713,40 +717,114 @@ describe("Level 4: Along the Adriatic", () => {
     expect(buildMapView(adriatic, s.levels[L4], NO_UI)).toMatchObject({ labels: [], tones: {}, areaHint: null });
   });
 
-  it("travels Italy → Montenegro in three crossings, by the one shortest route", () => {
-    expect(shortestDistance(adriatic.borders, "ITA", "MNE")).toBe(3);
-    const s = complete(run(level3Done(), open(L4)), ["ITA", "SVN", "HRV", "MNE"]);
+  it("travels Montenegro → Italy in three crossings, by the one shortest route", () => {
+    expect(adriatic.travel.mission).toMatchObject({ id: "mne-to-ita", from: "MNE", to: "ITA" });
+    expect(shortestDistance(adriatic.borders, "MNE", "ITA")).toBe(3);
+    const s = complete(run(level3Done(), open(L4)), ["MNE", "HRV", "SVN", "ITA"]);
     expect(s.levels[L4].stage).toBe("results");
-    expect(s.levels[L4].lastTravelResult).toMatchObject({ route: ["ITA", "SVN", "HRV", "MNE"], budget: 3, independent: true });
+    expect(s.levels[L4].lastTravelResult).toMatchObject({ missionId: "mne-to-ita", route: ["MNE", "HRV", "SVN", "ITA"], budget: 3, independent: true });
     expect(levelStatus(s, LEVELS[3]).kind).toBe("completed");
     expect(s.levels[L4].records).toMatchObject({ travelDone: true, travelWithoutHelp: true, bestFindScore: { independent: 5, total: 5 } });
   });
 
-  it("offers every real neighbour within the level, and only those; Hint, Undo and Restart count as help", () => {
-    let s = complete(run(level3Done(), open(L4)), ["ITA"]);
-    const moves = (st: AppState) => [...adriatic.borders[st.levels[L4].travel!.path.at(-1)!]].sort();
-    // Italy's only neighbour here is Slovenia: no sea crossings to Croatia or Montenegro.
-    expect(moves(s)).toEqual(["SVN"]);
-    for (const country of ["HRV", "BIH", "MNE"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    s = run(s, play({ type: "travelMove", country: "SVN" }));
-    expect(moves(s)).toEqual(["HRV", "ITA"]);
-    expect(run(s, play({ type: "travelMove", country: "BIH" }))).toBe(s);
-    s = run(s, play({ type: "travelMove", country: "HRV" }));
-    expect(moves(s)).toEqual(["BIH", "MNE", "SVN"]);
-    // Through Bosnia and Herzegovina takes four crossings: out of crossings there.
+  it("offers every real neighbour within the level not yet on the route; the longer way and the dead end both stay possible; Hint, Undo and Restart count as help", () => {
+    let s = complete(run(level3Done(), open(L4)), ["MNE"]);
+    const neighbours = (st: AppState) => [...adriatic.borders[st.levels[L4].travel!.path.at(-1)!]].sort();
+    const offered = (st: AppState) => [...availableMoves(st.levels[L4].travel!, adriatic.borders)].sort();
+    // Montenegro meets Croatia and Bosnia and Herzegovina; no sea crossing to Italy.
+    expect(neighbours(s)).toEqual(["BIH", "HRV"]);
+    expect(offered(s)).toEqual(["BIH", "HRV"]);
+    for (const country of ["ITA", "SVN"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
+    // Through Bosnia and Herzegovina first: real borders, but out of crossings in Slovenia.
     s = run(s, play({ type: "travelMove", country: "BIH" }));
-    expect(s.levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["ITA", "SVN", "HRV", "BIH"] });
+    expect(offered(s)).toEqual(["HRV"]);
+    s = run(s, play({ type: "travelMove", country: "HRV" }));
+    expect(offered(s)).toEqual(["SVN"]);
+    s = run(s, play({ type: "travelMove", country: "SVN" }));
+    expect(s.levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["MNE", "BIH", "HRV", "SVN"] });
     s = run(s, play({ type: "travelUndo" }));
-    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["ITA", "SVN", "HRV"], undoUsed: true });
+    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "BIH", "HRV"], undoUsed: true });
     s = run(s, play({ type: "travelRestart" }));
-    expect(s.levels[L4].travel).toMatchObject({ path: ["ITA"], undoUsed: true });
-    s = run(s, play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "HRV" }), play({ type: "travelMove", country: "MNE" }));
-    expect(s.levels[L4].lastTravelResult).toMatchObject({ route: ["ITA", "SVN", "HRV", "MNE"], undoUsed: true, hintUsed: false, independent: false });
+    expect(s.levels[L4].travel).toMatchObject({ path: ["MNE"], undoUsed: true });
+    // Into Bosnia and Herzegovina from Croatia: a dead end with a crossing left.
+    s = run(s, play({ type: "travelMove", country: "HRV" }));
+    expect(neighbours(s)).toEqual(["BIH", "MNE", "SVN"]);
+    expect(offered(s)).toEqual(["BIH", "SVN"]);
+    s = run(s, play({ type: "travelMove", country: "BIH" }));
+    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "HRV", "BIH"] });
+    expect(isDeadEnd(s.levels[L4].travel!, adriatic.borders)).toBe(true);
+    expect(refresh(s).levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "HRV", "BIH"] });
+    s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "ITA" }));
+    expect(s.levels[L4].lastTravelResult).toMatchObject({ missionId: "mne-to-ita", route: ["MNE", "HRV", "SVN", "ITA"], undoUsed: true, hintUsed: false, independent: false });
     expect(s.levels[L4].records.travelWithoutHelp).toBe(false);
     // A hint alone also counts as help; Replay journey starts Travel again and keeps the completion.
-    s = run(s, play({ type: "replayTravel" }), play({ type: "travelHint" }), play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "HRV" }), play({ type: "travelMove", country: "MNE" }));
+    s = run(s, play({ type: "replayTravel" }), play({ type: "travelHint" }), play({ type: "travelMove", country: "HRV" }), play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "ITA" }));
     expect(s.levels[L4].lastTravelResult).toMatchObject({ hintUsed: true, independent: false });
     expect(levelStatus(refresh(s), LEVELS[3])).toMatchObject({ kind: "completed", stage: "results" });
+  });
+
+  describe("saves from when the journey ran Italy → Montenegro", () => {
+    const OLD = "ita-to-mne";
+    /** Level 4 saved on the earlier journey: `path` under way, or finished along `path` at its Results. */
+    const oldSave = (path: string[], { results = false, undoUsed = false } = {}) => {
+      const raw = JSON.parse(JSON.stringify(level3Done()));
+      const order = [...adriatic.countries];
+      raw.levelId = L4;
+      raw.levels[L4] = {
+        started: true,
+        stage: results ? "results" : "travel",
+        discover: { selected: null, explored: order },
+        find: { order, index: 4, question: { target: order[4], wrongGuesses: [], hintLevel: 0, solved: true, feedback: null }, results: order.map((target) => ({ target, wrongGuesses: 0, hintLevel: 0 })), status: "complete" },
+        travel: { missionId: OLD, path, hintUsed: false, undoUsed },
+        lastTravelResult: results ? { missionId: OLD, route: path, hintUsed: false, undoUsed } : null,
+        records: { discoverDone: true, findDone: true, travelDone: results, lastFindScore: { independent: 5, total: 5 }, bestFindScore: { independent: 5, total: 5 }, travelWithoutHelp: results && !undoUsed, ...(results ? { bestRating: 3 } : {}) },
+      };
+      return parseSavedState(JSON.stringify(raw))!;
+    };
+
+    it("keeps a journey under way on its own endpoints; Undo and Restart stay on it, and it finishes in Montenegro", () => {
+      let s = oldSave(["ITA", "SVN"]);
+      expect(s.levels[L4].stage).toBe("travel");
+      expect(s.levels[L4].travel).toMatchObject({ missionId: OLD, from: "ITA", to: "MNE", budget: 3, path: ["ITA", "SVN"], status: "playing" });
+      expect(availableMoves(s.levels[L4].travel!, adriatic.borders)).toEqual(["HRV"]);
+      s = run(s, play({ type: "travelMove", country: "HRV" }), play({ type: "travelUndo" }), play({ type: "travelRestart" }));
+      expect(s.levels[L4].travel).toMatchObject({ missionId: OLD, from: "ITA", to: "MNE", path: ["ITA"], undoUsed: true });
+      s = run(s, ...["SVN", "HRV", "MNE"].map((country) => play({ type: "travelMove", country })));
+      expect(s.levels[L4].stage).toBe("results");
+      expect(s.levels[L4].lastTravelResult).toMatchObject({ missionId: OLD, route: ["ITA", "SVN", "HRV", "MNE"], budget: 3, undoUsed: true });
+      expect(levelStatus(s, LEVELS[3]).kind).toBe("completed");
+      // Saved and read again: still the earlier journey.
+      expect(refresh(s).levels[L4].lastTravelResult).toMatchObject({ missionId: OLD, route: ["ITA", "SVN", "HRV", "MNE"] });
+    });
+
+    it("keeps finished Results, score, stars and unlock; Replay journey and Play again take Montenegro → Italy", () => {
+      let s = oldSave(["ITA", "SVN", "HRV", "MNE"], { results: true });
+      expect(s.levels[L4].stage).toBe("results");
+      expect(s.levels[L4].travel).toMatchObject({ missionId: OLD, status: "arrived", path: ["ITA", "SVN", "HRV", "MNE"] });
+      expect(s.levels[L4].lastTravelResult).toMatchObject({ missionId: OLD, route: ["ITA", "SVN", "HRV", "MNE"], budget: 3, independent: true });
+      expect(s.levels[L4].records).toMatchObject({ travelDone: true, travelWithoutHelp: true, bestRating: 3 });
+      expect(levelStatus(s, LEVELS[3]).kind).toBe("completed");
+      expect(levelStatus(s, LEVELS[4]).kind).toBe("ready");
+      // Replay journey: the current journey; the earlier Results stay until it arrives.
+      const replay = run(s, play({ type: "replayTravel" }));
+      expect(replay.levels[L4].travel).toMatchObject({ missionId: "mne-to-ita", from: "MNE", to: "ITA", path: ["MNE"] });
+      expect(replay.levels[L4].lastTravelResult).toMatchObject({ missionId: OLD });
+      // Play again: from Discover, its next journey the current one; completion and stars kept.
+      s = run(s, restart(L4));
+      expect(s.levels[L4].travel).toBeNull();
+      expect(s.levels[L4].records).toMatchObject({ travelDone: true, bestRating: 3 });
+      s = complete(s, ["MNE"]);
+      expect(s.levels[L4].travel).toMatchObject({ missionId: "mne-to-ita", path: ["MNE"] });
+    });
+
+    it("drops a journey id the level never offered, as before, without touching the rest", () => {
+      const raw = JSON.parse(JSON.stringify(oldSave(["ITA", "SVN"])));
+      raw.levels[L4].travel.missionId = "ita-to-bih";
+      const s = parseSavedState(JSON.stringify(raw))!;
+      expect(s.levels[L4].travel).toBeNull();
+      expect(s.levels[L4].stage).toBe("discover");
+      expect(levelStatus(s, LEVELS[2]).kind).toBe("completed");
+    });
   });
 });
 
@@ -890,43 +968,84 @@ describe("Level 6: Baltic Journey", () => {
     for (const id of [L1, L2, L3, L4, L5]) expect(over.levels[id]).toBe(s.levels[id]);
   });
 
-  it("travels Germany → Estonia in four crossings, by the one shortest route", () => {
-    expect(shortestDistance(baltic.borders, "DEU", "EST")).toBe(4);
-    const route = ["DEU", "POL", "LTU", "LVA", "EST"];
-    const s = complete(run(level5Done(), open(L6)), route);
-    expect(s.levels[L6].lastTravelResult).toMatchObject({ route, budget: 4, independent: true });
-    expect(levelStatus(s, LEVELS[5]).kind).toBe("completed");
+  it("travels Poland → Estonia in three crossings, by either shortest route: Lithuania or Belarus, then Latvia", () => {
+    expect(baltic.revision).toBe(2);
+    expect(baltic.countries).toEqual(["POL", "BLR", "LTU", "LVA", "EST"]);
+    expect(baltic.travel.mission).toEqual({ id: "pol-to-est", from: "POL", to: "EST" });
+    expect(shortestDistance(baltic.borders, "POL", "EST")).toBe(3);
+    for (const route of [
+      ["POL", "LTU", "LVA", "EST"],
+      ["POL", "BLR", "LVA", "EST"],
+    ]) {
+      const s = complete(run(level5Done(), open(L6)), route);
+      expect(s.levels[L6]).toMatchObject({ revision: 2, stage: "results" });
+      expect(s.levels[L6].lastTravelResult).toMatchObject({ missionId: "pol-to-est", route, budget: 3, independent: true });
+      expect(levelStatus(s, LEVELS[5]).kind).toBe("completed");
+    }
   });
 
-  it("offers every real neighbour within the level, and only those; Undo and Restart count as help", () => {
-    let s = complete(run(level5Done(), open(L6)), ["DEU"]);
-    const moves = (st: AppState) => [...baltic.borders[st.levels[L6].travel!.path.at(-1)!]].sort();
-    expect(moves(s)).toEqual(["POL"]);
-    // Germany meets none of the Baltic states.
-    for (const country of ["LTU", "LVA", "EST"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    s = run(s, play({ type: "travelMove", country: "POL" }));
-    expect(moves(s)).toEqual(["DEU", "LTU"]);
+  it("offers every real neighbour within the level not yet on the route, wrong turns included; a wrong turn runs out of crossings; Undo and Restart count as help", () => {
+    let s = complete(run(level5Done(), open(L6)), ["POL"]);
+    const neighbours = (st: AppState) => [...baltic.borders[st.levels[L6].travel!.path.at(-1)!]].sort();
+    const offered = (st: AppState) => [...availableMoves(st.levels[L6].travel!, baltic.borders)].sort();
+    // Both ways north are offered, and both are right.
+    expect(neighbours(s)).toEqual(["BLR", "LTU"]);
+    expect(offered(s)).toEqual(["BLR", "LTU"]);
     // Poland meets neither Latvia nor Estonia.
     for (const country of ["LVA", "EST"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    // Back into Germany and on again: a crossing wasted, so the journey runs out in Lithuania.
-    s = run(s, play({ type: "travelMove", country: "DEU" }), play({ type: "travelMove", country: "POL" }), play({ type: "travelMove", country: "LTU" }));
-    expect(s.levels[L6].travel).toMatchObject({ status: "outOfCrossings", path: ["DEU", "POL", "DEU", "POL", "LTU"] });
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }), play({ type: "travelUndo" }));
-    expect(s.levels[L6].travel).toMatchObject({ status: "playing", path: ["DEU", "POL"], undoUsed: true });
-    s = refresh(s);
-    expect(s.levels[L6].travel).toMatchObject({ path: ["DEU", "POL"], undoUsed: true });
-    s = run(s, play({ type: "travelRestart" }));
-    expect(s.levels[L6].travel).toMatchObject({ path: ["DEU"], undoUsed: true });
-    s = run(s, play({ type: "travelMove", country: "POL" }), play({ type: "travelMove", country: "LTU" }));
-    expect(moves(s)).toEqual(["LVA", "POL"]);
+    s = run(s, play({ type: "travelMove", country: "LTU" }));
+    expect(neighbours(s)).toEqual(["BLR", "LVA", "POL"]);
+    // Poland is on the route: not offered, and never entered again. Belarus is: the wrong turn.
+    expect(offered(s)).toEqual(["BLR", "LVA"]);
+    expect(run(s, play({ type: "travelMove", country: "POL" }))).toBe(s);
     // Lithuania doesn't meet Estonia (Latvia lies between).
     expect(run(s, play({ type: "travelMove", country: "EST" }))).toBe(s);
+    s = run(s, play({ type: "travelMove", country: "BLR" }));
+    expect(s.levels[L6].travel).toMatchObject({ status: "playing", path: ["POL", "LTU", "BLR"] });
+    expect(offered(s)).toEqual(["LVA"]);
     s = run(s, play({ type: "travelMove", country: "LVA" }));
-    expect(moves(s)).toEqual(["EST", "LTU"]);
+    // In Latvia with no crossing left, one short of Estonia: nothing more is offered.
+    expect(s.levels[L6].travel).toMatchObject({ status: "outOfCrossings", path: ["POL", "LTU", "BLR", "LVA"] });
+    expect(offered(s)).toEqual([]);
+    expect(isDeadEnd(s.levels[L6].travel!, baltic.borders)).toBe(false);
+    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }));
+    expect(s.levels[L6].travel).toMatchObject({ status: "playing", path: ["POL", "LTU"], undoUsed: true });
+    expect(offered(s)).toEqual(["BLR", "LVA"]);
+    s = run(s, play({ type: "travelMove", country: "LVA" }));
+    s = refresh(s);
+    expect(s.levels[L6].travel).toMatchObject({ path: ["POL", "LTU", "LVA"], undoUsed: true });
+    // From Latvia: Estonia, or Belarus, back south.
+    expect(neighbours(s)).toEqual(["BLR", "EST", "LTU"]);
+    expect(offered(s)).toEqual(["BLR", "EST"]);
+    s = run(s, play({ type: "travelRestart" }));
+    expect(s.levels[L6].travel).toMatchObject({ path: ["POL"], undoUsed: true });
+    // The other way: Belarus, where Lithuania is the wrong turn.
+    s = run(s, play({ type: "travelMove", country: "BLR" }));
+    expect(neighbours(s)).toEqual(["LTU", "LVA", "POL"]);
+    expect(offered(s)).toEqual(["LTU", "LVA"]);
+    s = run(s, play({ type: "travelMove", country: "LVA" }));
+    expect(offered(s)).toEqual(["EST", "LTU"]);
     s = run(s, play({ type: "travelMove", country: "EST" }));
     // Estonia's only neighbour here is Latvia.
-    expect(moves(s)).toEqual(["LVA"]);
-    expect(s.levels[L6].lastTravelResult).toMatchObject({ route: ["DEU", "POL", "LTU", "LVA", "EST"], undoUsed: true, independent: false });
+    expect(neighbours(s)).toEqual(["LVA"]);
+    expect(s.levels[L6].lastTravelResult).toMatchObject({ route: ["POL", "BLR", "LVA", "EST"], undoUsed: true, independent: false });
+  });
+
+  it("never reaches a dead end with crossings left: every wrong turn ends out of crossings", () => {
+    const ends: string[] = [];
+    const walk = (attempt: ReturnType<typeof createAttempt>) => {
+      expect(isDeadEnd(attempt, baltic.borders), attempt.path.join(">")).toBe(false);
+      if (attempt.status !== "playing") return ends.push(`${attempt.path.join(">")} ${attempt.status}`);
+      for (const next of availableMoves(attempt, baltic.borders)) walk(move(attempt, baltic.borders, next).attempt);
+    };
+    walk(createAttempt(baltic.borders, baltic.travel.mission));
+    expect(ends.filter((e) => e.endsWith("arrived")).sort()).toEqual(["POL>BLR>LVA>EST arrived", "POL>LTU>LVA>EST arrived"]);
+    expect(ends.filter((e) => !e.endsWith("arrived")).sort()).toEqual([
+      "POL>BLR>LTU>LVA outOfCrossings",
+      "POL>BLR>LVA>LTU outOfCrossings",
+      "POL>LTU>BLR>LVA outOfCrossings",
+      "POL>LTU>LVA>BLR outOfCrossings",
+    ]);
   });
 
   it("asks five different questions, each country once, and gives nothing away before an answer", () => {
@@ -957,6 +1076,151 @@ describe("Level 6: Baltic Journey", () => {
     expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "completed", "ready", "locked"]);
     expect(allLevelsComplete(s)).toBe(false);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L7 } });
+  });
+});
+
+describe("Level 6: attempts from before Belarus replaced Germany (its first version)", () => {
+  const OLD = ["DEU", "POL", "LTU", "LVA", "EST"];
+  const ORDER = ["LVA", "DEU", "EST", "POL", "LTU"];
+  const answers = (order: string[]) => order.map((target) => ({ target, wrongGuesses: 0, hintLevel: 0 }));
+  const findDone = { order: ORDER, index: 4, question: { target: "LTU", wrongGuesses: [], hintLevel: 0, solved: true, feedback: null }, results: answers(ORDER), status: "complete" };
+  const score = { independent: 5, total: 5 };
+  const findRecords = { discoverDone: true, findDone: true, travelDone: false, lastFindScore: score, bestFindScore: score, travelWithoutHelp: false };
+  /** A save from before the change: Levels 1–5 completed (Level 4 on Montenegro → Italy) and Level 6 as given, with no revision. */
+  const saved = (level6: object, extra: object = {}) => {
+    const raw = JSON.parse(JSON.stringify(run(level5Done(), { type: "goHome" })));
+    return JSON.stringify({ ...raw, screen: "lesson", levelId: L6, recent: [L6, ...raw.recent], levels: { ...raw.levels, [L6]: level6, ...extra } });
+  };
+  const discover = { started: true, stage: "discover", discover: { selected: "DEU", explored: ["DEU", "POL"] }, records: { ...findRecords, findDone: false, lastFindScore: null, bestFindScore: null, discoverDone: false } };
+  const midFind = {
+    started: true,
+    stage: "find",
+    discover: { selected: null, explored: OLD },
+    find: { order: ORDER, index: 1, question: { target: "DEU", wrongGuesses: ["POL"], hintLevel: 1, solved: false, feedback: { kind: "wrong", country: "POL" } }, results: answers(["LVA"]), status: "asking" },
+    records: { ...findRecords, findDone: false, lastFindScore: null, bestFindScore: null },
+  };
+  const travelling = { started: true, stage: "travel", discover: { selected: null, explored: OLD }, find: findDone, travel: { missionId: "deu-to-est", path: ["DEU", "POL"], hintUsed: true, undoUsed: false }, records: findRecords };
+  const results = {
+    started: true,
+    stage: "results",
+    discover: { selected: null, explored: OLD },
+    find: findDone,
+    travel: { missionId: "deu-to-est", path: OLD, hintUsed: false, undoUsed: false },
+    lastTravelResult: { missionId: "deu-to-est", route: OLD, hintUsed: false, undoUsed: false },
+    journeyReplay: false,
+    records: { ...findRecords, travelDone: true, travelWithoutHelp: true, bestRating: 3 },
+  };
+
+  it("keeps the first version for those attempts: Germany, Poland, Lithuania, Latvia and Estonia, Germany → Estonia", () => {
+    expect(getLevel(L6)!.earlier!.map((v) => v.lesson)).toEqual([balticOriginal]);
+    expect(balticOriginal).toMatchObject({ id: L6, countries: OLD, travel: { mission: { id: "deu-to-est", from: "DEU", to: "EST" } } });
+    expect(balticOriginal.revision).toBeUndefined();
+    expect(shortestDistance(balticOriginal.borders, "DEU", "EST")).toBe(4);
+    expect(LESSON_VERSIONS.filter((l) => l.id === L6)).toEqual([baltic, balticOriginal]);
+  });
+
+  it("an older Discover and an older Find go on with Germany, through Home, Continue and a refresh", () => {
+    let s = parseSavedState(saved(discover));
+    expect(s.levels[L6].revision).toBeUndefined();
+    expect(activeLesson(s)).toBe(balticOriginal);
+    expect(versionOf(s, getLevel(L6)!)!.lesson.countries).toEqual(OLD);
+    expect(s.levels[L6].discover).toEqual({ selected: "DEU", explored: ["DEU", "POL"] });
+    s = refresh(run(s, play({ type: "discoverSelect", country: "LTU" }), { type: "goHome" }));
+    expect(mainAction(s)).toMatchObject({ kind: "continue", level: { id: L6 } });
+    s = run(s, open(L6));
+    expect(activeLesson(s)).toBe(balticOriginal);
+    expect(s.levels[L6].discover).toEqual({ selected: "LTU", explored: ["DEU", "POL", "LTU"] });
+    // Find asks the first version's five countries, Germany among them; never Belarus.
+    expect(run(s, play({ type: "startFinding", order: ["EST", "BLR", "POL", "LVA", "LTU"] }))).toBe(s);
+    s = refresh(run(s, play({ type: "startFinding", order: ORDER })));
+    expect(s.levels[L6].find).toMatchObject({ order: ORDER, status: "asking" });
+
+    s = parseSavedState(saved(midFind));
+    expect(s.levels[L6]).toMatchObject({ stage: "find", find: { order: ORDER, index: 1, question: { target: "DEU", wrongGuesses: ["POL"], hintLevel: 1 } } });
+    s = refresh(run(s, play({ type: "findGuess", country: "DEU" })));
+    expect(s.levels[L6].find!.question).toMatchObject({ target: "DEU", solved: true });
+    expect(s.levels[L6].revision).toBeUndefined();
+  });
+
+  it("an older journey keeps Germany → Estonia, its route, crossings left and help; Undo, Restart, Home and a refresh keep it", () => {
+    let s = parseSavedState(saved(travelling));
+    expect(s.levels[L6].travel).toMatchObject({ missionId: "deu-to-est", from: "DEU", to: "EST", budget: 4, path: ["DEU", "POL"], status: "playing", hintUsed: true, undoUsed: false });
+    expect([...availableMoves(s.levels[L6].travel!, balticOriginal.borders)]).toEqual(["LTU"]);
+    s = run(s, play({ type: "travelMove", country: "LTU" }), play({ type: "travelUndo" }));
+    expect(s.levels[L6].travel).toMatchObject({ missionId: "deu-to-est", path: ["DEU", "POL"], undoUsed: true });
+    s = refresh(run(s, play({ type: "travelRestart" }), { type: "goHome" }));
+    expect(levelToContinue(s)?.id).toBe(L6);
+    s = run(s, open(L6));
+    expect(s.levels[L6].travel).toMatchObject({ missionId: "deu-to-est", path: ["DEU"], budget: 4 });
+    for (const country of ["POL", "LTU", "LVA", "EST"]) s = run(s, play({ type: "travelMove", country }));
+    // It finishes on its own journey, and counts: the level completes and Level 7 opens.
+    expect(s.levels[L6]).toMatchObject({ stage: "results", lastTravelResult: { missionId: "deu-to-est", route: OLD, budget: 4, independent: false } });
+    expect(s.levels[L6].revision).toBeUndefined();
+    expect(isLevelComplete(s, L6)).toBe(true);
+    expect(canPlay(s, L7)).toBe(true);
+    // Help used: two stars.
+    expect(s.levels[L6].records.bestRating).toBe(2);
+  });
+
+  it("an older journey saved with a repeat (before countries could not be visited twice) is a dead end, undone", () => {
+    // Back in Germany with two crossings left: its one neighbour here, Poland, is on the route.
+    let s = parseSavedState(saved({ ...travelling, travel: { ...travelling.travel, path: ["DEU", "POL", "DEU"] } }));
+    expect(s.levels[L6].travel).toMatchObject({ path: ["DEU", "POL", "DEU"], status: "playing", budget: 4 });
+    expect(isDeadEnd(s.levels[L6].travel!, balticOriginal.borders)).toBe(true);
+    s = run(s, play({ type: "travelUndo" }));
+    expect(s.levels[L6].travel).toMatchObject({ path: ["DEU", "POL"], status: "playing", undoUsed: true });
+    expect([...availableMoves(s.levels[L6].travel!, balticOriginal.borders)]).toEqual(["LTU"]);
+  });
+
+  it("older Results stay as they were; Replay journey starts Poland → Estonia; Play again starts the current version; records, unlocks and other levels are kept", () => {
+    const s = parseSavedState(saved(results, { [L7]: { started: false, stage: "discover", records: { discoverDone: true, findDone: true, travelDone: true, bestRating: 2 } } }));
+    expect(hasSavedResults(s, L6)).toBe(true);
+    expect(s.levels[L6].lastTravelResult).toEqual({ missionId: "deu-to-est", route: OLD, budget: 4, hintUsed: false, undoUsed: false, independent: true });
+    expect(s.levels[L6].records).toMatchObject({ travelDone: true, lastFindScore: score, bestRating: 3 });
+    expect(versionOf(s, getLevel(L6)!)!.description.en).toMatch(/^From Berlin/);
+    // View results reopens them unchanged.
+    const viewed = refresh(run(s, { type: "goHome" }, open(L6)));
+    expect(viewed.levels[L6]).toEqual(s.levels[L6]);
+
+    const replay = run(s, play({ type: "replayTravel" }));
+    expect(replay.levels[L6]).toMatchObject({ revision: 2, stage: "travel", journeyReplay: true, find: null, lastTravelResult: null, travel: { missionId: "pol-to-est", path: ["POL"], budget: 3 } });
+    expect(replay.levels[L6].records).toEqual(s.levels[L6].records);
+    expect(activeLesson(replay)).toBe(baltic);
+    expect(refresh(replay).levels[L6]).toMatchObject({ revision: 2, travel: { missionId: "pol-to-est", path: ["POL"] }, journeyReplay: true });
+    let done = replay;
+    for (const country of ["BLR", "LVA", "EST"]) done = run(done, play({ type: "travelMove", country }));
+    expect(done.levels[L6]).toMatchObject({ stage: "results", lastTravelResult: { missionId: "pol-to-est", route: ["POL", "BLR", "LVA", "EST"] }, records: { bestRating: 3 } });
+
+    const again = run(s, restart(L6));
+    expect(again.levels[L6]).toMatchObject({ revision: 2, started: true, stage: "discover", find: null, travel: null, lastTravelResult: null });
+    expect(again.levels[L6].records).toEqual(s.levels[L6].records);
+    expect(activeLesson(again)).toBe(baltic);
+    expect(versionOf(again, getLevel(L6)!)!.lesson.countries).toEqual(["POL", "BLR", "LTU", "LVA", "EST"]);
+    for (const state of [replay, again]) {
+      expect(isLevelComplete(state, L6)).toBe(true);
+      expect(levelStatus(state, getLevel(L7)!).kind).toBe("completed");
+      for (const id of [L1, L2, L3, L4, L5, L7]) expect(state.levels[id]).toBe(s.levels[id]);
+    }
+    // Start over from an older journey under way: the current version too.
+    expect(run(parseSavedState(saved(travelling)), restart(L6)).levels[L6]).toMatchObject({ revision: 2, stage: "discover" });
+  });
+
+  it("reads a save on the version it names; one without a revision is never read with the current countries; an unknown revision keeps only the records", () => {
+    const current = { revision: 2, started: true, stage: "travel", discover: { selected: null, explored: [] }, find: { ...findDone, order: ["BLR", "POL", "EST", "LVA", "LTU"], question: { ...findDone.question, target: "LTU" }, results: answers(["BLR", "POL", "EST", "LVA", "LTU"]) }, travel: { missionId: "pol-to-est", path: ["POL", "BLR"], hintUsed: false, undoUsed: false }, records: findRecords };
+    const s = parseSavedState(saved(current));
+    expect(s.levels[L6]).toMatchObject({ revision: 2, stage: "travel", travel: { missionId: "pol-to-est", path: ["POL", "BLR"] }, find: { status: "complete" } });
+    // The same place without its revision is read on the first version: nothing in it fits, so nothing is kept.
+    expect(parseSavedState(saved({ ...current, revision: undefined })).levels[L6]).toMatchObject({ stage: "discover", find: null, travel: null });
+    for (const revision of [3, "2", 1.5]) {
+      const kept = parseSavedState(saved({ ...results, revision }));
+      expect(kept.levels[L6]).toMatchObject({ revision: 2, started: false, stage: "discover", travel: null, lastTravelResult: null, records: { travelDone: true, bestRating: 3 } });
+      expect(canPlay(kept, L7)).toBe(true);
+    }
+    // A first visit, and a saved revision 1, are what they say.
+    expect(run(parseSavedState(saved(undefined as unknown as object)), open(L6)).levels[L6].revision).toBe(2);
+    expect(parseSavedState(saved({ ...travelling, revision: 1 })).levels[L6].travel).toMatchObject({ missionId: "deu-to-est" });
+    // Only Level 6's saves name a revision; the other levels' are unchanged.
+    for (const id of [L1, L2, L3, L4, L5]) expect(JSON.parse(JSON.stringify(s.levels[id]))).not.toHaveProperty("revision");
   });
 });
 
@@ -1219,6 +1483,31 @@ describe("Level 8: Eastern Europe", () => {
       expect(allLevelsComplete(again)).toBe(true);
       // A replay under way is an attempt to resume: the main action continues it. The level stays completed.
       expect(mainAction(again)).toMatchObject({ kind: "continue", level: { id } });
+    }
+  });
+});
+
+describe("travel choices in every level", () => {
+  it("never offer a country already on the route; Undo offers it again where it is a neighbour", () => {
+    // Every version, Level 6's first included (attempts started on it go on).
+    for (const lesson of LESSON_VERSIONS) {
+      const graph = lesson.borders;
+      // Every journey the choices allow, to the destination or the end of the crossings: at each step the
+      // choices are exactly the current country's neighbours not on the route, so none repeats a country.
+      const walk = (attempt: ReturnType<typeof createAttempt>) => {
+        const here = attempt.path.at(-1)!;
+        const offered = availableMoves(attempt, graph);
+        if (attempt.status !== "playing") return expect(offered).toEqual([]);
+        expect([...offered].sort(), `${lesson.id}: ${attempt.path.join(">")}`).toEqual(graph[here].filter((c) => !attempt.path.includes(c)).sort());
+        for (const next of offered) {
+          const moved = move(attempt, graph, next).attempt;
+          expect(new Set(moved.path).size, `${lesson.id}: ${moved.path.join(">")}`).toBe(moved.path.length);
+          // Undo takes the country off the route and offers it again.
+          if (moved.status !== "arrived") expect(availableMoves(undo(moved), graph)).toContain(next);
+          walk(moved);
+        }
+      };
+      walk(createAttempt(graph, lesson.travel.mission));
     }
   });
 });

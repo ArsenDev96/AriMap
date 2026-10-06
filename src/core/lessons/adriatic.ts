@@ -33,9 +33,16 @@ export const adriaticLesson: LessonDefinition = {
     BIH: ["HRV", "MNE"],
     MNE: ["HRV", "BIH"],
   },
-  // Three crossings, by one shortest route: Slovenia, then Croatia. Through Bosnia
-  // and Herzegovina takes four; there is no sea crossing.
-  travel: { mission: { id: "ita-to-mne", from: "ITA", to: "MNE" } },
+  // Three crossings, by one shortest route: Croatia, then Slovenia. Montenegro offers
+  // Croatia or Bosnia and Herzegovina, and Croatia then Slovenia or Bosnia and
+  // Herzegovina: through Bosnia and Herzegovina first takes four crossings, and into it
+  // from Croatia is a dead end (its neighbours here, Croatia and Montenegro, are on the
+  // route). There is no sea crossing.
+  travel: {
+    mission: { id: "mne-to-ita", from: "MNE", to: "ITA" },
+    // Until 2026-10-06 the journey ran the other way. Saved attempts and results for it keep it.
+    earlierMissions: [{ id: "ita-to-mne", from: "ITA", to: "MNE" }],
+  },
   hints: {
     ITA: {
       en: "The long, boot-shaped peninsula on the west side of the Adriatic Sea.",

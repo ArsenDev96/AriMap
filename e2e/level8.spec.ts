@@ -403,7 +403,8 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   expect(await moves(page)).toEqual(["BLR", "UKR"]);
   // Through Belarus: real neighbours, but the crossings run out in Ukraine.
   await page.getByTestId("move-BLR").click();
-  expect(await moves(page)).toEqual(["POL", "UKR"]);
+  // Poland, the start, is not offered again.
+  expect(await moves(page)).toEqual(["UKR"]);
   await page.getByTestId("move-UKR").click();
   const stuck = page.getByTestId("out-of-crossings");
   await expect(stuck).toContainText("No crossings left. Each move crossed a real border, but this route is longer than the shortest one.");
@@ -415,8 +416,8 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   await page.getByTestId("travel-tools").getByRole("button", { name: "Restart" }).click();
   await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
   await page.getByTestId("move-UKR").click();
-  // Ukraine offers all four others.
-  expect(await moves(page)).toEqual(["BLR", "MDA", "POL", "ROU"]);
+  // Ukraine offers the three others not on the route (Poland, the start, is).
+  expect(await moves(page)).toEqual(["BLR", "MDA", "ROU"]);
   await page.getByTestId("move-MDA").click();
 
   // --- Results: the last level; Back to levels ------------------------------------------------
@@ -736,7 +737,7 @@ test("Level 8 loads its own landscape overview, and zoomed tiles only for the vi
   await expect(main.locator('[data-family="land"] image[data-level="overview"]')).toHaveCount(1);
   await expect.poll(() => requests.some((u) => /eastern-europe-land/.test(u))).toBe(true);
   await page.waitForTimeout(500);
-  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey|iberian-journey)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
+  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey(-r2)?|iberian-journey)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
   expect(requests.filter((u) => u.includes("/relief/")), "zoomed tiles at the whole-map view").toEqual([]);
   // A selection gives Ukraine a state colour: its overlay is loaded.
   await tapCountry(page, "UKR");

@@ -366,7 +366,8 @@ test.describe("interface", () => {
     for (const locale of ["en", "hy"] as const) {
       await save(page, { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "BEL"], hintUsed: false, undoUsed: false } }, { locale });
       const cards = page.locator('[data-testid^="move-"]');
-      await expect(cards).toHaveCount(4);
+      // Belgium's neighbours but France, where the journey started.
+      await expect(cards).toHaveCount(3);
       for (const card of await cards.all()) {
         const b = (await card.boundingBox())!;
         expect(b.height).toBeGreaterThanOrEqual(44);

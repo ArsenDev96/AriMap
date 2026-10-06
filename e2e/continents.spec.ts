@@ -83,8 +83,8 @@ const NAMES = {
 };
 const IDS = ["europe", "asia", "africa", "north-america", "south-america"];
 const TEXT = {
-  en: { levels: "8 levels", completed: (n: number) => `${n} of 8 Europe levels completed`, short: (n: number) => `Completed: ${n}/8`, explore: "Explore Europe", soon: "Coming soon", back: "Back to continents", continue: "Continue", europe: "Europe" },
-  hy: { levels: "8 մակարդակ", completed: (n: number) => `Եվրոպայի 8 մակարդակից ավարտված է ${n}-ը`, short: (n: number) => `Ավարտված՝ ${n}/8`, explore: "Բացահայտել Եվրոպան", soon: "Շուտով", back: "Վերադառնալ մայրցամաքներին", continue: "Շարունակել", europe: "Եվրոպա" },
+  en: { levels: "8 levels", completed: (n: number) => `${n} of 8 Europe levels completed`, short: (n: number) => `Completed: ${n}/8`, stars: (n: number) => `${n} of 24 stars earned in Europe`, starsShort: (n: number) => `${n}/24`, explore: "Explore Europe", soon: "Coming soon", back: "Back to continents", continue: "Continue", europe: "Europe" },
+  hy: { levels: "8 մակարդակ", completed: (n: number) => `Եվրոպայի 8 մակարդակից ավարտված է ${n}-ը`, short: (n: number) => `Ավարտված՝ ${n}/8`, stars: (n: number) => `Եվրոպայի 24 աստղից վաստակված է ${n}-ը`, starsShort: (n: number) => `${n}/24`, explore: "Բացահայտել Եվրոպան", soon: "Շուտով", back: "Վերադառնալ մայրցամաքներին", continue: "Շարունակել", europe: "Եվրոպա" },
 };
 
 /** Records each screen the app shows, in order, from the first paint of every document (to catch a flash of the wrong one). */
@@ -292,18 +292,20 @@ async function expectNamesWhole(page: Page, where: string) {
  * permanent completion count; the four coming soon in words, with nothing to press or focus and no level
  * wording; Oceania and Antarctica drawn, with no name and no action; the map itself takes no focus.
  */
-async function expectNames(page: Page, locale: "en" | "hy", completed: number) {
+async function expectNames(page: Page, locale: "en" | "hy", completed: number, stars: number) {
   const t = TEXT[locale];
   expect(await page.getByTestId("continent-list").locator(":scope > li").evaluateAll((els) => els.map((e) => e.getAttribute("data-continent")))).toEqual(IDS);
   await expect(europeName(page)).toHaveAccessibleName(t.europe);
-  await expect(europeName(page)).toHaveAccessibleDescription(t.completed(completed));
-  // Europe's button is its name and arrow only. Its levels completed read "Completed: 2/8" (in full for
-  // assistive technology), named "Europe" only under the map, where the button is not beside them.
+  await expect(europeName(page)).toHaveAccessibleDescription(`${t.completed(completed)} ${t.stars(stars)}`);
+  // Europe's button is its name and arrow only. Its levels completed read "Completed: 2/8" and, apart from
+  // them, its stars "★ 6/24" (each in full for assistive technology), named "Europe" only under the
+  // map, where the button is not beside them.
   await expect(europeName(page)).toHaveText(t.europe);
   await expect(progressText(page)).toHaveText(t.short(completed));
   const onMap = !(await progressArea(page).evaluate((el) => !!el.closest('[data-testid="continent-europe"]')));
-  await expect(progressArea(page).locator(".visually-hidden")).toHaveText(t.completed(completed));
-  await expect(progressArea(page).locator(":scope p > [aria-hidden='true']")).toHaveText(onMap ? [t.europe, t.short(completed)] : [t.short(completed)]);
+  await expect(progressArea(page).locator(".visually-hidden")).toHaveText([t.completed(completed), t.stars(stars)]);
+  await expect(progressArea(page).locator(":scope p > [aria-hidden='true']")).toHaveText(onMap ? [t.europe, t.short(completed), t.starsShort(stars)] : [t.short(completed), t.starsShort(stars)]);
+  await expect(progressArea(page).getByTestId("continent-stars")).toHaveAttribute("data-max", "24");
   await expect(label(page, "europe")).toHaveAttribute("data-status", "open");
   // The two Americas clearly apart: periwinkle blue and rose.
   const fill = (id: string) => page.getByTestId(`map-region-${id}`).evaluate((el) => getComputedStyle(el).fill.match(/\d+/g)!.map(Number));
@@ -337,7 +339,8 @@ test.describe("continents", () => {
           const where = `${width}×${height} ${locale} ${s.name}`;
           await open(page, s, { locale });
           await expect(page.getByTestId("continents")).toBeVisible();
-          await expectNames(page, locale, s === NEW ? 0 : s === LEVEL3 ? 2 : 8);
+          // Every level completed here was played with all five found on the first try and no help: 3 stars each.
+          await expectNames(page, locale, s === NEW ? 0 : s === LEVEL3 ? 2 : 8, s === NEW ? 0 : s === LEVEL3 ? 6 : 24);
           if (s === LEVEL3) {
             // Continue names the continent and the level, and (where there is room) its title; always all three for assistive technology.
             await expect(continueButton(page)).toHaveAttribute("data-level", L3);

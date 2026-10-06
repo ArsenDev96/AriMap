@@ -753,14 +753,14 @@ async function openTravel(page: Page, level: string, path: string[], locale: str
     [L1]: { levels: { [L1]: travelling(L1_ORDER, "fra-to-nld", path) }, recent: [L1] },
     [L2]: { levels: { [L1]: L1_DONE, [L2]: travelling(L2_COUNTRIES, "fra-to-aut", path) }, recent: [L2, L1] },
     [L3]: { levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: travelling(L3_COUNTRIES, "pol-to-aut", path) }, recent: [L3, L2, L1] },
-    [L4]: { levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: travelling(L4_COUNTRIES, "ita-to-mne", path) }, recent: [L4, L3, L2, L1] },
+    [L4]: { levels: { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: travelling(L4_COUNTRIES, "mne-to-ita", path) }, recent: [L4, L3, L2, L1] },
   };
   await save(page, setup[level].levels, { locale, screen: "lesson", levelId: level, recent: setup[level].recent });
   await expect(page.locator('[data-testid^="move-"]').first()).toBeVisible();
 }
 
 test.describe("Travel neighbour buttons", () => {
-  test("Level 1 in Belgium: four neighbours, names clear of arrows, in both languages at 320–414px and enlarged text", async ({ page }) => {
+  test("Level 1 in Belgium: three choices (France, the start, is not offered), names clear of arrows, in both languages at 320–414px and enlarged text", async ({ page }) => {
     test.setTimeout(600_000);
     test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
     const sizes = project() === "webkit-phone" ? [[320, 568], [375, 667], [390, 664], [414, 896]] : [[320, 568], [375, 667], [390, 844], [414, 896]];
@@ -773,7 +773,7 @@ test.describe("Travel neighbour buttons", () => {
           const where = `${width}×${height} ${locale} ${size}%`;
           await page.locator('[aria-labelledby="neighbors-heading"]').evaluate((el) => el.scrollIntoView({ block: "center" }));
           await shot(page, `travel-belgium-${locale}-text${size}`);
-          await expectNeighboursClear(page, where, ["FRA", "NLD", "LUX", "DEU"]);
+          await expectNeighboursClear(page, where, ["NLD", "LUX", "DEU"]);
           await expectTravelReachable(page, where);
         }
         await textSize(page, 100);
@@ -789,8 +789,8 @@ test.describe("Travel neighbour buttons", () => {
       [L1, ["FRA"]], [L1, ["FRA", "BEL"]], [L1, ["FRA", "LUX"]], [L1, ["FRA", "DEU"]],
       [L2, ["FRA"]], [L2, ["FRA", "CHE"]], [L2, ["FRA", "DEU"]], [L2, ["FRA", "ITA"]],
       [L3, ["POL"]], [L3, ["POL", "CZE"]], [L3, ["POL", "SVK"]], [L3, ["POL", "DEU"]],
-      // Level 4 is a chain: Italy's only neighbour is Slovenia; Croatia offers Bosnia and Herzegovina's long name.
-      [L4, ["ITA"]], [L4, ["ITA", "SVN"]], [L4, ["ITA", "SVN", "HRV"]],
+      // Level 4 starts in Montenegro (Croatia or Bosnia and Herzegovina's long name); Croatia offers Bosnia and Herzegovina too.
+      [L4, ["MNE"]], [L4, ["MNE", "HRV"]], [L4, ["MNE", "BIH"]],
     ];
     const sizes = project() === "desktop" ? [[1366, 800]] : [[320, 568], [390, 844]];
     const summary: string[] = [];
@@ -819,13 +819,12 @@ test.describe("Travel neighbour buttons", () => {
   test("the first row of neighbours shows without scrolling, before and after a move, in Levels 1–4; the map keeps its height and the text its size", async ({ page }) => {
     test.setTimeout(1_800_000);
     test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
-    // Each journey's start, and the saved places after the first move to each neighbour (and, in
-    // Level 4's chain, on into Croatia, whose choices include Bosnia and Herzegovina).
+    // Each journey's start, and the saved places after the first move to each neighbour.
     const journeys: [string, string, string[][]][] = [
       [L1, "FRA", [["FRA", "BEL"], ["FRA", "LUX"], ["FRA", "DEU"]]],
       [L2, "FRA", [["FRA", "CHE"], ["FRA", "DEU"], ["FRA", "ITA"]]],
       [L3, "POL", [["POL", "CZE"], ["POL", "SVK"], ["POL", "DEU"]]],
-      [L4, "ITA", [["ITA", "SVN"], ["ITA", "SVN", "HRV"]]],
+      [L4, "MNE", [["MNE", "HRV"], ["MNE", "BIH"]]],
     ];
     const summary = () =>
       page.evaluate(() => {
@@ -867,7 +866,9 @@ test.describe("Travel neighbour buttons", () => {
           const first = page.locator('[data-testid^="move-"]').first();
           const moved = (await first.getAttribute("data-testid"))!.slice(5);
           await first.click();
-          await expect(page.getByTestId(`move-${start}`)).toBeVisible();
+          // Moved: the country entered is no longer a choice, and the start is not offered again.
+          await expect(page.getByTestId(`move-${moved}`)).toHaveCount(0);
+          await expect(page.getByTestId(`move-${start}`)).toHaveCount(0);
           await fontsSettled(page);
           await check(`moved to ${moved}`);
           if (width === 320 && height === 568) await shot(page, `travel-${level}-${moved}-${locale}`);

@@ -402,7 +402,8 @@ test("complete lesson flow", async ({ page }) => {
   expect(await drawnRoute(page)).toBe("FRA,LUX");
   expect(await newSegments()).toBe(1);
   expect(await traveller()).toBe("LUX");
-  expect(await moves()).toEqual(["BEL", "DEU", "FRA"]);
+  // France, where the journey started, is not offered again; Belgium still is, though it is the longer way.
+  expect(await moves()).toEqual(["BEL", "DEU"]);
   const beforeUndoLabels = await allMapNames(page);
   await page.getByTestId("move-BEL").click();
   await expect(page.getByTestId("out-of-crossings")).toBeVisible();
@@ -413,7 +414,7 @@ test("complete lesson flow", async ({ page }) => {
   // Undo restores route, budget and map.
   await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  expect(await moves()).toEqual(["BEL", "DEU", "FRA"]);
+  expect(await moves()).toEqual(["BEL", "DEU"]);
   expect(await allMapNames(page)).toEqual(beforeUndoLabels);
   await expect(page.locator('[data-testid="map-main"] path[data-country="BEL"]')).toHaveAttribute("data-tone", "default");
   await expect(page.getByText("Help used on this journey")).toBeVisible();

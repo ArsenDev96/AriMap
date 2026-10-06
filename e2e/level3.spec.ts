@@ -291,7 +291,8 @@ test("Level 3, Central Europe: Discover, Find, Travel and Results", async ({ pag
   // Every real neighbour in the level, and no others (no Poland–Austria border).
   expect(await moves()).toEqual(["CZE", "DEU", "SVK"]);
   await page.getByTestId("move-SVK").click();
-  expect(await moves()).toEqual(["AUT", "CZE", "POL"]);
+  // Poland, the start, is not offered again.
+  expect(await moves()).toEqual(["AUT", "CZE"]);
   // Warsaw → the Polish–Slovak border → Bratislava.
   await expect(route).toHaveAttribute("data-route", "POL,SVK");
   await expect(route).toHaveAttribute("data-points", "3");
@@ -300,13 +301,13 @@ test("Level 3, Central Europe: Discover, Find, Travel and Results", async ({ pag
   await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
   await page.getByTestId("move-DEU").click();
   // Germany has no border with Slovakia.
-  expect(await moves()).toEqual(["AUT", "CZE", "POL"]);
+  expect(await moves()).toEqual(["AUT", "CZE"]);
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
   expect(await moves()).toEqual(["CZE", "DEU", "SVK"]);
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   await page.getByTestId("move-CZE").click();
-  expect(await moves()).toEqual(["AUT", "DEU", "POL", "SVK"]);
+  expect(await moves()).toEqual(["AUT", "DEU", "SVK"]);
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
   await page.getByTestId("move-AUT").click();
 

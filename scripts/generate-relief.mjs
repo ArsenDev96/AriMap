@@ -1,9 +1,11 @@
 // Generates the map's painted landscape (relief and forests) from real data:
-//   src/assets/map/relief/<level id>-land.webp, <level id>-tone.webp  (one level's whole map, loaded with that level)
+//   src/assets/map/relief/<version key>-land.webp, <version key>-tone.webp  (one level's whole map, loaded with that level)
 //   public/relief/<hash>/<lod>/<family>/<col>-<row>.webp               (zoomed tiles, shared by all levels, loaded only when needed)
 //   src/assets/map/relief.json                                         (placement and tile manifest)
 //
 //   node scripts/generate-relief.mjs
+//   node scripts/generate-relief.mjs --overview <version key>   (that overview only: its two images and its
+//     entry in relief.json; every other overview and the shared tiles stay as they are)
 //
 // Elevation: Terrain Tiles (Mapzen/Tilezen "Terrarium" PNGs on AWS Open Data),
 // zoom 7 for the overview and zoom 8 for the zoomed levels, cached in
@@ -32,8 +34,10 @@ const file = (rel) => new URL(rel, root).pathname.replace(/^\/([A-Za-z]:)/, "$1"
 const PROJECTION_FIT = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 /**
  * The playable levels: their countries and coverage half-size (`map.coverageHalf`,
- * default [1150, 900]), as in src/core/lessons/. src/geo/relief.test.ts checks
- * the manifest against every playable level, so a level added there without
+ * default [1150, 900]), as in src/core/lessons/, by version key (versionKey there: a
+ * level's first version by its id, a later one with "-r2" and so on; earlier versions
+ * stay, for attempts started on them). src/geo/relief.test.ts checks the manifest
+ * against every version of every playable level, so a level added there without
  * rerunning this script fails the tests.
  */
 const LEVEL_AREAS = [
@@ -43,6 +47,7 @@ const LEVEL_AREAS = [
   { id: "along-the-adriatic", countries: ["ITA", "SVN", "HRV", "BIH", "MNE"], coverageHalf: [1000, 505] },
   { id: "towards-greece", countries: ["HUN", "ROU", "SRB", "BGR", "GRC"], coverageHalf: [1100, 600] },
   { id: "baltic-journey", countries: ["DEU", "POL", "LTU", "LVA", "EST"], coverageHalf: [1100, 570] },
+  { id: "baltic-journey-r2", countries: ["POL", "BLR", "LTU", "LVA", "EST"], coverageHalf: [850, 470] },
   { id: "iberian-journey", countries: ["PRT", "ESP", "AND", "FRA", "ITA"], coverageHalf: [910, 885] },
   { id: "eastern-europe", countries: ["POL", "BLR", "UKR", "MDA", "ROU"], coverageHalf: [720, 675] },
 ];
@@ -563,14 +568,18 @@ const maxAlpha = (rgba) => {
   return m;
 };
 
+// With --overview <key>, only that version's overview is painted, and relief.json keeps everything else.
+const onlyOverview = process.argv.includes("--overview") ? process.argv[process.argv.indexOf("--overview") + 1] : null;
+if (onlyOverview && !AREAS.some((a) => a.id === onlyOverview)) throw new Error(`no level area "${onlyOverview}"`);
+
 const manifest = { levels: [], overviews: {} };
 const outputs = []; // [relative public path, buffer]
 const RELIEF_ASSETS = file("src/assets/map/relief/");
-rmSync(RELIEF_ASSETS, { recursive: true, force: true });
+if (!onlyOverview) rmSync(RELIEF_ASSETS, { recursive: true, force: true });
 mkdirSync(RELIEF_ASSETS, { recursive: true });
 
 // --- Overviews, one per level: the land over the level's whole coverage, the tone over its countries.
-for (const { id, coverage, lessonArea } of AREAS) {
+for (const { id, coverage, lessonArea } of AREAS.filter((a) => !onlyOverview || a.id === onlyOverview)) {
   const level = LEVELS[0];
   const area = { x0: Math.floor(coverage.x0), y0: Math.floor(coverage.y0), x1: Math.ceil(coverage.x1), y1: Math.ceil(coverage.y1) };
   const painted = paintLevel(level, area, await elevationSource(7, area), await treeSource(level.wcOverview, area));
@@ -586,6 +595,25 @@ for (const { id, coverage, lessonArea } of AREAS) {
     tone: { x: t.x0, y: t.y0, width: tw / level.px, height: th / level.px, bytes: toneBuf.length },
   };
   console.log(`${id} overview: land ${landBuf.length} B, tone ${toneBuf.length} B`);
+}
+
+if (onlyOverview) {
+  // The overviews in the order of LEVEL_AREAS, the new one among them; the tiles, their version and
+  // the attribution are kept. The shared tile grid must already reach everywhere the version's map
+  // can be panned to, and its elevation must come from sources the credits already name.
+  const saved = JSON.parse(readFileSync(file("src/assets/map/relief.json"), "utf8"));
+  const area = AREAS.find((a) => a.id === onlyOverview);
+  for (const level of saved.levels) {
+    const [x1, y1] = [level.origin[0] + level.cols * level.tileWorld, level.origin[1] + level.rows * level.tileWorld];
+    if (area.panArea.x0 < level.origin[0] || area.panArea.y0 < level.origin[1] || area.panArea.x1 > x1 || area.panArea.y1 > y1)
+      throw new Error(`${onlyOverview}: the ${level.name} tile grid does not reach its pan area; rerun without --overview`);
+  }
+  for (const source of imagerySources.keys())
+    if (!(source in saved.elevationSources)) throw new Error(`${onlyOverview}: new elevation source ${source}; rerun without --overview`);
+  saved.overviews = Object.fromEntries(AREAS.flatMap((a) => (a.id === onlyOverview ? [[a.id, manifest.overviews[a.id]]] : a.id in saved.overviews ? [[a.id, saved.overviews[a.id]]] : [])));
+  writeFileSync(file("src/assets/map/relief.json"), JSON.stringify(saved, null, 2) + "\n");
+  console.log(`relief.json: ${onlyOverview} overview (tiles unchanged, version ${saved.version})`);
+  process.exit(0);
 }
 
 // --- Zoomed levels: 512px tiles over every level's pan area, in one grid shared by

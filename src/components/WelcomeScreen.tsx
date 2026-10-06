@@ -1,19 +1,26 @@
 "use client";
 
-import Image from "next/image";
+import Image, { type StaticImageData } from "next/image";
 import { useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
+import branCastle from "@/assets/landmarks/thumbnails/bran-castle.webp";
+import chapelBridge from "@/assets/landmarks/thumbnails/chapel-bridge.webp";
+import charlesBridge from "@/assets/landmarks/thumbnails/charles-bridge.webp";
+import dubrovnikCityWalls from "@/assets/landmarks/thumbnails/dubrovnik-city-walls.webp";
+import eiffelTower from "@/assets/landmarks/thumbnails/eiffel-tower.webp";
+import meteora from "@/assets/landmarks/thumbnails/meteora.webp";
+import sagradaFamilia from "@/assets/landmarks/thumbnails/sagrada-familia.webp";
+import trakaiIslandCastle from "@/assets/landmarks/thumbnails/trakai-island-castle.webp";
 import landArt from "@/assets/map/world/land.webp";
 import waterArt from "@/assets/map/world/water.webp";
 import { getCountry } from "@/core/content/countries";
 import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS } from "@/data/geo/world-map";
-import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
-import { LanguageToggle, STEPS } from "./Header";
+import { allLevelsComplete, continentStars, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, versionOf, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
+import { STEPS } from "./Header";
 import { useI18n } from "./i18n";
-import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
 import { RestartDialog, type RestartRequest } from "./RestartDialog";
-import { Stars } from "./Stars";
+import { Stars, StarTotal } from "./Stars";
 import styles from "./WelcomeScreen.module.css";
 
 interface Props {
@@ -39,6 +46,7 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   const levels = levelsOf(continent.id);
   const main = mainAction(state, continent.id);
   const allComplete = allLevelsComplete(state, continent.id);
+  const stars = continentStars(state, continent.id);
   // Known from the save on the first render (the game renders on the client only), so the
   // page never switches layout after it appears.
   const returning = isReturning(state);
@@ -101,16 +109,15 @@ export function WelcomeScreen({ state, dispatch }: Props) {
 
   return (
     <main className={`${styles.page} ${styles.levelsPage}`} data-returning={returning} data-continent={continent.id} data-testid="welcome">
-      {/* Back to the continents (where AriMap and its tagline are) and the language, in one row above
-          the scrolling list, so they stay in view however far the levels are scrolled (the list may
-          start scrolled to the next level). It takes no more room than the continents' header. */}
+      {/* Back to the continents (where AriMap, its tagline and the language are) above the scrolling list,
+          so it stays in view however far the levels are scrolled (the list may start scrolled to the next
+          level). The language is chosen on the continents and in a level; this page keeps it as it is. */}
       <header className={styles.compactHeader} data-testid="welcome-hero">
         <div className={styles.compactTop}>
           <button type="button" className={`btn btn-ghost ${styles.back}`} onClick={() => dispatch({ type: "goHome" })} data-testid="back-to-continents">
             <BackIcon />
             <span className={styles.backLabel}>{t("continents.back")}</span>
           </button>
-          <LanguageToggle dispatch={dispatch} />
         </div>
       </header>
       {/* Everything else but the main action scrolls here, between the header and the action's own
@@ -123,10 +130,14 @@ export function WelcomeScreen({ state, dispatch }: Props) {
               // it on a wide screen, so the levels come first.
               <EuropeBanner />
             )}
-            {/* The page's title: the continent, where "Choose a level" was. */}
-            <h1 id="levels-title" className={styles.levelsTitle} data-testid="continent-title">
-              {l(continent.name)}
-            </h1>
+            {/* The page's title: the continent, where "Choose a level" was; beside it (under it when there
+                is no room), the continent's stars, as on its card. */}
+            <div className={styles.levelsHeading}>
+              <h1 id="levels-title" className={styles.levelsTitle} data-testid="continent-title">
+                {l(continent.name)}
+              </h1>
+              {stars.max > 0 && <StarTotal earned={stars.earned} max={stars.max} continentOf={l(continent.nameOf)} />}
+            </div>
             {returning && !main && (
               // Nothing left to start. Once every level is completed (none coming soon), it says
               // so; every card still offers Play again.
@@ -202,10 +213,26 @@ const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
   "eastern-europe": "ROU",
 };
 
+/**
+ * Those landmarks' thumbnails, by illustration (scripts/prepare-landmarks.mjs, THUMBNAILS): 156 px on the
+ * longer side, the tile's 52 CSS px at up to 3× pixel density, 10–21 KB each instead of the display copy's
+ * 237–682 KB. Only the level cards use them; the landmark cards keep the display copies.
+ */
+const LEVEL_THUMBNAILS: Readonly<Record<string, StaticImageData>> = {
+  "eiffel-tower": eiffelTower,
+  "chapel-bridge": chapelBridge,
+  "charles-bridge": charlesBridge,
+  "dubrovnik-city-walls": dubrovnikCityWalls,
+  meteora,
+  "trakai-island-castle": trakaiIslandCastle,
+  "sagrada-familia": sagradaFamilia,
+  "bran-castle": branCastle,
+};
+
 function levelArt(level: LevelInfo) {
   const country = LEVEL_ART_COUNTRY[level.id];
   const key = country ? getCountry(country).landmark?.illustration : undefined;
-  return key ? LANDMARK_IMAGES[key] : undefined;
+  return key ? LEVEL_THUMBNAILS[key] : undefined;
 }
 
 interface CardProps {
@@ -240,10 +267,14 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
   const { t, l, name } = useI18n();
   const detailsId = useId();
   const [expanded, setExpanded] = useState(false);
+  // The level's picture, once it has arrived: its tile shows only then (never an empty box).
+  const [artLoaded, setArtLoaded] = useState(false);
   const titleId = `level-${level.id}-title`;
   const playable = status.kind !== "comingSoon" && status.kind !== "locked";
   const completed = status.kind === "completed";
   const progress = state.levels[level.id];
+  // The version of the level its attempt is on: an attempt from before its countries changed is shown as it is.
+  const version = versionOf(state, level);
   const started = progress?.started === true;
   const records = progress?.records;
   const done = [records?.discoverDone, records?.findDone, records?.travelDone].map(Boolean);
@@ -280,15 +311,16 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
       break;
   }
 
-  // The level's number; a check once it is completed.
-  const badge = (
+  // The level's number, in a circle; none once it is completed, where "Completed" and the stars say it
+  // and the title has the room instead.
+  const badge = !completed && (
     <span className={styles.levelBadge} aria-hidden="true" data-level-side="">
-      {completed ? <CheckIcon /> : level.number}
+      {level.number}
     </span>
   );
-  // The best stars earned (a completed full-level attempt's), once there are any, in the status pill
-  // in place of its icon, before "Completed": no extra line, so a compact card stays as short. One
-  // description for the group; none for a level never rated, which is not shown as a failed attempt.
+  // The best stars earned (a completed full-level attempt's), once there are any: a row of their own
+  // under the title, apart from "Completed", which then needs no icon of its own. One description for
+  // the group, said once; none for a level never rated, which is not shown as a failed attempt.
   const best = completed ? (progress?.records.bestRating ?? null) : null;
   const stars = best !== null && (
     <span className={styles.levelStars} role="img" aria-label={t("stars.bestLabel", { stars: t("stars.count", { count: best }) })} data-testid="level-stars" data-stars={best}>
@@ -297,7 +329,7 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
   );
   const statusLine = (
     <span className={styles.status} data-testid="level-status">
-      {stars || <StatusIcon kind={status.kind} />}
+      {!stars && <StatusIcon kind={status.kind} />}
       <span>
         <span className={styles.statusText}>{statusText}</span>
         {detail && <span className={styles.statusDetail}>{detail}</span>}
@@ -307,10 +339,10 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
 
   const body = (
     <>
-      <p className={styles.levelDescription}>{l(level.description)}</p>
+      <p className={styles.levelDescription}>{l(version?.description ?? level.description)}</p>
       <p className={styles.countries}>
         <span className="visually-hidden">{t("level.countries")} </span>
-        {level.countries.map(name).join(" · ")}
+        {(version?.lesson.countries ?? level.countries).map(name).join(" · ")}
       </p>
 
       {!compact && statusLine}
@@ -400,6 +432,7 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
               <span id={titleId} className={styles.levelTitle} data-level-title="">
                 {title}
               </span>
+              {stars}
             </span>
             <ChevronIcon />
           </button>
@@ -439,8 +472,11 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
           </h3>
         </div>
         {art && (
-          <span className={styles.levelArt} aria-hidden="true" data-level-art="">
-            <Image src={art} alt="" fill sizes="64px" className={styles.levelArtImage} />
+          <span className={styles.levelArt} aria-hidden="true" data-level-art="" data-loaded={artLoaded || undefined}>
+            {/* The prepared thumbnail itself, as a static file, not through the image service (/_next/image): there, a
+                first request left unfinished (the page closed while it was optimised) stalls every later request
+                for the same picture and width on that server, and the tile would never fill. */}
+            <Image src={art} alt="" fill unoptimized className={styles.levelArtImage} onLoad={() => setArtLoaded(true)} />
           </span>
         )}
       </div>
@@ -450,10 +486,10 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
 }
 
 /**
- * A level card's head shows its number badge (and a completed card's chevron) beside the title,
+ * A level card's head shows its number badge (or, completed, its chevron) beside the title,
  * the usual layout, while every word of the title fits the room beside them. When one doesn't
- * (enlarged text on a phone), the head is marked data-stacked: the badge and number (and the
- * chevron and status) go above the title, which has the card's whole width, so it wraps
+ * (enlarged text on a phone), the head is marked data-stacked: the badge and number (or the
+ * number, status and chevron) go above the title, which has the card's whole width, so it wraps
  * between words; a word is broken only if it is wider than the whole card. Measured in the
  * text as laid out, in its language and loaded font, rather than guessed from the text size.
  */
@@ -472,17 +508,22 @@ function stackLevelHeads(list: HTMLElement) {
       const width = side.getBoundingClientRect().width > 0 ? parseFloat(getComputedStyle(side).width) || 0 : 0;
       if (width > 0) room -= width + gap;
     }
-    // A completed card's status shares that room: its widest word, beside its icon (or stars), with
-    // the pill's padding. Worked out from the parts, not the pill's width, which is the same whether
-    // or not the words have gone under the stars (see .status in the CSS).
+    // A completed card's status shares that room: its widest word, beside its icon (if it has one),
+    // with the pill's padding. Worked out from the parts, not the pill's width, which is the same
+    // whether or not the words have gone under the icon (see .status in the CSS). Its stars too: a
+    // row that never breaks.
     let need = widestWord(title);
     const status = head.querySelector("[data-testid='level-status']");
-    const [icon, statusText] = [status?.firstElementChild, status?.lastElementChild];
-    if (status && icon && statusText && icon !== statusText) {
+    const statusText = status?.lastElementChild;
+    if (status && statusText) {
       const s = getComputedStyle(status);
       const chrome = parseFloat(s.paddingLeft) + parseFloat(s.paddingRight) + parseFloat(s.borderLeftWidth) + parseFloat(s.borderRightWidth);
-      need = Math.max(need, chrome + icon.getBoundingClientRect().width + (parseFloat(s.columnGap) || 0) + widestWord(statusText));
+      const icon = status.firstElementChild !== statusText ? status.firstElementChild : null;
+      const beside = icon ? icon.getBoundingClientRect().width + (parseFloat(s.columnGap) || 0) : 0;
+      need = Math.max(need, chrome + beside + widestWord(statusText));
     }
+    const stars = head.querySelector("[data-testid='level-stars']");
+    if (stars) need = Math.max(need, stars.getBoundingClientRect().width);
     // The level's picture (a full card's) takes room beside the title only where the title keeps
     // every word whole and at least about 10rem: otherwise it gives way to the words. Its width as
     // set (shown or not), so the choice never flips back and forth.
@@ -583,12 +624,13 @@ function StatusIcon({ kind }: { kind: LevelStatus["kind"] }) {
 }
 
 /**
- * The part of the home screen's world map (src/data/geo/world-map.ts, map units) the banner shows: Europe
- * whole from Crete to Novaya Zemlya, with a little sea around it (30–78°N), centred on it, with as much of
- * the Atlantic, Africa and Asia either side as the banner's shape leaves room for (it is cropped to fill
- * the banner, never stretched).
+ * The part of the home screen's world map (src/data/geo/world-map.ts, map units) the banner frames: Europe
+ * from Iceland to the Urals and from the North Cape to Crete, with a little sea around it (about 34–76°N;
+ * the far Arctic islands are left out). Always shown whole, centred, at the map's own proportions (never
+ * stretched or cropped): a banner wider than Europe shows only a little of the Atlantic and Greenland's
+ * coast on one side and of Asia on the other.
  */
-const EUROPE_VIEW = "50 33 950 134";
+const EUROPE_VIEW = "392 40 280 116";
 
 /**
  * Europe, as a small illustrated map: the home screen's painted water and Europe's painted land (green,
@@ -600,7 +642,7 @@ function EuropeBanner() {
   const clip = useId();
   return (
     <div className={styles.banner} aria-hidden="true" data-testid="welcome-art">
-      <svg className={styles.bannerMap} viewBox={EUROPE_VIEW} preserveAspectRatio="xMidYMid slice" focusable="false">
+      <svg className={styles.bannerMap} viewBox={EUROPE_VIEW} preserveAspectRatio="xMidYMid meet" focusable="false">
         <image href={waterArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" />
         <path className={styles.bannerGrid} d={WORLD_GRATICULE} />
         {(Object.keys(WORLD_REGIONS) as (keyof typeof WORLD_REGIONS)[])

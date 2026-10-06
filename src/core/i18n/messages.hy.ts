@@ -34,6 +34,7 @@ export const hy: Record<keyof typeof en, string> = {
   "continents.completed.one": "{continent} {count} մակարդակից ավարտված է {completed}-ը",
   "continents.completed.other": "{continent} {count} մակարդակից ավարտված է {completed}-ը",
   "continents.completedShort": "Ավարտված՝",
+  "continents.stars": "{continent} {max} աստղից վաստակված է {earned}-ը",
   "continents.explore": "Բացահայտել {continent}",
   "continents.comingSoon": "Շուտով",
   "continents.continueLabel": "{action}՝ {continent}, {level}, {title}",
@@ -130,6 +131,7 @@ export const hy: Record<keyof typeof en, string> = {
   "travel.retry": "Կրկին փորձել",
   "travel.moved": "Մտար {name}։",
   "travel.outOfCrossings": "Սահմանահատումները վերջացան։ Ամեն քայլով իրական սահման ես հատել, բայց այս երթուղին ամենակարճից երկար է։ Հետարկիր վերջին քայլը կամ փորձիր նորից։",
+  "travel.deadEnd": "Փակուղի՝ {name}։ Նրա բոլոր հարևաններն այս ճամփորդությունում արդեն քո երթուղում են, իսկ նույն երկիրը երկու անգամ մտնել չի կարելի։ Հետարկիր վերջին քայլը կամ փորձիր նորից։",
   "travel.helpUsed": "Այս ճամփորդությունում օգնություն ես օգտագործել",
 
   "results.title": "Ճամփորդությունն ավարտվեց։",

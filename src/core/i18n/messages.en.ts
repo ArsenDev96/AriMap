@@ -32,6 +32,7 @@ export const en = {
   "continents.completed.one": "{completed} of {count} {continent} level completed",
   "continents.completed.other": "{completed} of {count} {continent} levels completed",
   "continents.completedShort": "Completed:",
+  "continents.stars": "{earned} of {max} stars earned in {continent}",
   "continents.explore": "Explore {continent}",
   "continents.comingSoon": "Coming soon",
   "continents.continueLabel": "{action}: {continent}, {level}, {title}",
@@ -128,6 +129,7 @@ export const en = {
   "travel.retry": "Retry",
   "travel.moved": "You crossed into {country}.",
   "travel.outOfCrossings": "No crossings left. Each move crossed a real border, but this route is longer than the shortest one. Undo your last move or try again.",
+  "travel.deadEnd": "Dead end in {country}. All its neighbours on this journey are already on your route, and you can't enter a country twice. Undo your last move or try again.",
   "travel.helpUsed": "Help used on this journey",
 
   "results.title": "Journey complete!",

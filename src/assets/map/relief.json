@@ -670,6 +670,22 @@
         "bytes": 125426
       }
     },
+    "baltic-journey-r2": {
+      "land": {
+        "x": 466,
+        "y": -490,
+        "width": 1701,
+        "height": 941,
+        "bytes": 201140
+      },
+      "tone": {
+        "x": 917,
+        "y": -429,
+        "width": 799,
+        "height": 819,
+        "bytes": 64246
+      }
+    },
     "iberian-journey": {
       "land": {
         "x": -457,

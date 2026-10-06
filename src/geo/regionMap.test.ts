@@ -5,7 +5,8 @@ import type { Feature, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
-import { LESSONS, LEVELS } from "@/core/lessons";
+import { LESSON_VERSIONS, LESSONS, LEVELS, versionKey } from "@/core/lessons";
+import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
 import { shortestDistance, validateGraph, type BorderGraph } from "@/core/game/graph";
 import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, MARK_EDGE_CLEARANCE, maxMapWidth, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds, type ScreenMark, type Transform } from "./regionMap";
 
@@ -43,8 +44,9 @@ describe("prepared map data", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  for (const lesson of Object.values(LESSONS)) {
-    it(`${lesson.id}: border graph matches shared boundaries in the data`, () => {
+  // Every version of every level (Level 6's first included: attempts started on it go on).
+  for (const lesson of LESSON_VERSIONS) {
+    it(`${versionKey(lesson)}: border graph matches shared boundaries in the data`, () => {
       const adjacency = neighbors(geometries);
       for (const id of lesson.countries) {
         const index = geometries.findIndex((g) => g.id === id);
@@ -54,7 +56,7 @@ describe("prepared map data", () => {
       }
     });
 
-    it(`${lesson.id}: capitals, landmarks and label anchors fall inside their countries`, () => {
+    it(`${versionKey(lesson)}: capitals, landmarks and label anchors fall inside their countries`, () => {
       for (const id of lesson.countries) {
         const c = COUNTRIES[id];
         expect(geoContains(shapeOf(id), [...c.label.coordinates]), `${id} label`).toBe(true);
@@ -104,12 +106,14 @@ describe("prepared map data", () => {
       for (const other of ["LVA", "FIN", "RUS", "SWE"]) expect(geoContains(shapeOf(other), p as [number, number]), `${name} in ${other}`).toBe(false);
     }
     expect(estonia.geometry.type === "MultiPolygon" && estonia.geometry.coordinates.length).toBe(8);
-    // All of Estonia lies inside the level's focus, so every island is within the start view and the pan
-    // limits, and well inside the clip box (no artificial edge cuts an island).
-    const map = regionMapFor(LESSONS["baltic-journey"]);
-    const [[ex0, ey0], [ex1, ey1]] = map.shapes.find((s) => s.id === "EST")!.bounds;
-    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
-    expect(ex0 >= fx0 && ey0 >= fy0 && ex1 <= fx1 && ey1 <= fy1).toBe(true);
+    // All of Estonia lies inside the level's focus (in both its versions), so every island is within the start
+    // view and the pan limits, and well inside the clip box (no artificial edge cuts an island).
+    for (const lesson of [LESSONS["baltic-journey"], balticJourneyOriginalLesson]) {
+      const map = regionMapFor(lesson);
+      const [[ex0, ey0], [ex1, ey1]] = map.shapes.find((s) => s.id === "EST")!.bounds;
+      const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+      expect(ex0 >= fx0 && ey0 >= fy0 && ex1 <= fx1 && ey1 <= fy1).toBe(true);
+    }
     const n = MAP_DATA_CLIP[3];
     const points = (JSON.stringify(estonia.geometry.coordinates).match(/-?[\d.]+,-?[\d.]+/g) ?? []).map((p) => p.split(",").map(Number));
     expect(Math.max(...points.map((p) => p[1]))).toBeLessThan(n - 2);
@@ -240,7 +244,7 @@ describe("prepared map data", () => {
 });
 
 describe("map coverage", () => {
-  const lessons = Object.values(LESSONS);
+  const lessons = LESSON_VERSIONS;
   // Phones (portrait/landscape), tablets and desktops, including 320px and 1920px.
   const viewports = [
     [304, 294],
@@ -277,7 +281,7 @@ describe("map coverage", () => {
   for (const lesson of lessons) {
     const map = regionMapFor(lesson);
 
-    it(`${lesson.id}: the coverage area lies inside the clipped data`, () => {
+    it(`${versionKey(lesson)}: the coverage area lies inside the clipped data`, () => {
       const [w, s, e, n] = MAP_DATA_CLIP;
       const [[x0, y0], [x1, y1]] = map.coverage;
       for (let i = 0; i <= 50; i++) {
@@ -298,7 +302,7 @@ describe("map coverage", () => {
     });
 
     for (const [width, height] of viewports) {
-      it(`${lesson.id}: ${width}×${height} never shows beyond the data coverage`, () => {
+      it(`${versionKey(lesson)}: ${width}×${height} never shows beyond the data coverage`, () => {
         const { base, translateExtent } = viewLimits(map, width, height, 12);
         const inside = (b: Bounds) => {
           const [[c0x, c0y], [c1x, c1y]] = map.coverage;
@@ -321,7 +325,7 @@ describe("map coverage", () => {
       });
     }
 
-    it(`${lesson.id}: typical phone and desktop maps show every lesson country whole`, () => {
+    it(`${versionKey(lesson)}: typical phone and desktop maps show every lesson country whole`, () => {
       for (const [width, height] of [
         [304, 294],
         [374, 388],
@@ -339,7 +343,7 @@ describe("map coverage", () => {
       }
     });
 
-    it(`${lesson.id}: an ultra-wide map is shown no wider than keeps every lesson country whole, with half its padding`, () => {
+    it(`${versionKey(lesson)}: an ultra-wide map is shown no wider than keeps every lesson country whole, with half its padding`, () => {
       // Ultra-wide desktops (2560×1080, 3440×1440) and a short desktop window (1280×600): the map's height
       // there. At the widest width shown the countries keep half their padding; any wider and the coverage
       // would make the start view zoom in further, towards cutting them (Level 2 and Level 7 were cut at
@@ -391,9 +395,35 @@ describe("start view with markers kept whole", () => {
       }
     }
   };
-  const baltic = regionMapFor(LESSONS["baltic-journey"]);
+  // Level 6 now (Poland, Belarus, Lithuania, Latvia, Estonia) and its first version (Germany in place of Belarus).
+  const balticNow = regionMapFor(LESSONS["baltic-journey"]);
+  const baltic = regionMapFor(balticJourneyOriginalLesson);
 
-  it("baltic-journey: on a 320×568 phone (304×231 map), the pin in Tallinn is whole, the view inside the data", () => {
+  it("baltic-journey: on 320px phones (304×231 and 304×261 maps), the pin in Tallinn and all five countries are whole, with a little less padding", () => {
+    // The data reaches far enough north of Estonia here: the view moves, and zooms out a little, instead of zooming in.
+    for (const [width, height] of [
+      [304, 231],
+      [304, 261],
+    ]) {
+      const padding = paddingFor(width, height);
+      const tallinn = pinAt(balticNow, "EST");
+      const region = viewLimits(balticNow, width, height, padding);
+      // The countries' own start view cuts the pin's head: Tallinn is on the coast, 34 world units below the top of the five.
+      expect(room(tallinn, region.base, width, height)[1]).toBeLessThan(0);
+      const { base, minScale, translateExtent } = viewLimits(balticNow, width, height, padding, [tallinn]);
+      for (const r of room(tallinn, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+      expectInside(balticNow, base, width, height, translateExtent);
+      expect(base.k).toBeLessThanOrEqual(region.base.k);
+      expect(base.k / region.base.k).toBeGreaterThan(0.95);
+      const [[fx0, fy0], [fx1, fy1]] = balticNow.focusBounds;
+      const [sx0, sy0] = applyTransform(base, [fx0, fy0]);
+      const [sx1, sy1] = applyTransform(base, [fx1, fy1]);
+      for (const margin of [sx0, sy0, width - sx1, height - sy1]) expect(margin).toBeGreaterThanOrEqual(0);
+      expect(minScale).toBeCloseTo(base.k, 9);
+    }
+  });
+
+  it("baltic-journey (first version): on a 320×568 phone (304×231 map), the pin in Tallinn is whole, the view inside the data", () => {
     const [width, height] = [304, 231];
     const tallinn = pinAt(baltic, "EST");
     const region = viewLimits(baltic, width, height, paddingFor(width, height));
@@ -418,7 +448,7 @@ describe("start view with markers kept whole", () => {
     expect(minScale).toBeCloseTo(region.base.k, 9);
   });
 
-  it("baltic-journey: on a 320×640 phone (304×261 map), the pin in Tallinn and all five countries are whole", () => {
+  it("baltic-journey (first version): on a 320×640 phone (304×261 map), the pin in Tallinn and all five countries are whole", () => {
     const [width, height] = [304, 261];
     const padding = paddingFor(width, height);
     const tallinn = pinAt(baltic, "EST");
@@ -434,7 +464,7 @@ describe("start view with markers kept whole", () => {
 
   it("changes the start view only where the pin would be cut: every level, every capital, phones to wide desktops", () => {
     const changed: string[] = [];
-    for (const lesson of Object.values(LESSONS)) {
+    for (const lesson of LESSON_VERSIONS) {
       const map = regionMapFor(lesson);
       for (const [width, height] of [
         [304, 231],
@@ -458,14 +488,14 @@ describe("start view with markers kept whole", () => {
             expect(base).toEqual(region.base);
             continue;
           }
-          changed.push(`${lesson.id} ${country} ${width}×${height}`);
+          changed.push(`${versionKey(lesson)} ${country} ${width}×${height}`);
           for (const r of room(pin, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
           expectInside(map, base, width, height, translateExtent);
         }
       }
     }
-    // Only Tallinn, on the coast at the top of Level 6, on 320px phones.
-    expect(changed).toEqual(["baltic-journey EST 304×231", "baltic-journey EST 304×261"]);
+    // Only Tallinn, on the coast at the top of Level 6 (both versions), on 320px phones.
+    expect(changed).toEqual(["baltic-journey-r2 EST 304×231", "baltic-journey-r2 EST 304×261", "baltic-journey EST 304×231", "baltic-journey EST 304×261"]);
   });
 
   it("leaves short maps as they are: landscape phones (cropped already) and 200% text, which would need more than a small zoom", () => {
@@ -476,8 +506,10 @@ describe("start view with markers kept whole", () => {
       [304, 156],
       [304, 150],
     ]) {
-      const region = viewLimits(baltic, width, height, paddingFor(width, height));
-      expect(viewLimits(baltic, width, height, paddingFor(width, height), [pinAt(baltic, "EST")]).base).toEqual(region.base);
+      for (const map of [balticNow, baltic]) {
+        const region = viewLimits(map, width, height, paddingFor(width, height));
+        expect(viewLimits(map, width, height, paddingFor(width, height), [pinAt(map, "EST")]).base).toEqual(region.base);
+      }
     }
   });
 });

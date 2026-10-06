@@ -3,13 +3,19 @@ import type { LocalizedText } from "../i18n/locales";
 import type { ContinentId } from "./continents";
 import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
-import { balticJourneyLesson } from "./baltic-journey";
+import { balticJourneyLesson, balticJourneyOriginalLesson } from "./baltic-journey";
 import { centralEuropeLesson } from "./central-europe";
 import { easternEuropeLesson } from "./eastern-europe";
 import { iberianJourneyLesson } from "./iberian-journey";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
+
+/** A version of a level's content, with its card's description. */
+export interface LevelVersion {
+  lesson: LessonDefinition;
+  description: LocalizedText;
+}
 
 /**
  * A level as shown on its continent's level selection. `lesson` holds its playable
@@ -30,6 +36,14 @@ export interface LevelInfo {
   description: LocalizedText;
   countries: readonly CountryId[];
   lesson?: LessonDefinition;
+  /**
+   * Earlier versions of the level's content (each with a lower `revision`, the first with none), where
+   * its countries have changed. A saved attempt or Results stays on the version it was made on (its
+   * `revision`, storage.ts), shown on the level's card as it was: Continue, a refresh, View results,
+   * Undo and Restart keep it. Start over and Play again start the current version, and so does Replay
+   * journey (appState.ts). Records (completion, best stars, unlocks) belong to the level, not a version.
+   */
+  earlier?: readonly LevelVersion[];
   unlockedBy?: string;
 }
 
@@ -78,8 +92,8 @@ export const LEVELS: readonly LevelInfo[] = [
     number: 4,
     title: { en: "Along the Adriatic", hy: "Ադրիատիկի ափով" },
     description: {
-      en: "From Italy along the Adriatic coast to the Balkans.",
-      hy: "Իտալիայից Ադրիատիկի ափով դեպի Բալկաններ։",
+      en: "From the Balkans along the Adriatic coast to Italy.",
+      hy: "Բալկաններից Ադրիատիկի ափով դեպի Իտալիա։",
     },
     countries: adriaticLesson.countries,
     lesson: adriaticLesson,
@@ -104,11 +118,21 @@ export const LEVELS: readonly LevelInfo[] = [
     number: 6,
     title: { en: "Baltic Journey", hy: "Բալթյան ճամփորդություն" },
     description: {
-      en: "From Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia.",
-      hy: "Բեռլինից Բալթիկ ծովի երկայնքով մինչև Տալլին՝ Լեհաստանով, Լիտվայով և Լատվիայով։",
+      en: "From Warsaw north to Tallinn, by one of two different ways.",
+      hy: "Վարշավայից դեպի հյուսիս՝ մինչև Տալլին, երկու տարբեր ճանապարհներից մեկով։",
     },
     countries: balticJourneyLesson.countries,
     lesson: balticJourneyLesson,
+    // Until 2026-10-06: Germany in place of Belarus, and the journey Germany → Estonia.
+    earlier: [
+      {
+        lesson: balticJourneyOriginalLesson,
+        description: {
+          en: "From Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia.",
+          hy: "Բեռլինից Բալթիկ ծովի երկայնքով մինչև Տալլին՝ Լեհաստանով, Լիտվայով և Լատվիայով։",
+        },
+      },
+    ],
     unlockedBy: towardsGreeceLesson.id,
   },
   {
@@ -141,6 +165,19 @@ export const LEVELS: readonly LevelInfo[] = [
 
 export function getLevel(id: string): LevelInfo | undefined {
   return LEVELS.find((level) => level.id === id);
+}
+
+/** A playable level's versions: the current one first, then the earlier ones. */
+export function levelVersions(level: LevelInfo): readonly LevelVersion[] {
+  return level.lesson ? [{ lesson: level.lesson, description: level.description }, ...(level.earlier ?? [])] : [];
+}
+
+/**
+ * A level's version by revision (LessonDefinition.revision). None given: the level's first version, which
+ * every save from before its content changed was made on. Undefined for a revision it never had.
+ */
+export function levelVersion(level: LevelInfo, revision: number | undefined): LevelVersion | undefined {
+  return levelVersions(level).find((v) => (v.lesson.revision ?? 1) === (revision ?? 1));
 }
 
 /** A continent's levels, in order (none yet for a continent that is coming soon). */

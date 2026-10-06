@@ -5,10 +5,11 @@ import landArt from "@/assets/map/world/land.webp";
 import scenery from "@/assets/map/world/scenery.webp";
 import waterArt from "@/assets/map/world/water.webp";
 import { CONTINENTS, getContinent, hasPlayableLevels, type ContinentId, type ContinentInfo } from "@/core/lessons";
-import { continentProgress, levelToContinue, type AppAction, type AppState } from "@/core/progress/appState";
+import { continentProgress, continentStars, levelToContinue, type AppAction, type AppState } from "@/core/progress/appState";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS, WORLD_SPHERE } from "@/data/geo/world-map";
 import { BrandMark, LanguageToggle } from "./Header";
 import { useI18n } from "./i18n";
+import { StarTotal } from "./Stars";
 import page from "./WelcomeScreen.module.css";
 import styles from "./ContinentScreen.module.css";
 
@@ -56,10 +57,11 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * with playable levels (Europe) opens its level selection, from its land or its card (its name is the
  * card's one button, for the keyboard and assistive technology); the others are tiles that say
  * "Coming soon" and do nothing. Oceania and Antarctica are drawn as context only. Europe's levels
- * completed ("Completed: 2/8") are shown once, on its card, never on the map. The action area below
- * the content resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
- * the level's title too in its accessible name), or else opens Europe (Explore Europe). The page's frame (header, scrolling content, action area) is the level
- * selection's (WelcomeScreen.module.css), in this screen's sky colours.
+ * completed ("Completed: 2/8") are shown once, on its card, never on the map. The main action, right
+ * under the cards, resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
+ * the level's title too in its accessible name), or else opens Europe (Explore Europe); it scrolls with
+ * the content. The page's frame (header, scrolling content) is the level selection's
+ * (WelcomeScreen.module.css), in this screen's sky colours.
  */
 export function ContinentScreen({ state, dispatch }: Props) {
   const { t, l } = useI18n();
@@ -140,49 +142,51 @@ export function ContinentScreen({ state, dispatch }: Props) {
                 <ContinentLabel key={continent.id} continent={continent} state={state} onOpen={open} />
               ))}
             </ul>
+
+            {/* The main action, right under the cards (not held to the foot of the screen): on a short screen,
+                or with enlarged text, it scrolls with them. */}
+            <div className={styles.action} data-testid="continents-actions">
+              {resume ? (
+                <button
+                  type="button"
+                  className={`btn btn-primary btn-block ${page.mainAction} ${styles.mainAction}`}
+                  data-level={resume.id}
+                  data-kind="continue"
+                  // The whole destination, also when narrow screens show less of it.
+                  aria-label={t("continents.continueLabel", {
+                    action: t("welcome.continue"),
+                    continent: l(getContinent(resume.continent).name),
+                    level: t("level.number", { number: resume.number }),
+                    title: l(resume.title),
+                  })}
+                  onClick={() => dispatch({ type: "openLevel", levelId: resume.id })}
+                >
+                  <span className={styles.mainActionLabel}>
+                    {t("welcome.continue")}
+                    <ArrowIcon />
+                  </span>
+                  {/* The continent and level, short, so the button stays low; the title is in its accessible name. */}
+                  <span className={page.mainActionLevel}>
+                    {l(getContinent(resume.continent).name)} · {t("level.number", { number: resume.number })}
+                  </span>
+                </button>
+              ) : (
+                playable[0] && (
+                  <button
+                    type="button"
+                    className={`btn btn-primary btn-block ${styles.mainAction}`}
+                    data-primary
+                    data-testid={`explore-${playable[0].id}`}
+                    onClick={() => open(playable[0].id)}
+                  >
+                    {t("continents.explore", { continent: l(playable[0].nameInText) })}
+                    <ArrowIcon />
+                  </button>
+                )
+              )}
+            </div>
           </section>
         </div>
-      </div>
-
-      <div className={`${page.actionBar} ${styles.actionBar}`} data-testid="continents-actions">
-        {resume ? (
-          <button
-            type="button"
-            className={`btn btn-primary btn-block ${page.mainAction} ${styles.mainAction}`}
-            data-level={resume.id}
-            data-kind="continue"
-            // The whole destination, also when narrow screens show less of it.
-            aria-label={t("continents.continueLabel", {
-              action: t("welcome.continue"),
-              continent: l(getContinent(resume.continent).name),
-              level: t("level.number", { number: resume.number }),
-              title: l(resume.title),
-            })}
-            onClick={() => dispatch({ type: "openLevel", levelId: resume.id })}
-          >
-            <span className={styles.mainActionLabel}>
-              {t("welcome.continue")}
-              <ArrowIcon />
-            </span>
-            {/* The continent and level, short, so the action area stays low; the title is in its accessible name. */}
-            <span className={page.mainActionLevel}>
-              {l(getContinent(resume.continent).name)} · {t("level.number", { number: resume.number })}
-            </span>
-          </button>
-        ) : (
-          playable[0] && (
-            <button
-              type="button"
-              className={`btn btn-primary btn-block ${styles.mainAction}`}
-              data-primary
-              data-testid={`explore-${playable[0].id}`}
-              onClick={() => open(playable[0].id)}
-            >
-              {t("continents.explore", { continent: l(playable[0].nameInText) })}
-              <ArrowIcon />
-            </button>
-          )
-        )}
       </div>
     </main>
   );
@@ -214,16 +218,19 @@ function Silhouette({ continent }: { continent: ContinentId }) {
 
 /**
  * A continent's levels completed, from the permanent records: "Completed: 2/8" (the count kept on one
- * line) and a bar, read in full ("2 of 8 Europe levels completed"), on its card under its name.
+ * line, beside a check) and a bar, read in full ("2 of 8 Europe levels completed"), on its card under
+ * its name; under them, apart from the bar, its stars ("★ 17/24", StarTotal), which measure how
+ * well the levels were played rather than how many.
  */
 function ContinentProgress({ continent, state }: { continent: ContinentInfo; state: AppState }) {
   const { t, tp, l } = useI18n();
   const { total, completed } = continentProgress(state, continent.id);
+  const stars = continentStars(state, continent.id);
   return (
     <div className={styles.progressArea} data-continent={continent.id} data-testid={`continent-${continent.id}-progress-area`}>
       <p className={styles.progress}>
         <span className={styles.progressCount} aria-hidden="true">
-          <StarIcon />
+          <CheckIcon />
           <span data-testid="continent-progress">
             {t("continents.completedShort")} <span className={styles.fraction}>{`${completed}/${total}`}</span>
           </span>
@@ -234,6 +241,7 @@ function ContinentProgress({ continent, state }: { continent: ContinentInfo; sta
       <span className={styles.bar} aria-hidden="true">
         <span style={{ width: `${(100 * completed) / Math.max(total, 1)}%` }} />
       </span>
+      <StarTotal earned={stars.earned} max={stars.max} continentOf={l(continent.nameOf)} id={`continent-${continent.id}-stars`} />
     </div>
   );
 }
@@ -260,7 +268,7 @@ function ContinentLabel({ continent, state, onOpen }: { continent: ContinentInfo
       <Silhouette continent={continent.id} />
       {playable ? (
         <>
-          <button type="button" className={styles.open} aria-describedby={`continent-${continent.id}-progress`} data-testid={`map-label-${continent.id}`}>
+          <button type="button" className={styles.open} aria-describedby={`continent-${continent.id}-progress continent-${continent.id}-stars`} data-testid={`map-label-${continent.id}`}>
             <span className={styles.name}>{l(continent.name)}</span>
             <span className={styles.arrowBadge}>
               <ArrowIcon />
@@ -293,10 +301,11 @@ function ArrowIcon() {
   );
 }
 
-function StarIcon() {
+/** Levels completed: a check, as in the level selection's "all completed" message (the star is for stars). */
+function CheckIcon() {
   return (
     <svg className={styles.icon} width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 2.8l2.8 5.8 6.3.9-4.6 4.4 1.1 6.3L12 17.2l-5.6 3 1.1-6.3-4.6-4.4 6.3-.9z" fill="currentColor" />
+      <path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

@@ -13,12 +13,28 @@ export interface TravelMission {
 export interface LessonDefinition {
   /** Stable level id, used as the key of the level's saved progress. */
   id: string;
+  /**
+   * Which version of the level's content this is, where a level's countries have changed: 2 for the
+   * second, and so on. Absent for a level's first version. A save records it (LessonProgress.revision),
+   * so an attempt stays on the version it was started on (see LevelInfo.earlier).
+   */
+  revision?: number;
   regionName: LocalizedText;
   /** Countries that can be selected and played in this level. */
   countries: readonly CountryId[];
   /** Land borders between the active countries only (checked against the map data in tests). */
   borders: BorderGraph;
-  travel: { mission: TravelMission };
+  travel: {
+    /** The journey every new attempt takes. */
+    mission: TravelMission;
+    /**
+     * Journeys this level offered before `mission` (each with its own id). A saved attempt or result for one
+     * is still read, on its own start and destination, never re-read with the current ones: an attempt
+     * under way keeps them (Undo and Restart included), a finished one keeps its Results. Replay journey
+     * and Play again start a new attempt, on `mission`.
+     */
+    earlierMissions?: readonly TravelMission[];
+  };
   /**
    * Hints that describe a country within this level's region, where the
    * country's own hint (src/core/content) would not fit it: e.g. Germany is in

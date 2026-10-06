@@ -584,14 +584,14 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   // Every real neighbour in the level, and no others: Portugal meets only Spain.
   expect(await moves()).toEqual(["ESP"]);
   await page.getByTestId("move-ESP").click();
-  // Spain offers Andorra too.
-  expect(await moves()).toEqual(["AND", "FRA", "PRT"]);
+  // Spain offers Andorra too; Portugal, the start, is not offered again.
+  expect(await moves()).toEqual(["AND", "FRA"]);
   // Lisbon → north of the Tagus estuary → the border → Madrid.
   await expect(route).toHaveAttribute("data-route", "PRT,ESP");
   await expect(route).toHaveAttribute("data-points", "4");
   // Through Andorra: one crossing too many, so the journey runs out in France.
   await page.getByTestId("move-AND").click();
-  expect(await moves()).toEqual(["ESP", "FRA"]);
+  expect(await moves()).toEqual(["FRA"]);
   await page.getByTestId("move-FRA").click();
   await expect(page.getByTestId("out-of-crossings")).toBeVisible();
   await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
@@ -605,7 +605,7 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   await page.getByTestId("move-ESP").click();
   await page.getByTestId("move-FRA").click();
-  expect(await moves()).toEqual(["AND", "ESP", "ITA"]);
+  expect(await moves()).toEqual(["AND", "ITA"]);
   await page.getByTestId("move-ITA").click();
 
   // --- Results ------------------------------------------------------------------
@@ -1315,7 +1315,7 @@ test("Level 7 loads its own landscape overview, and zoomed tiles only for the vi
   await card(page, L6).getByTestId("level-details-toggle").click();
   await card(page, L6).getByRole("button", { name: /^Play again/ }).click();
   await page.getByTestId("start-over-dialog").getByRole("button", { name: "Play again" }).click();
-  await expect.poll(() => requests.some((u) => /baltic-journey-land/.test(u))).toBe(true);
+  await expect.poll(() => requests.some((u) => /baltic-journey(-r2)?-land/.test(u))).toBe(true);
   for (let i = 0; i < 2; i++) {
     await page.getByRole("button", { name: "Zoom in" }).click();
     await page.waitForTimeout(600);
@@ -1329,7 +1329,7 @@ test("Level 7 loads its own landscape overview, and zoomed tiles only for the vi
   await expect(main.locator('[data-family="land"] image[data-level="overview"]')).toHaveCount(1);
   await expect.poll(() => requests.some((u) => /iberian-journey-land/.test(u))).toBe(true);
   await page.waitForTimeout(500);
-  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
+  expect(requests.filter((u) => /(western-europe-1|around-the-alps|central-europe|along-the-adriatic|towards-greece|baltic-journey(-r2)?)-(land|tone)/.test(u)), "another level's overview").toEqual([]);
   expect(requests.filter((u) => /iberian-journey-tone/.test(u)), "the overlay before any state colour").toEqual([]);
   expect(requests.filter((u) => u.includes("/relief/")), "zoomed tiles at the whole-map view").toEqual([]);
   // A selection gives Portugal a state colour: its overlay is loaded.

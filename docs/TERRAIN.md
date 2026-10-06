@@ -73,7 +73,7 @@ Code:
   - Drawn after the land texture and before wave marks, borders, the Find answer outline, routes, names and markers.
 - **Taps.** No pointer events: taps and gestures reach the country underneath. Country geometry, the projection and hit testing are unchanged.
 - **Levels of detail.**
-  - **Overview, one per game level:** one image over everything that level's map can show, loaded when the level is opened (`src/assets/map/relief/<level id>-land.webp`). Importing an image only gives its URL, so a level never fetches another level's overview. The neutral overlay's overview (`<level id>-tone.webp`) covers only that level's countries, which are the only ones that take state colours; it is loaded only once one does. Every level uses the same projection (DATA.md, "One projection for every level"), so the images line up with every level's map.
+  - **Overview, one per version of a game level:** one image over everything that version's map can show, loaded when the level is opened (`src/assets/map/relief/<version key>-land.webp`; the version key is the level id for a level's first version, with `-r2` and so on for a later one, `versionKey` in `src/core/lessons/index.ts`). Level 6 has two: `baltic-journey` for attempts started on its first version and `baltic-journey-r2` for its current one; an attempt draws the overview of the version it is on, and never fetches the other's. Importing an image only gives its URL, so a level never fetches another level's overview. The neutral overlay's overview (`<version key>-tone.webp`) covers only that version's countries, which are the only ones that take state colours; it is loaded only once one does. Every level uses the same projection (DATA.md, "One projection for every level"), so the images line up with every level's map.
   - **Zoomed levels:** 512px tiles over the area the map can be panned in when zoomed, fetched only for the visible part plus a quarter-screen margin. There is one grid for all game levels, over all their pan areas: France and Germany use the same tiles in Levels 1 and 2. It is anchored where Level 1's grid began, and grows by whole tiles, so adding Level 2 kept Level 1's tiles (below).
   - **Choosing a level:** by screen density (zoom × `devicePixelRatio`): level 2 from 1.4 device pixels per world unit, level 3 from 2.8. A phone and a desktop fetch what their screens can show.
   - **Settled views only.** Tiles are chosen from the view the player stopped at (a gesture ended, or paused for 150 ms), so zoom and pan animations, redraws in the middle of a gesture, and the first layout don't fetch tiles for the views they pass through.
@@ -126,7 +126,7 @@ The same test reads Level 7's overview (summits: Wikipedia article coordinates, 
 
 ### Geographic check (Level 6)
 
-The same test reads Level 6's overview (reference points: Wikipedia article coordinates, checked 2026-10-02). The Baltic states are low (Suur Munamägi, the highest point, is 318 m), so no relief is expected there; the check is their forests and farmland:
+The same test reads both of Level 6's overviews, the current version's and the first's (reference points: Wikipedia article coordinates, checked 2026-10-02; since 2026-10-06 also the Białowieża Forest and the Naliboki Forest, Level 8's reference points, as Belarus is now Level 6's too). The Baltic states are low (Suur Munamägi, the highest point, is 318 m), so no relief is expected there; the check is their forests and farmland:
 - **Forests** are at least 40/255 in the Augustów Primeval Forest, Dzūkija, Žemaitija, Soomaa and Lahemaa national parks (measured 70–79).
 - **Farmland stays bare** (at most 10/255; measured 0): the Zemgale plain between Jelgava and Bauska, the plain near Joniškis in northern Lithuania, and Kuyavia (as for Level 3).
 
@@ -180,14 +180,18 @@ The same test reads Level 2's overview (reference points: Wikipedia article coor
 | Game Level 4 neutral overlay overview (`along-the-adriatic-tone.webp`, 741×852) | 80 KB | Once a Level 4 country has a state colour |
 | Game Level 5 land overview (`towards-greece-land.webp`, 2201×1201) | 394 KB | With Level 5 (every stage) |
 | Game Level 5 neutral overlay overview (`towards-greece-tone.webp`, 790×1003) | 130 KB | Once a Level 5 country has a state colour |
-| Game Level 6 land overview (`baltic-journey-land.webp`, 2201×1141) | 288 KB | With Level 6 (every stage) |
-| Game Level 6 neutral overlay overview (`baltic-journey-tone.webp`, 917×1001) | 125 KB | Once a Level 6 country has a state colour |
+| Game Level 6 land overview (`baltic-journey-r2-land.webp`, 1701×941) | 201 KB | With Level 6 (every stage) |
+| Game Level 6 neutral overlay overview (`baltic-journey-r2-tone.webp`, 799×819) | 64 KB | Once a Level 6 country has a state colour |
+| Game Level 6, first version: land overview (`baltic-journey-land.webp`, 2201×1141) | 288 KB | With an attempt started on Level 6's first version (every stage) |
+| Game Level 6, first version: neutral overlay overview (`baltic-journey-tone.webp`, 917×1001) | 125 KB | Once a country of such an attempt has a state colour |
 | Game Level 7 land overview (`iberian-journey-land.webp`, 1821×1771) | 402 KB | With Level 7 (every stage) |
 | Game Level 7 neutral overlay overview (`iberian-journey-tone.webp`, 1589×1147) | 256 KB | Once a Level 7 country has a state colour |
 | Game Level 8 land overview (`eastern-europe-land.webp`, 1441×1351) | 274 KB | With Level 8 (every stage) |
 | Game Level 8 neutral overlay overview (`eastern-europe-tone.webp`, 1248×948) | 150 KB | Once a Level 8 country has a state colour |
 | Detail level 2 tiles (87 land + 74 tone; 78 + 66 before Level 8, 78 + 62 before Level 7, 72 + 58 before Level 6, 65 + 45 before Level 5) | 6.9 MB in all (6.0 MB before Level 8), about 43 KB each | Zoomed in about 1.3× on a 3× phone, or 2.1× on a 1× desktop (Level 1's scale) |
 | Detail level 3 tiles (211 land + 160 tone; 190 + 140 before Level 8, 177 + 130 before Level 7, 160 + 109 before Level 6, 138 + 90 before Level 5) | 17.4 MB in all (15.2 MB before Level 8), about 47 KB each | Zoomed in further |
+
+**Level 6's second version** (2026-10-06). Level 6's countries changed (Belarus in place of Germany; DATA.md, "Level 6"), so it has a second overview, `baltic-journey-r2-land.webp` (1701×941, 201 KB) and `baltic-journey-r2-tone.webp` (799×819, 64 KB), made with `node scripts/generate-relief.mjs --overview baltic-journey-r2`, which paints that one overview and adds its entry to `relief.json`, keeping every other overview, the tile manifest, its version (`a45fb07217`) and the elevation sources as they were. **Nothing else changed**: the sixteen existing overviews (the first version's `baltic-journey` pair included, still drawn for attempts started on it) and every zoomed tile are the same files, and the tile folder keeps its name, so no player downloads anything again. The mode refuses to run if the shared grid's bounds do not reach the version's pan area or the overview needs a new elevation source; both held. The grid's bounds do reach the new pan area, but two level-3 land tiles inside it were never painted, as no earlier level's pan area needed them: `14-0` and `15-0`, over Russia north-east of Moscow (about 38–42°E, 57–59°N), at the pan area's far north-east corner, beyond Belarus and Estonia. Zoomed that far in and panned there, the level-2 tiles under them stand in ("While loading", above), so nothing goes blank; a full rerun of the generator would paint them, renaming the tile folder. The second version's countries (Poland and Belarus, Levels 3 and 8's) and their forests are already in the shared tiles.
 
 **Adding Level 8** (2026-10-05). Level 8 uses the shared projection (DATA.md, "One projection for every level"). Its map data changed only by drawing Crimea as part of Ukraine (DATA.md, "Preparation", step 5): no vertex moved, the projection is fitted to Level 1's countries, which did not change, and the landscape is painted from elevation and land-cover data in world coordinates, regardless of country shapes. So **all fourteen overviews of Levels 1–7 are byte-for-byte the files they were** (checked by comparing every file). Level 8's own two overviews add 424 KB, loaded only with Level 8. Its pan area (25% beyond the five countries, clamped to its coverage) reaches further east than any earlier level's (eastern Ukraine, the Sea of Azov and the Don): both tile grids grew by one column east (level 2: 10 → 11 columns; level 3: 17 → 18) and kept their origin, so **every earlier tile kept its name**. Matched by position, **460 of the 474 earlier tiles are byte-identical**, none was removed, and 58 are new (3.0 MB: 9 land and 8 overlay level-2 tiles, 21 land and 20 overlay level-3 tiles, over Belarus, Ukraine, Moldova and the Black Sea). The other 14 changed: the old east edge of each grid (level 2, column 9, rows 3–6, land and overlay: 0.01–2.5% of their pixels changed by more than 8/255, mean difference 0–1.1/255; level 3, column 16, rows 5, 6 and 8–11, land: 0.02–9.0%, mean 0–2.1). This is the same edge effect as Levels 3, 5, 6 and 7's: before, the elevation and forest data ended at the old pan limit and the smoothing repeated its last pixels; now there is real terrain beyond. Those tiles lie over eastern Romania, Moldova and the Black Sea coast at the eastern end of Level 5's pan area. The tiles live in a new folder (`public/relief/a45fb07217/`, replacing `7052378e0c/`), named by the hash of all tiles, so a returning player of Levels 1–7 downloads the tiles of a zoomed view again once, although almost all have the same bytes; their overviews, loaded at the whole-map view, are unchanged. The elevation sources are still only `srtm`, `gmted` and `etopo1` (the headers of every tile read: 9,833 SRTM, 2,081 GMTED2010 and 1,638 ETOPO1 entries; before Level 8, 8,871, 1,947 and 1,565), so the credits are unchanged, and WorldCover's is a single global product.
 
@@ -258,6 +262,14 @@ To regenerate:
 ```bash
 node scripts/generate-relief.mjs
 ```
+
+To paint one overview only (a new version of a level whose pan area the shared tiles already reach), keeping every other overview and the tiles as they are:
+
+```bash
+node scripts/generate-relief.mjs --overview baltic-journey-r2
+```
+
+It takes a version key (`LEVEL_AREAS` in the script), writes that version's two images and its entry in `relief.json`, and stops with an error, asking for a full run, if the tile grid does not reach the version's pan area or a new elevation source would be needed.
 
 ### Mountain ranges (reference points)
 

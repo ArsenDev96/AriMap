@@ -152,7 +152,7 @@ test.describe("level selection", () => {
         await expect(card(page, "iberian-journey")).toContainText(locale === "en" ? "Portugal · Spain · Andorra · France · Italy" : "Պորտուգալիա · Իսպանիա · Անդորրա · Ֆրանսիա · Իտալիա");
         await expect(card(page, "iberian-journey")).toContainText(locale === "en" ? "Complete “Baltic Journey” to unlock it." : "Բացելու համար ավարտիր «Բալթյան ճամփորդություն» մակարդակը։");
         // Level 6 opens after Level 5.
-        await expect(card(page, "baltic-journey")).toContainText(locale === "en" ? "Germany · Poland · Lithuania · Latvia · Estonia" : "Գերմանիա · Լեհաստան · Լիտվա · Լատվիա · Էստոնիա");
+        await expect(card(page, "baltic-journey")).toContainText(locale === "en" ? "Poland · Belarus · Lithuania · Latvia · Estonia" : "Լեհաստան · Բելառուս · Լիտվա · Լատվիա · Էստոնիա");
         await expect(card(page, "baltic-journey")).toContainText(locale === "en" ? "Complete “Towards Greece” to unlock it." : "Բացելու համար ավարտիր «Դեպի Հունաստան» մակարդակը։");
         // Level 5 opens after Level 4.
         await expect(card(page, "towards-greece")).toContainText(locale === "en" ? "Complete “Along the Adriatic” to unlock it." : "Բացելու համար ավարտիր «Ադրիատիկի ափով» մակարդակը։");
@@ -311,7 +311,8 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
   expect(await moves()).toEqual(["CHE", "DEU", "ITA"]);
   await page.getByTestId("move-ITA").click();
-  expect(await moves()).toEqual(["AUT", "CHE", "FRA"]);
+  // France, the start, is not offered again.
+  expect(await moves()).toEqual(["AUT", "CHE"]);
   const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
   await expect(route).toHaveAttribute("data-route", "FRA,ITA");
   // France → the Alpine border → a turning point in Italy (inland, not over the sea) → Rome.
@@ -320,7 +321,7 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(route).toHaveCount(0);
   await page.getByTestId("move-DEU").click();
-  expect(await moves()).toEqual(["AUT", "CHE", "FRA"]);
+  expect(await moves()).toEqual(["AUT", "CHE"]);
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
   await shot(page, "travel-germany-en");
   await page.getByTestId("move-AUT").click();
