@@ -7,7 +7,8 @@ import topologyJson from "@/data/geo/europe-west.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import { shortestDistance, type BorderGraph } from "@/core/game/graph";
-import { LESSONS } from "@/core/lessons";
+import { LESSON_VERSIONS, LESSONS, versionKey } from "@/core/lessons";
+import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
 import { regionMapFor } from "./regionMap";
 import { borderKey, routeLine, routePoints, routeSettings, viaKey } from "./route";
 
@@ -68,7 +69,8 @@ const BORDER_TOLERANCE_KM = 3;
 const ALL_IDS = topology.objects.countries.geometries.map((g) => String(g.id));
 const same = (p: LonLat, q: LonLat) => p[0] === q[0] && p[1] === q[1];
 
-for (const lesson of Object.values(LESSONS)) {
+// Every version of every level: an attempt started on Level 6's first version still draws its journey.
+for (const lesson of LESSON_VERSIONS) {
   const crossings = lesson.map.routeCrossings ?? {};
   const via = lesson.map.routeVia ?? {};
   const settings = routeSettings(lesson);
@@ -78,7 +80,7 @@ for (const lesson of Object.values(LESSONS)) {
   const linkOf = (country: CountryId, p: LonLat, q: LonLat) =>
     links.find((l) => l.country === country && ((same(l.points[0], p) && same(l.points[1], q)) || (same(l.points[0], q) && same(l.points[1], p))));
 
-  describe(`${lesson.id}: Travel route line`, () => {
+  describe(`${versionKey(lesson)}: Travel route line`, () => {
     it("has a crossing for exactly the level's borders, and turning points only for them", () => {
       const expected = new Set(moves.map(([a, b]) => borderKey(a, b)));
       expect(new Set(Object.keys(crossings))).toEqual(expected);
@@ -159,13 +161,20 @@ for (const lesson of Object.values(LESSONS)) {
       if (lesson.id === "central-europe") {
         expect(paths.map((p) => p.join("→")).sort()).toEqual(["POL→CZE→AUT", "POL→DEU→AUT", "POL→SVK→AUT"]);
       }
-      // A chain: Italy meets only Slovenia, and Croatia–Montenegro is shorter than through Bosnia and Herzegovina.
+      // One: Croatia, then Slovenia, Italy's only neighbour here. Through Bosnia and Herzegovina is a crossing more.
       if (lesson.id === "along-the-adriatic") {
-        expect(paths.map((p) => p.join("→"))).toEqual(["ITA→SVN→HRV→MNE"]);
+        expect(paths.map((p) => p.join("→"))).toEqual(["MNE→HRV→SVN→ITA"]);
       }
       // Two: through Romania or Serbia, then Bulgaria, Greece's only neighbour here.
       if (lesson.id === "towards-greece") {
         expect(paths.map((p) => p.join("→")).sort()).toEqual(["HUN→ROU→BGR→GRC", "HUN→SRB→BGR→GRC"]);
+      }
+      // Two: Lithuania or Belarus, then Latvia, Estonia's only neighbour here. Before Belarus replaced Germany: one, a chain.
+      if (versionKey(lesson) === "baltic-journey-r2") {
+        expect(paths.map((p) => p.join("→")).sort()).toEqual(["POL→BLR→LVA→EST", "POL→LTU→LVA→EST"]);
+      }
+      if (versionKey(lesson) === "baltic-journey") {
+        expect(paths.map((p) => p.join("→"))).toEqual(["DEU→POL→LTU→LVA→EST"]);
       }
       // One: Spain, then France. Through Andorra is a crossing more.
       if (lesson.id === "iberian-journey") {
@@ -259,6 +268,43 @@ describe("eastern-europe: straight legs through real border crossings, on land",
       }
     }
   });
+});
+
+describe("baltic-journey: two ways north, each a straight line through real border crossings, on land", () => {
+  const lesson = LESSONS["baltic-journey"];
+  const settings = routeSettings(lesson);
+
+  it("reuses Level 8's Poland–Belarus line and the first version's crossings; only Belarus–Lithuania and Belarus–Latvia are new", () => {
+    expect(lesson.map.routeVia ?? {}).toEqual({});
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+    expect(routeLine(["POL", "BLR"], settings)).toEqual(routeLine(["POL", "BLR"], routeSettings(LESSONS["eastern-europe"])));
+    for (const key of ["LTU-POL", "LTU-LVA", "EST-LVA"]) expect(lesson.map.routeCrossings![key], key).toEqual(balticJourneyOriginalLesson.map.routeCrossings![key]);
+    // Rule 1's vertices: south-east of Vilnius, on the road to Minsk; east of Daugavpils.
+    expect(lesson.map.routeCrossings!["BLR-LTU"]).toEqual([25.6162, 54.4412]);
+    expect(lesson.map.routeCrossings!["BLR-LVA"]).toEqual([27.1107, 55.8362]);
+    // The way through Lithuania is drawn as it was before Belarus replaced Germany.
+    expect(routeLine(["POL", "LTU", "LVA", "EST"], settings)).toEqual(routeLine(["POL", "LTU", "LVA", "EST"], routeSettings(balticJourneyOriginalLesson)));
+  });
+
+  for (const path of [
+    ["POL", "LTU", "LVA", "EST"],
+    ["POL", "BLR", "LVA", "EST"],
+  ]) {
+    it(`draws ${path.join(" → ")} on its own countries' land, never at sea, in Russia (Kaliningrad) or in the other way's country`, () => {
+      const line = routeLine(path, settings);
+      // Warsaw, a crossing, a capital, a crossing, Riga, a crossing, Tallinn.
+      expect(line).toHaveLength(7);
+      const crossings = Object.values(lesson.map.routeCrossings ?? {});
+      const other = path.includes("LTU") ? "BLR" : "LTU";
+      for (let i = 1; i < line.length; i++) {
+        for (const p of drawnSamples(lesson, line[i - 1], line[i], 300)) {
+          if (crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+          expect(path.some((id) => geoContains(shapeOf(id), [...p])), `${p} at sea or abroad`).toBe(true);
+          for (const id of [other, "RUS", "UKR", "FIN"]) expect(geoContains(shapeOf(id), [...p]), `${p} in ${id}`).toBe(false);
+        }
+      }
+    });
+  }
 });
 
 describe("iberian-journey: reuses Level 2's France–Italy line; Lisbon's leg goes round the Tagus estuary", () => {

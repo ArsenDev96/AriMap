@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { adriaticLesson } from "../lessons/adriatic";
 import { westernEuropeLesson as lesson } from "../lessons/western-europe";
 import { shortestDistance, shortestPath, validateGraph } from "./graph";
 import {
   availableMoves,
   createAttempt,
   crossingsLeft,
+  isDeadEnd,
   isIndependentCompletion,
   markHintUsed,
   move,
@@ -52,11 +54,38 @@ describe("travel mission France → Netherlands", () => {
     expect(crossingsLeft(attempt)).toBe(2);
   });
 
-  it("offers every active neighbour and nothing else", () => {
+  it("offers every active neighbour not yet on the route, and nothing else", () => {
     const attempt = createAttempt(graph, mission);
     expect([...availableMoves(attempt, graph)].sort()).toEqual(["BEL", "DEU", "LUX"]);
+    // Belgium borders France too, but the journey started there.
     const inBelgium = move(attempt, graph, "BEL").attempt;
-    expect([...availableMoves(inBelgium, graph)].sort()).toEqual(["DEU", "FRA", "LUX", "NLD"]);
+    expect([...availableMoves(inBelgium, graph)].sort()).toEqual(["DEU", "LUX", "NLD"]);
+    expect(isDeadEnd(inBelgium, graph)).toBe(false);
+  });
+
+  it("never enters a country already on the route, the start included", () => {
+    const inBelgium = move(createAttempt(graph, mission), graph, "BEL").attempt;
+    const back = move(inBelgium, graph, "FRA");
+    expect(back.outcome).toBe("invalid");
+    expect(back.attempt).toBe(inBelgium);
+  });
+
+  it("undo makes the country it leaves a choice again, where it is a neighbour", () => {
+    const { attempt } = play(["LUX"]);
+    expect([...availableMoves(attempt, graph)].sort()).toEqual(["BEL", "DEU"]);
+    const start = undo(attempt);
+    expect([...availableMoves(start, graph)].sort()).toEqual(["BEL", "DEU", "LUX"]);
+    const inBelgium = move(start, graph, "BEL").attempt;
+    expect([...availableMoves(inBelgium, graph)].sort()).toEqual(["DEU", "LUX", "NLD"]);
+  });
+
+  it("keeps a longer route selectable: choices are not narrowed to those within the crossings left", () => {
+    // Luxembourg is a real neighbour of France but not on a shortest route to the Netherlands.
+    const start = createAttempt(graph, mission);
+    expect(availableMoves(start, graph)).toContain("LUX");
+    const { attempt } = play(["LUX"]);
+    // From Luxembourg, neither choice reaches the Netherlands with the one crossing left; both are offered.
+    expect([...availableMoves(attempt, graph)].sort()).toEqual(["BEL", "DEU"]);
   });
 
   it.each([
@@ -103,6 +132,15 @@ describe("travel mission France → Netherlands", () => {
     expect(isIndependentCompletion(attempt)).toBe(false);
   });
 
+  it("a route saved with a repeat (before repeats were excluded) is kept and can be undone", () => {
+    // Out of crossings in a repeat: as before, Undo goes back along it.
+    const saved: TravelAttempt = { ...createAttempt(graph, mission), path: ["FRA", "BEL", "FRA"], status: "outOfCrossings" };
+    expect(isDeadEnd(saved, graph)).toBe(false);
+    const back = undo(saved);
+    expect(back.path).toEqual(["FRA", "BEL"]);
+    expect([...availableMoves(back, graph)].sort()).toEqual(["DEU", "LUX", "NLD"]);
+  });
+
   it("undo is a no-op before the first move", () => {
     const start = createAttempt(graph, mission);
     expect(undo(start)).toBe(start);
@@ -122,5 +160,48 @@ describe("travel mission France → Netherlands", () => {
     expect(fresh.path).toEqual(["FRA"]);
     expect(crossingsLeft(fresh)).toBe(2);
     expect(fresh.hintUsed).toBe(true);
+  });
+});
+
+describe("a dead end with crossings left (Level 4, Montenegro → Italy)", () => {
+  const adriatic = adriaticLesson.borders;
+  const toItaly = adriaticLesson.travel.mission;
+  const via = (route: string[]) => {
+    let attempt = createAttempt(adriatic, toItaly);
+    for (const country of route) attempt = move(attempt, adriatic, country).attempt;
+    return attempt;
+  };
+
+  it("Montenegro → Croatia → Bosnia and Herzegovina: both its neighbours are on the route, a crossing left", () => {
+    const attempt = via(["HRV", "BIH"]);
+    expect(attempt.path).toEqual(["MNE", "HRV", "BIH"]);
+    expect(attempt.status).toBe("playing");
+    expect(crossingsLeft(attempt)).toBe(1);
+    expect(availableMoves(attempt, adriatic)).toEqual([]);
+    expect(isDeadEnd(attempt, adriatic)).toBe(true);
+    for (const country of ["HRV", "MNE"]) expect(move(attempt, adriatic, country).outcome).toBe("invalid");
+  });
+
+  it("undo leaves it: Croatia offers Slovenia and Bosnia and Herzegovina again", () => {
+    const back = undo(via(["HRV", "BIH"]));
+    expect(back.path).toEqual(["MNE", "HRV"]);
+    expect([...availableMoves(back, adriatic)].sort()).toEqual(["BIH", "SVN"]);
+    expect(isDeadEnd(back, adriatic)).toBe(false);
+    expect(back.undoUsed).toBe(true);
+  });
+
+  it("restart leaves it: back in Montenegro, Croatia and Bosnia and Herzegovina offered", () => {
+    const fresh = restart(via(["HRV", "BIH"]));
+    expect(fresh.path).toEqual(["MNE"]);
+    expect([...availableMoves(fresh, adriatic)].sort()).toEqual(["BIH", "HRV"]);
+  });
+
+  it("through Bosnia and Herzegovina first is the longer way: out of crossings in Slovenia, not a dead end", () => {
+    const longer = via(["BIH", "HRV"]);
+    // Every real neighbour not on the route stays a choice, though none reaches Italy in time.
+    expect(availableMoves(longer, adriatic)).toEqual(["SVN"]);
+    const attempt = move(longer, adriatic, "SVN").attempt;
+    expect(attempt.status).toBe("outOfCrossings");
+    expect(isDeadEnd(attempt, adriatic)).toBe(false);
   });
 });

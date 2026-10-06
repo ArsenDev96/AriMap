@@ -9,6 +9,7 @@ import { getCountry } from "@/core/content/countries";
 import type { CountryId } from "@/core/content/types";
 import type { LocalizedText } from "@/core/i18n/locales";
 import type { CountryTone, MapMarker, MapView } from "@/core/lesson/mapView";
+import { versionKey } from "@/core/lessons";
 import type { LessonDefinition } from "@/core/lessons/types";
 import {
   applyTransform,
@@ -628,7 +629,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 <SeaTexture map={map} />
                 <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                <Relief map={map} level={lesson.id} tones={view.tones} transform={settledView} viewport={size} />
+                <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} />
                 {scenery && (
                   <Scenery
                     map={map}
@@ -718,7 +719,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   <SeaTexture map={map} />
                   <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
                   <LandTexture map={map} darkKey={tonedKey} />
-                  <Relief map={map} level={lesson.id} tones={view.tones} transform={insetTransform} viewport={insetSize} />
+                  <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={insetTransform} viewport={insetSize} />
                   <BorderLayer map={map} active={lesson.countries} />
                   <FlashLayer map={map} flash={flash} />
                 </g>
@@ -779,7 +780,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              <Relief map={map} level={lesson.id} tones={copyTones.tones} transform={settledView} viewport={size} />
+              <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} />
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}

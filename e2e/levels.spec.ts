@@ -311,7 +311,8 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
   expect(await moves()).toEqual(["CHE", "DEU", "ITA"]);
   await page.getByTestId("move-ITA").click();
-  expect(await moves()).toEqual(["AUT", "CHE", "FRA"]);
+  // France, the start, is not offered again.
+  expect(await moves()).toEqual(["AUT", "CHE"]);
   const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
   await expect(route).toHaveAttribute("data-route", "FRA,ITA");
   // France → the Alpine border → a turning point in Italy (inland, not over the sea) → Rome.
@@ -320,7 +321,7 @@ test("Level 2, Around the Alps: Discover, Find, Travel and Results", async ({ pa
   await page.getByRole("button", { name: "Undo" }).click();
   await expect(route).toHaveCount(0);
   await page.getByTestId("move-DEU").click();
-  expect(await moves()).toEqual(["AUT", "CHE", "FRA"]);
+  expect(await moves()).toEqual(["AUT", "CHE"]);
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
   await shot(page, "travel-germany-en");
   await page.getByTestId("move-AUT").click();

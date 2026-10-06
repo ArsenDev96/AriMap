@@ -1,7 +1,19 @@
 import { DEFAULT_LOCALE, type Locale } from "../i18n/locales";
 import { createFindOrder } from "../game/find";
 import type { RandomSource } from "../game/random";
-import { DEFAULT_LESSON_ID, getLesson, getLevel, hasPlayableLevels, LEVELS, levelsOf, type ContinentId, type LevelInfo } from "../lessons";
+import {
+  DEFAULT_LESSON_ID,
+  getLesson,
+  getLevel,
+  hasPlayableLevels,
+  LEVELS,
+  levelsOf,
+  levelVersion,
+  levelVersions,
+  type ContinentId,
+  type LevelInfo,
+  type LevelVersion,
+} from "../lessons";
 import type { LessonDefinition } from "../lessons/types";
 import { createLessonProgress, lessonReducer, type LessonAction, type LessonProgress, type LessonStage } from "../lesson/progress";
 import { attemptRating } from "../lesson/rating";
@@ -54,8 +66,19 @@ export function createInitialState(locale: Locale = DEFAULT_LOCALE): AppState {
   return { version: STATE_VERSION, locale, screen: "continents", continent: "europe", levelId: DEFAULT_LESSON_ID, recent: [], levels: {} };
 }
 
+/**
+ * The version of a playable level's content its place is on: the one its saved progress names (an
+ * attempt started before the level's countries changed keeps the earlier version, LevelInfo.earlier),
+ * otherwise the current one. Its card shows that version's countries and description.
+ */
+export function versionOf(state: AppState, level: LevelInfo): LevelVersion | undefined {
+  const progress = state.levels[level.id];
+  return (progress && levelVersion(level, progress.revision)) || levelVersions(level)[0];
+}
+
 export function activeLesson(state: AppState): LessonDefinition {
-  return getLesson(state.levelId) ?? getLesson(DEFAULT_LESSON_ID)!;
+  const level = getLevel(state.levelId);
+  return (level && versionOf(state, level)?.lesson) ?? getLesson(DEFAULT_LESSON_ID)!;
 }
 
 export function activeProgress(state: AppState): LessonProgress {
@@ -212,7 +235,13 @@ function reduce(state: AppState, action: AppAction): AppState {
     case "lesson": {
       const lesson = activeLesson(state);
       const before = progressOf(state, lesson);
-      const after = lessonReducer(lesson, before, action.action);
+      const current = getLesson(lesson.id)!;
+      // Replay journey from Results on an earlier version of the level starts the current journey: the
+      // level's place moves to the current version, keeping only its records (completion, stars).
+      const after =
+        action.action.type === "replayTravel" && lesson !== current && before.records.findDone
+          ? lessonReducer(current, createLessonProgress(current, before.records), action.action)
+          : lessonReducer(lesson, before, action.action);
       const next = withProgress(state, after);
       // A full-level attempt just completed, better than the level's earlier best (not its first rating).
       const rating = before.stage === "results" ? null : attemptRating(after);

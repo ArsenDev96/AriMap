@@ -42,10 +42,24 @@ export const currentCountry = (a: TravelAttempt): CountryId => a.path[a.path.len
 export const crossingsUsed = (a: TravelAttempt): number => a.path.length - 1;
 export const crossingsLeft = (a: TravelAttempt): number => a.budget - crossingsUsed(a);
 
-/** Every active neighbour of the current country while moves are possible. */
+/**
+ * The current country's active neighbours not yet on this journey's route (the start included), while
+ * moves are possible. Undo takes a country off the route, so it is offered again wherever it is a
+ * neighbour. Choices are never narrowed to those that still reach the destination within the
+ * crossings left: a longer route stays possible, and runs out of crossings.
+ */
 export function availableMoves(a: TravelAttempt, graph: BorderGraph): readonly CountryId[] {
   if (a.status !== "playing" || crossingsLeft(a) <= 0) return [];
-  return neighborsOf(graph, currentCountry(a));
+  return neighborsOf(graph, currentCountry(a)).filter((id) => !a.path.includes(id));
+}
+
+/**
+ * Stopped short of the destination with crossings still left: every neighbour of the current country
+ * is already on the route (a route saved before countries could not be visited twice can end so).
+ * Only Undo or Retry go on.
+ */
+export function isDeadEnd(a: TravelAttempt, graph: BorderGraph): boolean {
+  return a.status === "playing" && crossingsLeft(a) > 0 && availableMoves(a, graph).length === 0;
 }
 
 function statusAfter(path: readonly CountryId[], a: TravelAttempt): TravelStatus {
@@ -58,7 +72,8 @@ export function move(
   graph: BorderGraph,
   to: CountryId,
 ): { attempt: TravelAttempt; outcome: MoveOutcome } {
-  if (a.status !== "playing" || crossingsLeft(a) <= 0 || !areNeighbors(graph, currentCountry(a), to)) {
+  // A country already on the route is never entered again.
+  if (a.status !== "playing" || crossingsLeft(a) <= 0 || !areNeighbors(graph, currentCountry(a), to) || a.path.includes(to)) {
     return { attempt: a, outcome: "invalid" };
   }
   const path = [...a.path, to];

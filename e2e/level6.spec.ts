@@ -517,30 +517,30 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   // Every real neighbour in the level, and no others: Germany meets only Poland here.
   expect(await moves()).toEqual(["POL"]);
   await page.getByTestId("move-POL").click();
-  expect(await moves()).toEqual(["DEU", "LTU"]);
+  // Germany, where the journey started, is not offered again: Lithuania is the way on.
+  expect(await moves()).toEqual(["LTU"]);
   // Berlin → the Oder → Warsaw: straight legs.
   await expect(route).toHaveAttribute("data-route", "DEU,POL");
   await expect(route).toHaveAttribute("data-points", "3");
-  // Back into Germany and on again: a crossing wasted, so the journey runs out in Lithuania.
-  await page.getByTestId("move-DEU").click();
-  await page.getByTestId("move-POL").click();
   await page.getByTestId("move-LTU").click();
-  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
-  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves()).toEqual(["LVA"]);
+  // Undo takes Lithuania off the route; Germany stays on it, so Poland still offers only Lithuania.
+  await page.getByTestId("travel-tools").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("3 crossings left");
+  expect(await moves()).toEqual(["LTU"]);
   await page.reload();
   // A refresh keeps the journey where it was.
-  await expect(route).toHaveAttribute("data-route", "DEU,POL,DEU,POL");
+  await expect(route).toHaveAttribute("data-route", "DEU,POL");
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
   expect(await moves()).toEqual(["POL"]);
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   await page.getByTestId("move-POL").click();
   await page.getByTestId("move-LTU").click();
-  // Lithuania meets Latvia (and Poland), not Estonia.
-  expect(await moves()).toEqual(["LVA", "POL"]);
+  // Lithuania meets Latvia (and Poland, already on the route), not Estonia.
+  expect(await moves()).toEqual(["LVA"]);
   await page.getByTestId("move-LVA").click();
-  expect(await moves()).toEqual(["EST", "LTU"]);
+  expect(await moves()).toEqual(["EST"]);
   await page.getByTestId("move-EST").click();
 
   // --- Results ------------------------------------------------------------------
@@ -582,6 +582,38 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
     await expect(card(page, id).getByRole("button", { name: /^Continue/ })).toHaveCount(0);
   }
   expect(errors).toEqual([]);
+});
+
+test("Level 6: a journey saved with a repeat still opens; its dead end says crossings remain, and Undo or Retry go on", async ({ page }) => {
+  const DEAD_END = {
+    en: "Dead end in Germany. All its neighbours on this journey are already on your route, and you can't enter a country twice. Undo your last move or try again.",
+    hy: "Փակուղի՝ Գերմանիա։ Նրա բոլոր հարևաններն այս ճամփորդությունում արդեն քո երթուղում են, իսկ նույն երկիրը երկու անգամ մտնել չի կարելի։ Հետարկիր վերջին քայլը կամ փորձիր նորից։",
+  };
+  const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
+  const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
+  for (const locale of ["en", "hy"] as const) {
+    // Back in Germany from Poland (saved before a country could not be entered twice): two crossings left.
+    await openLevel6(page, travellingAt(["DEU", "POL", "DEU"]), locale);
+    await expect(route).toHaveAttribute("data-route", "DEU,POL,DEU");
+    const dead = page.getByTestId("dead-end");
+    await expect(dead).toContainText(DEAD_END[locale]);
+    await expect(page.getByTestId("out-of-crossings")).toHaveCount(0);
+    await expect(page.getByTestId("crossings-left")).toHaveText(locale === "en" ? "2 crossings left" : "Մնաց 2 սահմանահատում");
+    // No empty choice area: the dead end takes its place, with Undo and Retry.
+    await expect(page.locator("#neighbors-heading")).toHaveCount(0);
+    expect(await moves()).toEqual([]);
+    await expect(page.getByTestId("travel-tools").getByRole("button").first()).toBeDisabled();
+    await shot(page, `travel-dead-end-${locale}`);
+    await dead.getByRole("button", { name: locale === "en" ? "Undo" : "Հետարկել" }).click();
+    await expect(dead).toHaveCount(0);
+    await expect(route).toHaveAttribute("data-route", "DEU,POL");
+    expect(await moves()).toEqual(["LTU"]);
+    // Retry from the dead end: back to Germany, Poland offered.
+    await openLevel6(page, travellingAt(["DEU", "POL", "DEU"]), locale);
+    await page.getByTestId("dead-end").getByRole("button", { name: locale === "en" ? "Retry" : "Կրկին փորձել" }).click();
+    await expect(route).toHaveCount(0);
+    expect(await moves()).toEqual(["POL"]);
+  }
 });
 
 test("Level 6: independent saves; Start over and Play again change only this level; all eight stay completed", async ({ page }) => {

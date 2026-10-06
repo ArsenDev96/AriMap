@@ -12,6 +12,8 @@ import alpsLand from "@/assets/map/relief/around-the-alps-land.webp";
 import alpsTone from "@/assets/map/relief/around-the-alps-tone.webp";
 import balticJourneyLand from "@/assets/map/relief/baltic-journey-land.webp";
 import balticJourneyTone from "@/assets/map/relief/baltic-journey-tone.webp";
+import balticJourneyR2Land from "@/assets/map/relief/baltic-journey-r2-land.webp";
+import balticJourneyR2Tone from "@/assets/map/relief/baltic-journey-r2-tone.webp";
 import centralEuropeLand from "@/assets/map/relief/central-europe-land.webp";
 import centralEuropeTone from "@/assets/map/relief/central-europe-tone.webp";
 import easternEuropeLand from "@/assets/map/relief/eastern-europe-land.webp";
@@ -25,8 +27,9 @@ import westernEuropeTone from "@/assets/map/relief/western-europe-1-tone.webp";
 import styles from "./RegionMap.module.css";
 
 /**
- * Each level's overview images. Importing them only gives their URLs: a level's
- * images are fetched when its map is drawn, never for the other levels.
+ * Each level's overview images, by version key (versionKey in src/core/lessons: a level's first
+ * version by its id, a later one with "-r2" and so on). Importing them only gives their URLs: a
+ * level's images are fetched when its map is drawn, never for the other levels.
  */
 const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: StaticImageData }>> = {
   "western-europe-1": { land: westernEuropeLand, tone: westernEuropeTone },
@@ -35,6 +38,7 @@ const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: St
   "along-the-adriatic": { land: adriaticLand, tone: adriaticTone },
   "towards-greece": { land: towardsGreeceLand, tone: towardsGreeceTone },
   "baltic-journey": { land: balticJourneyLand, tone: balticJourneyTone },
+  "baltic-journey-r2": { land: balticJourneyR2Land, tone: balticJourneyR2Tone },
   "iberian-journey": { land: iberianJourneyLand, tone: iberianJourneyTone },
   "eastern-europe": { land: easternEuropeLand, tone: easternEuropeTone },
 };
@@ -152,7 +156,7 @@ function tilesFor(family: Family, density: number, view: readonly number[], area
 
 interface Props {
   map: RegionMap;
-  /** The level whose overview to draw (see relief.overviews). */
+  /** The version of the level whose overview to draw (its versionKey; see relief.overviews). */
   level: string;
   /** Lesson countries' tones; any tone other than "default" gets the "tone" family. */
   tones: Partial<Record<CountryId, CountryTone>>;

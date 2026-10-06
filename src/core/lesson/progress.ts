@@ -51,6 +51,11 @@ export interface LessonRecords {
 
 export interface LessonProgress {
   lessonId: string;
+  /**
+   * The version of the level's content this place is on (LessonDefinition.revision). Absent for a
+   * level's first version, as in every save from before its content changed: those were all made on it.
+   */
+  revision?: number;
   started: boolean;
   stage: LessonStage;
   discover: { selected: CountryId | null; explored: CountryId[] };
@@ -96,6 +101,7 @@ export const EMPTY_RECORDS: LessonRecords = {
 export function createLessonProgress(lesson: LessonDefinition, records: LessonRecords = EMPTY_RECORDS): LessonProgress {
   return {
     lessonId: lesson.id,
+    ...(lesson.revision !== undefined && { revision: lesson.revision }),
     started: false,
     stage: "discover",
     discover: { selected: null, explored: [] },

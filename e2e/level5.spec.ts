@@ -483,13 +483,15 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and Leve
   // Every real neighbour in the level, and no others.
   expect(await moves()).toEqual(["ROU", "SRB"]);
   await page.getByTestId("move-SRB").click();
-  expect(await moves()).toEqual(["BGR", "HUN", "ROU"]);
+  // Hungary, the start, is not offered again.
+  expect(await moves()).toEqual(["BGR", "ROU"]);
   // Budapest → the Hungarian–Serbian border → Belgrade: straight legs.
   await expect(route).toHaveAttribute("data-route", "HUN,SRB");
   await expect(route).toHaveAttribute("data-points", "3");
   // Sideways into Romania: Greece is then two crossings away, with one left.
   await page.getByTestId("move-ROU").click();
-  expect(await moves()).toEqual(["BGR", "HUN", "SRB"]);
+  // Hungary and Serbia are on the route: Bulgaria, the longer way on, is the only choice.
+  expect(await moves()).toEqual(["BGR"]);
   await page.getByTestId("move-BGR").click();
   await expect(page.getByTestId("out-of-crossings")).toBeVisible();
   await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
@@ -503,7 +505,7 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and Leve
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   await page.getByTestId("move-ROU").click();
   await page.getByTestId("move-BGR").click();
-  expect(await moves()).toEqual(["GRC", "ROU", "SRB"]);
+  expect(await moves()).toEqual(["GRC", "SRB"]);
   await page.getByTestId("move-GRC").click();
 
   // --- Results ------------------------------------------------------------------

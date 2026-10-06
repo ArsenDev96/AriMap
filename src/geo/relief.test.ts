@@ -3,18 +3,20 @@ import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import relief from "@/assets/map/relief.json";
 import type { LonLat } from "@/core/content/types";
-import { LESSONS } from "@/core/lessons";
+import { LESSON_VERSIONS, LESSONS, versionKey } from "@/core/lessons";
+import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
 import { regionMapFor, viewLimits, type RegionMap } from "./regionMap";
 import { FORESTS, MOUNTAIN_RANGES } from "./terrain";
 
 type Overview = (typeof relief.overviews)["western-europe-1"];
 const overviews = relief.overviews as Record<string, Overview | undefined>;
-const lessons = Object.values(LESSONS);
+/** Every version of every level: an attempt started on an earlier version (Level 6's first) draws that version's own overview. */
+const lessons = LESSON_VERSIONS;
 
-/** Strongest relief opacity (0–255) within `r` pixels of a point, in a level's land overview. */
-async function alphaSampler(levelId: string, map: RegionMap) {
-  const { data, info } = await sharp(`src/assets/map/relief/${levelId}-land.webp`).raw().toBuffer({ resolveWithObject: true });
-  const o = overviews[levelId]!.land;
+/** Strongest relief opacity (0–255) within `r` pixels of a point, in a level version's land overview (by versionKey). */
+async function alphaSampler(key: string, map: RegionMap) {
+  const { data, info } = await sharp(`src/assets/map/relief/${key}-land.webp`).raw().toBuffer({ resolveWithObject: true });
+  const o = overviews[key]!.land;
   return (p: LonLat, r = 2) => {
     const [x, y] = map.project(p);
     const [i, j] = [Math.floor(x - o.x), Math.floor(y - o.y)];
@@ -37,12 +39,13 @@ describe("painted relief", () => {
   });
 
   for (const lesson of lessons) {
-    it(`${lesson.id}: its overview covers everything its map can show, and every country that can take a state colour`, () => {
+    const key = versionKey(lesson);
+    it(`${key}: its overview covers everything its map can show, and every country that can take a state colour`, () => {
       const map = regionMapFor(lesson);
-      const o = overviews[lesson.id];
+      const o = overviews[key];
       expect(o, "overview in relief.json").toBeDefined();
-      expect(existsSync(`src/assets/map/relief/${lesson.id}-land.webp`)).toBe(true);
-      expect(existsSync(`src/assets/map/relief/${lesson.id}-tone.webp`)).toBe(true);
+      expect(existsSync(`src/assets/map/relief/${key}-land.webp`)).toBe(true);
+      expect(existsSync(`src/assets/map/relief/${key}-tone.webp`)).toBe(true);
       const { land, tone } = o!;
       const [[c0x, c0y], [c1x, c1y]] = map.coverage;
       expect(land.x).toBeLessThanOrEqual(c0x);
@@ -58,18 +61,18 @@ describe("painted relief", () => {
       }
     });
 
-    it(`${lesson.id}: its overview images are registered for the map to draw`, () => {
-      // src/components/map/Relief.tsx imports each level's overview by name (an import only gives a URL,
-      // so no level fetches another's); a level missing there would show no landscape at all.
+    it(`${key}: its overview images are registered for the map to draw`, () => {
+      // src/components/map/Relief.tsx imports each level version's overview by name (an import only gives a URL,
+      // so no level fetches another's); a version missing there would show no landscape at all.
       const source = readFileSync("src/components/map/Relief.tsx", "utf8");
-      const entry = new RegExp(`"${lesson.id}": \\{ land: (\\w+), tone: (\\w+) \\}`).exec(source);
-      expect(entry, `${lesson.id} in OVERVIEW_IMAGES`).not.toBeNull();
+      const entry = new RegExp(`"${key}": \\{ land: (\\w+), tone: (\\w+) \\}`).exec(source);
+      expect(entry, `${key} in OVERVIEW_IMAGES`).not.toBeNull();
       for (const [name, family] of [[entry![1], "land"], [entry![2], "tone"]]) {
-        expect(source, `${name} imported`).toContain(`import ${name} from "@/assets/map/relief/${lesson.id}-${family}.webp";`);
+        expect(source, `${name} imported`).toContain(`import ${name} from "@/assets/map/relief/${key}-${family}.webp";`);
       }
     });
 
-    it(`${lesson.id}: zoomed tiles cover everywhere its map can be zoomed and panned to`, () => {
+    it(`${key}: zoomed tiles cover everywhere its map can be zoomed and panned to`, () => {
       const [[e0x, e0y], [e1x, e1y]] = viewLimits(regionMapFor(lesson), 390, 400, 16).translateExtent;
       for (const level of relief.levels) {
         expect(level.origin[0]).toBeLessThanOrEqual(e0x);
@@ -270,20 +273,26 @@ describe("painted relief", () => {
   // Level 6 reaches north to the Gulf of Finland. The Baltic states are low and flat (Suur Munamägi,
   // the highest point, is 318 m), so the check is their forests and open farmland. Reference points: the
   // Wikipedia articles' coordinates (checked 2026-10-02; see docs/TERRAIN.md).
-  it("Level 6: shows the forests from Augustów and Dzūkija to Lahemaa; the Zemgale plain stays bare", async () => {
-    const alphaNear = await alphaSampler("baltic-journey", regionMapFor(LESSONS["baltic-journey"]));
-    const forests: Record<string, LonLat> = {
-      "Augustów Primeval Forest": [23.3446, 53.8898],
-      "Dzūkija National Park": [24.3767, 54.0819],
-      "Žemaitija National Park": [21.8889, 56.0486],
-      "Soomaa National Park": [25.1056, 58.4408],
-      "Lahemaa National Park": [25.8003, 59.5711],
-    };
-    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
-    // Open farmland: the Zemgale plain between Jelgava and Bauska (Latvia), the plain near Joniškis
-    // (northern Lithuania) and Kuyavia (Poland, as in Level 3).
-    const open: Record<string, LonLat> = { "Zemgale plain": [23.95, 56.5], "Joniškis plain": [23.6, 56.2], Kuyavia: [18.6, 52.75] };
-    for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+  // Since Belarus replaced Germany, its forests are the level's too (Białowieża and Naliboki, Level 8's reference
+  // points); the first version's overview, drawn for attempts started on it, is checked the same way.
+  it("Level 6: shows the forests from Augustów, Białowieża and Naliboki to Lahemaa; the Zemgale plain stays bare (both versions)", async () => {
+    for (const lesson of [LESSONS["baltic-journey"], balticJourneyOriginalLesson]) {
+      const alphaNear = await alphaSampler(versionKey(lesson), regionMapFor(lesson));
+      const forests: Record<string, LonLat> = {
+        "Augustów Primeval Forest": [23.3446, 53.8898],
+        "Dzūkija National Park": [24.3767, 54.0819],
+        "Žemaitija National Park": [21.8889, 56.0486],
+        "Soomaa National Park": [25.1056, 58.4408],
+        "Lahemaa National Park": [25.8003, 59.5711],
+        "Białowieża Forest": [23.95, 52.75],
+        "Naliboki Forest": [26.4425, 53.8844],
+      };
+      for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), `${versionKey(lesson)} ${name}`).toBeGreaterThanOrEqual(40);
+      // Open farmland: the Zemgale plain between Jelgava and Bauska (Latvia), the plain near Joniškis
+      // (northern Lithuania) and Kuyavia (Poland, as in Level 3).
+      const open: Record<string, LonLat> = { "Zemgale plain": [23.95, 56.5], "Joniškis plain": [23.6, 56.2], Kuyavia: [18.6, 52.75] };
+      for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), `${versionKey(lesson)} ${name}`).toBeLessThanOrEqual(10);
+    }
   });
   // Level 7 reaches south and west to Iberia: the Pyrenees (Andorra among them), the Cantabrian Mountains,
   // the Sistema Central, Serra da Estrela and the Sierra Nevada are high and rough; the Meseta's plains, the

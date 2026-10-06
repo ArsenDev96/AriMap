@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { availableMoves, crossingsLeft, currentCountry, isAssisted } from "@/core/game/travel";
+import { availableMoves, crossingsLeft, currentCountry, isAssisted, isDeadEnd } from "@/core/game/travel";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
 import styles from "../LessonScreen.module.css";
@@ -62,7 +62,8 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
   const { t, tp, name, countryParams } = useI18n();
   const stuckRef = useRef<HTMLDivElement>(null);
   const attempt = progress.travel;
-  const isStuck = attempt?.status === "outOfCrossings";
+  // Out of crossings, or a dead end with crossings left (every neighbour already on the route).
+  const isStuck = !!attempt && (attempt.status === "outOfCrossings" || isDeadEnd(attempt, lesson.borders));
   const labelsKey = attempt ? availableMoves(attempt, lesson.borders).map((id) => name(id)).join("|") : "";
   const { gridRef, measureRef, columns } = useNeighborColumns(labelsKey);
 
@@ -76,7 +77,8 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
   const left = crossingsLeft(attempt);
   const here = currentCountry(attempt);
   const moves = availableMoves(attempt, lesson.borders);
-  const stuck = attempt.status === "outOfCrossings";
+  const deadEnd = isDeadEnd(attempt, lesson.borders);
+  const stuck = attempt.status === "outOfCrossings" || deadEnd;
   const hasMoved = attempt.path.length > 1;
 
   return (
@@ -124,8 +126,14 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
 
       {stuck ? (
         // Its own element (not the neighbours' box restyled), so it is at full size when scrolled into view.
-        <div key="stuck" ref={stuckRef} className={`${styles.feedback} ${styles.feedbackWrong}`} data-testid="out-of-crossings">
-          <p>{t("travel.outOfCrossings")}</p>
+        // A dead end says so, not that the crossings ran out: some are left, but no neighbour is new.
+        <div
+          key={deadEnd ? "dead-end" : "stuck"}
+          ref={stuckRef}
+          className={`${styles.feedback} ${styles.feedbackWrong}`}
+          data-testid={deadEnd ? "dead-end" : "out-of-crossings"}
+        >
+          <p>{deadEnd ? t("travel.deadEnd", countryParams(here)) : t("travel.outOfCrossings")}</p>
           <div className={styles.row} style={{ marginTop: 10 }}>
             <button type="button" className="btn btn-primary" onClick={() => act({ type: "travelUndo" })}>
               {t("travel.undo")}

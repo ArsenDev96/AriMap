@@ -8,7 +8,7 @@ import { getCountry } from "@/core/content/countries";
 import { getContinent, levelsOf, type LevelInfo } from "@/core/lessons";
 import type { LessonStage } from "@/core/lesson/progress";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS } from "@/data/geo/world-map";
-import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
+import { allLevelsComplete, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, versionOf, type AppAction, type AppState, type LevelStatus } from "@/core/progress/appState";
 import { STEPS } from "./Header";
 import { useI18n } from "./i18n";
 import { LANDMARK_IMAGES } from "./landmarks/LandmarkCard";
@@ -243,6 +243,8 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
   const playable = status.kind !== "comingSoon" && status.kind !== "locked";
   const completed = status.kind === "completed";
   const progress = state.levels[level.id];
+  // The version of the level its attempt is on: an attempt from before its countries changed is shown as it is.
+  const version = versionOf(state, level);
   const started = progress?.started === true;
   const records = progress?.records;
   const done = [records?.discoverDone, records?.findDone, records?.travelDone].map(Boolean);
@@ -307,10 +309,10 @@ function LevelCard({ level, status, state, dispatch, onConfirm, upNext, compact 
 
   const body = (
     <>
-      <p className={styles.levelDescription}>{l(level.description)}</p>
+      <p className={styles.levelDescription}>{l(version?.description ?? level.description)}</p>
       <p className={styles.countries}>
         <span className="visually-hidden">{t("level.countries")} </span>
-        {level.countries.map(name).join(" · ")}
+        {(version?.lesson.countries ?? level.countries).map(name).join(" · ")}
       </p>
 
       {!compact && statusLine}

@@ -4,7 +4,8 @@ import { en } from "../i18n/messages.en";
 import { hy } from "../i18n/messages.hy";
 import { LOCALES } from "../i18n/locales";
 import { translate, translatePlural } from "../i18n/translate";
-import { LESSONS, LEVELS } from "../lessons";
+import { LESSON_VERSIONS, LESSONS, LEVELS } from "../lessons";
+import { balticJourneyOriginalLesson } from "../lessons/baltic-journey";
 import { COUNTRIES, countryHint } from "./countries";
 import { countryName } from "./names";
 
@@ -39,7 +40,8 @@ describe("translations", () => {
 
 describe("country content", () => {
   it("covers every lesson country with localized text and plausible coordinates", () => {
-    for (const lesson of Object.values(LESSONS)) {
+    // Every version of every level, Level 6's first included.
+    for (const lesson of LESSON_VERSIONS) {
       for (const id of lesson.countries) {
         const c = COUNTRIES[id];
         expect(c, id).toBeDefined();
@@ -226,7 +228,7 @@ describe("country content", () => {
     expect(l5.regionName).toEqual({ en: "South-eastern Europe", hy: "Հարավարևելյան Եվրոպա" });
   });
 
-  it("gives Level 6's new countries their capital and a localized landmark with its own illustration, and Germany and Poland their shared content", () => {
+  it("gives Level 6's new countries their capital and a localized landmark with its own illustration, and Poland and Belarus their shared content", () => {
     // Country, capital and landmark names as in the English and Armenian Wikipedia article titles where
     // one exists (docs/CONTENT.md flags our own renderings).
     const expected: Record<string, [string, string, string, string, string, string, string, string, string]> = {
@@ -235,7 +237,7 @@ describe("country content", () => {
       EST: ["Estonia", "Էստոնիա", "Tallinn", "Տալլին", "Tallinn Town Hall", "Տալլինի ռատուշա", "Տալլինի ռատուշան", "tallinn-town-hall", "Tallinn Town Hall"],
     };
     const l6 = LESSONS["baltic-journey"];
-    expect(l6.countries).toEqual(["DEU", "POL", "LTU", "LVA", "EST"]);
+    expect(l6.countries).toEqual(["POL", "BLR", "LTU", "LVA", "EST"]);
     for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, illustration, landmarkInTextEn]] of Object.entries(expected)) {
       const c = COUNTRIES[id];
       expect(c.name, id).toEqual({ en, hy });
@@ -263,13 +265,18 @@ describe("country content", () => {
     expect(kmApart("LTU")).toBeGreaterThan(20);
     expect(kmApart("LVA")).toBeLessThan(1);
     expect(kmApart("EST")).toBeLessThan(1);
-    // Germany and Poland keep their content and artwork from earlier levels; only their hints are this level's own.
-    expect(COUNTRIES.DEU.landmark!.illustration).toBe("brandenburg-gate");
+    // Poland and Belarus keep their content and artwork from earlier levels (Belarus's Mir Castle from Level 8);
+    // only their hints are this level's own, and the levels they come from keep theirs.
     expect(COUNTRIES.POL.landmark!.illustration).toBe("wawel-castle");
-    expect(countryHint(l6, "DEU").en).toContain("in the south-west of this region");
-    expect(countryHint(l6, "POL").en).toContain("in the south of this region, east of Germany");
+    expect(COUNTRIES.BLR.landmark!.illustration).toBe("mir-castle");
+    expect(countryHint(l6, "POL").en).toBe("The largest country of this region, in its south-west, with a coast on the Baltic Sea.");
+    expect(countryHint(l6, "BLR").en).toContain("in the south-east of this region");
     expect(countryHint(LESSONS["central-europe"], "POL")).toEqual(COUNTRIES.POL.hint);
     expect(COUNTRIES.POL.hint.en).toContain("in the north-east of this region");
+    expect(countryHint(LESSONS["eastern-europe"], "BLR")).toEqual(COUNTRIES.BLR.hint);
+    expect(COUNTRIES.BLR.hint.en).toContain("in the north of this region");
+    expect(countryHint(LESSONS["eastern-europe"], "POL").en).toContain("westernmost");
+    for (const id of ["LTU", "LVA", "EST"]) expect(countryHint(l6, id), id).toEqual(COUNTRIES[id].hint);
     // One hint per country, all different, in each language; no player-facing "lesson" wording.
     const hints = l6.countries.map((id) => countryHint(l6, id));
     for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
@@ -277,7 +284,19 @@ describe("country content", () => {
       const c = COUNTRIES[id];
       for (const text of [countryHint(l6, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
     }
-    expect(l6.regionName).toEqual({ en: "the Baltic Sea countries", hy: "Բալթիկ ծովի երկրներ" });
+    expect(l6.regionName).toEqual({ en: "the Baltic states and their neighbours", hy: "Բալթյան երկրներ և նրանց հարևաններ" });
+    expect(LEVELS[5].description.en).toBe("From Warsaw north to Tallinn, by one of two different ways.");
+  });
+
+  it("keeps Level 6's first version as it was, for attempts started on it: Germany's and Poland's hints there, its region and its card", () => {
+    const first = balticJourneyOriginalLesson;
+    expect(first.countries).toEqual(["DEU", "POL", "LTU", "LVA", "EST"]);
+    expect(countryHint(first, "DEU").en).toContain("in the south-west of this region");
+    expect(countryHint(first, "POL").en).toContain("in the south of this region, east of Germany");
+    expect(first.regionName).toEqual({ en: "the Baltic Sea countries", hy: "Բալթիկ ծովի երկրներ" });
+    expect(LEVELS[5].earlier![0].description.en).toBe("From Berlin along the Baltic Sea to Tallinn, through Poland, Lithuania and Latvia.");
+    const hints = first.countries.map((id) => countryHint(first, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
   });
 
   it("gives Level 7's new countries their capital and a localized landmark with its own illustration, and France and Italy their shared content", () => {
@@ -416,8 +435,8 @@ describe("country content", () => {
       expect(level.title.en && level.title.hy && level.description.en && level.description.hy, level.id).toBeTruthy();
       for (const id of level.countries) for (const locale of LOCALES) expect(countryName(id)[locale], `${level.id} ${id}`).toBeTruthy();
     }
-    // No player-facing "lesson" wording.
-    for (const level of LEVELS) for (const text of [level.title, level.description]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    // No player-facing "lesson" wording, earlier versions' descriptions included.
+    for (const level of LEVELS) for (const text of [level.title, level.description, ...(level.earlier ?? []).map((v) => v.description)]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
     for (const value of [...Object.values(en), ...Object.values(hy)]) expect(value).not.toMatch(/lesson|դաս/iu);
   });
 });

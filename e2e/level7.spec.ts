@@ -584,14 +584,14 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   // Every real neighbour in the level, and no others: Portugal meets only Spain.
   expect(await moves()).toEqual(["ESP"]);
   await page.getByTestId("move-ESP").click();
-  // Spain offers Andorra too.
-  expect(await moves()).toEqual(["AND", "FRA", "PRT"]);
+  // Spain offers Andorra too; Portugal, the start, is not offered again.
+  expect(await moves()).toEqual(["AND", "FRA"]);
   // Lisbon → north of the Tagus estuary → the border → Madrid.
   await expect(route).toHaveAttribute("data-route", "PRT,ESP");
   await expect(route).toHaveAttribute("data-points", "4");
   // Through Andorra: one crossing too many, so the journey runs out in France.
   await page.getByTestId("move-AND").click();
-  expect(await moves()).toEqual(["ESP", "FRA"]);
+  expect(await moves()).toEqual(["FRA"]);
   await page.getByTestId("move-FRA").click();
   await expect(page.getByTestId("out-of-crossings")).toBeVisible();
   await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
@@ -605,7 +605,7 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   await page.getByTestId("move-ESP").click();
   await page.getByTestId("move-FRA").click();
-  expect(await moves()).toEqual(["AND", "ESP", "ITA"]);
+  expect(await moves()).toEqual(["AND", "ITA"]);
   await page.getByTestId("move-ITA").click();
 
   // --- Results ------------------------------------------------------------------

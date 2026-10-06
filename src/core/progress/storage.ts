@@ -3,8 +3,8 @@ import { isValidOrder, MAX_HINT_LEVEL, type FindAnswer, type FindFeedback, type 
 import { crossingBudget, type TravelAttempt, type TravelStatus } from "../game/travel";
 import { isConnectedRoute } from "../game/graph";
 import { isLocale } from "../i18n/locales";
-import { getLevel, hasPlayableLevels, isContinentId, LESSONS } from "../lessons";
-import type { LessonDefinition } from "../lessons/types";
+import { getLevel, hasPlayableLevels, isContinentId, LESSONS, LEVELS, levelVersion, type LevelInfo } from "../lessons";
+import type { LessonDefinition, TravelMission } from "../lessons/types";
 import {
   createLessonProgress,
   EMPTY_RECORDS,
@@ -117,9 +117,9 @@ export function parseSavedState(raw: string | null): AppState {
   }
 
   if (isObj(levels)) {
-    for (const [id, lesson] of Object.entries(LESSONS)) {
-      const progress = parseLessonProgress(lesson, levels[id]);
-      if (progress) state.levels[id] = progress;
+    for (const level of LEVELS) {
+      const progress = level.lesson ? parseLevelProgress(level, levels[level.id]) : null;
+      if (progress) state.levels[level.id] = progress;
     }
   }
   if (typeof levelId === "string" && levelId in LESSONS) state.levelId = levelId;
@@ -136,6 +136,22 @@ export function parseSavedState(raw: string | null): AppState {
     state.screen = "levels";
   }
   return state;
+}
+
+/**
+ * A level's saved place is read on the version of its content it was made on (LevelInfo.earlier): the
+ * one its `revision` names, or, without one, the level's first version. That is no guess: a revision is
+ * saved for every place on a later version, so a save without one was made on the first (every save
+ * from before the level's content changed). Nothing in it is re-read with another version's countries,
+ * borders or journey. A revision the level never had (from a newer build, or malformed) keeps only the
+ * level's records, on the current version.
+ */
+function parseLevelProgress(level: LevelInfo, value: unknown): LessonProgress | null {
+  if (!isObj(value)) return null;
+  const { revision } = value;
+  const version = revision === undefined ? levelVersion(level, undefined) : isInt(revision) ? levelVersion(level, revision) : undefined;
+  if (version) return parseLessonProgress(version.lesson, value);
+  return parseLessonProgress(level.lesson!, { records: value.records });
 }
 
 export function parseLessonProgress(lesson: LessonDefinition, value: unknown): LessonProgress | null {
@@ -300,18 +316,27 @@ function parseFeedback(lesson: LessonDefinition, v: unknown): FindFeedback | nul
   return null;
 }
 
-function parseRoute(lesson: LessonDefinition, v: unknown, budget: number): CountryId[] | null {
-  const { from } = lesson.travel.mission;
+/**
+ * The journey a saved attempt or result was made on, by its id: the level's current one, or one it
+ * offered before (`earlierMissions`), so a save keeps its own start and destination and is never
+ * re-read with the current ones. Any other id: none.
+ */
+function savedMission(lesson: LessonDefinition, id: unknown): TravelMission | null {
+  return [lesson.travel.mission, ...(lesson.travel.earlierMissions ?? [])].find((m) => m.id === id) ?? null;
+}
+
+function parseRoute(lesson: LessonDefinition, mission: TravelMission, v: unknown, budget: number): CountryId[] | null {
+  const { from } = mission;
   if (!Array.isArray(v) || v[0] !== from || v.length - 1 > budget) return null;
   if (!v.every((id) => typeof id === "string" && lesson.countries.includes(id))) return null;
   return isConnectedRoute(lesson.borders, v) ? (v as CountryId[]) : null;
 }
 
 function parseTravelAttempt(lesson: LessonDefinition, v: unknown): TravelAttempt | null {
-  const mission = lesson.travel.mission;
-  if (!isObj(v) || v.missionId !== mission.id) return null;
+  const mission = isObj(v) ? savedMission(lesson, v.missionId) : null;
+  if (!isObj(v) || !mission) return null;
   const budget = crossingBudget(lesson.borders, mission);
-  const path = parseRoute(lesson, v.path, budget);
+  const path = parseRoute(lesson, mission, v.path, budget);
   if (!path) return null;
   const here = path[path.length - 1];
   // A path cannot continue past the destination.
@@ -330,10 +355,10 @@ function parseTravelAttempt(lesson: LessonDefinition, v: unknown): TravelAttempt
 }
 
 function parseTravelResult(lesson: LessonDefinition, v: unknown): TravelResult | null {
-  const mission = lesson.travel.mission;
-  if (!isObj(v) || v.missionId !== mission.id) return null;
+  const mission = isObj(v) ? savedMission(lesson, v.missionId) : null;
+  if (!isObj(v) || !mission) return null;
   const budget = crossingBudget(lesson.borders, mission);
-  const route = parseRoute(lesson, v.route, budget);
+  const route = parseRoute(lesson, mission, v.route, budget);
   if (!route || route[route.length - 1] !== mission.to) return null;
   const hintUsed = v.hintUsed !== false;
   const undoUsed = v.undoUsed !== false;
