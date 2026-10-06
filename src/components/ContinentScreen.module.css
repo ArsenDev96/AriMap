@@ -1,9 +1,9 @@
 /* The home screen: an illustrated atlas page under a clean, bright sky. The page's frame (header,
-   scrolling content, action area) is the level selection's, in WelcomeScreen.module.css; here the
-   header and the action area are open to the sky, with a painted sea framed by foliage at the foot of
-   the page, behind the main action. Its size queries ("welcome") are the page's; the scrolling content
-   is its own size container ("continents"), so the map can take the height left between the header
-   and the action area.
+   scrolling content) is the level selection's, in WelcomeScreen.module.css; here the header is open to
+   the sky, with a painted sea framed by foliage at the foot of the page. The main action follows the
+   cards, in the scrolling content, so it is never held to the foot of a tall screen. Its size queries
+   ("welcome") are the page's; the scrolling content is its own size container ("continents"), so the
+   map can take the height left under the header.
 
    The map is a flat, rectangular atlas map (equirectangular, src/data/geo/world-map.ts) with modestly
    rounded corners. Its painted water and land (scripts/generate-world-art.mjs) are static images drawn
@@ -41,8 +41,8 @@
 
 /* The foot of the page: a calm turquoise sea under a pale horizon with distant hills, framed by foliage
    at the corners. Drawn at its own proportions, 118% of the screen's width (its outer edges, beyond the
-   foliage's densest part, cut by its box), so the horizon sits just above the main action and the sea
-   shows around it; above the horizon it is transparent, so the sky shows on. */
+   foliage's densest part, cut by its box); above the horizon it is transparent, so the sky shows on. It
+   stays at the foot of the screen wherever the main action is (it scrolls with the content). */
 .scenery {
   position: absolute;
   /* Over the sky, under everything else (the page is its own stacking context). */
@@ -101,26 +101,16 @@
   min-height: 44px;
 }
 
-/* The action area: its own strip at the foot (it covers nothing), open to the scenery behind it. */
-.screen .actionBar {
-  padding-top: 14px;
-  border-top: 0;
-  background: transparent;
-}
-
-/* The content fills the room between them (the action area keeps to the foot of the screen). On a phone
-   it starts right under the header (any room left over is at the foot, over the scenery); beside the map
-   (wide layouts) it sits a little above the middle of that room. */
+/* The content fills the room under the header, down to the foot of the screen, and scrolls there when it
+   is taller (a short screen, enlarged text), the main action with it. On a phone it starts right under
+   the header (any room left over is at the foot, over the scenery); beside the map (wide layouts) it sits
+   a little above the middle of that room. */
 .screen .scroll {
   flex: 1 1 auto;
-  /* Its size is the room the header and the action area leave (never its content's): the map's size
-     follows from it (.layout). */
+  /* Its size is the room the header leaves (never its content's): the map's size follows from it (.layout). */
   container: continents / size;
   display: flex;
   flex-direction: column;
-  /* Its last few pixels fade into the sky, so what scrolls under the action area's edge is not cut by a hard
-     line (the content's own bottom padding is wider: scrolled to the end, nothing of it is faded). */
-  mask-image: linear-gradient(180deg, #000 calc(100% - 12px), transparent);
 }
 
 .content {
@@ -130,9 +120,22 @@
   margin-block: 0 auto;
 }
 
-/* Continue (or Explore Europe): a coral pill in the middle of its area, as wide as its words need but at
-   least 18rem (or the whole row, if narrower), so the scenery shows beside it; with a soft light along
-   its top (above the words, so their contrast stays the usual coral's) and a raised edge. */
+/* Room under the main action for its raised edge and shadow, and for a phone's home indicator. */
+.screen .content {
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* The main action's place: under the cards, 22px below them (the layout's 14px gap and 8px more). Its
+   width is the query below's. */
+.action {
+  grid-area: action;
+  container-type: inline-size;
+  margin-top: 8px;
+}
+
+/* Continue (or Explore Europe): a coral pill in the middle of its place, as wide as its words need but at
+   least 18rem (or the whole row, if narrower), so the sky or scenery shows beside it; with a soft light
+   along its top (above the words, so their contrast stays the usual coral's) and a raised edge. */
 .screen .mainAction {
   display: flex;
   width: fit-content;
@@ -186,7 +189,7 @@
   --map-width: min(100% + 16px, max(288px, (100cqh - 12rem) * (var(--ratio))));
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas: "title" "map" "labels";
+  grid-template-areas: "title" "map" "labels" "action";
   align-items: start;
   gap: 14px;
 }
@@ -345,7 +348,8 @@
 }
 
 /* Coming soon: a tile tinted with its land's colour, its silhouette over its name, on a soft glow. Compact,
-   so on a phone all four names and their "Coming soon" fit above the action area at the usual text size.
+   so on a tall phone all four names, their "Coming soon" and the main action under them fit at the usual
+   text size.
    Not a button: no hover, no pointer, nothing to focus. */
 .label[data-status="comingSoon"] {
   display: flex;
@@ -589,17 +593,21 @@
 
 /* Short and wide for its text (a phone held sideways, a desktop): the map on the left and the title and
    the cards on the right, centred on the map's height, so the two read as one composition. The cards'
-   column is 23rem where there is room (Europe's count stays on one line in Armenian), never under 13rem.
-   The map takes the content's whole height but a small margin (its room between the header and the
-   action area), as wide as that makes it, but no wider than leaves the cards their column, and at most
-   1336px (the content at most 1760px: the page's wide sky is not left empty around a small map). When
-   the cards run longer than the screen, the map stays in view while they scroll. */
+   column is 23rem where there is room (Europe's count stays on one line in Armenian), never under 13rem,
+   with the main action under the cards. The map takes the content's whole height but its padding (its
+   room under the header), as wide as that makes it, but no wider than leaves the cards their column, and
+   at most 1336px (the content at most 1760px: the page's wide sky is not left empty around a small map).
+   When the cards and the action run longer than the screen, the map stays in view while they scroll. */
 @container welcome (min-aspect-ratio: 4 / 3) and ((min-width: 36rem) or (max-height: 32rem)) {
   .screen .header {
     padding-inline: max(16px, calc((100% - 1728px) / 2));
   }
   .content {
     max-width: 1760px;
+  }
+  /* Room for the action's raised edge and shadow; the map, beside it, keeps its height. */
+  .screen .content {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   }
   /* The content a little above the middle of its room (a third of what is left over above it, two thirds
      below), so the map sits closer to the header without crowding it. */
@@ -615,15 +623,15 @@
     --map-width: max(
       200px,
       min(
-        (100cqh - clamp(20px, 4cqh, 36px)) * (var(--ratio)),
+        (100cqh - clamp(28px, 4cqh, 40px) - env(safe-area-inset-bottom, 0px)) * (var(--ratio)),
         100cqw - 56px - 13rem,
         max(100cqw - 56px - 23rem, 55cqw),
         1760px - 56px - 23rem
       )
     );
     grid-template-columns: auto minmax(13rem, 23rem);
-    grid-template-rows: 1fr auto auto 1fr;
-    grid-template-areas: "map ." "map title" "map labels" "map .";
+    grid-template-rows: 1fr auto auto auto 1fr;
+    grid-template-areas: "map ." "map title" "map labels" "map action" "map .";
     justify-content: center;
     column-gap: 24px;
     row-gap: 14px;

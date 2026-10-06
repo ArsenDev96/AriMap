@@ -56,10 +56,11 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * with playable levels (Europe) opens its level selection, from its land or its card (its name is the
  * card's one button, for the keyboard and assistive technology); the others are tiles that say
  * "Coming soon" and do nothing. Oceania and Antarctica are drawn as context only. Europe's levels
- * completed ("Completed: 2/8") are shown once, on its card, never on the map. The action area below
- * the content resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
- * the level's title too in its accessible name), or else opens Europe (Explore Europe). The page's frame (header, scrolling content, action area) is the level
- * selection's (WelcomeScreen.module.css), in this screen's sky colours.
+ * completed ("Completed: 2/8") are shown once, on its card, never on the map. The main action, right
+ * under the cards, resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
+ * the level's title too in its accessible name), or else opens Europe (Explore Europe); it scrolls with
+ * the content. The page's frame (header, scrolling content) is the level selection's
+ * (WelcomeScreen.module.css), in this screen's sky colours.
  */
 export function ContinentScreen({ state, dispatch }: Props) {
   const { t, l } = useI18n();
@@ -140,49 +141,51 @@ export function ContinentScreen({ state, dispatch }: Props) {
                 <ContinentLabel key={continent.id} continent={continent} state={state} onOpen={open} />
               ))}
             </ul>
+
+            {/* The main action, right under the cards (not held to the foot of the screen): on a short screen,
+                or with enlarged text, it scrolls with them. */}
+            <div className={styles.action} data-testid="continents-actions">
+              {resume ? (
+                <button
+                  type="button"
+                  className={`btn btn-primary btn-block ${page.mainAction} ${styles.mainAction}`}
+                  data-level={resume.id}
+                  data-kind="continue"
+                  // The whole destination, also when narrow screens show less of it.
+                  aria-label={t("continents.continueLabel", {
+                    action: t("welcome.continue"),
+                    continent: l(getContinent(resume.continent).name),
+                    level: t("level.number", { number: resume.number }),
+                    title: l(resume.title),
+                  })}
+                  onClick={() => dispatch({ type: "openLevel", levelId: resume.id })}
+                >
+                  <span className={styles.mainActionLabel}>
+                    {t("welcome.continue")}
+                    <ArrowIcon />
+                  </span>
+                  {/* The continent and level, short, so the button stays low; the title is in its accessible name. */}
+                  <span className={page.mainActionLevel}>
+                    {l(getContinent(resume.continent).name)} · {t("level.number", { number: resume.number })}
+                  </span>
+                </button>
+              ) : (
+                playable[0] && (
+                  <button
+                    type="button"
+                    className={`btn btn-primary btn-block ${styles.mainAction}`}
+                    data-primary
+                    data-testid={`explore-${playable[0].id}`}
+                    onClick={() => open(playable[0].id)}
+                  >
+                    {t("continents.explore", { continent: l(playable[0].nameInText) })}
+                    <ArrowIcon />
+                  </button>
+                )
+              )}
+            </div>
           </section>
         </div>
-      </div>
-
-      <div className={`${page.actionBar} ${styles.actionBar}`} data-testid="continents-actions">
-        {resume ? (
-          <button
-            type="button"
-            className={`btn btn-primary btn-block ${page.mainAction} ${styles.mainAction}`}
-            data-level={resume.id}
-            data-kind="continue"
-            // The whole destination, also when narrow screens show less of it.
-            aria-label={t("continents.continueLabel", {
-              action: t("welcome.continue"),
-              continent: l(getContinent(resume.continent).name),
-              level: t("level.number", { number: resume.number }),
-              title: l(resume.title),
-            })}
-            onClick={() => dispatch({ type: "openLevel", levelId: resume.id })}
-          >
-            <span className={styles.mainActionLabel}>
-              {t("welcome.continue")}
-              <ArrowIcon />
-            </span>
-            {/* The continent and level, short, so the action area stays low; the title is in its accessible name. */}
-            <span className={page.mainActionLevel}>
-              {l(getContinent(resume.continent).name)} · {t("level.number", { number: resume.number })}
-            </span>
-          </button>
-        ) : (
-          playable[0] && (
-            <button
-              type="button"
-              className={`btn btn-primary btn-block ${styles.mainAction}`}
-              data-primary
-              data-testid={`explore-${playable[0].id}`}
-              onClick={() => open(playable[0].id)}
-            >
-              {t("continents.explore", { continent: l(playable[0].nameInText) })}
-              <ArrowIcon />
-            </button>
-          )
-        )}
       </div>
     </main>
   );
