@@ -44,7 +44,10 @@
   }
 }
 
-@media (max-height: 600px) {
+/* Narrow phones, and phones held sideways: tighter card padding. By width or orientation, not by
+   height alone: a mobile browser's toolbars sliding in and out change the height as the list
+   scrolls, and the cards must not change size under the player's finger. */
+@media (max-width: 380px), (orientation: landscape) and (max-height: 600px) {
   .levels .levelCard {
     padding: 14px 16px 16px;
   }
@@ -54,7 +57,7 @@
 /* The name, tagline and language share one row (wrapping with very large text) in a header
    above the scrolling list, so they stay in view, on the continents and on a continent's level
    selection. For returning players the artwork becomes a slim ribbon at the top of the list,
-   left out on short screens: the continents and levels come first. */
+   which scrolls away with it: the continents and levels come first. */
 .compactHeader {
   flex: none;
   padding: 10px max(16px, calc((100% - 508px) / 2));
@@ -120,14 +123,14 @@
   }
 }
 
-/* Back to the continents has the level selection's header to itself, so its words are shown: on one line
-   where they fit, otherwise wrapping between words (Armenian on a narrow phone). Two cases show its arrow
-   alone instead, a 44 px target with its words still its accessible name: a screen short for its text
-   (enlarged text on a phone), where the header keeps to one row so the list keeps its room, once the
-   words need more than one line; and any screen where its longest word would not fit beside the arrow,
-   rather than a word broken. Widths in rem (the words, so they follow the text size) and px (the arrow
-   and padding, 41px). */
-@container levels-header (width < calc(5rem + 41px)) {
+/* Back to the continents has the level selection's header to itself, so its words are shown, on one line.
+   Where they would need more than one line (Armenian on a 320px phone, enlarged text), its arrow is shown
+   alone instead, a 44 px target with its words still its accessible name, so the header keeps to one row
+   and the list keeps its room. Decided by the header's width alone, never the screen's height: a mobile
+   browser's toolbars change the height as the list scrolls, and a header that changed with them would move
+   the whole list. Widths in rem (the words, so they follow the text size) and px (the arrow and padding,
+   41px). */
+@container levels-header (width < calc(8.85rem + 41px)) {
   .backLabel {
     position: absolute;
     width: 1px;
@@ -141,7 +144,7 @@
   }
 }
 
-@container levels-header (width < calc(9.8rem + 41px)) {
+@container levels-header (width < calc(17.55rem + 41px)) {
   :lang(hy) .backLabel {
     position: absolute;
     width: 1px;
@@ -152,35 +155,6 @@
   }
   :lang(hy) .back {
     min-width: 44px;
-  }
-}
-
-@container welcome (max-height: 32rem) {
-  @container levels-header (width < calc(8.85rem + 41px)) {
-    .backLabel {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-    .back {
-      min-width: 44px;
-    }
-  }
-  @container levels-header (width < calc(17.55rem + 41px)) {
-    :lang(hy) .backLabel {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
-    }
-    :lang(hy) .back {
-      min-width: 44px;
-    }
   }
 }
 
@@ -247,15 +221,17 @@
 }
 
 /* Returning players' banner: Europe as a small illustrated map (EuropeBanner in WelcomeScreen.tsx), in the
-   home screen's painted water and land. Shallow on a phone, across the column above the title; beside the
-   title on a wide screen. Left out on a short screen, and on any screen short for its text (enlarged text),
-   so the levels come first. */
+   home screen's painted water and land. A compact strip on a phone, across the column above the title;
+   beside the title on a wide screen. Always in the scrolling list (never the fixed header), so it takes
+   nothing from the room the levels are read in, and the list may start scrolled past it to the next
+   level. Its size follows the width only: a mobile browser's toolbars change the height as the list
+   scrolls, and a banner that came and went with them would move every card under it. */
 .banner {
   flex: none;
   width: 100%;
-  /* Taller on a wider phone, so Europe, shown whole (EUROPE_VIEW), keeps most of the banner's width and
-     its neighbours stay at its edges: 94px on a 390px phone. */
-  height: clamp(80px, 24vw, 124px);
+  /* A little taller on a wider phone, so Europe, shown whole (EUROPE_VIEW), keeps most of the banner's
+     width: 82px on a 390px phone, 68px on a 320px one. */
+  height: clamp(68px, 21vw, 104px);
   overflow: hidden;
   border-radius: var(--radius);
   border: 1px solid rgba(38, 139, 196, 0.2);
@@ -297,18 +273,6 @@
   stroke-linejoin: round;
   paint-order: stroke;
   vector-effect: non-scaling-stroke;
-}
-
-@media (max-height: 700px) {
-  .banner {
-    display: none;
-  }
-}
-
-@container welcome (max-height: 32rem) {
-  .banner {
-    display: none;
-  }
 }
 
 /* A wide screen: the map just before the title, as its picture, and the title (and the "all completed"
@@ -872,6 +836,25 @@
   background:
     radial-gradient(120% 60% at 50% 108%, #fff3e3 0%, rgba(255, 243, 227, 0) 60%),
     linear-gradient(180deg, #d4eefb 0%, #e9f7fd 38%, #f8fcff 70%, #ffffff 100%);
+}
+
+/* The list's own spacing never follows the screen's height (the shared rule above does): a mobile
+   browser's toolbars change the height as the list scrolls, and nothing in the list may move with them.
+   Its scrolling stays in the list too, never carried on to the page behind it, whose scrolling is what
+   slides those toolbars in and out. */
+.levelsPage .scroll {
+  overscroll-behavior-y: contain;
+}
+
+.levelsPage .content {
+  gap: 16px;
+  padding-top: 8px;
+}
+
+@media (min-width: 720px) {
+  .levelsPage .content {
+    padding-top: 12px;
+  }
 }
 
 /* Back to the continents alone (no language here): a slim strip, the 44px button and 6px above and below. */

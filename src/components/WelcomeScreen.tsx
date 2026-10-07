@@ -76,11 +76,17 @@ export function WelcomeScreen({ state, dispatch }: Props) {
   // the list (only the list: the brand and language switch stay above it) then starts scrolled
   // just enough to show it: never past the card's own top, or, when the card is taller than the
   // list (very large text), never past its title. Set before the first paint, so nothing moves
-  // after the page appears; only on arrival, so a position the player chose is kept (if a web font
-  // finishes loading just after, it is worked out again, unless the player has scrolled by then).
+  // after the page appears; only on arrival (once per visit to the page: re-renders, resizes and a
+  // mobile browser's toolbars never set it again), so a position the player chose is kept. If a web
+  // font finishes loading just after, it is worked out once more, unless the player has touched,
+  // scrolled or pressed a key by then.
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return;
+    let active = true;
+    const playerMoved = () => (active = false);
+    const input = ["pointerdown", "touchstart", "wheel", "keydown"] as const;
+    for (const type of input) window.addEventListener(type, playerMoved, { passive: true, once: true });
     const reveal = () => {
       const card = scroll.querySelector("[data-up-next]");
       const status = card?.querySelector("[data-testid='level-status']");
@@ -97,13 +103,14 @@ export function WelcomeScreen({ state, dispatch }: Props) {
       scroll.scrollTop = Math.min(statusBottom + 12 - height, limit);
       return scroll.scrollTop;
     };
-    let applied = reveal();
-    let active = true;
+    const applied = reveal();
     void document.fonts?.ready.then(() => {
-      if (active && scroll.scrollTop === applied) applied = reveal();
+      if (active && scroll.scrollTop === applied) reveal();
+      active = false;
     });
     return () => {
       active = false;
+      for (const type of input) window.removeEventListener(type, playerMoved);
     };
   }, []);
 
