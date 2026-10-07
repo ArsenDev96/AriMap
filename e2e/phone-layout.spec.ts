@@ -338,6 +338,8 @@ const cardsLayout = (page: Page) =>
         number: box(head.querySelector("[data-level-number]")),
         status: box(head.querySelector('[data-testid="level-status"]')),
         title: box(title)!,
+        // A rated card's row of stars (the row itself, never stretched): it shares the title's column.
+        stars: box(head.querySelector('[data-testid="level-stars"]')?.firstElementChild),
         titleText: title.textContent ?? "",
         textLeft: Math.min(...glyphs.map((r) => r.left)),
         textRight: Math.max(...glyphs.map((r) => r.right)),
@@ -362,9 +364,9 @@ async function expectCardsClear(page: Page, where: string) {
     const w = `${where} ${c.id} «${c.titleText}»`;
     const full = c.content.right - c.content.left;
     const beside = full - [c.badge, c.chevron].reduce((sum, b) => sum + (b ? b.width + HEAD_GAP : 0), 0);
-    // What the title's column must hold: the title's widest word, and a completed card's status
-    // (its widest word in its pill).
-    const widest = Math.max(...c.words.map((x) => x.natural), ...c.statusWords.map((x) => x.natural + c.statusChrome));
+    // What the title's column must hold: the title's widest word, a completed card's status (its
+    // widest word in its pill), and its stars, a row that never breaks.
+    const widest = Math.max(...c.words.map((x) => x.natural), ...c.statusWords.map((x) => x.natural + c.statusChrome), c.stars?.width ?? 0);
     // Stacked exactly when that can't fit beside the badge (and chevron); within a pixel either
     // way, the measurements' rounding decides.
     if (Math.abs(widest - beside) > 1) expect.soft(c.stacked, `${w}: stacked? widest word ${widest.toFixed(1)}px, room beside the badge ${beside.toFixed(1)}px`).toBe(widest > beside);
