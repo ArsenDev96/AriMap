@@ -529,7 +529,10 @@ function stackLevelHeads(list: HTMLElement) {
       const beside = icon ? icon.getBoundingClientRect().width + (parseFloat(s.columnGap) || 0) : 0;
       need = Math.max(need, chrome + beside + widestWord(statusText));
     }
-    const stars = head.querySelector("[data-testid='level-stars']");
+    // The stars' own row, not the box around it: in the usual layout that box stretches to the room
+    // beside the chevron, so it would always seem to need all of it (and, stacked, it doesn't: the
+    // head would flip between the two layouts for as long as the page is open).
+    const stars = head.querySelector("[data-testid='level-stars']")?.firstElementChild;
     if (stars) need = Math.max(need, stars.getBoundingClientRect().width);
     // The level's picture (a full card's) takes room beside the title only where the title keeps
     // every word whole and at least about 10rem: otherwise it gives way to the words. Its width as
