@@ -766,7 +766,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
         // The gesture copy (see below): in front of everything but nearly
         // transparent at rest, so the browser keeps it drawn; behind the names
         // and map controls, in place of the map, while the map moves (see CSS).
-        <div className={styles.gesture} aria-hidden="true" inert>
+        // No language of its own (lang=""): it has no text, and following the page's would draw the whole
+        // copy again (and the borders' layer) on every language switch, though nothing in it changes.
+        <div className={styles.gesture} aria-hidden="true" inert lang="">
           <svg
             ref={copyRef}
             className={styles.gestureLayer}
@@ -1122,7 +1124,8 @@ function segmentHits(a: Point, b: Point, box: Box): boolean {
  * the first whose overlapped names can be moved aside. `between`: positions west
  * and east whose leader leaves at 30° or 45°, between the level and the diagonal
  * ones, ranked the same way; the caller tries them only when no usual nearby
- * position works.
+ * position works. `between` and `edge` are ranked only when asked for: each
+ * score samples the countries under the box, and most callouts never need them.
  */
 function calloutCandidates(
   anchor: Point,
@@ -1142,7 +1145,7 @@ function calloutCandidates(
   chrome: Box[] = [],
   /** Callouts already placed: never covered, even as a last resort (two neighbours' callouts, Level 4's Balkans on a 320px map). */
   placed: Box[] = [],
-): { ranked: Box[]; between: Box[]; edge: Box[] } {
+): { ranked: Box[]; between: () => Box[]; edge: () => Box[] } {
   const [ax, ay] = anchor;
   const candidates: { box: Box; step: number }[] = [];
   const between: { box: Box; step: number }[] = [];
@@ -1248,8 +1251,8 @@ function calloutCandidates(
       const y0 = clamp(b.y0, m, Math.max(m, viewport.height - m - h));
       return { x0, y0, x1: x0 + width, y1: y0 + h };
     }),
-    between: rank(between.filter(clear)),
-    edge: rank(edge.filter(clear)),
+    between: () => rank(between.filter(clear)),
+    edge: () => rank(edge.filter(clear)),
   };
 }
 
@@ -1631,7 +1634,7 @@ function placeOverlay(
     // fallback is the close-up.
     const [dotX, dotY] = label.anchor;
     const besideMarker = markerPoints.some((b) => Math.hypot(Math.max(b.x0 - dotX, 0, dotX - b.x1), Math.max(b.y0 - dotY, 0, dotY - b.y1)) <= labelHalf);
-    const nearBetween = new Set(besideMarker && !small.has(label.id) ? between.filter(isNear) : []);
+    const nearBetween = new Set(besideMarker && !small.has(label.id) ? between().filter(isNear) : []);
     let best: { callout: Box; moves: Map<Label, Point>; left: number; near: boolean } | null = null;
     // Country names a callout position covers, or that its leader line (with those already drawn) crosses,
     // each moved to the nearest free spot inside its own country; `left` counts those that can't move.
@@ -1678,7 +1681,7 @@ function placeOverlay(
     if (edgeFallback && best && best.left === 0 && endsOnNeighbour(best.callout)) {
       const over = depth(best.callout);
       const longest = leaderOf(best.callout) + 1;
-      for (const callout of edge.filter((b) => leaderOf(b) <= longest && !endsOnNeighbour(b) && depth(b) < Math.min(0.5, over))) {
+      for (const callout of edge().filter((b) => leaderOf(b) <= longest && !endsOnNeighbour(b) && depth(b) < Math.min(0.5, over))) {
         const { moves, left } = assess(callout);
         if (left > 0) continue;
         best = { callout, moves, left, near: true };
