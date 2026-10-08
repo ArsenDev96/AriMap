@@ -25,6 +25,7 @@ import {
   type Transform,
 } from "@/geo/regionMap";
 import { routePoints, routeSettings } from "@/geo/route";
+import { diagnostics, timed } from "../diagnostics";
 import { useI18n } from "../i18n";
 import { LandTexture, SeaTexture } from "./AtlasSurface";
 import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
@@ -175,6 +176,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
 
   const tapHandler = view.interactive ? onCountryTap : undefined;
   const tap = useCountryTap(tapHandler);
+  // TEMPORARY phone-lag diagnostics (see diagnostics.ts): ?relief=off, ?labels=off. Both on without them.
+  const { relief: showRelief, labels: showLabels } = diagnostics();
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -528,7 +531,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // Asked with the close-up closed (only its toggle in the corner) on small maps.
   // Only names the view already shows count, so this never reveals an answer.
   const crowded = useMemo(() => {
-    if (!base || size.width === 0 || !lesson.map.inset) return false;
+    if (!base || size.width === 0 || !lesson.map.inset || !showLabels) return false;
     const toggle: Box = insetTop
       ? { x0: 0, y0: 0, x1: INSET_TOGGLE_EXTENT, y1: INSET_TOGGLE_EXTENT }
       : { x0: 0, y0: size.height - INSET_TOGGLE_EXTENT, x1: INSET_TOGGLE_EXTENT, y1: size.height };
@@ -549,7 +552,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, l, name]);
+  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -564,7 +567,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // Main-map overlay layout, shared with the scenery so it can keep clear of names
   // and markers. Made for the view the player stopped at: never mid-gesture, where
   // the names follow it instead (see LiveOverlay).
-  const textMode: TextMode = calloutsInInset ? "noCallouts" : "all";
+  const textMode: TextMode = !showLabels ? "none" : calloutsInInset ? "noCallouts" : "all";
   const mainInsetArea = insetOpen ? insetBounds : null;
   const mainLayout = useMemo(
     () =>
@@ -629,7 +632,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 <SeaTexture map={map} />
                 <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} />
+                {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} />}
                 {scenery && (
                   <Scenery
                     map={map}
@@ -719,7 +722,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   <SeaTexture map={map} />
                   <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
                   <LandTexture map={map} darkKey={tonedKey} />
-                  <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={insetTransform} viewport={insetSize} />
+                  {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={insetTransform} viewport={insetSize} />}
                   <BorderLayer map={map} active={lesson.countries} />
                   <FlashLayer map={map} flash={flash} />
                 </g>
@@ -732,7 +735,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   small={small}
                   transform={insetTransform}
                   viewport={insetSize}
-                  textMode={calloutsInInset ? "callouts" : "none"}
+                  textMode={showLabels && calloutsInInset ? "callouts" : "none"}
                   obstacles={[]}
                   insetArea={null}
                 />
@@ -782,7 +785,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} />
+              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} />}
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}
@@ -1365,6 +1368,10 @@ interface OverlayLayout {
  * RegionMap: a crowded Luxembourg label moves into the close-up).
  */
 function layoutOverlay(input: LayoutInput): OverlayLayout {
+  return timed("placement", () => placeLayout(input));
+}
+
+function placeLayout(input: LayoutInput): OverlayLayout {
   const layout = placeOverlay(input, true);
   if (!layout.fellBack) return layout;
   // A callout moved off its neighbours to the map's edge (see placeOverlay) must not cost another name
@@ -2053,7 +2060,7 @@ function LiveOverlay({ live, layout, ...props }: OverlayProps & { live: LiveView
   const { map, viewport, obstacles, transform } = props;
   const followed = useMemo(() => {
     const moved = followView(layout, transform, view);
-    return moved === layout ? layout : keepInView(moved, map, view, viewport, obstacles);
+    return moved === layout ? layout : timed("follow", () => keepInView(moved, map, view, viewport, obstacles));
   }, [layout, transform, view, map, viewport, obstacles]);
   return <Overlay {...props} layout={followed} />;
 }
