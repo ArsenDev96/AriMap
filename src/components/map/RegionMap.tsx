@@ -125,6 +125,15 @@ interface Box {
   y1: number;
 }
 
+/**
+ * Ends the player's mouse drag of the map, if one is under way, as its release would have: d3-zoom ends
+ * a mouse gesture on a mouseup at the window (the event table in its README). For a release the page
+ * never saw (see useCountryTap); without one, d3-zoom would go on moving the map with the mouse.
+ */
+function endMouseDrag() {
+  window.dispatchEvent(new MouseEvent("mouseup", { view: window }));
+}
+
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -175,7 +184,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const flash = useAnswerFlash(view);
 
   const tapHandler = view.interactive ? onCountryTap : undefined;
-  const tap = useCountryTap(tapHandler);
+  const tap = useCountryTap(tapHandler, endMouseDrag);
   // TEMPORARY phone-lag diagnostics (see diagnostics.ts): ?relief=off, ?labels=off. Both on without them.
   const { relief: showRelief, labels: showLabels } = diagnostics();
 
