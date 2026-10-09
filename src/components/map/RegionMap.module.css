@@ -80,9 +80,9 @@
 }
 
 /* The gesture copy of the landscape and the live borders (see RegionMap.tsx).
-   At rest: in front of everything, nearly transparent, so the browser keeps
-   them drawn as layers of their own without anything under them leaving the
-   page's drawing (names keep their sharpest rendering). */
+   At rest (except in Blink, below): fully transparent and no layer of its own,
+   so the browser doesn't draw it at all, and changes to it (new colours, a new
+   view) cost nothing. It becomes a layer, and shows, when the map starts moving. */
 .gesture {
   position: absolute;
   z-index: 3;
@@ -93,6 +93,15 @@
 .gestureLayer {
   position: absolute;
   display: block;
+  opacity: 0;
+}
+
+/* Blink ("copy" mode) only: at rest in front of everything, nearly transparent,
+   so the browser keeps them drawn as layers of their own without anything under
+   them leaving the page's drawing (names keep their sharpest rendering). Blink
+   draws the whole copy when it first shows, a pause of a few hundred ms at the
+   start of every drag if it isn't kept drawn (with or without the GPU). */
+.wrapper[data-gesture-mode="copy"] .gestureLayer {
   opacity: 0.004;
   will-change: transform, opacity;
 }
@@ -139,13 +148,16 @@
 
 /* While the map moves (and briefly after): the copy comes behind the names and
    map controls, in place of the map, which is hidden (it still moves, for
-   taps). The names are then a light layer too, redrawn each frame. */
+   taps). The copy is a layer of its own then, which the browser moves without
+   drawing it again; the hint goes with the gesture. The names are then a light
+   layer too, redrawn each frame. */
 .wrapper[data-gesture] .gesture {
   z-index: 0;
 }
 
 .wrapper[data-gesture] .gestureLayer {
   opacity: 1;
+  will-change: transform, opacity;
 }
 
 .wrapper[data-gesture]:not([data-gesture-mode="layer"]) .world {
@@ -201,11 +213,13 @@
   stroke-width: var(--context-border-width);
 }
 
-/* One border colour for every tone, so borders never shift during fill transitions. */
+/* One border colour for every tone, so borders never shift when the fill changes.
+   New fills show at once, without a transition: a 180ms fade made the browser
+   draw the map again on every frame of it, so frames stayed slow for a few
+   hundred ms after each selection or answer (Chrome and Firefox alike). */
 .country {
   stroke: var(--map-land-border);
   stroke-width: var(--border-width);
-  transition: fill 180ms ease-out;
 }
 
 /* Find feedback: a brief outline over the country just answered, which fades
@@ -268,10 +282,6 @@
   .stage[data-moving] .interactive.toneDefault:hover {
     fill: var(--map-land);
   }
-}
-
-.stage[data-moving] .country {
-  transition: none;
 }
 
 .toneSelected,

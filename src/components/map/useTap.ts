@@ -38,7 +38,12 @@ export function useCountryTap(onTap: ((country: string) => void) | undefined) {
     },
     onPointerMove(e: PointerEvent) {
       const g = gesture.current;
-      if (g && Math.hypot(e.clientX - g.x, e.clientY - g.y) > TAP_SLOP) g.cancelled = true;
+      if (!g || Math.hypot(e.clientX - g.x, e.clientY - g.y) <= TAP_SLOP) return;
+      // A mouse press that becomes a drag: the map takes the mouse until it is released, so the
+      // browser stops looking for the shape under it on every move (most of a drag's work in
+      // Chrome and Firefox otherwise). Touch is held by the element first touched anyway.
+      if (!g.cancelled && e.pointerType === "mouse" && e.buttons) e.currentTarget.setPointerCapture(e.pointerId);
+      g.cancelled = true;
     },
     onPointerUp(e: PointerEvent) {
       const g = gesture.current;

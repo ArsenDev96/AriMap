@@ -13,7 +13,8 @@ import type { Transform } from "@/geo/regionMap";
  * - "copy" (Blink: Chrome, Edge, Android): a copy of the landscape kept drawn,
  *   with the borders on a light layer drawn again during a zoom.
  * - "copyWithBorders" (Gecko: Firefox): the same copy, with the borders drawn in
- *   it (moving a separate borders layer cost Firefox more per frame than it saved).
+ *   it (moving a separate borders layer cost Firefox more per frame than it saved),
+ *   and not drawn at rest (kept drawn, it slowed the frames after every selection).
  * - "layer" (WebKit, including every browser on iOS, and any other engine): the
  *   map itself becomes a layer from the press, as before the copy (in WebKit the
  *   copy made dragging slower).

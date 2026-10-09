@@ -297,7 +297,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
         const { k, x, y } = event.transform;
         latest = { k, x, y };
         // The map starts moving (not on a press alone, so a tap still reaches the
-        // country): the gesture copy, already drawn, comes to the front (see CSS).
+        // country): the gesture copy (a layer now, if it wasn't kept as one) comes to the front (see CSS).
         if (copyMode && !quiet && !wrapper.hasAttribute("data-gesture")) {
           // New colours that haven't reached the copy yet (a tap just before) are
           // drawn into it now, before it shows: never a frame of the old ones.
@@ -766,9 +766,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       </div>
 
       {ready && copyMode && (
-        // The gesture copy (see below): in front of everything but nearly
-        // transparent at rest, so the browser keeps it drawn; behind the names
-        // and map controls, in place of the map, while the map moves (see CSS).
+        // The gesture copy (see below): at rest nearly transparent and kept drawn
+        // (Blink) or fully transparent and not drawn (Firefox); a layer behind the
+        // names and map controls, in place of the map, while the map moves (see CSS).
         // No language of its own (lang=""): it has no text, and following the page's would draw the whole
         // copy again (and the borders' layer) on every language switch, though nothing in it changes.
         <div className={styles.gesture} aria-hidden="true" inert lang="">
@@ -817,12 +817,17 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
  * At rest the map is drawn with the page, so the names over it get the
  * browser's sharpest text rendering. Moving it as a layer would need that layer
  * drawn first, which takes a long pause on the first move (and the names over a
- * separate layer are drawn less sharply). So a copy of the landscape is kept
- * drawn as its own layer, in front of everything but nearly transparent
- * (0.4%: fully transparent layers are not kept drawn), where it changes nothing
- * visible and nothing under it stops being drawn with the page. When the map
- * starts moving, the copy moves behind the names and map controls and shows,
- * in place of the map, which is hidden but moves along for taps.
+ * separate layer are drawn less sharply). A copy of the landscape is moved
+ * instead. In Blink it is kept drawn as its own layer, in front of everything
+ * but nearly transparent (0.4%: fully transparent layers are not kept drawn),
+ * where it changes nothing visible and nothing under it stops being drawn with
+ * the page; Blink would otherwise draw the whole copy when it first shows, a
+ * pause at the start of every drag. In Firefox it is fully transparent and not
+ * drawn at rest (keeping it drawn slowed the frames after every selection and
+ * language switch there, and showing it costs no pause), so new colours or a new
+ * view cost nothing until the map moves. When the map starts moving, the copy
+ * becomes a layer (if it isn't one), moves behind the names and map controls and
+ * shows, in place of the map, which is hidden but moves along for taps.
  *
  * The copy has no borders: they are a separate light layer, drawn again during
  * a zoom so they keep their width (the soft coastline stays in the copy). The
