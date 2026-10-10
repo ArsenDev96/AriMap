@@ -23,9 +23,10 @@ function countryAt(target: EventTarget | null): string | null {
 export function useCountryTap(onTap: ((country: string) => void) | undefined, onMissedRelease?: () => void) {
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ country: string | null; x: number; y: number; time: number; cancelled: boolean } | null>(null);
-  // Stops watching the current mouse press (see watchPress).
-  const stopWatching = useRef<(() => void) | null>(null);
-  useEffect(() => () => stopWatching.current?.(), []);
+  // The mouse press being watched (see watchPress): `stop` stops watching it, `missed` ends it as a
+  // press whose release the page never saw.
+  const press = useRef<{ pointerId: number; stop: () => void; missed: () => void } | null>(null);
+  useEffect(() => () => press.current?.stop(), []);
 
   const forget = (pointerId: number) => {
     pointers.current.delete(pointerId);
@@ -38,22 +39,26 @@ export function useCountryTap(onTap: ((country: string) => void) | undefined, on
    * sees it (outside the window, or over a menu): the next move then has no button down. The press is
    * over then: the map lets go of the mouse (Firefox would keep it until a release it never gets, so
    * the next tap would reach the map, not its country; Chrome lets go itself), forgets the press and
-   * ends what follows it (onMissedRelease), so the next tap works at once.
+   * ends what follows it (onMissedRelease), so the next tap works at once. A new press with no move
+   * in between tells the same (see onPointerDown).
    */
   const watchPress = (el: Element, pointerId: number) => {
-    stopWatching.current?.();
+    press.current?.stop();
+    const watched = { pointerId, stop, missed };
     function stop() {
       removeEventListener("pointermove", move, true);
       removeEventListener("pointerup", released, true);
       removeEventListener("pointercancel", released, true);
-      if (stopWatching.current === stop) stopWatching.current = null;
+      if (press.current === watched) press.current = null;
     }
-    function move(e: globalThis.PointerEvent) {
-      if (e.pointerId !== pointerId || e.buttons) return;
+    function missed() {
       stop();
       if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
       forget(pointerId);
       onMissedRelease?.();
+    }
+    function move(e: globalThis.PointerEvent) {
+      if (e.pointerId === pointerId && !e.buttons) missed();
     }
     function released(e: globalThis.PointerEvent) {
       if (e.pointerId === pointerId) stop();
@@ -61,16 +66,29 @@ export function useCountryTap(onTap: ((country: string) => void) | undefined, on
     addEventListener("pointermove", move, true);
     addEventListener("pointerup", released, true);
     addEventListener("pointercancel", released, true);
-    stopWatching.current = stop;
+    press.current = watched;
   };
 
   return {
     onPointerDown(e: PointerEvent) {
+      let target: EventTarget | null = e.target;
+      // A mouse press while the last one (always the main button) is still watched, and the main
+      // button isn't held apart from this press: that press's release went unseen and the mouse has
+      // not moved since (watchPress). End it before this one starts (this runs before the map's own
+      // mousedown). A second button pressed during a drag leaves the main one held, so it never ends
+      // the drag (browsers report it as a move anyway); nor do touch and pen presses. If the map still
+      // held the mouse (Firefox), this press was sent to the map, not the country under it: find that country.
+      const mainHeld = e.button !== 0 && (e.buttons & 1) !== 0;
+      if (e.pointerType === "mouse" && press.current?.pointerId === e.pointerId && !mainHeld) {
+        const held = e.target instanceof Element && e.target.hasPointerCapture(e.pointerId);
+        press.current.missed();
+        if (held) target = document.elementFromPoint(e.clientX, e.clientY);
+      }
       if (e.button !== 0 && e.pointerType === "mouse") return;
       pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (e.pointerType === "mouse") watchPress(e.currentTarget, e.pointerId);
       if (pointers.current.size === 1) {
-        gesture.current = { country: countryAt(e.target), x: e.clientX, y: e.clientY, time: e.timeStamp, cancelled: false };
+        gesture.current = { country: countryAt(target), x: e.clientX, y: e.clientY, time: e.timeStamp, cancelled: false };
       } else if (gesture.current) {
         gesture.current.cancelled = true; // multi-touch = pinch
       }
