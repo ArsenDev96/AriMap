@@ -168,6 +168,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // Names, callouts and marker names are placed for this view too (see layoutOverlay);
   // during a gesture they follow the live view from it (see LiveOverlay).
   const [settledView, setSettledView] = useState<Transform>(transform);
+  // Whether a gesture or zoom ended at the settled view, rather than pausing there (see Relief's useSettled).
+  const [settledFinal, setSettledFinal] = useState(false);
   // The view the gesture copy is drawn for, and the live borders' (see "The gesture copy").
   // How the map moves in this browser (see gestureModeFor): with the gesture copy, or as itself.
   const [gestureMode] = useState(() => gestureModeFor(navigator.userAgent));
@@ -271,16 +273,19 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       placeBorders(view);
       return placeLayer(copyRef.current, copyViewRef.current, view, size, margin);
     };
-    // Draw the map for the live view; `stopped` when the player has stopped there (the gesture ended or paused).
-    // The copy is drawn again only when it must be (see "The gesture copy").
-    const settle = (stopped: boolean, redrawCopy = false) => {
+    // Draw the map for the live view; `stopped` when the player has stopped there (the gesture ended or paused),
+    // `ended` when it ended. The copy is drawn again only when it must be (see "The gesture copy").
+    const settle = (stopped: boolean, redrawCopy = false, ended = false) => {
       cancelAnimationFrame(frame);
       frame = 0;
       clearTimeout(idle);
       live.set(latest);
       const covers = follow(latest);
       setTransform(latest);
-      if (stopped) setSettledView(latest);
+      if (stopped) {
+        setSettledView(latest);
+        setSettledFinal(ended);
+      }
       if (copyMode && (redrawCopy || !covers)) setCopyView(latest);
     };
     // After a gesture: the map drawn with the page shows again, and once the
@@ -337,7 +342,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
         stage.removeAttribute("data-moving");
         // The borders are drawn for the view it ended at, if their scale differs from it (see BORDER_RESCALE).
         animated = false;
-        settle(true, quiet);
+        // Not the first view: it keeps the landscape's wait, as the map's size may still change as the page lays out.
+        settle(true, quiet, !quiet);
         clearTimeout(release);
         release = setTimeout(rest, RELEASE_MS);
         gestureRef.current = false;
@@ -651,7 +657,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 <SeaTexture map={map} />
                 <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} />}
+                {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} final={settledFinal} />}
                 {scenery && (
                   <Scenery
                     map={map}
@@ -804,7 +810,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} instant />}
+              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} final={settledFinal} instant />}
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}
