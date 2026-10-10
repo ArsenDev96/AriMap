@@ -119,10 +119,6 @@
   fill: var(--amber);
 }
 
-.gestureLayer .reliefTile {
-  transition: none;
-}
-
 /* Strokes scale with the layer here, drawn at their on-screen width for the
    view the layer is drawn for (--inv is 1/k of that view): Firefox draws a
    moving layer again on every frame if it holds non-scaling strokes (even
@@ -199,6 +195,8 @@
   fill: none;
   stroke: var(--map-coast);
   stroke-width: var(--coast-width);
+  /* Where a coast ends at a land border: what the round join of the whole outline covered at sea. */
+  stroke-linecap: round;
 }
 
 .contextShape,
@@ -777,20 +775,15 @@
   opacity: 0.35;
 }
 
-/* Zoomed relief tiles fade in once loaded, over the overview already there. */
+/* Zoomed relief tiles show once loaded, over the overview already there. On
+   the map they fade in, from script (fadeIn in Relief.tsx): a CSS transition of
+   their opacity would make each a layer of its own while it fades. */
 .reliefTile {
   opacity: 0;
-  transition: opacity 250ms ease-out;
 }
 
 .reliefTile[data-loaded] {
   opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .reliefTile {
-    transition: none;
-  }
 }
 
 /* "About the map": a small round button in the top-right corner. */
