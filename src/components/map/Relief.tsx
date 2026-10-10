@@ -140,14 +140,25 @@ function tilesIn(level: Level, family: Family, [x0, y0, x1, y1]: readonly number
 /**
  * The view once it has stopped changing for a moment. Tiles are chosen from
  * it, so a zoom or pan animation (or the first layout) never fetches tiles
- * for the views it passes through; null until the first view settles.
+ * for the views it passes through; null until the first view settles. With no
+ * delay (a view where a gesture or zoom ended), just after the frame that shows
+ * the view: waiting longer only held its tiles back (150 ms of the 200–270 ms
+ * until a zoom's cached tiles showed, with reduced motion), and fetching them for
+ * that frame put their decoding into it (the map's response to a zoom from the
+ * cache went from about 50 ms to 140 ms).
  */
 function useSettled(transform: Transform, viewport: { width: number; height: number }, delay = 150) {
   const key = `${transform.k},${transform.x},${transform.y},${viewport.width},${viewport.height}`;
   const [settled, setSettled] = useState<{ key: string; transform: Transform; viewport: { width: number; height: number } } | null>(null);
   useEffect(() => {
-    const timer = setTimeout(() => setSettled({ key, transform, viewport }), delay);
-    return () => clearTimeout(timer);
+    const settle = () => setSettled({ key, transform, viewport });
+    let timer = delay > 0 ? setTimeout(settle, delay) : undefined;
+    // After the next frame's main-thread work: its frame shows the view without these tiles.
+    const frame = delay > 0 ? 0 : requestAnimationFrame(() => (timer = setTimeout(settle)));
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
     // The key captures the transform and viewport.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, delay]);
@@ -199,11 +210,13 @@ interface Props {
   /** The view to fetch sharper tiles for: the last one the player stopped at, not one passed through mid-gesture. */
   transform: Transform;
   viewport: { width: number; height: number };
+  /** The view is where a gesture or zoom ended, not a pause in one: its tiles are fetched without waiting (see useSettled). */
+  final?: boolean;
   /** Tiles show at once when loaded, without fading in (the gesture copy, which shows each final state). */
   instant?: boolean;
 }
 
-export const Relief = memo(function Relief({ map, level, tones, transform, viewport, instant }: Props) {
+export const Relief = memo(function Relief({ map, level, tones, transform, viewport, instant, final }: Props) {
   const overviews = (relief.overviews as Record<string, typeof relief.overviews["western-europe-1"] | undefined>)[level];
   const images = OVERVIEW_IMAGES[level];
   const id = useId().replace(/:/g, "");
@@ -240,7 +253,7 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
 
   // Tiles for the settled view: the visible world area, with a quarter-screen
   // margin so a short pan finds tiles ready.
-  const settled = useSettled(transform, viewport);
+  const settled = useSettled(transform, viewport, final ? 0 : 150);
   let landTiles: Tile[] = [];
   let toneTiles: Tile[] = [];
   if (settled) {
