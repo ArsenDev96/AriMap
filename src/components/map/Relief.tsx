@@ -80,6 +80,42 @@ const available = new Map(relief.levels.map((level) => [level, { land: new Set(l
 /** Tiles that have finished loading (shared by every map on the page), so they show at once when reused. */
 const loaded = new Set<string>();
 
+const FADE_MS = 250;
+
+/** CSS `ease-out` (cubic-bezier(0, 0, 0.58, 1)): the progress at a fraction `t` of the time. */
+function easeOut(t: number) {
+  // The curve's x is 1.74s² − 0.74s³, increasing on [0, 1]: find the s where it is t, then y there.
+  let [lo, hi] = [0, 1];
+  for (let i = 0; i < 20; i++) {
+    const s = (lo + hi) / 2;
+    if (1.74 * s * s - 0.74 * s * s * s < t) lo = s;
+    else hi = s;
+  }
+  const s = (lo + hi) / 2;
+  return 3 * s * s - 2 * s * s * s;
+}
+
+/**
+ * Fades a newly loaded tile in over the overview, its opacity set on each frame. Not a CSS transition: Chrome
+ * runs an opacity transition on the compositor, which makes the tile a layer of its own for the fade, so the
+ * map round it is split into layers and drawn again (with every clip of the landscape) as the fade starts and
+ * again as it ends. Drawn on each frame, only the tile's own area is drawn again (see docs/TERRAIN.md).
+ */
+function fadeIn(el: SVGImageElement) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const start = performance.now();
+  const frame = (now: number) => {
+    const t = (now - start) / FADE_MS;
+    if (t >= 1) el.style.removeProperty("opacity");
+    else {
+      el.style.opacity = String(easeOut(Math.max(0, t)));
+      requestAnimationFrame(frame);
+    }
+  };
+  el.style.opacity = "0";
+  requestAnimationFrame(frame);
+}
+
 function subscribeDpr(onChange: () => void) {
   const query = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
   query.addEventListener("change", onChange);
@@ -163,9 +199,11 @@ interface Props {
   /** The view to fetch sharper tiles for: the last one the player stopped at, not one passed through mid-gesture. */
   transform: Transform;
   viewport: { width: number; height: number };
+  /** Tiles show at once when loaded, without fading in (the gesture copy, which shows each final state). */
+  instant?: boolean;
 }
 
-export const Relief = memo(function Relief({ map, level, tones, transform, viewport }: Props) {
+export const Relief = memo(function Relief({ map, level, tones, transform, viewport, instant }: Props) {
   const overviews = (relief.overviews as Record<string, typeof relief.overviews["western-europe-1"] | undefined>)[level];
   const images = OVERVIEW_IMAGES[level];
   const id = useId().replace(/:/g, "");
@@ -235,6 +273,7 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
             ? undefined
             : (e) => {
                 loaded.add(t.url);
+                if (!instant) fadeIn(e.currentTarget);
                 e.currentTarget.setAttribute("data-loaded", "");
                 setArrivals((n) => n + 1);
               }

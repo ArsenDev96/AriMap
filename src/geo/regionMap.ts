@@ -1,6 +1,6 @@
 import { geoAzimuthalEqualArea, geoPath, type GeoProjection } from "d3-geo";
-import { feature } from "topojson-client";
-import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import { feature, mesh } from "topojson-client";
+import type { Feature, FeatureCollection, MultiPolygon, Polygon, Position } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import type { CountryId, LonLat } from "@/core/content/types";
 import type { LessonDefinition } from "@/core/lessons/types";
@@ -13,6 +13,11 @@ export interface CountryShape {
   id: CountryId;
   /** SVG path in projected "world" coordinates. */
   d: string;
+  /**
+   * Its coast: the parts of its outline it shares with no other country (the sea, and the dataset's
+   * clipped edges), for the light shallow-water band. Its land borders, under the land, are left out.
+   */
+  coast: string;
   /** Projected bounding box. */
   bounds: Bounds;
 }
@@ -65,7 +70,7 @@ const PAN_MARGIN = 0.25;
 
 const cache = new Map<string, RegionMap>();
 
-let shared: { projection: GeoProjection; features: Feature<Polygon | MultiPolygon, CountryProps>[] } | null = null;
+let shared: { projection: GeoProjection; features: Feature<Polygon | MultiPolygon, CountryProps>[]; coasts: Map<string, string> } | null = null;
 
 /** The projection shared by every level: equal-area azimuthal, centred at 8°E 50°N, fitted to PROJECTION_FIT. */
 function sharedProjection() {
@@ -73,9 +78,30 @@ function sharedProjection() {
     const collection = feature(topology, topology.objects.countries) as FeatureCollection<Polygon | MultiPolygon, CountryProps>;
     const features = collection.features.filter((f) => f.geometry);
     const fit: FeatureCollection = { type: "FeatureCollection", features: features.filter((f) => PROJECTION_FIT.includes(String(f.id))) };
-    shared = { projection: geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([WORLD, WORLD], fit), features };
+    const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([WORLD, WORLD], fit);
+    shared = { projection, features, coasts: coastPaths(geoPath(projection)) };
   }
   return shared;
+}
+
+/**
+ * Each country's coast as SVG paths: the arcs of its outline no other country shares, joined into lines.
+ * A line that comes back to its start (an island) is closed, so it keeps its round join there; an open one
+ * ends where a land border meets the sea, where a round cap (see .coast in the CSS) covers what the round
+ * join of the whole outline covered.
+ */
+function coastPaths(path: ReturnType<typeof geoPath>): Map<string, string> {
+  const coasts = new Map<string, string>();
+  const same = (a: Position, b: Position) => a[0] === b[0] && a[1] === b[1];
+  for (const g of topology.objects.countries.geometries) {
+    if (g.type == null || g.id == null) continue;
+    const lines = mesh(topology, topology.objects.countries, (a, b) => a === b && a === g).coordinates;
+    coasts.set(
+      String(g.id),
+      lines.map((line) => (path({ type: "LineString", coordinates: line }) ?? "") + (line.length > 2 && same(line[0], line[line.length - 1]) ? "Z" : "")).join(""),
+    );
+  }
+  return coasts;
 }
 
 /**
@@ -89,7 +115,7 @@ export function getRegionMap(activeIds: readonly CountryId[], coverageHalf: read
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const { projection, features } = sharedProjection();
+  const { projection, features, coasts } = sharedProjection();
   const active: FeatureCollection = {
     type: "FeatureCollection",
     features: features.filter((f) => activeIds.includes(String(f.id))),
@@ -102,6 +128,7 @@ export function getRegionMap(activeIds: readonly CountryId[], coverageHalf: read
   const shapes: CountryShape[] = features.map((f: Feature<Polygon | MultiPolygon, CountryProps>) => ({
     id: String(f.id),
     d: path(f) ?? "",
+    coast: coasts.get(String(f.id)) ?? "",
     bounds: path.bounds(f) as unknown as Bounds,
   }));
 

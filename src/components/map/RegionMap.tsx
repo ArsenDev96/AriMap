@@ -794,7 +794,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} />}
+              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} instant />}
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}
@@ -865,9 +865,7 @@ const CountryFills = memo(function CountryFills({
   return (
     <>
       <g className={styles.coast}>
-        {map.shapes.map((s) => (
-          <path key={s.id} d={s.d} />
-        ))}
+        {map.shapes.map((s) => s.coast && <path key={s.id} d={s.coast} />)}
       </g>
       <g className={styles.context}>
         {map.shapes
@@ -946,11 +944,10 @@ const CountryLayer = memo(function CountryLayer({ map, active, view, focusable, 
 
   return (
     <>
-      {/* Coastline: a soft line under all land. Fills cover it wherever land meets land, so it shows only along the sea. */}
+      {/* Coastline: a soft line under the land, along each country's coast only (its land borders would lie
+          under the land anyway, and stroking them is most of the cost of drawing the map). */}
       <g className={styles.coast} aria-hidden="true">
-        {map.shapes.map((s) => (
-          <path key={s.id} d={s.d} />
-        ))}
+        {map.shapes.map((s) => s.coast && <path key={s.id} d={s.coast} />)}
       </g>
       <g className={styles.context}>
         {context.map((s) => (
