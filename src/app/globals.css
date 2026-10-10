@@ -212,6 +212,10 @@ html:not([lang="hy"]) .splash-hy {
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    /* No transitions at all. Even 0.01ms (with the default transition-property: all) starts one on every
+       change, and Chrome gives each element with a transform or opacity transition a layer of its own, drawn
+       from scratch: on a map zoom, every name, badge and map group, several times the time to its first
+       frame. Nothing here listens for transitionend. */
+    transition-duration: 0s !important;
   }
 }
