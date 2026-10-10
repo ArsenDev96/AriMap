@@ -73,7 +73,12 @@ const RELEASE_MS = 400;
 /**
  * During a zoom the borders are drawn again for the live view once its scale
  * differs from theirs by more than this share, so they keep their width on
- * screen (within this share) instead of growing with the landscape.
+ * screen (within this share) instead of growing with the landscape. Not during an
+ * animated zoom (the zoom buttons, reset): there they grow or thin with the
+ * landscape for its 250 ms and are drawn again once, when it ends (or sooner if
+ * their layer no longer covers the view). Drawing them again was most of the
+ * GPU's work in that animation, nearly every frame, enough to stall it on slower
+ * GPUs.
  */
 const BORDER_RESCALE = 0.06;
 
@@ -244,13 +249,15 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
     let cancelRefresh = () => {};
     // True while the map is set to its first view: that is no gesture, and needs no copy in front.
     let quiet = false;
+    // True during an animated zoom (the zoom buttons, reset, a new start view), as opposed to the player's gesture.
+    let animated = false;
     // The live borders: moved with the view, and drawn again for it once its scale differs (see BORDER_RESCALE).
     const placeBorders = (view: Transform) => {
       const layer = bordersRef.current;
       const group = bordersGroupRef.current;
       if (!layer || !group) return;
       const drawn = bordersViewRef.current;
-      if (Math.abs(view.k / drawn.k - 1) <= BORDER_RESCALE && placeLayer(layer, drawn, view, size, margin)) return;
+      if ((animated || Math.abs(view.k / drawn.k - 1) <= BORDER_RESCALE) && placeLayer(layer, drawn, view, size, margin)) return;
       bordersViewRef.current = view;
       drawBordersFor(group, view);
       layer.style.transform = "";
@@ -297,6 +304,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       .translateExtent(limits.translateExtent as [[number, number], [number, number]])
       .on("start", (event) => {
         if (event.sourceEvent) gestureRef.current = true;
+        animated = !event.sourceEvent;
         clearTimeout(release);
         cancelRefresh();
         // Without the copy, the map becomes a layer from the press, so it is ready when it starts moving.
@@ -327,6 +335,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       })
       .on("end", () => {
         stage.removeAttribute("data-moving");
+        // The borders are drawn for the view it ended at, if their scale differs from it (see BORDER_RESCALE).
+        animated = false;
         settle(true, quiet);
         clearTimeout(release);
         release = setTimeout(rest, RELEASE_MS);
