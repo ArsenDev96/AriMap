@@ -25,6 +25,7 @@ import {
   type Transform,
 } from "@/geo/regionMap";
 import { routePoints, routeSettings } from "@/geo/route";
+import { diagnostics, timed } from "../diagnostics";
 import { useI18n } from "../i18n";
 import { LandTexture, SeaTexture } from "./AtlasSurface";
 import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
@@ -124,6 +125,15 @@ interface Box {
   y1: number;
 }
 
+/**
+ * Ends the player's mouse drag of the map, if one is under way, as its release would have: d3-zoom ends
+ * a mouse gesture on a mouseup at the window (the event table in its README). For a release the page
+ * never saw (see useCountryTap); without one, d3-zoom would go on moving the map with the mouse.
+ */
+function endMouseDrag() {
+  window.dispatchEvent(new MouseEvent("mouseup", { view: window }));
+}
+
 function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
@@ -174,7 +184,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const flash = useAnswerFlash(view);
 
   const tapHandler = view.interactive ? onCountryTap : undefined;
-  const tap = useCountryTap(tapHandler);
+  const tap = useCountryTap(tapHandler, endMouseDrag);
+  // TEMPORARY phone-lag diagnostics (see diagnostics.ts): ?relief=off, ?labels=off. Both on without them.
+  const { relief: showRelief, labels: showLabels } = diagnostics();
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -294,7 +306,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
         const { k, x, y } = event.transform;
         latest = { k, x, y };
         // The map starts moving (not on a press alone, so a tap still reaches the
-        // country): the gesture copy, already drawn, comes to the front (see CSS).
+        // country): the gesture copy (a layer now, if it wasn't kept as one) comes to the front (see CSS).
         if (copyMode && !quiet && !wrapper.hasAttribute("data-gesture")) {
           // New colours that haven't reached the copy yet (a tap just before) are
           // drawn into it now, before it shows: never a frame of the old ones.
@@ -528,7 +540,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // Asked with the close-up closed (only its toggle in the corner) on small maps.
   // Only names the view already shows count, so this never reveals an answer.
   const crowded = useMemo(() => {
-    if (!base || size.width === 0 || !lesson.map.inset) return false;
+    if (!base || size.width === 0 || !lesson.map.inset || !showLabels) return false;
     const toggle: Box = insetTop
       ? { x0: 0, y0: 0, x1: INSET_TOGGLE_EXTENT, y1: INSET_TOGGLE_EXTENT }
       : { x0: 0, y0: size.height - INSET_TOGGLE_EXTENT, x1: INSET_TOGGLE_EXTENT, y1: size.height };
@@ -549,7 +561,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, l, name]);
+  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -564,7 +576,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   // Main-map overlay layout, shared with the scenery so it can keep clear of names
   // and markers. Made for the view the player stopped at: never mid-gesture, where
   // the names follow it instead (see LiveOverlay).
-  const textMode: TextMode = calloutsInInset ? "noCallouts" : "all";
+  const textMode: TextMode = !showLabels ? "none" : calloutsInInset ? "noCallouts" : "all";
   const mainInsetArea = insetOpen ? insetBounds : null;
   const mainLayout = useMemo(
     () =>
@@ -629,7 +641,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 <SeaTexture map={map} />
                 <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} />
+                {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} />}
                 {scenery && (
                   <Scenery
                     map={map}
@@ -719,7 +731,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   <SeaTexture map={map} />
                   <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
                   <LandTexture map={map} darkKey={tonedKey} />
-                  <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={insetTransform} viewport={insetSize} />
+                  {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={insetTransform} viewport={insetSize} />}
                   <BorderLayer map={map} active={lesson.countries} />
                   <FlashLayer map={map} flash={flash} />
                 </g>
@@ -732,7 +744,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   small={small}
                   transform={insetTransform}
                   viewport={insetSize}
-                  textMode={calloutsInInset ? "callouts" : "none"}
+                  textMode={showLabels && calloutsInInset ? "callouts" : "none"}
                   obstacles={[]}
                   insetArea={null}
                 />
@@ -763,9 +775,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       </div>
 
       {ready && copyMode && (
-        // The gesture copy (see below): in front of everything but nearly
-        // transparent at rest, so the browser keeps it drawn; behind the names
-        // and map controls, in place of the map, while the map moves (see CSS).
+        // The gesture copy (see below): at rest nearly transparent and kept drawn
+        // (Blink) or fully transparent and not drawn (Firefox); a layer behind the
+        // names and map controls, in place of the map, while the map moves (see CSS).
         // No language of its own (lang=""): it has no text, and following the page's would draw the whole
         // copy again (and the borders' layer) on every language switch, though nothing in it changes.
         <div className={styles.gesture} aria-hidden="true" inert lang="">
@@ -782,7 +794,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} />
+              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} />}
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}
@@ -814,12 +826,17 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
  * At rest the map is drawn with the page, so the names over it get the
  * browser's sharpest text rendering. Moving it as a layer would need that layer
  * drawn first, which takes a long pause on the first move (and the names over a
- * separate layer are drawn less sharply). So a copy of the landscape is kept
- * drawn as its own layer, in front of everything but nearly transparent
- * (0.4%: fully transparent layers are not kept drawn), where it changes nothing
- * visible and nothing under it stops being drawn with the page. When the map
- * starts moving, the copy moves behind the names and map controls and shows,
- * in place of the map, which is hidden but moves along for taps.
+ * separate layer are drawn less sharply). A copy of the landscape is moved
+ * instead. In Blink it is kept drawn as its own layer, in front of everything
+ * but nearly transparent (0.4%: fully transparent layers are not kept drawn),
+ * where it changes nothing visible and nothing under it stops being drawn with
+ * the page; Blink would otherwise draw the whole copy when it first shows, a
+ * pause at the start of every drag. In Firefox it is fully transparent and not
+ * drawn at rest (keeping it drawn slowed the frames after every selection and
+ * language switch there, and showing it costs no pause), so new colours or a new
+ * view cost nothing until the map moves. When the map starts moving, the copy
+ * becomes a layer (if it isn't one), moves behind the names and map controls and
+ * shows, in place of the map, which is hidden but moves along for taps.
  *
  * The copy has no borders: they are a separate light layer, drawn again during
  * a zoom so they keep their width (the soft coastline stays in the copy). The
@@ -1365,6 +1382,10 @@ interface OverlayLayout {
  * RegionMap: a crowded Luxembourg label moves into the close-up).
  */
 function layoutOverlay(input: LayoutInput): OverlayLayout {
+  return timed("placement", () => placeLayout(input));
+}
+
+function placeLayout(input: LayoutInput): OverlayLayout {
   const layout = placeOverlay(input, true);
   if (!layout.fellBack) return layout;
   // A callout moved off its neighbours to the map's edge (see placeOverlay) must not cost another name
@@ -2053,7 +2074,7 @@ function LiveOverlay({ live, layout, ...props }: OverlayProps & { live: LiveView
   const { map, viewport, obstacles, transform } = props;
   const followed = useMemo(() => {
     const moved = followView(layout, transform, view);
-    return moved === layout ? layout : keepInView(moved, map, view, viewport, obstacles);
+    return moved === layout ? layout : timed("follow", () => keepInView(moved, map, view, viewport, obstacles));
   }, [layout, transform, view, map, viewport, obstacles]);
   return <Overlay {...props} layout={followed} />;
 }

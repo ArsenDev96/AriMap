@@ -177,14 +177,24 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
     .filter((s) => (tones[s.id] ?? "default") !== "default")
     .map((s) => s.id)
     .join(",");
-  const { plain, toned, tonedBoxes } = useMemo(() => {
+  // The "land" family covers every country but those in a state colour. Rather than one outline of all the
+  // others, drawn again whenever a colour changes (every country's outline, over 850,000 characters on
+  // Level 1, on the map and again on the gesture copy), it is clipped to all the land, which never changes,
+  // and then cut out where the toned countries are: a frame round all the land with their outlines in it,
+  // even-odd, so their insides are left out. Each clip stays a single path, as browsers draw one clip path
+  // of several shapes differently (Firefox and WebKit through a mask, with faint seams between countries).
+  const { land, frame } = useMemo(() => {
+    let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const { bounds: [[a, b], [c, d]] } of map.shapes) [x0, y0, x1, y1] = [Math.min(x0, a), Math.min(y0, b), Math.max(x1, c), Math.max(y1, d)];
+    return {
+      land: map.shapes.map((s) => s.d).join(""),
+      frame: `M${x0 - 1},${y0 - 1}H${x1 + 1}V${y1 + 1}H${x0 - 1}Z`,
+    };
+  }, [map]);
+  const { toned, tonedBoxes } = useMemo(() => {
     const set = new Set(tonedKey ? tonedKey.split(",") : []);
     const tonedShapes = map.shapes.filter((s) => set.has(s.id));
     return {
-      plain: map.shapes
-        .filter((s) => !set.has(s.id))
-        .map((s) => s.d)
-        .join(""),
       toned: tonedShapes.map((s) => s.d).join(""),
       tonedBoxes: tonedShapes.map((s) => [s.bounds[0][0], s.bounds[0][1], s.bounds[1][0], s.bounds[1][1]] as const),
     };
@@ -239,18 +249,26 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
   return (
     <g className={styles.surface} aria-hidden="true" data-relief="">
       <defs>
-        <clipPath id={`${id}-plain`}>
-          <path d={plain} />
+        <clipPath id={`${id}-land`}>
+          <path d={land} />
         </clipPath>
+        {toned && (
+          <clipPath id={`${id}-cut`}>
+            <path d={frame + toned} clipRule="evenodd" />
+          </clipPath>
+        )}
         {toned && (
           <clipPath id={`${id}-toned`}>
             <path d={toned} />
           </clipPath>
         )}
       </defs>
-      <g clipPath={`url(#${id}-plain)`} data-family="land">
-        {overviews && images && overview(overviews.land, images.land.src)}
-        {landTiles.map(image)}
+      <g clipPath={`url(#${id}-land)`} data-family="land">
+        {/* Always there, so the images in it stay put when the first country takes a colour. */}
+        <g clipPath={toned ? `url(#${id}-cut)` : undefined}>
+          {overviews && images && overview(overviews.land, images.land.src)}
+          {landTiles.map(image)}
+        </g>
       </g>
       {toned && (
         <g clipPath={`url(#${id}-toned)`} data-family="tone">

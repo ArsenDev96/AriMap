@@ -6,6 +6,8 @@ import { translate } from "@/core/i18n/translate";
 import { activeLesson, activeProgress, appReducer, nextLevel } from "@/core/progress/appState";
 import { loadAppState, saveAppState, type KeyValueStorage } from "@/core/progress/storage";
 import { ContinentScreen } from "./ContinentScreen";
+import { diagnostics } from "./diagnostics";
+import { DiagnosticsHud } from "./DiagnosticsHud";
 import { I18nProvider } from "./i18n";
 import { LessonScreen } from "./LessonScreen";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -22,6 +24,8 @@ export default function Game() {
   const [state, dispatch] = useReducer(appReducer, null, () => loadAppState(browserStorage()));
 
   useEffect(() => {
+    // TEMPORARY phone-lag diagnostics (see diagnostics.ts): ?freeze=1 never writes the save.
+    if (diagnostics().freeze) return;
     saveAppState(browserStorage(), state);
   }, [state]);
 
@@ -43,6 +47,7 @@ export default function Game() {
       ) : (
         <LessonScreen lesson={lesson} progress={progress} next={nextLevel(state, lesson.id)} newBest={state.newBest === lesson.id} dispatch={dispatch} />
       )}
+      {diagnostics().hud && <DiagnosticsHud />}
     </I18nProvider>
   );
 }
