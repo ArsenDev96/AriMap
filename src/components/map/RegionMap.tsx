@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { select } from "d3-selection";
 import "d3-transition";
@@ -1076,16 +1076,59 @@ const LABEL_FONT_PX = 14;
 const MARKER_FONT_PX = 12;
 /** Markers closer than this (on screen) put their names on the sides facing away from each other. */
 const NEAR_MARKER_PX = 60;
+/** Room kept between a capital's or landmark's name and any other name (px). */
+const MARKER_TEXT_GAP = 3;
+/** Points checked along a country name's middle (see fitsInside), the end ones this far in from its ends (px). */
+const FIT_SAMPLES = 7;
+const FIT_INSET = 3;
+/** The samples in the order they are checked: the ends first (most often off the country), the middle one already was. */
+const FIT_ORDER = [0, 6, 1, 5, 2, 4];
+/** Where a callout's dot may go, nearest first, when its country's label point is taken: up to 28px from it in eight directions. */
+const DOT_OFFSETS: Point[] = [
+  [0, 0],
+  ...[8, 14, 20, 28].flatMap((r) =>
+    [0, 1, 2, 3, 4, 5, 6, 7].map((i): Point => [Math.round(r * Math.cos((i * Math.PI) / 4)), Math.round(r * Math.sin((i * Math.PI) / 4))]),
+  ),
+];
+/** Where a larger country's callout dot may move when no position from its label point is clear: 14 and 28 px from it in eight directions. */
+const DOT_MOVES: Point[] = DOT_OFFSETS.filter(([dx, dy]) => [14, 28].includes(Math.round(Math.hypot(dx, dy))));
+/**
+ * At most this many of those points are tried, nearest first; at most this many more callout positions once one is
+ * clear, and this many in all, best ranked first (see placeCallout).
+ */
+const DOT_TRIES = 8;
+const CALLOUT_RETRIES = 6;
+const CALLOUT_ASSESSED = 12;
 /** Font weights used by the map text (see RegionMap.module.css), for measuring. */
 const LABEL_WEIGHT = 700;
 const MARKER_WEIGHT = 650;
 const CALLOUT_PAD_X = 8;
 const CALLOUT_HEIGHT = 24;
+/** Room kept between a callout and another callout, another's leader or a country name (px). */
+const CALLOUT_GAP = 2;
+/**
+ * Where a layout leaves a country's name out and is tried again (see placeLayout), a callout wider than this share of
+ * the main map is drawn on two lines, broken between words where the longer line is shortest (Bosnia and
+ * Herzegovina's, in either language, on a 320px map, unless it is selected): narrower, it leaves room for the other
+ * names. Text keeps its size; the second line sits this many times the font size below the first.
+ */
+const CALLOUT_WRAP_SHARE = 0.6;
+const CALLOUT_LINE_STEP = 1.2;
+/** A leader crossing another, as a last resort (see placeCallout), meets it at this angle or more, this far or more from the ends of both. */
+const CLEAR_CROSSING_ANGLE = Math.PI / 6;
+const CLEAR_CROSSING_GAP = 10;
 /** Narrow maps use slightly smaller labels so the names fit between the countries and controls. */
 const COMPACT_MAP_WIDTH = 420;
 const COMPACT_LABEL_FONT_PX = 13;
 const COMPACT_MARKER_FONT_PX = 11.5;
 const COMPACT_CALLOUT_HEIGHT = 22;
+/**
+ * The narrowest maps (320px phones) draw country names 10% smaller again, with their callouts' padding and height
+ * and their explored badges to match, so five long names fit beside the controls (Level 4 in Armenian). Capitals'
+ * and landmarks' names keep the compact size.
+ */
+const NARROW_MAP_WIDTH = 340;
+const NARROW_SCALE = 0.9;
 /** Callouts drawn inside the small inset. */
 const INSET_LABEL_FONT_PX = 10.5;
 const INSET_CALLOUT_PAD_X = 4;
@@ -1101,6 +1144,8 @@ const DARK_TONES: ReadonlySet<CountryTone> = new Set(["selected", "correct", "vi
 const CALLOUT_STEP_COST = 150;
 const CALLOUT_OVERLAP_WEIGHT = 20;
 const LEADER_CROSSING_COST = 4000;
+/** Cost of a callout's leader crossing another callout's: worse than covering a name that can move aside. */
+const LEADERS_CROSSING_COST = 6000;
 /** Cost of a callout lying entirely over another lesson country (scaled by the share that does). */
 const CALLOUT_DEPTH_COST = 2500;
 
@@ -1132,6 +1177,18 @@ const overlapArea = (a: Box, b: Box) =>
 
 /** Nearest point of a box to `p`: where a leader line from `p` meets it. */
 const nearestOn = (b: Box, [x, y]: Point): Point => [clamp(x, b.x0, b.x1), clamp(y, b.y0, b.y1)];
+
+/** The box with `d` more room on every side. */
+const grow = (b: Box, d: number): Box => ({ x0: b.x0 - d, y0: b.y0 - d, x1: b.x1 + d, y1: b.y1 + d });
+
+/** Whether segments a→b and c→d cross (touching at an end doesn't count). */
+function segmentsCross(a: Point, b: Point, c: Point, d: Point): boolean {
+  const den = (b[0] - a[0]) * (d[1] - c[1]) - (b[1] - a[1]) * (d[0] - c[0]);
+  if (Math.abs(den) < 1e-9) return false;
+  const t = ((c[0] - a[0]) * (d[1] - c[1]) - (c[1] - a[1]) * (d[0] - c[0])) / den;
+  const u = ((c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0])) / den;
+  return t > 0.01 && t < 0.99 && u > 0.01 && u < 0.99;
+}
 
 /** Whether the segment a→b passes through the box (sampled every 2px). */
 function segmentHits(a: Point, b: Point, box: Box): boolean {
@@ -1175,7 +1232,14 @@ function calloutCandidates(
   chrome: Box[] = [],
   /** Callouts already placed: never covered, even as a last resort (two neighbours' callouts, Level 4's Balkans on a 320px map). */
   placed: Box[] = [],
-): { ranked: Box[]; between: () => Box[]; edge: () => Box[] } {
+  /**
+   * Leader lines already drawn: a position never covers one, and its own leader never grazes another
+   * callout. Crossing one costs LEADERS_CROSSING_COST, so a leader crosses another only where nothing else
+   * is clear (Latvia's and Estonia's in Armenian on a 320px map); the caller never takes such a position
+   * for a name too long for its country (Croatia's and Bosnia and Herzegovina's on a phone).
+   */
+  lines: [Point, Point][] = [],
+): { ranked: Box[]; between: () => Box[]; edge: () => Box[]; lastResort: boolean } {
   const [ax, ay] = anchor;
   const candidates: { box: Box; step: number }[] = [];
   const between: { box: Box; step: number }[] = [];
@@ -1229,15 +1293,23 @@ function calloutCandidates(
     const y0 = clamp(b.y0, m, Math.max(m, viewport.height - m - h));
     return { x0, y0, x1: x0 + width, y1: y0 + h };
   };
-  // The anchor's own marker (e.g. Luxembourg City) is where the leader starts, so it can't block it.
-  const blockers = [...hard.filter((o) => !inBox(anchor, o)), ...chrome];
-  const clear = ({ box }: { box: Box }) =>
-    onScreen(box) && ![...hard, ...chrome].some((o) => overlaps(box, o)) && !blockers.some((o) => segmentHits(anchor, nearestOn(box, anchor), o));
+  // The anchor's own marker (e.g. Luxembourg City) is where the leader starts, so it can't block it; but a leader
+  // from a dot beside the marker's middle never runs across it (the Netherlands', across Amsterdam's on a 320px map).
+  const besideMiddle = hard.filter((o) => inBox(anchor, o)).map((o) => grow(o, -4)).filter((o) => o.x1 > o.x0 && o.y1 > o.y0 && !inBox(anchor, o));
+  const blockers = [...hard.filter((o) => !inBox(anchor, o)), ...besideMiddle, ...chrome, ...placed.map((b) => grow(b, CALLOUT_GAP)).filter((o) => !inBox(anchor, o))];
+  const clear = ({ box }: { box: Box }) => {
+    if (!onScreen(box) || [...hard, ...chrome].some((o) => overlaps(box, o)) || placed.some((o) => overlaps(grow(box, CALLOUT_GAP), o))) return false;
+    const end = nearestOn(box, anchor);
+    return (
+      !blockers.some((o) => segmentHits(anchor, end, o)) &&
+      !lines.some(([a, e]) => segmentHits(a, e, grow(box, CALLOUT_GAP)))
+    );
+  };
   const score = ({ box, step }: { box: Box; step: number }) => {
     const end = nearestOn(box, anchor);
     return soft.reduce(
       (sum, o) => sum + overlapArea(box, o) * CALLOUT_OVERLAP_WEIGHT + (segmentHits(anchor, end, o) ? LEADER_CROSSING_COST : 0),
-      step * CALLOUT_STEP_COST + depth(box) * CALLOUT_DEPTH_COST,
+      step * CALLOUT_STEP_COST + depth(box) * CALLOUT_DEPTH_COST + (lines.some(([a, e]) => segmentsCross(anchor, end, a, e)) ? LEADERS_CROSSING_COST : 0),
     );
   };
   const rank = (list: { box: Box; step: number }[]) =>
@@ -1265,12 +1337,20 @@ function calloutCandidates(
     // same rules. Only when no position is clear as it is, so layouts that fit don't change.
     ranked.push(...rank(candidates.map((c) => ({ box: slide(c.box), step: c.step + 1 })).filter(clear)));
   }
-  if (ranked.length === 0) {
+  const lastResort = ranked.length === 0;
+  if (lastResort) {
     // Last resort (tiny views such as the inset): any on-screen position, but
-    // never over map chrome or another callout, or with a leader through them.
-    const never = [...chrome, ...placed];
+    // never over map chrome or another callout or leader, or with a leader through
+    // them (its leader may cross another: the selected Croatia's and Slovenia's, in
+    // Armenian on a 320px map, rather than no name). On the main map, never over a
+    // marker or a capital's or landmark's name either (Sarajevo's, under Croatia's
+    // callout on a 320px map in Armenian), or with its leader through one.
+    const never = [...chrome, ...placed, ...(viewport.width >= 160 ? hard.filter((o) => !inBox(anchor, o)) : [])];
     const fallback = candidates.find(
-      (c) => onScreen(c.box) && !never.some((o) => overlaps(c.box, o) || segmentHits(anchor, nearestOn(c.box, anchor), o)),
+      (c) =>
+        onScreen(c.box) &&
+        !never.some((o) => overlaps(c.box, o) || segmentHits(anchor, nearestOn(c.box, anchor), o)) &&
+        !lines.some(([a, e]) => segmentHits(a, e, c.box)),
     );
     if (fallback) ranked.push(fallback.box);
     else if (never.length === 0) ranked.push(candidates[0].box);
@@ -1283,6 +1363,7 @@ function calloutCandidates(
     }),
     between: () => rank(between.filter(clear)),
     edge: () => rank(edge.filter(clear)),
+    lastResort,
   };
 }
 
@@ -1342,6 +1423,17 @@ type Label = {
   dy: number;
   /** The traveller pin stands where the leader dot would be: the leader starts at its tip instead. */
   pinAnchored: boolean;
+  /** Placed inside its country (see fitsInside); a name that is keeps to it when moved aside, where it can. */
+  fits: boolean;
+  /**
+   * Too long to lie inside its country, but with a clear spot over it, which it takes as names always did.
+   * Once the other callouts are placed (and the capital's name, unless it is the selected country's) it
+   * moves to a nearby callout, if one is clear (see toCallout): its callout never costs another name its
+   * place, and it never takes a distant one.
+   */
+  overhang: boolean;
+  /** A callout's name on two lines (see CALLOUT_WRAP_SHARE); null on one. */
+  lines: [string, string] | null;
 };
 
 interface LayoutInput {
@@ -1399,24 +1491,101 @@ function layoutOverlay(input: LayoutInput): OverlayLayout {
 }
 
 function placeLayout(input: LayoutInput): OverlayLayout {
-  const layout = placeOverlay(input, true);
-  if (!layout.fellBack) return layout;
-  // A callout moved off its neighbours to the map's edge (see placeOverlay) must not cost another name
-  // its place (Level 4's Slovenia at the top edge of a 740×360 map would take Croatia's only spot): the
-  // layout without that move wins wherever it names more.
-  const plain = placeOverlay(input, false);
   const named = (o: OverlayLayout) => o.labels.filter((x) => x.callout || x.box).length + o.markerTexts.filter((m) => !m.hidden).length;
-  return named(plain) > named(layout) ? plain : layout;
+  let layout = placeOverlay(input, true, true, true);
+  if (layout.fellBack) {
+    // A callout moved off its neighbours to the map's edge (see placeOverlay) must not cost another name
+    // its place (Level 4's Slovenia at the top edge of a 740×360 map would take Croatia's only spot): the
+    // layout without that move wins wherever it names more.
+    const plain = placeOverlay(input, false, true, true);
+    if (named(plain) > named(layout)) layout = plain;
+  }
+  // Names kept inside their countries, and the room kept between callouts and names, must not cost another
+  // country its name, or the capital its name (on a crowded 320px map, a name moved to fit inside its country,
+  // or a callout kept clear of a name, can take the room another's callout needs). Only when this layout
+  // leaves one of those out: the layout without either, as names were always placed, wins if it names more
+  // of them. Once, as many crowded small maps leave a name out either way.
+  const { width, height } = input.viewport;
+  const inView = ([x, y]: Point) => x >= 0 && y >= 0 && x <= width && y <= height;
+  const left = (o: OverlayLayout) => [
+    ...o.labels.filter(({ callout, box, anchor }) => !callout && !box && inView(anchor)).map((x) => x.id as string),
+    ...(o.markerTexts.some(({ hidden, key, at }) => hidden && key.startsWith("capital-") && inView(at)) ? ["capital"] : []),
+  ];
+  const missing = (o: OverlayLayout) => left(o).reduce((n, id) => n + (id === "capital" ? 1 : 2), 0);
+  // Leaders crossing another (see placeCallout's crossesClearly).
+  const crossings = (o: OverlayLayout) => {
+    const lines = o.labels.flatMap(({ callout, anchor }) => (callout ? [[anchor, nearestOn(callout, anchor)] as [Point, Point]] : []));
+    return lines.reduce((n, [a, b], i) => n + lines.slice(i + 1).filter(([c, d]) => segmentsCross(a, b, c, d)).length, 0);
+  };
+  if (missing(layout) === 0) return layout;
+  // Names are placed one at a time, so an earlier callout can take the only room a later name had (Slovenia's
+  // and Croatia's on a 320px map in Armenian, or Sarajevo's). Up to twice, the layout again: with the names left
+  // out placed first; then with every callout placed widest first (Bosnia and Herzegovina's, which fits only
+  // along the top of a 320px map), after the capital's name if that was left out. Longest names first in each.
+  // Where a country's name was left out, the two tries differ (see wrapLong).
+  const widest = (ids: string[]) =>
+    ids.sort((a, b) => (a === "capital" ? -1 : b === "capital" ? 1 : nameWidth(b) - nameWidth(a)));
+  const nameWidth = (id: string) => {
+    const label = layout.labels.find((x) => x.id === id);
+    return label ? label.textWidth : 0;
+  };
+  const callouts = layout.labels.filter((x) => x.callout || !x.box).map((x) => x.id as string);
+  // Only a country's name left out is worth two-line callouts (see CALLOUT_WRAP_SHARE), not the capital's alone. Then
+  // the layout is tried again in the same order with them first, as the narrower callouts may leave room in place
+  // (with Croatia selected on a 320px map in Armenian, Bosnia and Herzegovina's placed first would take the only room
+  // left for Slovenia's); then with the names left out placed first.
+  const wrapLong = left(layout).some((id) => id !== "capital");
+  const orders = wrapLong
+    ? [[], widest(left(layout))]
+    : [widest(left(layout)), widest([...new Set([...left(layout).filter((id) => id === "capital"), ...callouts])])];
+  let last = layout;
+  for (const first of orders) {
+    if (first.length === 0 && !wrapLong) continue;
+    last = placeOverlay(input, true, true, true, first, wrapLong);
+    // A layout tried again wins only if it names more, and has no more leaders crossing another than the first
+    // beyond one for each country's name it brings back (see crossesClearly).
+    const restored = left(layout).filter((id) => id !== "capital" && !left(last).includes(id)).length;
+    if (missing(last) < missing(layout) && crossings(last) <= crossings(layout) + restored) layout = last;
+    if (missing(layout) === 0) return layout;
+    // Names still left out though placed first have no room at all: no other order helps them (Riga's, on a
+    // zoomed 320px map in Armenian), and a capital's name no other layout either.
+    if (left(last).every((id) => first.includes(id))) {
+      if (left(layout).every((id) => id === "capital")) return layout;
+      break;
+    }
+  }
+  const loose = placeOverlay(input, true, false, false);
+  return missing(loose) < missing(layout) ? loose : layout;
 }
 
+/**
+ * Whether a country name at a given spot lies inside its country (see fitsInside), by the input it was placed for:
+ * the layouts placeLayout tries for one view ask the same many times.
+ */
+const fitMemo = new WeakMap<LayoutInput, Map<string, boolean>>();
+
 function placeOverlay(
-  { map, active, view, route: routeWorld, small, transform, viewport, textMode, obstacles, insetArea, l, name }: LayoutInput,
+  input: LayoutInput,
   edgeFallback: boolean,
+  /** Country names lie inside their country, or move to a callout (see fitsInside); otherwise as they always did. */
+  fit: boolean,
+  /** Callouts keep CALLOUT_GAP clear of country names where they can (see placeLayout). */
+  gaps: boolean,
+  /** Names placed before the rest, in this order (country ids, and "capital" for the capital's name; see placeLayout). */
+  first: readonly string[] = [],
+  /** Long names in callouts go on two lines (see CALLOUT_WRAP_SHARE): in a layout tried again for a country's name. */
+  wrap = false,
 ): OverlayLayout {
+  const { map, active, view, route: routeWorld, small, transform, viewport, textMode, obstacles, insetArea, l, name } = input;
   const showText = textMode === "all" || textMode === "noCallouts";
   const toScreen = (p: Point) => applyTransform(transform, p);
   const toWorld = ([x, y]: Point): Point => [(x - transform.x) / transform.k, (y - transform.y) / transform.k];
   const shapeById = (id: CountryId) => map.shapes.find((s) => s.id === id) as CountryShape;
+  const [[vx0, vy0], [vx1, vy1]] = [toWorld([0, 0]), toWorld([viewport.width, viewport.height])];
+  const shapesInView = map.shapes.filter(({ bounds: [[x0, y0], [x1, y1]] }) => x0 <= vx1 && x1 >= vx0 && y0 <= vy1 && y1 >= vy0);
+  /** Whether a projected point lies on a country other than `id` (a lesson country or a faded neighbour), rather than the sea. */
+  const onOtherLand = (id: CountryId, p: Point) =>
+    shapesInView.some((s) => s.id !== id && insideShape(s, p));
   /** Whether the screen point lies on a dark (teal) country, where text is white. */
   const onDark = (p: Point) =>
     Object.entries(view.tones).some(([id, tone]) => tone !== undefined && DARK_TONES.has(tone) && insideShape(shapeById(id as CountryId), toWorld(p)));
@@ -1471,12 +1640,15 @@ function placeOverlay(
 
   const taken: Box[] = [];
   const compact = viewport.width < COMPACT_MAP_WIDTH;
-  const labelFont = textMode === "callouts" ? INSET_LABEL_FONT_PX : compact ? COMPACT_LABEL_FONT_PX : LABEL_FONT_PX;
+  // Country names on the narrowest maps (see NARROW_SCALE); the inset's callouts keep their own sizes.
+  const narrow = textMode !== "callouts" && viewport.width < NARROW_MAP_WIDTH ? NARROW_SCALE : 1;
+  const labelFont = textMode === "callouts" ? INSET_LABEL_FONT_PX : (compact ? COMPACT_LABEL_FONT_PX : LABEL_FONT_PX) * narrow;
   const markerFont = compact ? COMPACT_MARKER_FONT_PX : MARKER_FONT_PX;
-  const calloutHeight = textMode === "callouts" ? INSET_CALLOUT_HEIGHT : compact ? COMPACT_CALLOUT_HEIGHT : CALLOUT_HEIGHT;
+  const calloutHeight = textMode === "callouts" ? INSET_CALLOUT_HEIGHT : (compact ? COMPACT_CALLOUT_HEIGHT : CALLOUT_HEIGHT) * narrow;
   // Half the height of a name's box: the glyphs plus room for Armenian's taller ascenders and descenders.
   const labelHalf = labelFont / 2 + 4;
-  const badge = textMode === "callouts" ? INSET_BADGE : compact ? COMPACT_BADGE : BADGE;
+  const badgeSize = textMode === "callouts" ? INSET_BADGE : compact ? COMPACT_BADGE : BADGE;
+  const badge = { r: badgeSize.r * narrow, gap: badgeSize.gap * narrow };
   // +1: the badge's white outline reaches just past its circle.
   const badgeExtra = badge.gap + 2 * badge.r + 1;
 
@@ -1498,6 +1670,9 @@ function placeOverlay(
         dx: 0,
         dy: 0,
         pinAnchored: false,
+        fits: false,
+        overhang: false,
+        lines: null,
       };
     });
   /** Name plus its explored badge: collisions always include the badge. */
@@ -1509,24 +1684,58 @@ function placeOverlay(
     return { x0: ax + dx - w / 2, y0: ay + dy - labelHalf, x1: ax + dx + w / 2, y1: ay + dy + labelHalf };
   };
   /**
+   * Whether the name at this offset reads as its country's: points along its middle, from end to end
+   * (FIT_INSET in from each), lie on the country or the sea, and its middle on the country. A name running
+   * onto a neighbour reads as the neighbour's (Bosnia and Herzegovina's, over Croatia and Serbia, on a
+   * phone); one running onto the sea beside its country (Italy's, across the boot) doesn't. The explored
+   * badge after it may reach past the border (Germany's, onto Poland, on a 320px map): it reads as the name's.
+   */
+  let fitKnown = fitMemo.get(input);
+  if (!fitKnown) fitMemo.set(input, (fitKnown = new Map()));
+  const fitsInside = (label: Label, dx: number, dy: number) => {
+    const w = label.textWidth;
+    // The name starts where its box does, and the badge follows it (see labelBox and Overlay).
+    const [x0, cy] = [label.anchor[0] + dx - fullWidth(label) / 2, label.anchor[1] + dy];
+    const key = `${label.id} ${x0.toFixed(2)} ${cy.toFixed(2)}`;
+    let fits = fitKnown.get(key);
+    if (fits === undefined) {
+      const shape = shapeById(label.id);
+      fits = insideShape(shape, toWorld([x0 + w / 2, cy])) && FIT_ORDER.every((i) => {
+        const p = toWorld([x0 + FIT_INSET + ((w - 2 * FIT_INSET) * i) / (FIT_SAMPLES - 1), cy]);
+        return insideShape(shape, p) || !onOtherLand(label.id, p);
+      });
+      fitKnown.set(key, fits);
+    }
+    return fits;
+  };
+  /**
    * Nearest position for a country name that satisfies `ok`, trying small moves
    * first. Moved names stay inside their own country, so a name never drifts
-   * onto a neighbour. With `wide`, when nothing near the label point fits (it
-   * may be hidden under the close-up or the controls, or panned off screen), the
-   * whole visible part of the country is searched, nearest to the label point
-   * first. Null when nothing fits.
+   * onto a neighbour: with `whole`, the whole name (see fitsInside); otherwise
+   * only its middle, and none at all at the label point. With `wide`, when
+   * nothing near the label point fits (it may be hidden under the close-up or
+   * the controls, or panned off screen), the whole visible part of the country
+   * is searched, nearest to the label point first. Null when nothing fits.
    */
-  const labelSpot = (label: Label, ok: (b: Box) => boolean, wide = false): Point | null => {
+  const offsetsByWidth = new Map<number, Point[]>();
+  const labelSpot = (label: Label, ok: (b: Box) => boolean, wide = false, whole = true): Point | null => {
     const w = fullWidth(label);
     const step = labelHalf * 2;
     const shape = shapeById(label.id);
     const [ax, ay] = label.anchor;
-    const offsets: Point[] = [];
-    // Quarter-width and half-height steps, up to one width sideways and four heights up or down.
-    for (let i = -8; i <= 8; i++) for (let j = -4; j <= 4; j++) offsets.push([(j * w) / 4, (i * step) / 2]);
-    offsets.sort((a, b) => Math.hypot(a[0], a[1] * 1.5) - Math.hypot(b[0], b[1] * 1.5));
+    // Quarter-width and half-height steps, up to one width sideways and four heights up or down: the same
+    // for every search for this name, so made once (callouts search for many names many times).
+    let offsets = offsetsByWidth.get(w);
+    if (!offsets) {
+      offsets = [];
+      for (let i = -8; i <= 8; i++) for (let j = -4; j <= 4; j++) offsets.push([(j * w) / 4, (i * step) / 2]);
+      offsets.sort((a, b) => Math.hypot(a[0], a[1] * 1.5) - Math.hypot(b[0], b[1] * 1.5));
+      offsetsByWidth.set(w, offsets);
+    }
     const near = offsets.find(
-      ([dx, dy]) => ok(labelBox(label, dx, dy)) && ((dx === 0 && dy === 0) || insideShape(shape, toWorld([ax + dx, ay + dy]))),
+      ([dx, dy]) =>
+        ok(labelBox(label, dx, dy)) &&
+        (whole ? fitsInside(label, dx, dy) : (dx === 0 && dy === 0) || insideShape(shape, toWorld([ax + dx, ay + dy]))),
     );
     if (near || !wide) return near ?? null;
     // The visible part of the country, on a grid of half-line steps. The whole
@@ -1540,8 +1749,20 @@ function placeOverlay(
     for (let x = x0; x <= x1; x += step / 2) for (let y = y0; y <= y1; y += step / 2) spots.push([x - ax, y - ay]);
     spots.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
     const inside = ([dx, dy]: Point) =>
-      [-w / 2 + 2, 0, w / 2 - 2].every((ex) => insideShape(shape, toWorld([ax + dx + ex, ay + dy])));
+      whole ? fitsInside(label, dx, dy) : [-w / 2 + 2, 0, w / 2 - 2].every((ex) => insideShape(shape, toWorld([ax + dx + ex, ay + dy])));
     return spots.find((d) => ok(labelBox(label, d[0], d[1])) && inside(d)) ?? null;
+  };
+
+  /**
+   * Where a country name moves to make way for a callout or a capital's name: inside its country, if it
+   * lay there; otherwise, or failing that, over it, as names always could (see labelSpot).
+   */
+  const asideSpot = (label: Label, ok: (b: Box) => boolean) => (label.fits ? labelSpot(label, ok) : null) ?? labelSpot(label, ok, false, false);
+  /** Moves a country name by (dx, dy); it still lies inside its country only if the new spot does. */
+  const moveName = (label: Label, dx: number, dy: number): Box => {
+    label.fits = label.fits && fitsInside(label, dx, dy);
+    [label.dx, label.dy] = [dx, dy];
+    return (label.box = labelBox(label, dx, dy));
   };
 
   // Country names sit at their label point. One that would be hidden by the map
@@ -1575,9 +1796,19 @@ function placeOverlay(
   };
   for (const label of [...labels].sort((a, b) => screenArea(a.id) - screenArea(b.id))) {
     if (!label.inline) continue;
-    const spot = labelSpot(label, (b) => onScreen(b) && ![...labelAvoid, ...taken].some((o) => overlaps(b, o)), true);
+    const avoid = [...labelAvoid, ...taken];
+    const clearSpot = (b: Box) => onScreen(b) && !avoid.some((o) => overlaps(b, o));
     const [ax, ay] = label.anchor;
-    if (!spot && ax >= 0 && ay >= 0 && ax <= viewport.width && ay <= viewport.height) {
+    const inView = ax >= 0 && ay >= 0 && ax <= viewport.width && ay <= viewport.height;
+    // Near its label point while that is in view: a name too long for its country there moves to a
+    // callout rather than across the country.
+    const whole = fit ? labelSpot(label, clearSpot, !inView) : null;
+    const spot = whole ?? labelSpot(label, clearSpot, true, false);
+    label.fits = whole !== null;
+    // Too long to lie inside its country (Bosnia and Herzegovina on a phone): for now the spot over it
+    // that it always took, until it can move to a nearby callout (see Label.overhang).
+    label.overhang = fit && !whole && spot !== null && inView;
+    if (!spot && inView) {
       // No room inside its own country (e.g. Belgium, next to Brussels, on a
       // 320px map): the name goes in a callout beside it, like Luxembourg's.
       label.inline = false;
@@ -1595,6 +1826,17 @@ function placeOverlay(
     taken.push(label.box);
   }
 
+  // A larger country whose name found no room inside it also needs a callout: other callouts keep clear of its
+  // dot as of a small country's, so their leaders don't run across it (Belgium's, across the selected
+  // Netherlands' on a 320px map).
+  for (const label of labels) {
+    const [ax, ay] = label.anchor;
+    if (label.inline || small.has(label.id) || ax < 0 || ay < 0 || ax > viewport.width || ay > viewport.height) continue;
+    const zone = { x0: ax - 12, y0: ay - 12, x1: ax + 12, y1: ay + 12 };
+    leaderZones.push(zone);
+    leaderZoneOf.set(zone, label);
+  }
+
   // Callouts: country names that need one (small countries, or names with no
   // room inside their country). They go before capital and landmark names, which
   // then fit around them. Markers (capitals, landmarks, the traveller) and the
@@ -1605,12 +1847,14 @@ function placeOverlay(
   const leaders: [Point, Point][] = [];
   const crowded: CountryId[] = [];
   let fellBack = false;
-  // Smallest countries first, as for inline names: Luxembourg has fewest options.
-  for (const label of [...labels].sort((a, b) => screenArea(a.id) - screenArea(b.id))) {
-    if (label.inline) continue;
+  /** The selected country (or the traveller's): its name is drawn white, readable only on its own country. */
+  const white = (label: Label) => DARK_TONES.has(view.tones[label.id] ?? "default");
+  /** Until the capital's name is placed, callouts prefer to leave it a free side (see placeCallout). */
+  let capitalPending = markerTexts.some((m) => m.key.startsWith("capital-") && visible(m.at));
+  const placeCallout = (label: Label) => {
     // A callout for a country panned out of view, or whose dot is hidden under
     // the close-up or the map controls, would point at nothing.
-    if (!visible(label.anchor) || obstacles.some((o) => inBox(label.anchor, o))) continue;
+    if (!visible(label.anchor) || obstacles.some((o) => inBox(label.anchor, o))) return;
     // The traveller's pin would cover this callout's dot (Luxembourg while the
     // traveller is there): the leader starts at the pin's tip, at the real capital.
     const pin = markers.find((m) => m.kind === "current" && m.country === label.id);
@@ -1623,7 +1867,23 @@ function placeOverlay(
     }
     const [[x0, y0], [x1, y1]] = shapeById(label.id).bounds;
     const reach = (Math.max(x1 - x0, y1 - y0) * transform.k) / 2;
-    const width = fullWidth(label) + 2 * (textMode === "callouts" ? INSET_CALLOUT_PAD_X : CALLOUT_PAD_X);
+    const pad = textMode === "callouts" ? INSET_CALLOUT_PAD_X : CALLOUT_PAD_X * narrow;
+    // In a layout tried again because the first left a country's name out (see placeLayout), a long name with a
+    // space in it, in a callout wider than CALLOUT_WRAP_SHARE of the main map, goes on two lines: the break where the
+    // longer line (the second, with the badge after it) is shortest. Not the selected country's (white, see
+    // placeCallout's order): it is placed first, and takes the widest room on one line.
+    let lines: [string, string] | null = null;
+    let width = fullWidth(label) + 2 * pad;
+    const words = label.text.split(" ");
+    if (wrap && textMode !== "callouts" && !white(label) && words.length > 1 && width > viewport.width * CALLOUT_WRAP_SHARE) {
+      const extra = label.explored ? badgeExtra : 0;
+      for (let i = 1; i < words.length; i++) {
+        const split: [string, string] = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
+        const w = Math.max(textWidth(split[0], labelFont), textWidth(split[1], labelFont) + extra) + 2 * pad;
+        if (w < width) [lines, width] = [split, w];
+      }
+    }
+    const h = lines ? calloutHeight + Math.round(labelFont * CALLOUT_LINE_STEP) : calloutHeight;
     // In the inset the country is large, and its name must not hide it.
     const own: Box[] = [];
     if (textMode === "callouts") {
@@ -1646,119 +1906,238 @@ function placeOverlay(
         }
       return over / 15;
     };
-    const [ax0, ay0] = label.anchor;
-    const otherDots = leaderZones.filter((z) => !(ax0 >= z.x0 && ax0 <= z.x1 && ay0 >= z.y0 && ay0 <= z.y1));
     const placed = labels.flatMap((o) => (o.callout ? [o.callout] : []));
-    const { ranked: candidates, between, edge } = calloutCandidates(label.anchor, reach, width, calloutHeight, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed);
-    // Nowhere clear of the map controls and the close-up: no callout.
-    if (candidates.length === 0) {
-      crowded.push(label.id);
-      continue;
-    }
-    const leaderOf = (b: Box) => Math.hypot(...(nearestOn(b, label.anchor).map((v, i) => v - label.anchor[i]) as [number, number]));
-    const isNear = (b: Box) => leaderOf(b) <= reach + NEAR_BEYOND;
-    const near = candidates.filter(isNear);
-    const far = candidates.filter((b) => !isNear(b));
-    // A dot right beside a marker (Estonia's, 2px from Tallinn's on a 320px map): a
-    // level leader would cross the marker. When no usual nearby position leaves every
-    // name clear, the nearby positions between them (a leader at 30° or 45°, west or
-    // east) then come before the distant ones, if every capital and landmark name
-    // still has a free side beside its marker. Layouts that found a usual nearby
-    // position are unchanged, and so are small countries' names (Luxembourg's), whose
-    // fallback is the close-up.
-    const [dotX, dotY] = label.anchor;
-    const besideMarker = markerPoints.some((b) => Math.hypot(Math.max(b.x0 - dotX, 0, dotX - b.x1), Math.max(b.y0 - dotY, 0, dotY - b.y1)) <= labelHalf);
-    const nearBetween = new Set(besideMarker && !small.has(label.id) ? between().filter(isNear) : []);
-    let best: { callout: Box; moves: Map<Label, Point>; left: number; near: boolean } | null = null;
-    // Country names a callout position covers, or that its leader line (with those already drawn) crosses,
-    // each moved to the nearest free spot inside its own country; `left` counts those that can't move.
-    const assess = (callout: Box) => {
-      const lines = [...leaders, [label.anchor, nearestOn(callout, label.anchor)] as [Point, Point]];
-      const crossed = (b: Box) => lines.some(([a, e]) => segmentHits(a, e, b));
-      const boxes = new Map(labels.filter((o) => o.box).map((o) => [o, o.box as Box]));
-      const moves = new Map<Label, Point>();
-      let left = 0;
-      for (const [other, box] of boxes) {
-        if (!(overlaps(box, callout) || crossed(box))) continue;
-        const others = [...hard, callout, ...[...boxes].filter(([o]) => o !== other).map(([, b]) => b)];
-        const spot = labelSpot(other, (b) => onScreen(b) && !crossed(b) && !others.some((o) => overlaps(b, o)));
-        if (spot) {
-          moves.set(other, spot);
-          boxes.set(other, labelBox(other, spot[0], spot[1]));
-        } else left++;
+    // Whether the capital's name still has a free side as things are: if not, no callout position can leave it
+    // one, and it plays no part in choosing (Riga's, on a 320px map in Armenian).
+    const capitalOpen =
+      capitalPending &&
+      markerTexts.some((m) => {
+        if (!m.key.startsWith("capital-")) return false;
+        const w = textWidth(m.text, markerFont, MARKER_WEIGHT);
+        const blocked = [...taken, ...placed, ...obstacles, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label)];
+        return markerNameSides(m.at[0], m.at[1], m.below).some((side) => {
+          const b = markerNameBox(side, w, markerFont);
+          return b.x0 >= 0 && b.x1 <= viewport.width && b.y0 >= 0 && b.y1 <= viewport.height && !crossesLeader(b) && !blocked.some((o) => overlaps(b, o));
+        });
+      });
+    type Choice = { callout: Box; moves: Map<Label, Point>; left: number; near: boolean; evicted: Label[]; cost: number; anchor: Point; fellBack: boolean };
+    // The best callout for a leader from `anchor`, the country's dot.
+    const bestAt = (anchor: Point): Choice | null => {
+      const [ax0, ay0] = anchor;
+      const otherDots = leaderZones.filter((z) => leaderZoneOf.get(z) !== label && !(ax0 >= z.x0 && ax0 <= z.x1 && ay0 >= z.y0 && ay0 <= z.y1));
+      // A larger country's callout (a name too long for it) starts beside its dot, over the country itself, rather
+      // than past its far edge: a leader as short as the room around the dot allows (Serbia's, on a phone).
+      const { ranked, between, edge, lastResort } = calloutCandidates(anchor, small.has(label.id) ? reach : 0, width, h, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed, leaders);
+      // A name too long for its country never takes a last-resort position (over a marker, or crossing a leader).
+      const candidates = label.overhang && lastResort ? [] : ranked;
+      // Nowhere clear of the map controls and the close-up: no callout.
+      if (candidates.length === 0) return null;
+      const leaderOf = (b: Box) => Math.hypot(...(nearestOn(b, anchor).map((v, i) => v - anchor[i]) as [number, number]));
+      const isNear = (b: Box) => leaderOf(b) <= reach + NEAR_BEYOND;
+      // A name too long for its country moves to a callout only if its leader crosses no other.
+      const crossesLeaders = (b: Box) => leaders.some(([a, e]) => segmentsCross(anchor, nearestOn(b, anchor), a, e));
+      // A leader that crosses just one other, at CLEAR_CROSSING_ANGLE or more and CLEAR_CROSSING_GAP or more from
+      // either end of both (their dots and callouts), so each still reads as its own country's.
+      const crossesClearly = (b: Box) => {
+        const end = nearestOn(b, anchor);
+        const crossed = leaders.filter(([a, e]) => segmentsCross(anchor, end, a, e));
+        if (crossed.length !== 1) return false;
+        const [[cx, cy], [ex, ey]] = crossed[0];
+        const [ux, uy, vx, vy] = [end[0] - anchor[0], end[1] - anchor[1], ex - cx, ey - cy];
+        const den = ux * vy - uy * vx;
+        const t = ((cx - anchor[0]) * vy - (cy - anchor[1]) * vx) / den;
+        const at: Point = [anchor[0] + ux * t, anchor[1] + uy * t];
+        const angle = Math.asin(Math.min(1, Math.abs(den) / (Math.hypot(ux, uy) * Math.hypot(vx, vy))));
+        return angle >= CLEAR_CROSSING_ANGLE && [anchor, end, [cx, cy], [ex, ey]].every(([px, py]) => Math.hypot(at[0] - px, at[1] - py) >= CLEAR_CROSSING_GAP);
+      };
+      const near = candidates.filter(isNear);
+      const far = candidates.filter((b) => !isNear(b));
+      // A dot right beside a marker (Estonia's, 2px from Tallinn's on a 320px map): a
+      // level leader would cross the marker. When no usual nearby position leaves every
+      // name clear, the nearby positions between them (a leader at 30° or 45°, west or
+      // east) then come before the distant ones, if every capital and landmark name
+      // still has a free side beside its marker. Layouts that found a usual nearby
+      // position are unchanged, and so are small countries' names (Luxembourg's), whose
+      // fallback is the close-up.
+      const [dotX, dotY] = anchor;
+      const besideMarker = markerPoints.some((b) => Math.hypot(Math.max(b.x0 - dotX, 0, dotX - b.x1), Math.max(b.y0 - dotY, 0, dotY - b.y1)) <= labelHalf);
+      const nearBetween = new Set(besideMarker && !small.has(label.id) ? between().filter(isNear) : []);
+      // Country names a callout position covers or comes within `gap` of, or that its leader line (with those
+      // already drawn) crosses, each moved to the nearest free spot inside its own country; `left` counts those
+      // that can't move. A name too long for its country that can't move aside (see Label.overhang) is `evicted`
+      // instead: it gives up its spot, and moves to a callout of its own in its turn (see toCallout), rather than
+      // hold a spot that two others' callouts need (Slovenia's, on a 320px map, above Croatia and the selected
+      // Bosnia and Herzegovina). Never the selected country's, drawn first.
+      const assess = (callout: Box, gap = gaps ? CALLOUT_GAP : 0) => {
+        const lines = [...leaders, [anchor, nearestOn(callout, anchor)] as [Point, Point]];
+        const crossed = (b: Box) => lines.some(([a, e]) => segmentHits(a, e, b));
+        const boxes = new Map(labels.filter((o) => o.box).map((o) => [o, o.box as Box]));
+        const moves = new Map<Label, Point>();
+        const evicted: Label[] = [];
+        const room = grow(callout, gap);
+        let left = 0;
+        for (const [other, box] of boxes) {
+          if (!(overlaps(box, room) || crossed(box))) continue;
+          const others = [...hard, room, ...[...boxes].filter(([o]) => o !== other).map(([, b]) => b)];
+          const spot = asideSpot(other, (b) => onScreen(b) && !others.some((o) => overlaps(b, o)) && !crossed(b));
+          if (spot) {
+            moves.set(other, spot);
+            boxes.set(other, labelBox(other, spot[0], spot[1]));
+          } else if (other.overhang && !white(other)) {
+            evicted.push(other);
+            boxes.delete(other);
+          } else left++;
+        }
+        return { crossed, boxes, moves, left, evicted };
+      };
+      const choose = (gap: number) => {
+        let found: Choice | null = null;
+        // Once a position leaves every name clear, a few more are tried for a better one, and no more than
+        // CALLOUT_ASSESSED in all (each moves names aside in turn, the costliest step): placing stays quick on
+        // crowded maps, where every position may leave a name in the way.
+        let tries = CALLOUT_RETRIES;
+        let assessed = CALLOUT_ASSESSED;
+        for (const callout of [...near, ...nearBetween, ...far]) {
+          const crossing = crossesLeaders(callout);
+          // A leader crosses another only as a last resort: in a layout tried again for a name the first left out
+          // (see placeLayout), and only clearly (see crossesClearly). The first layout crosses none.
+          if (crossing && ((first.length === 0 && !wrap) || !crossesClearly(callout))) continue;
+          const close = isNear(callout);
+          if (found && (crossing ? 11 : 0) + (close ? 0 : 2) >= found.cost) continue;
+          if ((found && found.left === 0 && tries-- === 0) || assessed-- === 0) break;
+          const { crossed, boxes, moves, left, evicted } = assess(callout, gap);
+          // Whether a capital's or landmark's name still has a free side beside its marker.
+          const roomFor = (m: MarkerText) => {
+            const [ax, ay] = anchor;
+            const dot = { x0: ax - 5, y0: ay - 5, x1: ax + 5, y1: ay + 5 };
+            const blocked = [...boxes.values(), ...placed, callout, dot, ...obstacles, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label)];
+            const w = textWidth(m.text, markerFont, MARKER_WEIGHT);
+            return markerNameSides(m.at[0], m.at[1], m.below).some((side) => {
+              const b = markerNameBox(side, w, markerFont);
+              return b.x0 >= 0 && b.x1 <= viewport.width && b.y0 >= 0 && b.y1 <= viewport.height && !crossed(b) && !blocked.some((o) => overlaps(b, o));
+            });
+          };
+          if (nearBetween.has(callout) && (left > 0 || !markerTexts.every(roomFor))) continue;
+          // The selected country's callout, placed before its capital's name (see toCallout), leaves it room.
+          const capitalRoom = () => markerTexts.every((m) => !m.key.startsWith("capital-") || roomFor(m));
+          if (label.overhang && white(label) && !capitalRoom()) continue;
+          // Best first: fewest names left in the way; then a leader crossing no other (Belgium's and the
+          // Netherlands', on a 320px map); then leaving the capital's name (placed next) a free side beside its
+          // marker (Tallinn's, beside Estonia's and Latvia's callouts on a 320px map); then near; then moving no
+          // other name to a callout.
+          const cost = left * 32 + (crossing ? 11 : 0) + (close ? 0 : 2) + (evicted.length > 0 ? 1 : 0);
+          if (found && cost >= found.cost) continue;
+          const full = cost + (capitalOpen && !capitalRoom() ? 7 : 0);
+          if (!found || full < found.cost) found = { callout, moves, left, near: close, evicted, cost: full, anchor, fellBack: false };
+          if (full === 0) break;
+        }
+        return found;
+      };
+      let best = choose(gaps ? CALLOUT_GAP : 0);
+      // Right up against a country name only where there is no other clear, nearby position (Luxembourg's, on a
+      // 320px map, beside France's or Germany's name).
+      if (gaps && (!best || best.cost >= 2)) {
+        const tight = choose(0);
+        if (tight && (!best || tight.cost < best.cost)) best = tight;
       }
-      return { crossed, boxes, moves, left };
+      // A country at the map's edge whose chosen callout reads as a neighbour's: its leader ends on another of
+      // the level's countries (Portugal at the left edge of a phone's map, its name over Spain, while the sea
+      // below it runs past the map's bottom edge). A position slid back into the view instead, if it is as near
+      // (its leader no longer), its leader ends off the level's other countries, it lies less over them (and
+      // mostly off them), and it leaves every name clear. Every other callout keeps its position.
+      const endsOnNeighbour = (b: Box) => others.some((sh) => insideShape(sh, toWorld(nearestOn(b, anchor))));
+      if (edgeFallback && best && best.left === 0 && endsOnNeighbour(best.callout)) {
+        const over = depth(best.callout);
+        const longest = leaderOf(best.callout) + 1;
+        for (const callout of edge().filter((b) => leaderOf(b) <= longest && !endsOnNeighbour(b) && depth(b) < Math.min(0.5, over) && !(label.overhang && crossesLeaders(b)))) {
+          const { moves, left, evicted } = assess(callout);
+          if (left > 0 || evicted.length > 0) continue;
+          best = { callout, moves, left, near: true, evicted, cost: 0, anchor, fellBack: true };
+          break;
+        }
+      }
+      // A name over its country keeps its spot there rather than take a distant callout (a long leader reads
+      // as pointing at whatever it crosses).
+      if (label.overhang && best && (!best.near || best.left > 0)) return null;
+      if (best && lastResort) best.cost += 3;
+      return best;
     };
-    for (const callout of [...near, ...nearBetween, ...far]) {
-      const { crossed, boxes, moves, left } = assess(callout);
-      if (nearBetween.has(callout)) {
-        if (left > 0) continue;
-        const blocked = [...boxes.values(), ...placed, callout, ...obstacles, ...leaderZones];
-        const roomFor = (m: MarkerText) => {
-          const w = textWidth(m.text, markerFont, MARKER_WEIGHT);
-          return markerNameSides(m.at[0], m.at[1], m.below).some((side) => {
-            const b = markerNameBox(side, w, markerFont);
-            return b.x0 >= 0 && b.x1 <= viewport.width && b.y0 >= 0 && b.y1 <= viewport.height && !crossed(b) && !blocked.some((o) => overlaps(b, o));
-          });
-        };
-        if (!markerTexts.every(roomFor)) continue;
-      }
-      if (!best || left < best.left) best = { callout, moves, left, near: isNear(callout) };
-      if (left === 0) break;
-    }
-    // A country at the map's edge whose chosen callout reads as a neighbour's: its leader ends on another of
-    // the level's countries (Portugal at the left edge of a phone's map, its name over Spain, while the sea
-    // below it runs past the map's bottom edge). A position slid back into the view instead, if it is as near
-    // (its leader no longer), its leader ends off the level's other countries, it lies less over them (and
-    // mostly off them), and it leaves every name clear. Every other callout keeps its position.
-    const endsOnNeighbour = (b: Box) => others.some((sh) => insideShape(sh, toWorld(nearestOn(b, label.anchor))));
-    if (edgeFallback && best && best.left === 0 && endsOnNeighbour(best.callout)) {
-      const over = depth(best.callout);
-      const longest = leaderOf(best.callout) + 1;
-      for (const callout of edge().filter((b) => leaderOf(b) <= longest && !endsOnNeighbour(b) && depth(b) < Math.min(0.5, over))) {
-        const { moves, left } = assess(callout);
-        if (left > 0) continue;
-        best = { callout, moves, left, near: true };
-        fellBack = true;
-        break;
+    // A larger country's dot is its label point, or, when no position from there is clear, nearby, leaves the
+    // capital's name room and moves no other name to a callout, the nearest point of the country from which
+    // one is: up to 28 px away, clear of every name, callout, marker and leader (Croatia's, in Dalmatia rather
+    // than beside Sarajevo's name, and Latvia's, west of Lithuania's, on a 320px map in Armenian).
+    // A label point under another callout or a capital's name is no place for a dot (Bosnia and Herzegovina's,
+    // under Montenegro's callout on a 320px map in Armenian): its leader would start beneath it.
+    const covered = [...placed, ...markerTextBoxes].some((b) => inBox(label.anchor, b));
+    let best = covered ? null : bestAt(label.anchor);
+    if ((!best || best.cost > 0) && !small.has(label.id) && !label.pinAnchored) {
+      const shape = shapeById(label.id);
+      const [ax, ay] = label.anchor;
+      const busy = [...taken, ...placed, ...markerTextBoxes, ...markerPoints, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label), ...obstacles];
+      let dots = DOT_TRIES;
+      for (const [dx, dy] of DOT_MOVES) {
+        const dot: Point = [ax + dx, ay + dy];
+        const zone = { x0: dot[0] - 5, y0: dot[1] - 5, x1: dot[0] + 5, y1: dot[1] + 5 };
+        if (!visible(dot) || busy.some((b) => overlaps(zone, b)) || crossesLeader(zone) || !insideShape(shape, toWorld(dot))) continue;
+        if (dots-- === 0) break;
+        const there = bestAt(dot);
+        if (there && (!best || there.cost < best.cost)) best = there;
+        if (best?.cost === 0) break;
       }
     }
-    if (!best) continue;
+    if (!best) {
+      if (!label.overhang) crowded.push(label.id);
+      return;
+    }
+    if (best.fellBack) fellBack = true;
+    label.anchor = best.anchor;
     if (!best.near || best.left > 0) crowded.push(label.id);
     // No clear position anywhere (e.g. the close-up closed on a crowded 320px map):
     // leave the name out rather than print it over another. Opening the close-up
     // or zooming in brings it back.
-    if (best.left > 0) continue;
+    if (best.left > 0) return;
     label.callout = best.callout;
+    label.lines = lines;
     hard.push(best.callout);
     leaders.push([label.anchor, nearestOn(best.callout, label.anchor)]);
     for (const [other, [dx, dy]] of best.moves) {
       const old = other.box as Box;
-      [other.dx, other.dy] = [dx, dy];
-      other.box = labelBox(other, dx, dy);
+      const box = moveName(other, dx, dy);
       // Capital and landmark names, placed next, keep clear of the name where it is now.
       const at = taken.indexOf(old);
-      if (at >= 0) taken.splice(at, 1, other.box);
-      else taken.push(other.box);
+      if (at >= 0) taken.splice(at, 1, box);
+      else taken.push(box);
     }
-  }
+    for (const other of best.evicted) {
+      taken.splice(taken.indexOf(other.box as Box), 1);
+      [other.inline, other.box] = [false, null];
+    }
+  };
 
   // Marker names go beside their marker (preferred side first), on the first side
   // that stays on screen and clear of country names, callouts, leader lines and
   // other marker names.
   const markerTextBoxes: Box[] = [];
-  const callouts = labels.flatMap((o) => (o.callout ? [o.callout] : []));
   const crossesLeader = (b: Box) => leaders.some(([a, e]) => segmentHits(a, e, b));
   // Room kept around small countries' leader dots. Once a callout is placed its leader is drawn and
   // checked as a line (crossesLeader), so only its dot is kept clear: a capital beside the dot
-  // (Andorra la Vella, beside Andorra's) can then name itself right beside its marker.
-  const dotZones = leaderZones.map((zone) => {
-    const label = leaderZoneOf.get(zone) as Label;
-    if (!label.callout) return zone;
-    const [ax, ay] = label.anchor;
-    return { x0: ax - 5, y0: ay - 5, x1: ax + 5, y1: ay + 5 };
-  });
-  for (const m of markerTexts) {
+  // (Andorra la Vella, beside Andorra's) can then name itself right beside its marker. Larger countries'
+  // callouts (names too long for their country) keep their dots clear too.
+  const dotZones = () => [
+    ...leaderZones.map((zone) => {
+      const label = leaderZoneOf.get(zone) as Label;
+      if (!label.callout) return zone;
+      const [ax, ay] = label.anchor;
+      return { x0: ax - 5, y0: ay - 5, x1: ax + 5, y1: ay + 5 };
+    }),
+    ...labels.flatMap(({ callout, anchor: [ax, ay], id }) => (callout && !small.has(id) ? [{ x0: ax - 5, y0: ay - 5, x1: ax + 5, y1: ay + 5 }] : [])),
+  ];
+  // A capital's or landmark's name keeps `gap` clear of other names, so two never read as one ("Mostar
+  // Bridge" running into "Montenegro" in Armenian on a phone).
+  const placeMarkerText = (m: MarkerText, gap: number) => {
+    const spaced = (b: Box) => grow(b, gap);
+    const callouts = labels.flatMap((o) => (o.callout ? [o.callout] : []));
+    const dots = dotZones();
     const [x, y] = m.at;
     const w = textWidth(m.text, markerFont, MARKER_WEIGHT);
     const sides = markerNameSides(x, y, m.below);
@@ -1771,9 +2150,17 @@ function placeOverlay(
     const away = (c: [number, number, TextAnchor]) => near !== undefined && (c[2] === "start") === near.x < x;
     const boxOf = (side: [number, number, TextAnchor]) => markerNameBox(side, w, markerFont);
     const fits = (b: Box) => b.x0 >= 0 && b.x1 <= viewport.width && b.y0 >= 0 && b.y1 <= viewport.height;
-    // Marker names also keep clear of small countries' leader dots (see above).
+    // Marker names also keep clear of small countries' leader dots (see above), and never cover another marker
+    // (Chapel Bridge's name, over Bern's, on desktop).
+    const otherMarkers = markers.filter((o) => Math.hypot(o.x - x, o.y - y) > 1).map((o) => {
+      const e = markerExtent(o.kind);
+      return { x0: o.x + e.x0, y0: o.y + e.y0, x1: o.x + e.x1, y1: o.y + e.y1 };
+    });
     const free = (b: Box) =>
-      fits(b) && !crossesLeader(b) && ![...taken, ...callouts, ...markerTextBoxes, ...obstacles, ...dotZones].some((o) => overlaps(b, o));
+      fits(b) &&
+      !crossesLeader(b) &&
+      ![...taken, ...callouts, ...markerTextBoxes].some((o) => overlaps(spaced(b), o)) &&
+      ![...obstacles, ...dots, ...otherMarkers].some((o) => overlaps(b, o));
     // The sides are tried in groups: the four right beside the marker, then the ones a little further
     // out, then centred above or below it (with a marker close beside, the sides facing away from it,
     // then the rest). In each group, a free side, or else one whose covered country names can all move
@@ -1799,43 +2186,121 @@ function placeOverlay(
     const makeRoom = (group: [number, number, TextAnchor][]) => {
       for (const c of group) {
         const b = boxOf(c);
-        if (!ownSide(c) || !fits(b) || crossesLeader(b) || [...callouts, ...markerTextBoxes, ...obstacles, ...dotZones].some((o) => overlaps(b, o))) continue;
+        if (
+          !ownSide(c) ||
+          !fits(b) ||
+          crossesLeader(b) ||
+          [...callouts, ...markerTextBoxes].some((o) => overlaps(spaced(b), o)) ||
+          [...obstacles, ...dots, ...otherMarkers].some((o) => overlaps(b, o))
+        )
+          continue;
         const moves = new Map<Label, Point>();
         const placed = (o: Label) => (moves.has(o) ? labelBox(o, ...(moves.get(o) as Point)) : (o.box as Box));
         const movable = labels.every((label) => {
-          if (!label.box || !overlaps(label.box, b)) return true;
-          const others = [...labelAvoid.filter((o) => !leaderZones.includes(o)), ...dotZones, ...callouts, ...markerTextBoxes, b, ...labels.filter((o) => o !== label && o.box).map(placed)];
-          const spot = labelSpot(label, (lb) => onScreen(lb) && !crossesLeader(lb) && !others.some((o) => overlaps(lb, o)));
+          if (!label.box || !overlaps(label.box, spaced(b))) return true;
+          const others = [...labelAvoid.filter((o) => !leaderZones.includes(o)), ...dots, ...callouts, ...markerTextBoxes, spaced(b), ...labels.filter((o) => o !== label && o.box).map(placed)];
+          const spot = asideSpot(label, (lb) => onScreen(lb) && !others.some((o) => overlaps(lb, o)) && !crossesLeader(lb));
           if (spot) moves.set(label, spot);
           return spot !== null;
         });
         if (!movable) continue;
         for (const [label, [dx, dy]] of moves) {
           const old = label.box as Box;
-          [label.dx, label.dy] = [dx, dy];
-          label.box = labelBox(label, dx, dy);
-          taken.splice(taken.indexOf(old), 1, label.box);
+          taken.splice(taken.indexOf(old), 1, moveName(label, dx, dy));
         }
         return c;
       }
       return undefined;
     };
+    // A landmark's name takes only a free side: country names never move for it. Where none is free, only its
+    // marker is drawn, and its name is in the country card below the map (Mostar Bridge, beside Sarajevo and
+    // Montenegro on a phone).
+    const landmark = m.key.startsWith("landmark-");
     let side: [number, number, TextAnchor] | undefined;
     for (const group of groups) {
-      side = group.find((c) => ownSide(c) && free(boxOf(c))) ?? makeRoom(group);
+      side = group.find((c) => ownSide(c) && free(boxOf(c))) ?? (landmark ? undefined : makeRoom(group));
       if (side) break;
     }
     // Still no room (e.g. Brussels on a 320px map): leave the name out rather than
     // print it over a country name. The marker stays, and zooming in brings it back.
     if (!side) {
       m.hidden = true;
-      continue;
+      return;
     }
     [m.x, m.y, m.anchor] = side;
     const b = boxOf(side);
     markerTextBoxes.push(b);
     m.dark = onDark([(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2]);
+  };
+
+  // A name too long for its country (see Label.overhang) moves to a nearby callout if one is clear of
+  // everything placed so far. Its dot at its label point, or where that is taken (by the selected country's
+  // own capital or landmark, as with Montenegro's on a phone) the nearest point of the country clear of every
+  // other name and of the markers.
+  const toCallout = (label: Label) => {
+    if (!label.overhang || label.callout || (label.inline && !label.box)) return;
+    const [ax, ay] = label.anchor;
+    // Null for a name another callout took the spot of (see placeCallout).
+    const own = label.box;
+    const otherNames = [...taken.filter((b) => b !== own), ...labels.flatMap((o) => (o.callout ? [o.callout] : [])), ...markerTextBoxes];
+    const shape = shapeById(label.id);
+    const at = DOT_OFFSETS.map(([dx, dy]): Point => [ax + dx, ay + dy]).find(
+      ([x, y]) =>
+        ![...otherNames, ...markerPoints].some((b) => overlaps({ x0: x - 5, y0: y - 5, x1: x + 5, y1: y + 5 }, b)) &&
+        insideShape(shape, toWorld([x, y])),
+    );
+    if (at) {
+      if (own) taken.splice(taken.indexOf(own), 1);
+      [label.inline, label.box, label.anchor] = [false, null, at];
+      placeCallout(label);
+      if (label.callout) return;
+      [label.anchor, label.pinAnchored] = [[ax, ay], false];
+    }
+    // No nearby callout: back over its country, where nothing has moved since; or, if a callout took that
+    // spot, any spot over its country still clear of everything placed.
+    label.overhang = false;
+    if (own) {
+      if (!label.inline) taken.push(own);
+      [label.inline, label.box] = [true, own];
+      return;
+    }
+    const avoid = [...hard, ...taken, ...markerTextBoxes, ...dotZones()];
+    const spot = labelSpot(label, (b) => onScreen(b) && !crossesLeader(b) && !avoid.some((o) => overlaps(b, o)), true, false);
+    if (!spot) return;
+    label.inline = true;
+    taken.push(moveName(label, spot[0], spot[1]));
+  };
+
+  // Smallest countries first, as for inline names: Luxembourg has fewest options. Callouts, as always; then
+  // the selected country's name (and the traveller's country's) to a callout if it is too long for its
+  // country: drawn white, it is unreadable off it (the selected Croatia's, over Serbia and Hungary, in
+  // Armenian on a phone); then the capital's name; then the other names too long for their country; then the
+  // landmark's name, in whatever room is left.
+  const bySize = [...labels].sort((a, b) => screenArea(a.id) - screenArea(b.id));
+  const placeCapital = () => {
+    for (const m of markerTexts) {
+      if (!m.key.startsWith("capital-")) continue;
+      // Right up against another name only if there is no other room for it.
+      placeMarkerText(m, MARKER_TEXT_GAP);
+      if (m.hidden) {
+        m.hidden = false;
+        placeMarkerText(m, 0);
+      }
+      if (!m.hidden) hard.push(markerTextBoxes[markerTextBoxes.length - 1]);
+    }
+    capitalPending = false;
+  };
+  // Names an earlier layout left out go first (see placeLayout): the capital's, then country names.
+  if (first.includes("capital")) placeCapital();
+  for (const id of first) {
+    const label = labels.find((x) => x.id === id);
+    if (label) (label.overhang ? toCallout : placeCallout)(label);
   }
+  for (const label of bySize) if (!label.inline && !label.overhang && !first.includes(label.id)) placeCallout(label);
+  for (const label of bySize) if (white(label)) toCallout(label);
+  if (capitalPending) placeCapital();
+  for (const label of bySize) if (!white(label)) toCallout(label);
+  for (const m of markerTexts) if (!m.key.startsWith("capital-")) placeMarkerText(m, MARKER_TEXT_GAP);
 
   return { route, area, insetRect, markers, markerTexts, labels, labelFont, markerFont, calloutHeight, badge, crowded, fellBack };
 }
@@ -2236,10 +2701,29 @@ function Overlay({ motion, layout: given, ...input }: OverlayProps) {
               height={callout.y1 - callout.y0}
               rx={calloutHeight / 2}
             />
-            <text className={`${styles.calloutText} ${toneClass}`} fontSize={labelFont} x={mid} y={(callout.y0 + callout.y1) / 2} textAnchor="middle" dominantBaseline="central">
-              {text}
-            </text>
-            {explored && <ExploredBadge cx={mid + label.textWidth / 2 + badge.gap + badge.r} cy={(callout.y0 + callout.y1) / 2} r={badge.r} onDark={false} />}
+            {label.lines ? (
+              // Two lines, each centred; the badge follows the second.
+              label.lines.map((line, i) => {
+                const step = Math.round(labelFont * CALLOUT_LINE_STEP);
+                const y = (callout.y0 + callout.y1) / 2 + (i === 0 ? -step / 2 : step / 2);
+                const x = (callout.x0 + callout.x1) / 2 - (i === 1 ? shift : 0);
+                return (
+                  <Fragment key={i}>
+                    <text className={`${styles.calloutText} ${toneClass}`} fontSize={labelFont} x={x} y={y} textAnchor="middle" dominantBaseline="central">
+                      {line}
+                    </text>
+                    {i === 1 && explored && <ExploredBadge cx={x + textWidth(line, labelFont) / 2 + badge.gap + badge.r} cy={y} r={badge.r} onDark={false} />}
+                  </Fragment>
+                );
+              })
+            ) : (
+              <>
+                <text className={`${styles.calloutText} ${toneClass}`} fontSize={labelFont} x={mid} y={(callout.y0 + callout.y1) / 2} textAnchor="middle" dominantBaseline="central">
+                  {text}
+                </text>
+                {explored && <ExploredBadge cx={mid + label.textWidth / 2 + badge.gap + badge.r} cy={(callout.y0 + callout.y1) / 2} r={badge.r} onDark={false} />}
+              </>
+            )}
           </g>
         );
       })}
