@@ -131,7 +131,17 @@ export function LandmarkCard({ landmark }: { landmark: Landmark }) {
         </div>
       )}
       <figcaption className={styles.text}>
-        <span className={styles.label}>{t("discover.landmark")}</span>
+        <span className={styles.label}>
+          {/* The map's landmark marker, as the capital's row shows the capital's: where the map has no room
+              for the landmark's name, the marker is all it shows, and this names it. (A card without art
+              shows the marker large beside its text.) */}
+          {image && (
+            <svg className={styles.labelMark} width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+              <rect x="2.6" y="2.6" width="6.8" height="6.8" rx="1.2" transform="rotate(45 6 6)" fill="var(--amber)" stroke="var(--ink)" strokeWidth="1.2" />
+            </svg>
+          )}
+          {t("discover.landmark")}
+        </span>
         <span className={styles.name}>{l(landmark.name)}</span>
         <span className={styles.fact}>{l(landmark.fact)}</span>
       </figcaption>
