@@ -1,0 +1,251 @@
+/* The home screen's timed challenge: a white card above the lessons, its question in bold navy, a coral
+   button, and an illustrated Europe. On a narrow card (a phone held upright) Europe is a band across its
+   top that fades into the white above the words; on a wider one it fills the card's right side, fading
+   into the white beside the words. Either way the art has its own area and never lies under the text.
+   Sizes are in rem where they follow the text, so enlarged text keeps its room. */
+
+.challenge {
+  container: challenge / inline-size;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow:
+    0 0 0 1.5px rgba(255, 255, 255, 0.9),
+    0 2px 0 rgba(31, 58, 95, 0.04),
+    0 14px 32px rgba(31, 90, 140, 0.16);
+}
+
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "art" "body";
+}
+
+/* Europe: a low band across the card's top, its lower edge fading into the white card. */
+.art {
+  position: relative;
+  grid-area: art;
+  height: clamp(100px, 32cqw, 168px);
+  background: #2cbbe9;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 66%, transparent);
+  mask-image: linear-gradient(180deg, #000 66%, transparent);
+}
+
+/* The map fills the art's area, cropped to it (QuickChallenge.tsx): the area's size comes from the card,
+   never from the map's own proportions. */
+.artMap {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The map's faint grid, as on the world map. */
+.artGrid {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.28;
+  stroke-width: 0.6px;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The neighbouring land: a quiet pale green with a light coast, so Europe leads. */
+.artLand {
+  fill: #d3ecd5;
+  stroke: #fff;
+  stroke-opacity: 0.8;
+  stroke-width: 1px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Europe: its green (until the painted land over it loads) and a light coast on the water. */
+.artEurope {
+  fill: #44c95b;
+  stroke: #fff;
+  stroke-width: 1.5px;
+  stroke-linejoin: round;
+  paint-order: stroke;
+  vector-effect: non-scaling-stroke;
+}
+
+/* The countries' borders: thin, light lines on the painted land, quieter than its coast. */
+.artBorders {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.7;
+  stroke-width: 1px;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.body {
+  grid-area: body;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 18px 20px;
+  overflow-wrap: break-word;
+}
+
+/* "Quick Challenge": a bolt and the name in small blue capitals. */
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f5fbf;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.bolt {
+  flex: none;
+  width: 1.35em;
+  height: 1.35em;
+  color: var(--amber);
+}
+
+.title {
+  color: var(--ink);
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.time {
+  color: var(--ink-soft);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.seconds {
+  color: var(--coral-strong);
+  font-weight: 900;
+}
+
+/* The rules as two small white tiles: an icon, then the number over its word. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.fact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 14px 8px 10px;
+  border: 1.5px solid #dfeaf3;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 6px rgba(31, 90, 140, 0.07);
+  color: var(--ink);
+}
+
+.factIcon {
+  flex: none;
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.factText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.factValue {
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.factUnit {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+/* The coral pill, lit along its top with a raised edge, as the home screen's main action; across the card
+   on a phone, as wide as its words (at least 18rem) on a wider card. */
+.play {
+  width: 100%;
+  margin-top: 4px;
+  padding-block: 11px;
+  padding-inline: clamp(8px, calc(40px - 1.25rem), 22px);
+  overflow-wrap: anywhere;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0, rgba(255, 255, 255, 0.07) 9px, rgba(255, 255, 255, 0) 16px),
+    var(--coral-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -2px 0 rgba(120, 30, 16, 0.18),
+    0 4px 0 #9a2d1c,
+    0 12px 22px rgba(201, 63, 42, 0.3);
+}
+
+.arrow {
+  flex: none;
+  width: 1.1em;
+  height: 1.1em;
+}
+
+/* Narrow for its text (enlarged text on a phone): the words alone, so none breaks for the arrow. */
+@container challenge (max-width: 16rem) {
+  .play .arrow {
+    display: none;
+  }
+}
+
+/* A wider card (a large phone held sideways, a tablet, a desktop): the words on the left, Europe on the
+   right, as tall as the words (the words set the card's height) and fading into the white beside them. */
+@container challenge (min-width: 34rem) {
+  .card {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "body art";
+  }
+  .art {
+    height: auto;
+    min-height: 12rem;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 24%);
+    mask-image: linear-gradient(90deg, transparent, #000 24%);
+  }
+  .body {
+    justify-content: center;
+    padding: 22px 8px 24px 28px;
+  }
+  .title {
+    font-size: 1.85rem;
+  }
+  .play {
+    width: fit-content;
+    min-width: min(100%, 18rem);
+  }
+}
+
+/* A desktop's card: the words take the wider side, so the question fits on fewer lines and Europe's area
+   stays about twice as wide as it is tall. */
+@container challenge (min-width: 56rem) {
+  .card {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+  .body {
+    padding-left: 36px;
+  }
+  .title {
+    font-size: 2.1rem;
+  }
+}
