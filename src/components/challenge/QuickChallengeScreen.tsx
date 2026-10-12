@@ -21,6 +21,7 @@ import type { AppAction } from "@/core/progress/appState";
 import { LanguageToggle } from "../Header";
 import { useI18n } from "../i18n";
 import { ChallengeMap, type ChallengeTone } from "./ChallengeMap";
+import dialogStyles from "../WelcomeScreen.module.css";
 import styles from "./QuickChallengeScreen.module.css";
 
 /** How often the timer and feedback are brought up to date while a round is played (ms). */
@@ -84,6 +85,21 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [playing, clock, update]);
+  // The next question as soon as the feedback ends, not up to a tick later (a quarter of a 400 ms feedback).
+  const feedbackUntil = round.feedback?.until ?? null;
+  useEffect(() => {
+    if (feedbackUntil === null) return;
+    const timer = window.setTimeout(() => {
+      const time = clock();
+      update((r) => tick(r, time));
+      setNow(time);
+    }, Math.max(0, feedbackUntil - clock()));
+    return () => window.clearTimeout(timer);
+  }, [feedbackUntil, clock, update]);
+
+  // Home during a round asks first. The round runs on while the question shows, and ends it if the time runs out.
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const goHome = () => (roundRef.current.status === "playing" ? setConfirmLeave(true) : onClose());
 
   const start = () => {
     const time = clock();
@@ -113,7 +129,7 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
   return (
     <div className={styles.screen} data-phase={phase} data-testid="challenge-screen">
       <header className={styles.header}>
-        <button type="button" className={styles.home} onClick={onClose} aria-label={t("challengeGame.backLabel")}>
+        <button type="button" className={styles.home} onClick={goHome} aria-label={t("challengeGame.backLabel")} aria-haspopup={playing ? "dialog" : undefined}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -135,6 +151,8 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
             focus={phase === "review" ? selected : null}
             onTap={phase === "playing" ? respond : phase === "review" ? (id) => setSelected(id) : undefined}
             onReady={() => setMapReady(true)}
+            // A round's questions are drawn once (answers keep the same list): a new list is a new round, at the start view.
+            viewKey={round.questions}
           />
         </div>
 
@@ -180,6 +198,13 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
           )}
         </section>
       </main>
+
+      <LeaveDialog
+        open={confirmLeave && playing}
+        seconds={Math.ceil(remainingMs(round, now) / 1000)}
+        onStay={() => setConfirmLeave(false)}
+        onLeave={onClose}
+      />
     </div>
   );
 }
@@ -243,7 +268,7 @@ function Playing({
         </p>
         <p className={styles.feedback} data-outcome={feedback?.outcome} data-testid="challenge-feedback">
           {feedback?.outcome === "correct" && t("challengeGame.correct")}
-          {feedback?.outcome === "wrong" && t("challengeGame.wrong", { name: name(feedback.chosen!) })}
+          {feedback?.outcome === "wrong" && t("challengeGame.wrong")}
           {feedback?.outcome === "skipped" && t("challengeGame.skipped")}
           {!feedback && t("find.instructions")}
         </p>
@@ -294,6 +319,19 @@ function Results({
         ))}
       </dl>
 
+      {/* What to do next, before the list: within reach on a phone however long the list is. */}
+      <div className={styles.actions}>
+        <button type="button" className="btn btn-primary" onClick={onPlayAgain} data-testid="challenge-play-again">
+          {t("welcome.playAgain")}
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={onReview} data-testid="challenge-review">
+          {t("challengeResults.review")}
+        </button>
+        <button type="button" className="btn btn-secondary" onClick={onLessons} data-testid="challenge-lessons">
+          {t("challengeResults.lessons")}
+        </button>
+      </div>
+
       <h3 className={styles.subtitle}>{t("challengeResults.missedTitle")}</h3>
       {result.missed.length === 0 ? (
         <p className={styles.text}>{t("challengeResults.missedNone")}</p>
@@ -309,15 +347,6 @@ function Results({
       )}
 
       <div className={styles.actions}>
-        <button type="button" className="btn btn-secondary" onClick={onReview} data-testid="challenge-review">
-          {t("challengeResults.review")}
-        </button>
-        <button type="button" className="btn btn-primary" onClick={onPlayAgain} data-testid="challenge-play-again">
-          {t("welcome.playAgain")}
-        </button>
-        <button type="button" className="btn btn-secondary" onClick={onLessons}>
-          {t("challengeResults.lessons")}
-        </button>
         <button type="button" className="btn btn-ghost" onClick={onHome}>
           {t("challengeResults.home")}
         </button>
@@ -375,6 +404,58 @@ function Review({
         {t("challengeReview.back")}
       </button>
     </div>
+  );
+}
+
+/**
+ * Leaving a round in progress loses it, so Home asks first; staying is the default (Escape and a tap outside
+ * stay too). Nothing pauses: the round's deadline holds, its seconds counting down in the question, and when it
+ * passes the question closes by itself (`open` turns false) and the results show behind it.
+ */
+function LeaveDialog({ open, seconds, onStay, onLeave }: { open: boolean; seconds: number; onStay: () => void; onLeave: () => void }) {
+  const { t, tp } = useI18n();
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    if (open && !dialog.open) dialog.showModal();
+    else if (!open && dialog.open) dialog.close();
+  }, [open]);
+
+  return (
+    <dialog
+      ref={ref}
+      className={dialogStyles.dialog}
+      aria-labelledby="challenge-leave-title"
+      aria-describedby="challenge-leave-text"
+      data-testid="challenge-leave-dialog"
+      onClose={onStay}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) e.currentTarget.close();
+      }}
+    >
+      <form method="dialog" className={dialogStyles.dialogBody}>
+        <h2 id="challenge-leave-title" className={dialogStyles.dialogTitle}>
+          {t("challengeLeave.title")}
+        </h2>
+        <p id="challenge-leave-text">{t("challengeLeave.text")}</p>
+        <p className={styles.leaveTime}>
+          <span className={styles.clock} data-low={seconds <= 10 ? "" : undefined} role="timer" data-testid="challenge-leave-time">
+            <ClockIcon />
+            {t("challengeLeave.timeLeft", { time: tp("challenge.seconds", seconds) })}
+          </span>
+        </p>
+        <div className={dialogStyles.dialogActions}>
+          <button type="submit" className="btn btn-primary btn-block" autoFocus data-testid="challenge-leave-stay">
+            {t("challengeLeave.stay")}
+          </button>
+          <button type="button" className="btn btn-secondary btn-block" onClick={onLeave} data-testid="challenge-leave-confirm">
+            {t("challengeLeave.leave")}
+          </button>
+        </div>
+      </form>
+    </dialog>
   );
 }
 
