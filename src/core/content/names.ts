@@ -10,9 +10,21 @@ import type { CountryId } from "./types";
  */
 export const UPCOMING_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {};
 
-/** A country's base name, for playable and upcoming levels alike. */
+/**
+ * Names of countries played in the Quick Challenge (src/core/challenge/quickChallenge.ts) that no level
+ * teaches yet, so they have no full content (capital, hint, landmark) in countries.ts. As in the English
+ * and Armenian Wikipedia article titles, like the levels' countries (docs/CONTENT.md).
+ */
+export const CHALLENGE_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {
+  GBR: { en: "United Kingdom", hy: "Միացյալ Թագավորություն" },
+  IRL: { en: "Ireland", hy: "Իռլանդիա" },
+  DNK: { en: "Denmark", hy: "Դանիա" },
+  ALB: { en: "Albania", hy: "Ալբանիա" },
+};
+
+/** A country's base name, for playable and upcoming levels and the Quick Challenge alike. */
 export function countryName(id: CountryId): LocalizedText {
-  const name = COUNTRIES[id]?.name ?? UPCOMING_COUNTRY_NAMES[id];
+  const name = COUNTRIES[id]?.name ?? UPCOMING_COUNTRY_NAMES[id] ?? CHALLENGE_COUNTRY_NAMES[id];
   if (!name) throw new Error(`Unknown country id: ${id}`);
   return name;
 }

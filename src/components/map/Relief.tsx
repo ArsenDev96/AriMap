@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
+import { Fragment, memo, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import type { CountryId } from "@/core/content/types";
 import type { CountryTone } from "@/core/lesson/mapView";
 import type { RegionMap, Transform } from "@/geo/regionMap";
@@ -201,10 +201,44 @@ function tilesFor(family: Family, density: number, view: readonly number[], area
   return [...fallback, ...fine];
 }
 
+type Overview = (typeof relief.overviews)["western-europe-1"]["land"];
+
+/** The overview images of these level versions, land and tone, to fetch ahead of drawing them (the Quick Challenge's map). */
+export function overviewUrls(levels: readonly string[]): string[] {
+  return levels.flatMap((key) => {
+    const images = OVERVIEW_IMAGES[key];
+    return images ? [images.land.src, images.tone.src] : [];
+  });
+}
+
+/**
+ * Where each of several overlapping overviews is drawn, so every point is painted by one of them only: the
+ * overviews are light and shade over the land's colour, partly transparent, and two drawn over each other
+ * would shade twice. Their rectangles' edges cut the plane into cells; each cell goes to the first overview
+ * (in the order given) that covers it. Returns each overview's cells as one path, or null for a single
+ * overview (drawn whole, as on every level's map).
+ */
+function partition(rects: readonly Overview[]): (string | null)[] {
+  if (rects.length < 2) return rects.map(() => null);
+  const xs = [...new Set(rects.flatMap((r) => [r.x, r.x + r.width]))].sort((a, b) => a - b);
+  const ys = [...new Set(rects.flatMap((r) => [r.y, r.y + r.height]))].sort((a, b) => a - b);
+  const parts = rects.map(() => "");
+  for (let i = 0; i < xs.length - 1; i++)
+    for (let j = 0; j < ys.length - 1; j++) {
+      const [x0, x1, y0, y1] = [xs[i], xs[i + 1], ys[j], ys[j + 1]];
+      const owner = rects.findIndex((r) => r.x <= x0 && x1 <= r.x + r.width && r.y <= y0 && y1 <= r.y + r.height);
+      if (owner >= 0) parts[owner] += `M${x0},${y0}H${x1}V${y1}H${x0}Z`;
+    }
+  return parts;
+}
+
 interface Props {
   map: RegionMap;
-  /** The version of the level whose overview to draw (its versionKey; see relief.overviews). */
-  level: string;
+  /**
+   * The version of the level whose overview to draw (its versionKey; see relief.overviews), or several,
+   * side by side, for a map larger than any one level's (the Quick Challenge's whole Europe; see partition).
+   */
+  level: string | readonly string[];
   /** Lesson countries' tones; any tone other than "default" gets the "tone" family. */
   tones: Partial<Record<CountryId, CountryTone>>;
   /** The view to fetch sharper tiles for: the last one the player stopped at, not one passed through mid-gesture. */
@@ -217,8 +251,21 @@ interface Props {
 }
 
 export const Relief = memo(function Relief({ map, level, tones, transform, viewport, instant, final }: Props) {
-  const overviews = (relief.overviews as Record<string, typeof relief.overviews["western-europe-1"] | undefined>)[level];
-  const images = OVERVIEW_IMAGES[level];
+  const levelsKey = typeof level === "string" ? level : level.join(",");
+  // The overviews to draw (those of the given versions that have images), and where each is drawn.
+  const sources = useMemo(
+    () =>
+      levelsKey.split(",").flatMap((key) => {
+        const overviews = (relief.overviews as Record<string, typeof relief.overviews["western-europe-1"] | undefined>)[key];
+        const images = OVERVIEW_IMAGES[key];
+        return overviews && images ? [{ key, overviews, images }] : [];
+      }),
+    [levelsKey],
+  );
+  const parts = useMemo(
+    () => ({ land: partition(sources.map((s) => s.overviews.land)), tone: partition(sources.map((s) => s.overviews.tone)) }),
+    [sources],
+  );
   const id = useId().replace(/:/g, "");
   const dpr = useSyncExternalStore(subscribeDpr, getDpr, getServerDpr);
   // Re-render when a tile arrives, so its coarser stand-in can go.
@@ -294,9 +341,19 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
       />
     );
   };
-  const overview = (o: (typeof relief.overviews)["western-europe-1"]["land"], href: string) => (
+  const overview = (o: Overview, href: string) => (
     <image href={href} x={o.x} y={o.y} width={o.width} height={o.height} preserveAspectRatio="none" data-level="overview" />
   );
+  // Each overview, in its part of the map where there are several (see partition).
+  const overviewsOf = (family: Family) =>
+    sources.map((s, i) => {
+      const image = overview(s.overviews[family], s.images[family].src);
+      return parts[family][i] === null ? <Fragment key={s.key}>{image}</Fragment> : (
+        <g key={s.key} clipPath={`url(#${id}-${family}-part-${i})`}>
+          {image}
+        </g>
+      );
+    });
 
   return (
     <g className={styles.surface} aria-hidden="true" data-relief="">
@@ -304,6 +361,15 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
         <clipPath id={`${id}-land`}>
           <path d={land} />
         </clipPath>
+        {(["land", "tone"] as const).flatMap((family) =>
+          parts[family].map((d, i) =>
+            d === null ? null : (
+              <clipPath key={`${family}-${i}`} id={`${id}-${family}-part-${i}`}>
+                <path d={d} />
+              </clipPath>
+            ),
+          ),
+        )}
         {toned && (
           <clipPath id={`${id}-cut`}>
             <path d={frame + toned} clipRule="evenodd" />
@@ -318,13 +384,13 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
       <g clipPath={`url(#${id}-land)`} data-family="land">
         {/* Always there, so the images in it stay put when the first country takes a colour. */}
         <g clipPath={toned ? `url(#${id}-cut)` : undefined}>
-          {overviews && images && overview(overviews.land, images.land.src)}
+          {overviewsOf("land")}
           {landTiles.map(image)}
         </g>
       </g>
       {toned && (
         <g clipPath={`url(#${id}-toned)`} data-family="tone">
-          {overviews && images && overview(overviews.tone, images.tone.src)}
+          {overviewsOf("tone")}
           {toneTiles.map(image)}
         </g>
       )}

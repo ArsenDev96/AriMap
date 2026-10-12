@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { LOCALE_META } from "@/core/i18n/locales";
 import { translate } from "@/core/i18n/translate";
 import { activeLesson, activeProgress, appReducer, nextLevel } from "@/core/progress/appState";
 import { loadAppState, saveAppState, type KeyValueStorage } from "@/core/progress/storage";
+import { QuickChallengeScreen } from "./challenge/QuickChallengeScreen";
 import { ContinentScreen } from "./ContinentScreen";
 import { diagnostics } from "./diagnostics";
 import { DiagnosticsHud } from "./DiagnosticsHud";
@@ -22,6 +23,10 @@ function browserStorage(): KeyValueStorage | null {
 
 export default function Game() {
   const [state, dispatch] = useReducer(appReducer, null, () => loadAppState(browserStorage()));
+  // The Quick Challenge, opened from the home screen. Kept here, not in the saved state: a round lives in
+  // memory only (a refresh goes back home), and it never changes lesson progress. It stays mounted while
+  // the language changes, so its timer runs on.
+  const [challenge, setChallenge] = useState(false);
 
   useEffect(() => {
     // TEMPORARY phone-lag diagnostics (see diagnostics.ts): ?freeze=1 never writes the save.
@@ -40,8 +45,10 @@ export default function Game() {
     <I18nProvider locale={state.locale}>
       <title>{`${translate(state.locale, "app.name")} — ${translate(state.locale, "app.tagline")}`}</title>
       {/* The screen comes from the save on the first render (the game renders on the client only), so no other screen shows first. */}
-      {state.screen === "continents" ? (
-        <ContinentScreen state={state} dispatch={dispatch} />
+      {challenge ? (
+        <QuickChallengeScreen dispatch={dispatch} onClose={() => setChallenge(false)} />
+      ) : state.screen === "continents" ? (
+        <ContinentScreen state={state} dispatch={dispatch} onPlayChallenge={() => setChallenge(true)} />
       ) : state.screen === "levels" ? (
         <WelcomeScreen state={state} dispatch={dispatch} />
       ) : (

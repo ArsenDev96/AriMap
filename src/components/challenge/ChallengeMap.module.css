@@ -1,0 +1,114 @@
+/* The Quick Challenge's map (ChallengeMap.tsx). Its look is the levels' illustrated map: the wrapper, stage,
+   land, coasts, borders, textures, relief and controls take RegionMap.module.css's own classes (its .atlas
+   palette). Here: the challenge's own colours, its review's selection and names, and its layer. */
+
+/* The map and its zoom controls. On a wide screen the map fills its area, the controls over its corner. */
+.root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  margin-inline: auto;
+}
+
+/* Under .root, so these win over RegionMap.module.css's .wrapper whichever stylesheet loads first. */
+.root .frame {
+  box-shadow:
+    inset 0 0 0 1px rgba(31, 58, 95, 0.1),
+    0 6px 18px rgba(31, 90, 140, 0.16);
+}
+
+/* The zoom toolbar: the levels' map buttons (RegionMap.module.css's .controls: warm-white surface, light
+   border, restrained shadow). It lies outside the map's frame, where those colours are set, so they are set
+   here too, with the same values. */
+.controls {
+  --map-control: #fffaf3;
+  --map-control-hover: #f6eee1;
+  --map-control-border: rgba(31, 58, 95, 0.16);
+  --map-control-shadow: 0 2px 8px rgba(31, 58, 95, 0.12);
+  --map-control-radius: 12px;
+}
+
+/* On a phone (any screen under 900px wide): the map at about Europe's own shape, 5:4, as tall as the whole
+   pool can be shown inside the data (COVERAGE in ChallengeMap.tsx), and the controls in a compact toolbar
+   under it, at its right, so they never cover a country. */
+@media (max-width: 899.98px) {
+  .root {
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .root .frame {
+    height: auto;
+    aspect-ratio: 5 / 4;
+    /* A phone held sideways: no taller than most of the screen (the map is then shown narrower, centred). */
+    max-height: 62svh;
+  }
+  .root .controls {
+    position: static;
+    align-self: flex-end;
+    flex-direction: row;
+  }
+  .controls .control {
+    width: 48px;
+    height: 40px;
+  }
+  .controls .control + .control {
+    border-top: 0;
+    border-left: 1px solid rgba(31, 58, 95, 0.12);
+  }
+}
+
+/* The countries outside the pool: a pale veil over their relief, the same all round (ContextVeil). */
+.veil {
+  fill: #f4f9ee;
+  fill-opacity: 0.55;
+  pointer-events: none;
+}
+
+/* During a gesture the drawn map moves as a layer (placeLayer). */
+.stage[data-gesture] svg {
+  will-change: transform;
+}
+
+/* Feedback and results colours: found (the atlas's selection teal), missed (amber), the wrong choice (coral).
+   Shown at once, never faded (a fade draws the whole map again on every frame of it). */
+.correct {
+  fill: #15a597;
+}
+
+.missed {
+  fill: var(--amber);
+}
+
+.chosen {
+  fill: var(--coral);
+}
+
+/* The review's selection: a dark outline over its borders. */
+.focus {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+/* A country's name in the review, on a light halo. */
+.name {
+  fill: var(--ink);
+  font-size: 13px;
+  font-weight: 800;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.name[data-focus] {
+  font-size: 15px;
+}

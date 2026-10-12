@@ -9,6 +9,7 @@ import { continentProgress, continentStars, levelToContinue, type AppAction, typ
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS, WORLD_SPHERE } from "@/data/geo/world-map";
 import { BrandMark, LanguageToggle } from "./Header";
 import { useI18n } from "./i18n";
+import { QuickChallenge } from "./QuickChallenge";
 import { StarTotal } from "./Stars";
 import page from "./WelcomeScreen.module.css";
 import styles from "./ContinentScreen.module.css";
@@ -16,6 +17,8 @@ import styles from "./ContinentScreen.module.css";
 interface Props {
   state: AppState;
   dispatch: Dispatch<AppAction>;
+  /** Opens the Quick Challenge (Game.tsx). */
+  onPlayChallenge: () => void;
 }
 
 /** Drawn under the categories: geographic context, never selectable. */
@@ -52,8 +55,9 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
 };
 
 /**
- * The home screen: a flat world map of the continents, then the categories as cards under it (or beside
- * it, when the screen is short and wide for its text: a phone held sideways, a desktop). A continent
+ * The home screen: the timed Quick Challenge first, then the lessons ("Explore the world"): a flat world
+ * map of the continents, then the categories as cards under it (or beside it, when the screen is short and
+ * wide for its text: a phone held sideways, a desktop). A continent
  * with playable levels (Europe) opens its level selection, from its land or its card (its name is the
  * card's one button, for the keyboard and assistive technology); the others are tiles that say
  * "Coming soon" and do nothing. Oceania and Antarctica are drawn as context only. Europe's levels
@@ -63,7 +67,7 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * the content. The page's frame (header, scrolling content) is the level selection's
  * (WelcomeScreen.module.css), in this screen's sky colours.
  */
-export function ContinentScreen({ state, dispatch }: Props) {
+export function ContinentScreen({ state, dispatch, onPlayChallenge }: Props) {
   const { t, l } = useI18n();
   const resume = levelToContinue(state);
   const playable = CONTINENTS.filter((c) => hasPlayableLevels(c.id));
@@ -88,10 +92,23 @@ export function ContinentScreen({ state, dispatch }: Props) {
 
       <div className={`${page.scroll} ${styles.scroll}`} data-testid="continents-scroll">
         <div className={`${page.content} ${styles.content}`}>
-          <section aria-labelledby="continents-title" className={styles.layout}>
-            <h2 id="continents-title" className={styles.title}>
-              <span className={styles.titleText}>{t("continents.title")}</span>
-            </h2>
+          <QuickChallenge onPlay={onPlayChallenge} />
+
+          <section aria-labelledby="continents-title" aria-describedby="continents-subtitle" className={styles.layout}>
+            {/* The lessons, apart from the timed challenge above: a book, the heading and what to do. */}
+            <div className={styles.heading}>
+              <span className={styles.headingIcon} aria-hidden="true">
+                <BookIcon />
+              </span>
+              <div className={styles.headingText}>
+                <h2 id="continents-title" className={styles.title}>
+                  <span className={styles.titleText}>{t("continents.title")}</span>
+                </h2>
+                <p id="continents-subtitle" className={styles.subtitle}>
+                  {t("continents.subtitle")}
+                </p>
+              </div>
+            </div>
 
             <div className={styles.mapColumn}>
               <div className={styles.mapArea} data-testid="world-map">
@@ -290,6 +307,21 @@ function ContinentLabel({ continent, state, onOpen }: { continent: ContinentInfo
         </>
       )}
     </li>
+  );
+}
+
+function BookIcon() {
+  return (
+    <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M12 6.5C10 5 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.5m0-13c2-1.5 5-2 8.5-1.5v13c-3.5-.5-6.5 0-8.5 1.5m0-13v13"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

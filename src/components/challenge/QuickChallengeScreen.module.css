@@ -1,0 +1,433 @@
+/* The Quick Challenge's screen (QuickChallengeScreen.tsx): a header, the map and a panel. On a phone the map
+   is on top and the panel below it; on a wide screen the panel is beside the map. The results take the
+   whole screen on a phone (the review brings the map back). */
+
+.screen {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: linear-gradient(180deg, #b9e3fa 0%, #e8f7fe 60%, #f3fbff 100%);
+  /* For the header's query below: the screen's width in rem, so it follows the text size. */
+  container: challenge-screen / inline-size;
+}
+
+/* Home, the title and the language switch in one row where they fit. */
+.header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "home title lang";
+  align-items: center;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  padding-top: max(10px, env(safe-area-inset-top, 0px));
+}
+
+.header > :first-child {
+  grid-area: home;
+}
+
+.header > :last-child {
+  grid-area: lang;
+}
+
+/* Narrower than Home, the title and the switch need in either language (the Armenian title is the longer):
+   the title on a row of its own under them, so it never runs under the switch. */
+@container challenge-screen (max-width: 30rem) {
+  .header {
+    grid-template-areas:
+      "home . lang"
+      "title title title";
+  }
+}
+
+.home {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 6px 12px 6px 8px;
+  border: 1.5px solid rgba(31, 58, 95, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.title {
+  grid-area: title;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #1f5fbf;
+  font-size: 0.95rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.bolt {
+  flex: none;
+  width: 1.35em;
+  height: 1.35em;
+  color: var(--amber);
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* On a phone (and any screen under 900px wide): the map (its own size, ChallengeMap.module.css) with its zoom
+   toolbar, then the panel. At the usual text size the question, timer and Skip fit under them; with
+   enlarged text the whole content scrolls (the map's own area takes no scrolling touches). */
+@media (max-width: 899.98px) {
+  .main {
+    overflow-y: auto;
+  }
+  .mapArea {
+    flex: 0 0 auto;
+    margin: 0 8px;
+  }
+  .panel {
+    flex: 1 0 auto;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  /* The results need the room: the map comes back for the review. */
+  .screen[data-phase="results"] .mapArea {
+    display: none;
+  }
+}
+
+@media (min-width: 900px) {
+  .main {
+    flex-direction: row;
+    padding: 0 12px 12px;
+    gap: 12px;
+  }
+  .mapArea {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .panel {
+    flex: 0 0 min(400px, 34%);
+    min-height: 0;
+    overflow-y: auto;
+    padding: 18px 20px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 14px 32px rgba(31, 90, 140, 0.14);
+  }
+}
+
+.text {
+  color: var(--ink-soft);
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.wide {
+  width: 100%;
+}
+
+/* Before Start. */
+.intro {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lead {
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+/* While playing: the question's number, the score and the timer, its bar, then what to find. */
+.playing {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+
+.score {
+  flex: 1;
+}
+
+.clock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 3.6em;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.clock[data-low] {
+  background: var(--coral-strong);
+}
+
+.bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfeaf3;
+}
+
+.barFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amber), var(--coral));
+  transform-origin: left center;
+  transition: transform 0.1s linear;
+}
+
+.find {
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.target {
+  min-height: 1.2em;
+  color: var(--ink);
+  font-size: 1.8rem;
+  font-weight: 900;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.feedback {
+  min-height: 2.8em;
+  color: var(--ink-soft);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+.feedback[data-outcome="correct"] {
+  color: var(--teal-dark);
+}
+
+.feedback[data-outcome="wrong"] {
+  color: var(--coral-strong);
+}
+
+.feedback[data-outcome="skipped"] {
+  color: var(--amber-dark);
+}
+
+/* Results. */
+.results,
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.resultTitle {
+  color: var(--ink);
+  font-size: 1.6rem;
+  font-weight: 900;
+  line-height: 1.15;
+}
+
+.resultScore {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.resultScore strong {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.resultScore span {
+  color: var(--ink-soft);
+  font-size: 1.4rem;
+}
+
+.counts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.countTile {
+  padding: 8px 12px;
+  border: 1.5px solid #dfeaf3;
+  border-left-width: 5px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.countTile[data-kind="correct"] {
+  border-left-color: #15a597;
+}
+
+.countTile[data-kind="incorrect"] {
+  border-left-color: var(--coral);
+}
+
+.countTile[data-kind="skipped"] {
+  border-left-color: var(--amber);
+}
+
+.countTile[data-kind="unanswered"] {
+  border-left-color: #9fb0c4;
+}
+
+.countTile dt {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.countTile dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1.4rem;
+  font-weight: 900;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.missed {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.missedItem {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 2px 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(31, 90, 140, 0.08);
+}
+
+.missedName {
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.missedDetail {
+  color: var(--ink-soft);
+  font-weight: 700;
+}
+
+.missedItem[data-outcome="wrong"] .missedDetail {
+  color: var(--coral-strong);
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Review: a legend, then each question as a chip in its colour. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.legend li::before {
+  content: "";
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 6px;
+  border-radius: 4px;
+  vertical-align: -0.05em;
+}
+
+.legend [data-tone="correct"]::before {
+  background: #15a597;
+}
+
+.legend [data-tone="missed"]::before {
+  background: var(--amber);
+}
+
+.legend [data-tone="chosen"]::before {
+  background: var(--coral);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1.5px #dfeaf3;
+}
+
+.chip[data-tone="correct"] {
+  background: #d8f3ee;
+}
+
+.chip[data-tone="missed"] {
+  background: #fff0c8;
+}
+
+.chip[aria-pressed="true"] {
+  border-color: var(--ink);
+}
