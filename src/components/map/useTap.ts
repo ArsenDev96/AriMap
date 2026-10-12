@@ -19,8 +19,17 @@ function countryAt(target: EventTarget | null): string | null {
  *
  * `onMissedRelease`: a mouse press ended without the page seeing its release (see watchPress); whatever
  * follows the press (the map's drag) should end too.
+ *
+ * `countryAtPoint`: the country at a press's own position (client coordinates), or null, in place of the
+ * element the browser sent it to. That element can be a neighbour: a touch is moved to a nearby target by
+ * the browser's touch adjustment, and a mouse press on a country's outline goes to that country, its
+ * outline lying half over the next one.
  */
-export function useCountryTap(onTap: ((country: string) => void) | undefined, onMissedRelease?: () => void) {
+export function useCountryTap(
+  onTap: ((country: string) => void) | undefined,
+  onMissedRelease?: () => void,
+  countryAtPoint?: (x: number, y: number) => string | null,
+) {
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ country: string | null; x: number; y: number; time: number; cancelled: boolean } | null>(null);
   // The mouse press being watched (see watchPress): `stop` stops watching it, `missed` ends it as a
@@ -88,7 +97,8 @@ export function useCountryTap(onTap: ((country: string) => void) | undefined, on
       pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (e.pointerType === "mouse") watchPress(e.currentTarget, e.pointerId);
       if (pointers.current.size === 1) {
-        gesture.current = { country: countryAt(target), x: e.clientX, y: e.clientY, time: e.timeStamp, cancelled: false };
+        const country = countryAtPoint ? countryAtPoint(e.clientX, e.clientY) : countryAt(target);
+        gesture.current = { country, x: e.clientX, y: e.clientY, time: e.timeStamp, cancelled: false };
       } else if (gesture.current) {
         gesture.current.cancelled = true; // multi-touch = pinch
       }
@@ -109,7 +119,7 @@ export function useCountryTap(onTap: ((country: string) => void) | undefined, on
       if (!g || !single || g.cancelled || !onTap) return;
       if (e.timeStamp - g.time > TAP_MAX_MS) return;
       if (Math.hypot(e.clientX - g.x, e.clientY - g.y) > TAP_SLOP) return;
-      const country = countryAt(e.target);
+      const country = countryAtPoint ? countryAtPoint(e.clientX, e.clientY) : countryAt(e.target);
       if (country && country === g.country) onTap(country);
     },
     onPointerCancel: reset,

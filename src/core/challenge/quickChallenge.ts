@@ -42,7 +42,7 @@ export interface ChallengeRules {
 export const CHALLENGE_RULES: ChallengeRules = {
   questions: 15,
   durationMs: 45_000,
-  feedbackMs: { correct: 700, wrong: 1400, skipped: 700 },
+  feedbackMs: { correct: 400, wrong: 400, skipped: 400 },
 };
 
 /** How a question was answered. A question the round ended before is "unanswered" (see ChallengeResult). */

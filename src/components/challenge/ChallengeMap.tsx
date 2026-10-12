@@ -35,12 +35,14 @@ interface Props {
   tones?: Readonly<Partial<Record<CountryId, ChallengeTone>>>;
   /** Countries named on the map, at their label points (the review). */
   names?: readonly CountryId[];
-  /** A country outlined to stand out (the review's selection). */
+  /** A country outlined to stand out and zoomed to (the review's selection). */
   focus?: CountryId | null;
   /** Called with a pool country tapped; without it, taps do nothing (the map still pans and zooms). */
   onTap?: (country: CountryId) => void;
   /** Called once, when the map is first drawn at its size and its painted relief has loaded. */
   onReady?: () => void;
+  /** A new value (a new round) brings the start view back at once, whatever the player or the review left. */
+  viewKey?: unknown;
 }
 
 const MAX_ZOOM = 6;
@@ -97,6 +99,17 @@ function endMouseDrag() {
   window.dispatchEvent(new MouseEvent("mouseup", { view: window }));
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** The view at scale `k` centred on the world point (cx, cy), moved as little as it takes to show nothing past COVERAGE. */
+function viewAt(k: number, cx: number, cy: number, width: number, height: number): Transform {
+  const [[c0x, c0y], [c1x, c1y]] = COVERAGE;
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  return { k, x: clamp(width / 2 - k * cx, width - k * c1x, -k * c0x), y: clamp(height / 2 - k * cy, height - k * c1y, -k * c0y) };
+}
+
 /** Fetches and decodes images, so they draw at once when the map needs them. */
 function preload(urls: readonly string[]): Promise<void> {
   return Promise.all(
@@ -108,7 +121,7 @@ function preload(urls: readonly string[]): Promise<void> {
   ).then(() => {});
 }
 
-export function ChallengeMap({ pool, tones, names, focus, onTap, onReady }: Props) {
+export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKey }: Props) {
   const { t, name } = useI18n();
   const map = useMemo(() => getRegionMap(pool), [pool]);
   // The water's texture covers what the map can show.
@@ -127,7 +140,25 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady }: Prop
   const margin = useMemo(() => ({ x: Math.round(size.width * OVERSCAN), y: Math.round(size.height * OVERSCAN) }), [size]);
 
   const tapCountry = useMemo(() => (onTap ? (id: string) => pool.includes(id) && onTap(id) : undefined), [onTap, pool]);
-  const tap = useCountryTap(tapCountry, endMouseDrag);
+  // A press answers with the pool country whose shape is at its own position (useCountryTap's countryAtPoint), as
+  // drawn now (the layer's CTM includes a gesture's placement): its fill only, never its outline, so a press by a
+  // border goes to the side it is on, by touch or mouse alike. Sea and the context countries answer nothing.
+  const shapeBounds = useMemo(() => new Map(map.shapes.map((s) => [s.id, s.bounds])), [map]);
+  const countryAtPoint = (x: number, y: number): string | null => {
+    const paths = layerRef.current?.querySelectorAll<SVGPathElement>("path[data-country]");
+    const ctm = paths?.[0]?.getScreenCTM();
+    if (!paths || !ctm) return null;
+    const p = new DOMPoint(x, y).matrixTransform(ctm.inverse());
+    let found: string | null = null;
+    for (const path of paths) {
+      const id = path.dataset.country!;
+      const [[x0, y0], [x1, y1]] = shapeBounds.get(id) ?? [[0, 0], [-1, -1]];
+      // The last one containing the point is the one drawn on top.
+      if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && path.isPointInFill(p)) found = id;
+    }
+    return found;
+  };
+  const tap = useCountryTap(tapCountry, endMouseDrag, countryAtPoint);
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -152,9 +183,7 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady }: Prop
     if (size.width < 1 || size.height < 1) return null;
     const fit = fitTransform(map.focusBounds, size.width, size.height, padding);
     const k = Math.max(fit.k, size.width / (c1x - c0x), size.height / (c1y - c0y));
-    const centred = k === fit.k ? fit : { k, x: size.width / 2 - (k * (f0x + f1x)) / 2, y: size.height / 2 - (k * (f0y + f1y)) / 2 };
-    const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-    return { k, x: clamp(centred.x, size.width - k * c1x, -k * c0x), y: clamp(centred.y, size.height - k * c1y, -k * c0y) };
+    return viewAt(k, (f0x + f1x) / 2, (f0y + f1y) / 2, size.width, size.height);
   }, [map, size, padding, c0x, c0y, c1x, c1y, f0x, f0y, f1x, f1y]);
 
   useEffect(() => {
@@ -203,6 +232,45 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady }: Prop
       stage.removeAttribute("data-gesture");
     };
   }, [base, size, margin]);
+
+  // The review's selected country, brought to the middle and zoomed until its whole shape fills about two thirds of
+  // the map (no further than MAX_ZOOM, and never past COVERAGE); back to the start view when the review ends. Only the
+  // review sets `focus`, so a timed round's view is the player's own. After the effect above, which a new size or
+  // start view resets to the start view.
+  const focusedRef = useRef(false);
+  useEffect(() => {
+    const stage = stageRef.current;
+    const behavior = zoomRef.current;
+    if (!stage || !behavior || !base) return;
+    const shape = focus ? map.shapes.find((s) => s.id === focus) : undefined;
+    let view: Transform;
+    if (shape) {
+      const [[x0, y0], [x1, y1]] = shape.bounds;
+      const fit = fitTransform(shape.bounds, size.width, size.height, Math.min(size.width, size.height) * 0.18);
+      view = viewAt(Math.min(base.k * MAX_ZOOM, Math.max(base.k, fit.k)), (x0 + x1) / 2, (y0 + y1) / 2, size.width, size.height);
+      focusedRef.current = true;
+    } else if (focusedRef.current) {
+      view = base;
+      focusedRef.current = false;
+    } else return;
+    select(stage)
+      .transition()
+      .duration(prefersReducedMotion() ? 0 : 400)
+      .call(behavior.transform, zoomIdentity.translate(view.x, view.y).scale(view.k));
+  }, [focus, base, size, map]);
+
+  // A new round starts at the start view, at once (any zoom still animating stopped); within a round the view is
+  // the player's. Without a start view yet (a phone hides the map with the results) the effect above sets it.
+  const viewKeyRef = useRef(viewKey);
+  useEffect(() => {
+    if (viewKeyRef.current === viewKey) return;
+    viewKeyRef.current = viewKey;
+    focusedRef.current = false;
+    const stage = stageRef.current;
+    const behavior = zoomRef.current;
+    if (!stage || !behavior || !base) return;
+    select(stage).interrupt().call(behavior.transform, zoomIdentity.translate(base.x, base.y).scale(base.k));
+  }, [viewKey, base]);
 
   // Once drawn for a view, the layer sits where it belongs for the live view (in place, unless a gesture moved on).
   useLayoutEffect(() => {
