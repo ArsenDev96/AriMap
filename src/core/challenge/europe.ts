@@ -6,7 +6,8 @@ import type { CountryId, LonLat } from "../content/types";
  * map draws each one.
  *
  * Scope: the 44 sovereign states of the UN Statistics Division's "Europe" region (M49), plus Kosovo, which M49
- * does not list (it is not a UN member) and the map data draws as its own shape. All can be asked. The challenge's
+ * does not list (it is not a UN member) and the map data draws as its own shape. All but five microstates
+ * (NOT_ASKED) can be asked. The challenge's
  * map (src/data/geo/europe-challenge.topo.json) draws their European territory in full, Russia to the Urals; left
  * out are Portugal's Azores, Madeira and Savage Islands and Spain's Canary Islands, and the territories beyond
  * Europe (see docs/DATA.md, "Quick Challenge countries"). Countries M49 places in Asia but
@@ -31,20 +32,22 @@ export const EUROPE: readonly CountryId[] = [
  */
 export const EUROPE_EDGE: readonly CountryId[] = ["CYP", "TUR", "GEO", "ARM", "AZE", "KAZ"];
 
-/** The countries a round's questions are drawn from: all of Europe. */
-export const CHALLENGE_POOL: readonly CountryId[] = EUROPE;
+/**
+ * European countries the challenge never asks, by decision (13 October 2026), not by a size rule: Malta,
+ * Liechtenstein, San Marino, Monaco and Vatican City. They stay on the map as context (paler, never an answer, no
+ * ring), as EUROPE_EDGE's countries are. Andorra and Luxembourg, as small, are asked, with their rings.
+ */
+export const NOT_ASKED: readonly CountryId[] = ["MLT", "LIE", "SMR", "MCO", "VAT"];
+
+/** The countries a round's questions are drawn from: Europe (EUROPE) but NOT_ASKED, 40 countries. */
+export const CHALLENGE_POOL: readonly CountryId[] = EUROPE.filter((id) => !NOT_ASKED.includes(id));
 
 /**
- * Europe's countries smaller than 5,000 km² (the next smallest, Montenegro, has 13,812 km²), each marked on the map
- * by a ring at this point (inside the country) while it is drawn smaller than the ring (smallCountries.ts). The same
- * rings in every round, whatever is asked.
+ * The asked countries smaller than 5,000 km², Luxembourg and Andorra (the next smallest asked, Montenegro, has
+ * 13,812 km²), each marked on the map by a ring at this point (inside the country) while it is drawn smaller than the
+ * ring (smallCountries.ts). The same rings in every round, whatever is asked.
  */
 export const RING_COUNTRIES: Readonly<Record<CountryId, LonLat>> = {
   LUX: [6.1, 49.78],
   AND: [1.56, 42.54],
-  MLT: [14.42, 35.89],
-  LIE: [9.55, 47.15],
-  SMR: [12.46, 43.94],
-  MCO: [7.42, 43.74],
-  VAT: [12.4534, 41.9033],
 };

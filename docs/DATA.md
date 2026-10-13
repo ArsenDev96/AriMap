@@ -585,7 +585,7 @@ The Quick Challenge card above the lessons (`src/components/QuickChallenge.tsx`)
 
 ### Quick Challenge countries
 
-The Quick Challenge asks 15 different countries per round, in 60 seconds (45 until 13 October 2026), from all of Europe: 45 countries (`CHALLENGE_POOL`, `src/core/challenge/europe.ts`), on a map of its own (below, "Quick Challenge map"). Framework-independent, like the rules (`quickChallenge.ts`) and the small-country rings (`smallCountries.ts`). Until 13 October 2026 it asked 30 countries on the levels' data, which stops at 62°N and 48°E.
+The Quick Challenge asks 15 different countries per round, in 60 seconds (45 until 13 October 2026), from Europe: 40 countries (`CHALLENGE_POOL`, `src/core/challenge/europe.ts`: the scope below but five microstates, `NOT_ASKED`), on a map of its own (below, "Quick Challenge map"). Framework-independent, like the rules (`quickChallenge.ts`) and the small-country rings (`smallCountries.ts`). Until 13 October 2026 it asked 30 countries on the levels' data, which stops at 62°N and 48°E.
 
 **Scope.** The 44 sovereign states in the UN Statistics Division's "Europe" region (M49), plus Kosovo. M49 is used because it is a published, neutral list rather than one made up for the game. It includes Russia and the microstates, and places Cyprus, Turkey and the Caucasus in Asia.
 - **Kosovo** is asked as its own country. M49 does not list it (it is not a UN member). The map data (Natural Earth Admin 0) draws it as its own shape (`KOS`), and Serbia's shape excludes it. *Dataset note:* Natural Earth draws boundaries as they are administered on the ground ("de facto"); Kosovo declared independence in 2008, and Serbia does not recognise it (see also "Level 5", "Disputed boundaries"). The map's "About the map" dialog says so: "Kosovo is shown as a country of its own, as in the Natural Earth data. Serbia does not recognise its 2008 declaration of independence." (`challengeMap.aboutKosovo`, in both languages).
@@ -594,7 +594,7 @@ The Quick Challenge asks 15 different countries per round, in 60 seconds (45 unt
 - **Dependencies** (the Faroe Islands, Greenland, Gibraltar, Jersey, Guernsey, the Isle of Man) are context, never asked. **Åland** is part of Finland (an autonomous region of it, not a dependency): the data draws it as its own shape, so the challenge's data merges it into Finland's, and a tap on it answers Finland.
 - **Crimea** is drawn as part of Ukraine, as on the levels' maps ("Preparation", step 5).
 
-**What is drawn.** All 45 countries are asked. Their European territory is drawn in full, inside the start view, except as follows (checked part by part against the Natural Earth source, 13 October 2026):
+**What is drawn.** 40 of the 45 are asked (all but Malta, Liechtenstein, San Marino, Monaco and Vatican City: "Small-country rings", below); all 45 are drawn. Their European territory is drawn in full, inside the start view, except as follows (checked part by part against the Natural Earth source, 13 October 2026):
 - **Russia**: European Russia in full, to the boundary above; Asian Russia only in part (above).
 - **Left out, as on the levels' maps**: Portugal's **Azores**, **Madeira** (with Porto Santo and the Desertas) and **Savage Islands**, and Spain's **Canary Islands**: 900–1,500 km off the mainland, south-west of the frame, erased in the data (`ERASE` in `prepare-challenge-geo.mjs`). Spain's Ceuta and Melilla, in Africa, are drawn.
 - **Outside the map altogether** (clipped away with the rest of the world): France's overseas regions (French Guiana, Guadeloupe, Martinique, Réunion, Mayotte), the Caribbean Netherlands (Bonaire, Sint Eustatius, Saba) and Norway's Bouvet Island.
@@ -607,13 +607,12 @@ The Quick Challenge asks 15 different countries per round, in 60 seconds (45 unt
 
 #### Small-country rings
 
-Europe's seven countries under 5,000 km² (`RING_COUNTRIES` in `europe.ts`: Luxembourg, Andorra, Malta, Liechtenstein, San Marino, Monaco and Vatican City; the next smallest, Montenegro, has 13,812 km²) are marked by a ring, 24 px across (the smallest target size WCAG 2.2 asks for, 2.5.8), while the country itself is drawn smaller than the ring (its area under the ring's, at the current zoom: `ringShown`). Zoomed in further, the ring goes and the country is tapped as every other is.
-- **Fair**: every ring country has its ring in every round, whatever is asked, so a ring never points to the answer. The ring is visible, so no country is silently enlarged.
-- **Taps** (`ringAt`): a press inside a ring answers that country, before any shape under the ring; where rings overlap, the ring whose centre is nearest; an exact tie goes to the first in `RING_COUNTRIES`' order. Outside every ring, a press answers by the shape under it, as before.
-- **San Marino and the Vatican** (about 230 km apart): on a 390×844 phone's start view their rings' centres are 16.8 px apart, so the two 24 px rings overlap by 7.2 px, and a press in the overlap goes to the nearer centre; zoomed in 1.5 times they no longer overlap. On a 1366×800 desktop they are 28.2 px apart, separate from the start. At the deepest zoom every ring but Luxembourg's still shows on a phone.
-- **The cost**: a ring covers a little of the country round it (Italy round San Marino and the Vatican, France beside Monaco, Switzerland and Austria round Liechtenstein, Spain and France round Andorra, Germany, France and Belgium round Luxembourg), which must then be tapped outside the ring.
-- **Feedback and review**: a ring takes the country's colour (found, missed, the wrong choice) and the review's outline, so an answer on a speck still shows.
-- **The Vatican**: Natural Earth's shape for it is about 110 m across (the real one is about 1 km): a speck at any zoom. Its ring sits on it.
+The two asked countries under 5,000 km², Luxembourg and Andorra (`RING_COUNTRIES` in `europe.ts`; the next smallest asked, Montenegro, has 13,812 km²), are marked by a dashed ring, 24 px across (the smallest target size WCAG 2.2 asks for, 2.5.8), while the country itself is drawn smaller than the ring (its area under the ring's, at the current zoom: `ringShown`). Zoomed in further, the ring goes and the country is tapped as every other is (Luxembourg's from about ×5.6 on a phone; Andorra's stays to the deepest zoom).
+- **Fair**: both rings show in every round, whatever is asked, so a ring never points to the answer. The ring is visible, so no country is silently enlarged.
+- **Taps** (`ringAt`): a press inside a ring answers that country, before any shape under the ring; where rings overlap (they never do at the start view), the ring whose centre is nearest. Outside every ring, a press answers by the shape under it.
+- **The cost**: a ring covers a little of the country round it (Spain and France round Andorra; Germany, France and Belgium round Luxembourg), which must then be tapped outside the ring.
+- **Feedback and review**: a ring takes the country's colour (found, missed, the wrong choice), so an answer on a speck still shows.
+- **Not asked** (13 October 2026): Malta, Liechtenstein, San Marino, Monaco and Vatican City (`NOT_ASKED` in `europe.ts`), by decision rather than by a size rule. They are drawn as context, paler and never an answer, with no ring. Until then they were asked, with rings (San Marino's and the Vatican's overlapping by about 7 px on a phone's start view).
 
 ### Quick Challenge map
 

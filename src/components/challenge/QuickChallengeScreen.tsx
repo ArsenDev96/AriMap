@@ -119,6 +119,7 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
   };
 
   const result = useMemo(() => challengeResult(round), [round]);
+  const names = useMemo(() => (result ? roundNames(result) : undefined), [result]);
   const feedback = feedbackOf(round);
   const question = currentQuestion(round);
   const phase = result ? (reviewing ? "review" : "results") : round.status;
@@ -147,7 +148,7 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
           <ChallengeMap
             pool={CHALLENGE_POOL}
             tones={tones}
-            names={phase === "review" ? reviewNames(result!, selected) : undefined}
+            names={names}
             focus={phase === "review" ? selected : null}
             onTap={phase === "playing" ? respond : phase === "review" ? (id) => setSelected(id) : undefined}
             onReady={() => setMapReady(true)}
@@ -225,11 +226,16 @@ function mapTones(round: ChallengeRound, result: ChallengeResult | null, feedbac
   return { [feedback.target]: "missed", ...(feedback.chosen ? { [feedback.chosen]: "chosen" } : {}) };
 }
 
-/** In the review: the selected question's country and, when it was answered wrongly, the country chosen. */
-function reviewNames(result: ChallengeResult, selected: CountryId | null): CountryId[] {
-  const q = result.questions.find((q) => q.target === selected);
-  if (!q) return selected ? [selected] : [];
-  return q.outcome === "wrong" && q.chosen ? [q.target, q.chosen] : [q.target];
+/**
+ * Named on the map once the round has ended (its results and review; never during it): the round's countries only,
+ * whatever their outcome, the missed ones (wrong, skipped, not reached) first, each in the round's order, so where
+ * names would overlap those are the ones shown (ChallengeMap's `names`). A wrong choice outside the round is coloured,
+ * not named: the results and the review say which it was.
+ */
+function roundNames(result: ChallengeResult): CountryId[] {
+  const missed = result.questions.filter((q) => q.outcome !== "correct");
+  const found = result.questions.filter((q) => q.outcome === "correct");
+  return [...missed, ...found].map((q) => q.target);
 }
 
 function Playing({

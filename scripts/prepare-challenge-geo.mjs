@@ -55,15 +55,29 @@ const ERASE = {
 };
 
 /**
- * The start view's frame, in lon/lat points it must hold: Europe's extremes as the challenge shows them.
+ * The map's extent, in lon/lat points it must hold: Europe's extremes as the challenge shows them.
  * Russia is framed to the Urals (the Europe–Asia boundary along their crest, the Ural River and the Caspian;
  * north of the crest, between Novaya Zemlya and Yamal), not to its whole shape: the points of the crest and the
  * river are listed, the rest of Europe, its islands included, is taken from the shapes themselves.
  */
+/**
+ * Mainland Europe's northernmost point, Cape Nordkinn (Kinnarodden, Norway): the start view's frame stops here, so the
+ * Arctic islands, Greenland's north and the Urals' northern end, all within the extent, lie above it and are panned to.
+ */
+const NORDKINN = [27.65, 71.134];
 const URALS = [
   [67.0, 69.0], [66.2, 68.5], [65.0, 67.5], [63.5, 66.5], [62.0, 65.5], [60.0, 64.0], [59.3, 62.0], [59.0, 60.0],
   [59.5, 58.0], [59.5, 56.0], [59.3, 54.5], [59.0, 53.0], [58.6, 51.2], [55.1, 51.8], [52.5, 51.5], [51.4, 51.2], [51.9, 47.0],
 ];
+
+/**
+ * The lon/lat box the source is cut to first (west, south, east, north): Europe and its surroundings. Its edges are
+ * cuts, not coasts or borders: written into the output (`frame.sourceClip`), so the page draws no coast or border
+ * along them (src/geo/challengeMap.ts). Two cross land the map can show: 100°E through Siberia, at the frame's
+ * top-right corner, kept out of view (step 2, CUT_CLEARANCE), and 60°W through Greenland and Ellesmere Island, in
+ * its top-left corner, which no rectangle holding the frame can leave out.
+ */
+const SOURCE_CLIP = [-60, 20, 100, 85];
 
 const work = mkdtempSync(join(tmpdir(), "challenge-geo-"));
 try {
@@ -74,7 +88,7 @@ try {
     .join(" ");
   await mapshaper.runCommands(
     `-i "${input}" encoding=utf8 -filter-fields ADM0_A3,NAME_EN -rename-fields id=ADM0_A3,name=NAME_EN ` +
-      `-clip bbox=-60,20,100,85 remove-slivers ${erase} -o format=geojson "${raw}"`,
+      `-clip bbox=${SOURCE_CLIP.join(",")} remove-slivers ${erase} -o format=geojson "${raw}"`,
   );
   const world = JSON.parse(readFileSync(raw, "utf8"));
   const missing = EUROPE.filter((id) => !world.features.some((f) => f.properties.id === id));
@@ -101,22 +115,45 @@ try {
       for (const [lon, lat] of polygon[0]) if (id !== "RUS" || (lon >= 19 && lon <= uralsLon(lat) && lat >= 41)) take(projection([lon, lat]));
   }
   for (const point of URALS) take(projection(point));
-  const focus = [
+  const extent = [
     [Math.floor(x0), Math.floor(y0)],
     [Math.ceil(x1), Math.ceil(y1)],
   ];
-  // What the map may ever show: the frame with a margin (a twentieth of its size) all round. The data is clipped
-  // further out still (CLIP_MARGIN), so its straight cut edges are never in view.
-  const [fw, fh] = [focus[1][0] - focus[0][0], focus[1][1] - focus[0][1]];
+  // The start view's frame (`focus`): the extent from Cape Nordkinn down, Iceland and mainland Scandinavia whole.
+  // Without the Arctic band above (about a quarter of the extent's height) the countries are drawn larger where the
+  // map's height sets its scale (a wide screen); the band is still there to pan to.
+  const focus = [
+    [extent[0][0], Math.max(extent[0][1], Math.floor(projection(NORDKINN)[1]))],
+    [extent[1][0], extent[1][1]],
+  ];
+  // What the map may ever show: the extent with a margin (a twentieth of its size) all round. The data is clipped
+  // further out still (CLIP_MARGIN), so the clip's straight cut edges are never in view.
+  const [fw, fh] = [extent[1][0] - extent[0][0], extent[1][1] - extent[0][1]];
   const m = Math.round(Math.max(fw, fh) / 20);
+  const outer = [
+    [extent[0][0] - m, extent[0][1] - m],
+    [extent[1][0] + m, extent[1][1] + m],
+  ];
+  // The source's own cut along 100°E (SOURCE_CLIP) runs through that margin's top-right corner (60–65°N: the
+  // projection tilts Siberia upwards), where it showed Russia ending at a straight line with sea beyond: the map's
+  // top edge comes down until the cut lies CUT_CLEARANCE units past it. The extent's top stays in view, with less
+  // margin above it. The data is still clipped round the outer rectangle, so it is the same as before.
+  const CUT_CLEARANCE = 20;
+  let cutTop = -Infinity;
+  for (let lat = SOURCE_CLIP[1]; lat <= SOURCE_CLIP[3]; lat += 0.01) {
+    const [x, y] = projection([SOURCE_CLIP[2], lat]);
+    if (x >= outer[0][0] && x <= outer[1][0]) cutTop = Math.max(cutTop, y);
+  }
+  const top = Math.max(outer[0][1], Math.ceil(cutTop + CUT_CLEARANCE));
+  if (top > extent[0][1]) throw new Error("The source's cut along 100°E reaches into the map's extent");
   const coverage = [
-    [focus[0][0] - m, focus[0][1] - m],
-    [focus[1][0] + m, focus[1][1] + m],
+    [outer[0][0], top],
+    [outer[1][0], outer[1][1]],
   ];
   const CLIP_MARGIN = 150;
   const [[cx0, cy0], [cx1, cy1]] = [
-    [coverage[0][0] - CLIP_MARGIN, coverage[0][1] - CLIP_MARGIN],
-    [coverage[1][0] + CLIP_MARGIN, coverage[1][1] + CLIP_MARGIN],
+    [outer[0][0] - CLIP_MARGIN, outer[0][1] - CLIP_MARGIN],
+    [outer[1][0] + CLIP_MARGIN, outer[1][1] + CLIP_MARGIN],
   ];
   // The clip rectangle in lon/lat: its edges sampled every few units, so the curve they make there is followed.
   const ring = [];
@@ -202,13 +239,13 @@ try {
     objects: { countries: topo.objects[key] },
     // Read by src/geo/challengeMap.ts.
     projection: { rotate: [-8, -50], scale: round(projection.scale()), translate: projection.translate().map((v) => round(v)) },
-    frame: { focus, coverage },
+    frame: { focus, extent, coverage, sourceClip: SOURCE_CLIP },
   };
   writeFileSync(output, JSON.stringify(result));
 
   const ids = result.objects.countries.geometries.map((g) => g.id).sort();
   console.log(`Wrote ${output}`);
-  console.log(`Frame (world units): focus ${JSON.stringify(focus)}, coverage ${JSON.stringify(coverage)}; data clipped to lon ${box[0][0].toFixed(1)}…${box[1][0].toFixed(1)}, lat ${box[0][1].toFixed(1)}…${box[1][1].toFixed(1)}`);
+  console.log(`Frame (world units): focus ${JSON.stringify(focus)}, extent ${JSON.stringify(extent)}, coverage ${JSON.stringify(coverage)}; data clipped to lon ${box[0][0].toFixed(1)}…${box[1][0].toFixed(1)}, lat ${box[0][1].toFixed(1)}…${box[1][1].toFixed(1)}`);
   console.log(`${ids.length} countries: ${ids.join(", ")}`);
   console.log(`${(readFileSync(output).length / 1024).toFixed(1)} KiB`);
 } finally {
