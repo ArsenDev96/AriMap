@@ -40,7 +40,7 @@ export const en = {
   "continents.back": "Back to continents",
 
   "challenge.label": "Quick Challenge",
-  "challenge.title": "Can you find {count} European countries?",
+  "challenge.title": "Find {count} countries on the map of Europe",
   "challenge.time": "You have just {time}.",
   "challenge.seconds.one": "{count} second",
   "challenge.seconds.other": "{count} seconds",
@@ -52,6 +52,7 @@ export const en = {
 
   "challengeGame.backLabel": "Back to home",
   "challengeGame.mapLabel": "Map of Europe without country names",
+  "challengeMap.aboutKosovo": "Kosovo is shown as a country of its own, as in the Natural Earth data. Serbia does not recognise its 2008 declaration of independence.",
   "challengeGame.intro": "Tap each country on the map. You get one answer per country, and {time} for the whole round.",
   "challengeGame.loading": "Preparing the map…",
   "challengeGame.find": "Find on the map",

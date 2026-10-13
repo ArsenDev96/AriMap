@@ -42,7 +42,7 @@ export const hy: Record<keyof typeof en, string> = {
   "continents.back": "Վերադառնալ մայրցամաքներին",
 
   "challenge.label": "Արագ մարտահրավեր",
-  "challenge.title": "Կգտնե՞ս {count} եվրոպական երկիր",
+  "challenge.title": "Գտիր {count} երկիր Եվրոպայի քարտեզի վրա",
   "challenge.time": "Ունես ընդամենը {time}։",
   "challenge.seconds.one": "{count} վայրկյան",
   "challenge.seconds.other": "{count} վայրկյան",
@@ -54,6 +54,7 @@ export const hy: Record<keyof typeof en, string> = {
 
   "challengeGame.backLabel": "Վերադառնալ գլխավոր էջ",
   "challengeGame.mapLabel": "Եվրոպայի քարտեզ՝ առանց երկրների անունների",
+  "challengeMap.aboutKosovo": "Կոսովոն պատկերված է որպես առանձին երկիր, ինչպես Natural Earth-ի տվյալներում։ Սերբիան չի ճանաչում նրա 2008 թվականի անկախության հռչակագիրը։",
   "challengeGame.intro": "Հպիր յուրաքանչյուր երկրին քարտեզի վրա։ Ամեն երկրի համար ունես մեկ պատասխան, իսկ ամբողջ խաղի համար՝ {time}։",
   "challengeGame.loading": "Քարտեզը պատրաստվում է…",
   "challengeGame.find": "Գտիր քարտեզի վրա",

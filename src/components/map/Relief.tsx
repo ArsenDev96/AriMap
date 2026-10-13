@@ -69,12 +69,59 @@ type Level = (typeof relief.levels)[number];
 type Family = "land" | "tone";
 interface Tile {
   url: string;
-  level: Level;
-  col: number;
-  row: number;
+  /** Its level's name (data-level). */
+  level: string;
+  /** Its square, in world units. */
+  x: number;
+  y: number;
+  size: number;
+}
+
+/** An image placed over a world rectangle. */
+export interface PlacedImage {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  src: string;
+}
+
+/**
+ * A map's own landscape, painted for it alone, instead of a level's overview (the Quick Challenge's whole Europe:
+ * scripts/generate-challenge-relief.mjs). Its overview covers the whole map; zoomed in, its whole-map tiles; zoomed
+ * in deeper (from the levels' level-2 density), level-2 tiles: the levels' where they have one, its own, painted
+ * the same way, elsewhere. Its tiles lie on the levels' level-2 grid.
+ */
+export interface OwnRelief {
+  overview: Readonly<Record<Family, PlacedImage>>;
+  tiles: {
+    minDensity: number;
+    tileWorld: number;
+    origin: readonly number[];
+    cols: number;
+    rows: number;
+    land: readonly string[];
+    tone: readonly string[];
+  };
+  /** Its level-2 tiles, in the same cells as `tiles`. */
+  l2: {
+    minDensity: number;
+    land: readonly string[];
+    tone: readonly string[];
+  };
+  /** Where the tiles are served: `${folder}/${family}/${col}-${row}.webp`, and the level-2 tiles in `l2Folder`. */
+  folder: string;
+  l2Folder: string;
 }
 
 const tileUrl = (level: Level, family: Family, col: number, row: number) => `/relief/${relief.version}/${level.name}/${family}/${col}-${row}.webp`;
+const sharedTile = (level: Level, family: Family, col: number, row: number): Tile => ({
+  url: tileUrl(level, family, col, row),
+  level: level.name,
+  x: level.origin[0] + col * level.tileWorld,
+  y: level.origin[1] + row * level.tileWorld,
+  size: level.tileWorld,
+});
 const available = new Map(relief.levels.map((level) => [level, { land: new Set(level.land), tone: new Set(level.tone) }]));
 
 /** Tiles that have finished loading (shared by every map on the page), so they show at once when reused. */
@@ -133,7 +180,7 @@ function tilesIn(level: Level, family: Family, [x0, y0, x1, y1]: readonly number
   const r0 = Math.max(0, Math.floor((y0 - level.origin[1]) / level.tileWorld));
   const r1 = Math.min(level.rows - 1, Math.floor((y1 - level.origin[1]) / level.tileWorld));
   for (let row = r0; row <= r1; row++)
-    for (let col = c0; col <= c1; col++) if (set.has(`${col}-${row}`)) out.push({ url: tileUrl(level, family, col, row), level, col, row });
+    for (let col = c0; col <= c1; col++) if (set.has(`${col}-${row}`)) out.push(sharedTile(level, family, col, row));
   return out;
 }
 
@@ -147,10 +194,12 @@ function tilesIn(level: Level, family: Family, [x0, y0, x1, y1]: readonly number
  * that frame put their decoding into it (the map's response to a zoom from the
  * cache went from about 50 ms to 140 ms).
  */
-function useSettled(transform: Transform, viewport: { width: number; height: number }, delay = 150) {
+function useSettled(transform: Transform, viewport: { width: number; height: number }, delay: number | null = 150) {
   const key = `${transform.k},${transform.x},${transform.y},${viewport.width},${viewport.height}`;
   const [settled, setSettled] = useState<{ key: string; transform: Transform; viewport: { width: number; height: number } } | null>(null);
   useEffect(() => {
+    // No delay given: this view never settles (the last settled one stays).
+    if (delay === null) return;
     const settle = () => setSettled({ key, transform, viewport });
     let timer = delay > 0 ? setTimeout(settle, delay) : undefined;
     // After the next frame's main-thread work: its frame shows the view without these tiles.
@@ -177,39 +226,72 @@ function tilesFor(family: Family, density: number, view: readonly number[], area
   const levels = relief.levels.filter((level) => density >= level.minDensity);
   if (levels.length === 0) return [];
   const wanted = levels[levels.length - 1];
-  const inAreas = (t: Tile) => {
-    const x = t.level.origin[0] + t.col * t.level.tileWorld;
-    const y = t.level.origin[1] + t.row * t.level.tileWorld;
-    return areas.some((a) => overlapsBox([x, y, x + t.level.tileWorld, y + t.level.tileWorld], a));
-  };
+  const inAreas = (t: Tile) => areas.some((a) => overlapsBox([t.x, t.y, t.x + t.size, t.y + t.size], a));
   const fine = tilesIn(wanted, family, view).filter(inAreas);
   const waiting = fine.filter((t) => !loaded.has(t.url));
   const coarser = levels.length > 1 ? levels[levels.length - 2] : null;
   const fallback = coarser
     ? [
         ...new Map(
-          waiting.flatMap((t) => {
-            const x = t.level.origin[0] + t.col * t.level.tileWorld;
-            const y = t.level.origin[1] + t.row * t.level.tileWorld;
-            return tilesIn(coarser, family, [x, y, x + t.level.tileWorld - 1e-6, y + t.level.tileWorld - 1e-6])
+          waiting.flatMap((t) =>
+            tilesIn(coarser, family, [t.x, t.y, t.x + t.size - 1e-6, t.y + t.size - 1e-6])
               .filter((c) => loaded.has(c.url))
-              .map((c) => [c.url, c] as const);
-          }),
+              .map((c) => [c.url, c] as const),
+          ),
         ).values(),
       ]
     : [];
   return [...fallback, ...fine];
 }
 
-type Overview = (typeof relief.overviews)["western-europe-1"]["land"];
-
-/** The overview images of these level versions, land and tone, to fetch ahead of drawing them (the Quick Challenge's map). */
-export function overviewUrls(levels: readonly string[]): string[] {
-  return levels.flatMap((key) => {
-    const images = OVERVIEW_IMAGES[key];
-    return images ? [images.land.src, images.tone.src] : [];
-  });
+/**
+ * A map's own tiles (OwnRelief) for a family, once the screen density reaches them: its whole-map tile in each cell
+ * of the view, or from its level-2 density the level-2 tile in that cell, the levels' if they have one there and
+ * its own otherwise (the whole-map tile standing in while it loads, if it has loaded). One tile per cell, so the
+ * light and shade are never drawn twice.
+ */
+function ownTilesFor(
+  own: OwnRelief,
+  sets: Readonly<Record<"tiles" | "l2", Readonly<Record<Family, ReadonlySet<string>>>>>,
+  family: Family,
+  density: number,
+  view: readonly number[],
+  areas: (readonly number[])[],
+): Tile[] {
+  const { tiles } = own;
+  if (density < tiles.minDensity) return [];
+  const deep = density >= own.l2.minDensity;
+  const l2 = deep ? relief.levels.find((level) => level.name === "l2" && level.tileWorld === tiles.tileWorld) : undefined;
+  const out: Tile[] = [];
+  const size = tiles.tileWorld;
+  const c0 = Math.max(0, Math.floor((view[0] - tiles.origin[0]) / size));
+  const c1 = Math.min(tiles.cols - 1, Math.floor((view[2] - tiles.origin[0]) / size));
+  const r0 = Math.max(0, Math.floor((view[1] - tiles.origin[1]) / size));
+  const r1 = Math.min(tiles.rows - 1, Math.floor((view[3] - tiles.origin[1]) / size));
+  for (let row = r0; row <= r1; row++)
+    for (let col = c0; col <= c1; col++) {
+      const [x, y] = [tiles.origin[0] + col * size, tiles.origin[1] + row * size];
+      if (!areas.some((a) => overlapsBox([x, y, x + size, y + size], a))) continue;
+      const key = `${col}-${row}`;
+      const mine: Tile | null = sets.tiles[family].has(key) ? { url: `${own.folder}/${family}/${key}.webp`, level: "own", x, y, size } : null;
+      const [sc, sr] = l2 ? [(x - l2.origin[0]) / size, (y - l2.origin[1]) / size] : [-1, -1];
+      const fine =
+        l2 && available.get(l2)![family].has(`${sc}-${sr}`)
+          ? sharedTile(l2, family, sc, sr)
+          : deep && sets.l2[family].has(key)
+            ? { url: `${own.l2Folder}/${family}/${key}.webp`, level: "own-l2", x, y, size }
+            : null;
+      if (!fine) {
+        if (mine) out.push(mine);
+        continue;
+      }
+      if (mine && !loaded.has(fine.url) && loaded.has(mine.url)) out.push(mine);
+      out.push(fine);
+    }
+  return out;
 }
+
+type Overview = Omit<PlacedImage, "src">;
 
 /**
  * Where each of several overlapping overviews is drawn, so every point is painted by one of them only: the
@@ -236,7 +318,7 @@ interface Props {
   map: RegionMap;
   /**
    * The version of the level whose overview to draw (its versionKey; see relief.overviews), or several,
-   * side by side, for a map larger than any one level's (the Quick Challenge's whole Europe; see partition).
+   * side by side, for a map larger than any one level's (see partition). Ignored with `own`.
    */
   level: string | readonly string[];
   /** Lesson countries' tones; any tone other than "default" gets the "tone" family. */
@@ -248,19 +330,35 @@ interface Props {
   final?: boolean;
   /** Tiles show at once when loaded, without fading in (the gesture copy, which shows each final state). */
   instant?: boolean;
+  /** The map's own landscape, drawn instead of `level`'s overviews (see OwnRelief). */
+  own?: OwnRelief;
+  /**
+   * Tiles are fetched only for a view where a gesture or zoom ended (`final`), never for a pause within one (the
+   * Quick Challenge's map, drawn again during a gesture whenever it outgrows its layer: see ChallengeMap).
+   */
+  endOnly?: boolean;
 }
 
-export const Relief = memo(function Relief({ map, level, tones, transform, viewport, instant, final }: Props) {
+export const Relief = memo(function Relief({ map, level, tones, transform, viewport, instant, final, own, endOnly }: Props) {
   const levelsKey = typeof level === "string" ? level : level.join(",");
-  // The overviews to draw (those of the given versions that have images), and where each is drawn.
+  // The overviews to draw (those of the given versions that have images, or the map's own), and where each is drawn.
   const sources = useMemo(
     () =>
-      levelsKey.split(",").flatMap((key) => {
-        const overviews = (relief.overviews as Record<string, typeof relief.overviews["western-europe-1"] | undefined>)[key];
-        const images = OVERVIEW_IMAGES[key];
-        return overviews && images ? [{ key, overviews, images }] : [];
-      }),
-    [levelsKey],
+      own
+        ? [{ key: "own", overviews: own.overview, images: { land: { src: own.overview.land.src }, tone: { src: own.overview.tone.src } } }]
+        : levelsKey.split(",").flatMap((key) => {
+            const overviews = (relief.overviews as Record<string, (typeof relief.overviews)["western-europe-1"] | undefined>)[key];
+            const images = OVERVIEW_IMAGES[key];
+            return overviews && images ? [{ key, overviews, images }] : [];
+          }),
+    [levelsKey, own],
+  );
+  const ownSets = useMemo(
+    () =>
+      own
+        ? { tiles: { land: new Set(own.tiles.land), tone: new Set(own.tiles.tone) }, l2: { land: new Set(own.l2.land), tone: new Set(own.l2.tone) } }
+        : null,
+    [own],
   );
   const parts = useMemo(
     () => ({ land: partition(sources.map((s) => s.overviews.land)), tone: partition(sources.map((s) => s.overviews.tone)) }),
@@ -300,7 +398,7 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
 
   // Tiles for the settled view: the visible world area, with a quarter-screen
   // margin so a short pan finds tiles ready.
-  const settled = useSettled(transform, viewport, final ? 0 : 150);
+  const settled = useSettled(transform, viewport, final ? 0 : endOnly ? null : 150);
   let landTiles: Tile[] = [];
   let toneTiles: Tile[] = [];
   if (settled) {
@@ -309,24 +407,24 @@ export const Relief = memo(function Relief({ map, level, tones, transform, viewp
     const [mx, my] = [width / k / 4, height / k / 4];
     const view = [-x / k - mx, -y / k - my, (width - x) / k + mx, (height - y) / k + my];
     const density = k * dpr;
-    landTiles = tilesFor("land", density, view, [[-Infinity, -Infinity, Infinity, Infinity]]);
-    toneTiles = tonedKey ? tilesFor("tone", density, view, tonedBoxes) : [];
+    const everywhere = [[-Infinity, -Infinity, Infinity, Infinity]];
+    landTiles = own && ownSets ? ownTilesFor(own, ownSets, "land", density, view, everywhere) : tilesFor("land", density, view, everywhere);
+    toneTiles = !tonedKey ? [] : own && ownSets ? ownTilesFor(own, ownSets, "tone", density, view, tonedBoxes) : tilesFor("tone", density, view, tonedBoxes);
   }
 
   const image = (t: Tile) => {
-    const size = t.level.tileWorld;
     const ready = loaded.has(t.url);
     return (
       <image
         key={t.url}
         href={t.url}
-        x={t.level.origin[0] + t.col * size}
-        y={t.level.origin[1] + t.row * size}
-        width={size}
-        height={size}
+        x={t.x}
+        y={t.y}
+        width={t.size}
+        height={t.size}
         preserveAspectRatio="none"
         className={styles.reliefTile}
-        data-level={t.level.name}
+        data-level={t.level}
         data-loaded={ready || undefined}
         onLoad={
           ready

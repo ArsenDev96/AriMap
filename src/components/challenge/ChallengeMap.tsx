@@ -4,26 +4,35 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
+import { RING_COUNTRIES } from "@/core/challenge/europe";
+import { RING_RADIUS, ringAt, ringShown, type Ring } from "@/core/challenge/smallCountries";
 import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import type { CountryTone } from "@/core/lesson/mapView";
-import { applyTransform, fitTransform, getRegionMap, type Bounds, type RegionMap, type Transform } from "@/geo/regionMap";
+import { loadChallengeMap, type ChallengeMapData } from "@/geo/challengeMap";
+import { applyTransform, fitTransform, type Bounds, type RegionMap, type Transform } from "@/geo/regionMap";
+import europeLand from "@/assets/map/challenge/europe-land.webp";
+import europeTone from "@/assets/map/challenge/europe-tone.webp";
 import { useI18n } from "../i18n";
+import { AboutMap } from "../map/AboutMap";
 import { LandTexture, SeaTexture } from "../map/AtlasSurface";
 import { placeLayer } from "../map/liveView";
-import { overviewUrls, Relief } from "../map/Relief";
+import { Relief, type OwnRelief } from "../map/Relief";
 import { useCountryTap } from "../map/useTap";
 import lesson from "../map/RegionMap.module.css";
 import styles from "./ChallengeMap.module.css";
 
 /**
- * The Quick Challenge's map: Europe without names, drawn as the levels' illustrated map is (the atlas palette,
- * textured turquoise water, the painted relief, the same coasts and borders: RegionMap.module.css, AtlasSurface,
- * Relief), in their projection and data (src/geo/regionMap.ts). Rendering and input only: what a tap means,
- * and every rule of the round, is the caller's (src/core/challenge/quickChallenge.ts). Pans and zooms (drag,
- * pinch, wheel, the + − and reset buttons); a drag or pinch never answers (useCountryTap). During a gesture
- * the drawn map moves as one layer without being drawn again (liveView.ts's placeLayer), and is drawn again
- * for the new view once it settles; sharper relief is fetched for that view only (Relief).
+ * The Quick Challenge's map: the whole of Europe without names, from Iceland to the Urals, drawn as the levels'
+ * illustrated map is (the atlas palette, textured turquoise water, the painted relief, the same coasts and
+ * borders: RegionMap.module.css, AtlasSurface, Relief), in their projection, from its own data and landscape
+ * (src/geo/challengeMap.ts; scripts/generate-challenge-relief.mjs), loaded when it opens. Rendering and input
+ * only: what a tap means, and every rule of the round, is the caller's (src/core/challenge/quickChallenge.ts).
+ * Pans and zooms (drag, pinch, wheel, the + − and reset buttons); a drag or pinch never answers (useCountryTap).
+ * During a gesture the drawn map moves as one layer without being drawn again (liveView.ts's placeLayer), and is
+ * drawn again for the new view once the layer no longer covers it and when the gesture ends; sharper relief is
+ * fetched only for the view where a gesture or zoom ends, never for one passed through (Relief's endOnly). Europe's
+ * smallest countries are marked by rings while too small to tap (smallCountries.ts).
  */
 
 /** Colours a country can show: found, the place of a missed country, and the player's wrong choice. */
@@ -43,6 +52,8 @@ interface Props {
   onReady?: () => void;
   /** A new value (a new round) brings the start view back at once, whatever the player or the review left. */
   viewKey?: unknown;
+  /** A new value (the round starting or ending) closes "About the map" if it is open (AboutMap's closeKey). */
+  aboutKey?: unknown;
 }
 
 const MAX_ZOOM = 6;
@@ -51,37 +62,32 @@ const OVERSCAN = 0.3;
 const ZOOM_STEP = 1.6;
 
 /**
- * The most the map ever shows, in world units (the levels' projection): every pool country with room
- * around it, and wholly inside the map data (MAP_DATA_CLIP: lon −27…48, lat 29.5…62), so the straight
- * edges where the data cuts through land (Scandinavia and Russia at 62°N, Russia at 48°E, North Africa at
- * 29.5°N) are never in view. Its corners lie just inside the data: (−650, −500) at about 57.6°N 26.9°W,
- * (2190, −500) about 0.1° west of 48°E, (2190, 1600) about 0.2° north of 29.5°N. The view is fitted to the
- * pool inside it, zooming in rather than looking past it; the map is shown narrower where a screen is too
- * wide for it (as the levels' map is: maxMapWidth in regionMap.ts).
- */
-const COVERAGE: Bounds = [
-  [-650, -500],
-  [2190, 1600],
-];
-
-/**
- * The levels' painted overviews that together cover COVERAGE's land (each level has its own, all in the
- * same projection and at one pixel per world unit): Western Europe 1 (the west, the British Isles and
- * Iberia), the Baltic (the north), Towards Greece (the south-east), Eastern Europe (Ukraine's east) and the
- * Iberian journey (Portugal's colours, and North Africa's coast). Drawn side by side (Relief's partition).
- */
-const OVERVIEWS = ["western-europe-1", "baltic-journey", "towards-greece", "eastern-europe", "iberian-journey"] as const;
-
-/**
  * Label points for the pool's countries that have no content in countries.ts (no label there), inside each
- * country's main land: the English Midlands, central Ireland, Jutland and central Albania.
+ * country's main land; a ring country's is its ring's point.
  */
 const EXTRA_LABELS: Readonly<Record<CountryId, LonLat>> = {
   GBR: [-1.6, 52.8],
   IRL: [-8.0, 53.2],
   DNK: [9.1, 56.0],
   ALB: [20.05, 41.2],
+  // North Macedonia's middle, between Skopje and Prilep.
+  MKD: [21.6, 41.6],
+  KOS: [20.9, 42.6],
+  ISL: [-18.6, 64.9],
+  NOR: [9.0, 61.6],
+  SWE: [15.2, 62.4],
+  FIN: [26.0, 62.8],
+  // European Russia's middle, east of Moscow.
+  RUS: [44.0, 57.0],
+  ...RING_COUNTRIES,
 };
+
+/**
+ * The credit the challenge's relief needs beyond the levels' (AboutMap's): Natural Resources Canada's elevation data,
+ * for the sliver of Ellesmere Island in the map's top-left corner (docs/TERRAIN.md, "Quick Challenge"), verbatim
+ * from Tilezen's attribution list.
+ */
+const CHALLENGE_CREDITS = ["Canada terrain data contains information licensed under the Open Government Licence – Canada."];
 
 const labelPoint = (id: CountryId): LonLat | null => COUNTRIES[id]?.label.coordinates ?? EXTRA_LABELS[id] ?? null;
 
@@ -103,9 +109,9 @@ function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** The view at scale `k` centred on the world point (cx, cy), moved as little as it takes to show nothing past COVERAGE. */
-function viewAt(k: number, cx: number, cy: number, width: number, height: number): Transform {
-  const [[c0x, c0y], [c1x, c1y]] = COVERAGE;
+/** The view at scale `k` centred on the world point (cx, cy), moved as little as it takes to show nothing past `coverage`. */
+function viewAt(coverage: Bounds, k: number, cx: number, cy: number, width: number, height: number): Transform {
+  const [[c0x, c0y], [c1x, c1y]] = coverage;
   const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
   return { k, x: clamp(width / 2 - k * cx, width - k * c1x, -k * c0x), y: clamp(height / 2 - k * cy, height - k * c1y, -k * c0y) };
 }
@@ -121,11 +127,50 @@ function preload(urls: readonly string[]): Promise<void> {
   ).then(() => {});
 }
 
-export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKey }: Props) {
+/** The map's data and landscape, loaded once per page with the map (not with the home screen or the levels). */
+let loading: Promise<{ map: ChallengeMapData; own: OwnRelief }> | null = null;
+function loadMap() {
+  loading ??= Promise.all([loadChallengeMap(), import("@/assets/map/challenge-relief.json")]).then(([map, { default: manifest }]) => {
+    const own: OwnRelief = {
+      overview: { land: { ...manifest.overview.land, src: europeLand.src }, tone: { ...manifest.overview.tone, src: europeTone.src } },
+      tiles: manifest.tiles,
+      l2: manifest.l2,
+      folder: `/relief-challenge/${manifest.version}`,
+      l2Folder: `/relief-challenge-l2/${manifest.l2.version}`,
+    };
+    // The overview, land and tone, before the map shows: the relief is there from the start, and the first answer's
+    // colours are shaded at once, never fetched in the middle of the round.
+    return preload([europeLand.src, europeTone.src]).then(() => ({ map, own }));
+  });
+  return loading;
+}
+
+export function ChallengeMap(props: Props) {
+  const { t } = useI18n();
+  const [loaded, setLoaded] = useState<{ map: ChallengeMapData; own: OwnRelief } | null>(null);
+  useEffect(() => {
+    let live = true;
+    void loadMap().then((data) => {
+      if (live) setLoaded(data);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (loaded) return <LoadedMap {...props} map={loaded.map} own={loaded.own} />;
+  // The frame, empty, while the map loads (the panel says it is being prepared).
+  return (
+    <div className={styles.root} data-testid="challenge-map">
+      <div className={`${lesson.wrapper} ${lesson.atlas} ${styles.frame}`} data-map-style="atlas" role="img" aria-label={t("challengeGame.mapLabel")} />
+    </div>
+  );
+}
+
+function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKey, map, own }: Props & { map: ChallengeMapData; own: OwnRelief }) {
   const { t, name } = useI18n();
-  const map = useMemo(() => getRegionMap(pool), [pool]);
+  const coverage = map.coverage;
   // The water's texture covers what the map can show.
-  const surface = useMemo<RegionMap>(() => ({ ...map, coverage: COVERAGE }), [map]);
+  const surface = useMemo<RegionMap>(() => ({ ...map, coverage }), [map, coverage]);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const layerRef = useRef<SVGSVGElement>(null);
@@ -139,13 +184,36 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
   const [final, setFinal] = useState(true);
   const margin = useMemo(() => ({ x: Math.round(size.width * OVERSCAN), y: Math.round(size.height * OVERSCAN) }), [size]);
 
+  // The small-country rings of the view drawn: every ring country of the pool drawn smaller than a ring, at its
+  // point, in a fixed order (RING_COUNTRIES'), whatever is asked.
+  const rings = useMemo<Ring[]>(() => {
+    if (!drawn) return [];
+    return Object.entries(RING_COUNTRIES).flatMap(([id, point]) => {
+      if (!pool.includes(id) || !ringShown((map.areas.get(id) ?? 0) * drawn.k * drawn.k)) return [];
+      const [x, y] = applyTransform(drawn, map.project(point));
+      return [{ id, x, y }];
+    });
+  }, [drawn, pool, map]);
+  const ringsRef = useRef(rings);
+  useEffect(() => {
+    ringsRef.current = rings;
+  }, [rings]);
+
   const tapCountry = useMemo(() => (onTap ? (id: string) => pool.includes(id) && onTap(id) : undefined), [onTap, pool]);
-  // A press answers with the pool country whose shape is at its own position (useCountryTap's countryAtPoint), as
-  // drawn now (the layer's CTM includes a gesture's placement): its fill only, never its outline, so a press by a
+  // A press answers with a small country's ring if it is in one (where rings overlap, the nearest centre's:
+  // ringAt), and otherwise with the pool country whose shape is at its own position (useCountryTap's countryAtPoint),
+  // as drawn now (the layer's CTM includes a gesture's placement): its fill only, never its outline, so a press by a
   // border goes to the side it is on, by touch or mouse alike. Sea and the context countries answer nothing.
   const shapeBounds = useMemo(() => new Map(map.shapes.map((s) => [s.id, s.bounds])), [map]);
   const countryAtPoint = (x: number, y: number): string | null => {
-    const paths = layerRef.current?.querySelectorAll<SVGPathElement>("path[data-country]");
+    const layer = layerRef.current;
+    const ringCtm = layer?.querySelector<SVGCircleElement>("circle[data-ring]")?.getScreenCTM();
+    if (ringCtm) {
+      const p = new DOMPoint(x, y).matrixTransform(ringCtm.inverse());
+      const ring = ringAt(ringsRef.current, p.x, p.y);
+      if (ring) return ring;
+    }
+    const paths = layer?.querySelectorAll<SVGPathElement>("path[data-country]");
     const ctm = paths?.[0]?.getScreenCTM();
     if (!paths || !ctm) return null;
     const p = new DOMPoint(x, y).matrixTransform(ctm.inverse());
@@ -172,19 +240,19 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
   }, []);
 
   const padding = Math.max(8, Math.min(size.width, size.height) * 0.03);
-  const [[c0x, c0y], [c1x, c1y]] = COVERAGE;
+  const [[c0x, c0y], [c1x, c1y]] = coverage;
   const [[f0x, f0y], [f1x, f1y]] = map.focusBounds;
-  // Wider than the pool can be shown whole within COVERAGE (an ultra-wide desktop): narrower, centred.
+  // Wider than Europe can be shown whole within the coverage (an ultra-wide desktop): narrower, centred.
   const maxWidth = size.height > 0 ? Math.floor(((c1x - c0x) * (size.height - 2 * padding)) / (f1y - f0y)) : undefined;
 
-  // The start view: the whole pool, fitted with room around it, but never showing past COVERAGE (zooming in
-  // a little instead, then moved inside it). The player may zoom in MAX_ZOOM times and pan within COVERAGE.
+  // The start view: the whole of Europe, fitted with room around it, but never showing past the coverage (zooming in
+  // a little instead, then moved inside it). The player may zoom in MAX_ZOOM times and pan within the coverage.
   const base = useMemo<Transform | null>(() => {
     if (size.width < 1 || size.height < 1) return null;
     const fit = fitTransform(map.focusBounds, size.width, size.height, padding);
     const k = Math.max(fit.k, size.width / (c1x - c0x), size.height / (c1y - c0y));
-    return viewAt(k, (f0x + f1x) / 2, (f0y + f1y) / 2, size.width, size.height);
-  }, [map, size, padding, c0x, c0y, c1x, c1y, f0x, f0y, f1x, f1y]);
+    return viewAt(coverage, k, (f0x + f1x) / 2, (f0y + f1y) / 2, size.width, size.height);
+  }, [map, coverage, size, padding, c0x, c0y, c1x, c1y, f0x, f0y, f1x, f1y]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -200,7 +268,7 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
         [size.width, size.height],
       ])
       .scaleExtent([base.k, base.k * MAX_ZOOM])
-      .translateExtent(COVERAGE as [[number, number], [number, number]])
+      .translateExtent(coverage as [[number, number], [number, number]])
       .on("zoom", (event) => {
         const { k, x, y } = event.transform;
         const view = { k, x, y };
@@ -231,12 +299,12 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
       stage.removeAttribute("data-moving");
       stage.removeAttribute("data-gesture");
     };
-  }, [base, size, margin]);
+  }, [base, size, margin, coverage]);
 
   // The review's selected country, brought to the middle and zoomed until its whole shape fills about two thirds of
-  // the map (no further than MAX_ZOOM, and never past COVERAGE); back to the start view when the review ends. Only the
-  // review sets `focus`, so a timed round's view is the player's own. After the effect above, which a new size or
-  // start view resets to the start view.
+  // the map (no further than MAX_ZOOM, and never past the coverage); back to the start view when the review ends.
+  // Only the review sets `focus`, so a timed round's view is the player's own. After the effect above, which a new
+  // size or start view resets to the start view.
   const focusedRef = useRef(false);
   useEffect(() => {
     const stage = stageRef.current;
@@ -247,7 +315,7 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
     if (shape) {
       const [[x0, y0], [x1, y1]] = shape.bounds;
       const fit = fitTransform(shape.bounds, size.width, size.height, Math.min(size.width, size.height) * 0.18);
-      view = viewAt(Math.min(base.k * MAX_ZOOM, Math.max(base.k, fit.k)), (x0 + x1) / 2, (y0 + y1) / 2, size.width, size.height);
+      view = viewAt(coverage, Math.min(base.k * MAX_ZOOM, Math.max(base.k, fit.k)), (x0 + x1) / 2, (y0 + y1) / 2, size.width, size.height);
       focusedRef.current = true;
     } else if (focusedRef.current) {
       view = base;
@@ -257,7 +325,7 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
       .transition()
       .duration(prefersReducedMotion() ? 0 : 400)
       .call(behavior.transform, zoomIdentity.translate(view.x, view.y).scale(view.k));
-  }, [focus, base, size, map]);
+  }, [focus, base, size, map, coverage]);
 
   // A new round starts at the start view, at once (any zoom still animating stopped); within a round the view is
   // the player's. Without a start view yet (a phone hides the map with the results) the effect above sets it.
@@ -277,18 +345,7 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
     if (drawn) placeLayer(layerRef.current, drawn, liveRef.current ?? drawn, size, margin);
   }, [drawn, size, margin]);
 
-  // Ready once drawn and its overviews (land and tone) have loaded: the relief shows from the start, and
-  // the first answer's colours are shaded at once, never fetched in the middle of the round.
-  const [reliefLoaded, setReliefLoaded] = useState(false);
-  useEffect(() => {
-    let live = true;
-    void preload(overviewUrls(OVERVIEWS)).then(() => {
-      if (live) setReliefLoaded(true);
-    });
-    return () => {
-      live = false;
-    };
-  }, []);
+  // Ready once drawn (the overview, land and tone, loaded with the data: loadMap).
   const readyRef = useRef(onReady);
   useEffect(() => {
     readyRef.current = onReady;
@@ -296,14 +353,14 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
   const announced = useRef(false);
   const shown = drawn !== null;
   useEffect(() => {
-    if (!shown || !reliefLoaded || announced.current) return;
+    if (!shown || announced.current) return;
     // After the browser has painted the drawn map.
     const frame = requestAnimationFrame(() => {
       announced.current = true;
       readyRef.current?.();
     });
     return () => cancelAnimationFrame(frame);
-  }, [shown, reliefLoaded]);
+  }, [shown]);
 
   const animateTo = (move: (zoom: ZoomBehavior<HTMLDivElement, unknown>, stage: HTMLDivElement) => void) => {
     const stage = stageRef.current;
@@ -326,9 +383,11 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
       const point = labelPoint(id);
       if (!point) return [];
       const [x, y] = applyTransform(drawn, map.project(point));
-      return [{ id, x, y, text: name(id) }];
+      // Beside a ring, not over it.
+      const ringed = rings.some((r) => r.id === id);
+      return [{ id, x, y: ringed ? y - RING_RADIUS - 10 : y, text: name(id) }];
     });
-  }, [drawn, names, map, name]);
+  }, [drawn, names, map, name, rings]);
 
   return (
     // The map, and its zoom controls: over its corner on a wide screen, in a toolbar under it on a phone,
@@ -353,11 +412,25 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
                 <SeaTexture map={surface} />
                 <Countries map={map} pool={pool} tones={tones} interactive={!!onTap} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                <Relief map={map} level={OVERVIEWS} tones={reliefTones} transform={drawn} viewport={size} final={final} />
+                <Relief map={map} level={[]} own={own} tones={reliefTones} transform={drawn} viewport={size} final={final} endOnly />
                 <ContextVeil map={map} pool={pool} />
                 <Borders map={map} pool={pool} />
                 {focus && <path className={styles.focus} d={map.shapes.find((s) => s.id === focus)?.d} />}
               </g>
+              {rings.map((ring) => (
+                <g key={ring.id}>
+                  <circle cx={ring.x} cy={ring.y} r={RING_RADIUS} className={styles.ringHalo} />
+                  <circle
+                    cx={ring.x}
+                    cy={ring.y}
+                    r={RING_RADIUS}
+                    className={styles.ring}
+                    data-ring={ring.id}
+                    data-tone={tones?.[ring.id]}
+                    data-focus={ring.id === focus ? "" : undefined}
+                  />
+                </g>
+              ))}
               {labels.map((label) => (
                 <text key={label.id} className={styles.name} x={label.x} y={label.y} data-focus={label.id === focus ? "" : undefined}>
                   {label.text}
@@ -366,6 +439,9 @@ export function ChallengeMap({ pool, tones, names, focus, onTap, onReady, viewKe
             </svg>
           )}
         </div>
+        {/* The sources and credits, as on the levels' maps: the round button in the top-right corner, which the zoom
+            controls never take (they are under the map on a phone, at its bottom-right corner on a wide screen). */}
+        <AboutMap notes={[t("challengeMap.aboutKosovo")]} credits={CHALLENGE_CREDITS} openAtTop closeKey={aboutKey} />
       </div>
       <div className={`${lesson.controls} ${styles.controls}`}>
         <button type="button" className={`${lesson.control} ${styles.control}`} onClick={() => zoomBy(ZOOM_STEP)} aria-label={t("map.zoomIn")} title={t("map.zoomIn")}>
@@ -437,7 +513,7 @@ const Countries = memo(function Countries({
 });
 
 /**
- * The countries outside the pool, under a pale veil over their relief, so the 30 that can be answered stand
+ * The countries outside the pool, under a pale veil over their relief, so the ones that can be answered stand
  * out. The same for the whole round (it never shows which 15 were drawn), and never a tap's target.
  */
 const ContextVeil = memo(function ContextVeil({ map, pool }: { map: RegionMap; pool: readonly CountryId[] }) {

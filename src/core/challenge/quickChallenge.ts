@@ -1,5 +1,6 @@
 import type { CountryId } from "../content/types";
 import { shuffle, type RandomSource } from "../game/random";
+import { CHALLENGE_POOL } from "./europe";
 
 /**
  * The Quick Challenge: find as many of a round's countries as you can on an unlabelled map of Europe,
@@ -12,23 +13,10 @@ import { shuffle, type RandomSource } from "../game/random";
  */
 
 /**
- * The countries a round's questions are drawn from. Each has a whole shape in the map data
- * (src/data/geo/europe-west.topo.json) and a name in both languages, and is large enough to tap at a
- * whole-Europe view on a phone. Left out on purpose: Andorra, Luxembourg, Malta, Monaco, San Marino,
- * Liechtenstein and Vatican City (too small to tap there), Montenegro and Kosovo (the smallest left),
- * Norway, Sweden and Finland (the data stops at 62°N, cutting most of them off), Iceland (not in the
- * data), and the countries that lie mostly outside Europe or the data (Russia, Turkey, Kazakhstan).
+ * The countries a round's questions are drawn from: Europe's 44 countries and Kosovo (./europe.ts), each on the
+ * challenge's map and named in both languages. The smallest are marked by rings (./smallCountries.ts).
  */
-export const CHALLENGE_POOL: readonly CountryId[] = [
-  // Western Europe and the British Isles.
-  "PRT", "ESP", "FRA", "GBR", "IRL", "BEL", "NLD", "DNK",
-  // Central Europe and Italy.
-  "DEU", "CHE", "AUT", "ITA", "POL", "CZE", "SVK", "HUN", "SVN",
-  // The Balkans and the south-east.
-  "HRV", "BIH", "SRB", "ALB", "ROU", "BGR", "GRC",
-  // The Baltic states and Eastern Europe.
-  "EST", "LVA", "LTU", "BLR", "UKR", "MDA",
-];
+export { CHALLENGE_POOL };
 
 export interface ChallengeRules {
   /** Questions in a round, each a different country of the pool. */
@@ -41,7 +29,7 @@ export interface ChallengeRules {
 
 export const CHALLENGE_RULES: ChallengeRules = {
   questions: 15,
-  durationMs: 45_000,
+  durationMs: 60_000,
   feedbackMs: { correct: 400, wrong: 400, skipped: 400 },
 };
 

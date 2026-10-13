@@ -153,6 +153,8 @@ export function QuickChallengeScreen({ dispatch, onClose }: Props) {
             onReady={() => setMapReady(true)}
             // A round's questions are drawn once (answers keep the same list): a new list is a new round, at the start view.
             viewKey={round.questions}
+            // The round's end closes "About the map" (on a phone the results hide the map, and the dialog with it).
+            aboutKey={round.status}
           />
         </div>
 
@@ -294,6 +296,17 @@ function Results({
   onLessons: () => void;
 }) {
   const { t, tp, name } = useI18n();
+  // Focus lost as the round ended (the control that had it is gone, or hidden with the map on a phone, "About the
+  // map" included): to the results' title, so the next Tab, and a screen reader, start there. A frame later, once
+  // the map's own effects (AboutMap's closeKey) have run; a focused element no longer drawn counts as lost.
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body || el.getClientRects().length === 0) titleRef.current?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const counts = [
     { key: "correct", label: t("challengeResults.correct"), value: result.correct },
     { key: "incorrect", label: t("challengeResults.incorrect"), value: result.incorrect },
@@ -302,7 +315,9 @@ function Results({
   ];
   return (
     <div className={styles.results} data-testid="challenge-results" data-end={result.endReason}>
-      <h2 className={styles.resultTitle}>{t(result.endReason === "timeUp" ? "challengeResults.timeUp" : "challengeResults.complete")}</h2>
+      <h2 className={styles.resultTitle} ref={titleRef} tabIndex={-1}>
+        {t(result.endReason === "timeUp" ? "challengeResults.timeUp" : "challengeResults.complete")}
+      </h2>
       <p className={styles.resultScore} aria-label={t("challengeResults.scoreLabel", { score: result.score, total: result.total })}>
         <strong>{result.score}</strong>
         <span>/ {result.total}</span>

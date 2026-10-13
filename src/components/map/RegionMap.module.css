@@ -840,6 +840,11 @@
   font-size: 1.15rem;
 }
 
+/* A heading given focus as the dialog opens (AboutMap's openAtTop): it is not a control, so no focus ring. */
+.aboutHeading:focus {
+  outline: none;
+}
+
 .aboutBody p {
   margin: 0 0 8px;
 }

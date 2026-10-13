@@ -28,9 +28,9 @@
   --map-control-radius: 12px;
 }
 
-/* On a phone (any screen under 900px wide): the map at about Europe's own shape, 5:4, as tall as the whole
-   pool can be shown inside the data (COVERAGE in ChallengeMap.tsx), and the controls in a compact toolbar
-   under it, at its right, so they never cover a country. */
+/* On a phone (any screen under 900px wide): the map at about the shape of the whole of Europe, from Iceland to
+   the Urals and the Arctic islands (7:8, its frame being 3100 × 3575 units: src/geo/challengeMap.ts), and the
+   controls in a compact toolbar under it, at its right, so they never cover a country. */
 @media (max-width: 899.98px) {
   .root {
     height: auto;
@@ -40,7 +40,7 @@
   }
   .root .frame {
     height: auto;
-    aspect-ratio: 5 / 4;
+    aspect-ratio: 7 / 8;
     /* A phone held sideways: no taller than most of the screen (the map is then shown narrower, centred). */
     max-height: 62svh;
   }
@@ -93,6 +93,47 @@
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
+}
+
+/* The small-country rings (smallCountries.ts): a dark ring on a light halo, the same for every small country
+   whatever is asked; in a feedback or review colour once that country has one. Never a pointer target of their own:
+   ChallengeMap resolves a press inside one (ringAt). */
+.ringHalo {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 4.5px;
+  pointer-events: none;
+}
+
+.ring {
+  fill: rgba(255, 255, 255, 0.22);
+  stroke: var(--ink);
+  stroke-width: 1.75px;
+  pointer-events: none;
+}
+
+.ring[data-tone="correct"] {
+  fill: rgba(21, 165, 151, 0.55);
+  stroke: #0b6f66;
+  stroke-width: 2.25px;
+}
+
+.ring[data-tone="missed"] {
+  fill: var(--amber);
+  fill-opacity: 0.6;
+  stroke: var(--ink);
+  stroke-width: 2.25px;
+}
+
+.ring[data-tone="chosen"] {
+  fill: var(--coral);
+  fill-opacity: 0.6;
+  stroke: var(--ink);
+  stroke-width: 2.25px;
+}
+
+.ring[data-focus] {
+  stroke-width: 3px;
 }
 
 /* A country's name in the review, on a light halo. */
