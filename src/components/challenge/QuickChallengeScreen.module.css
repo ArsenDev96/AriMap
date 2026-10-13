@@ -259,6 +259,10 @@
   font-weight: 900;
   line-height: 1.15;
 }
+/* Focused by script only (when focus was lost as the round ended), never by Tab: no ring. */
+.resultTitle:focus {
+  outline: none;
+}
 
 .resultScore {
   display: flex;
