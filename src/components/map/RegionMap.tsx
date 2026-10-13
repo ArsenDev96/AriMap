@@ -30,6 +30,7 @@ import { useI18n } from "../i18n";
 import { LandTexture, SeaTexture } from "./AtlasSurface";
 import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
 import { insideShape } from "./insideShape";
+import { textWidth } from "./textWidth";
 import { createLiveView, gestureModeFor, placeLayer, type LiveView } from "./liveView";
 import { Relief } from "./Relief";
 import { Scenery } from "./Scenery";
@@ -1149,25 +1150,6 @@ const LEADERS_CROSSING_COST = 6000;
 /** Cost of a callout lying entirely over another lesson country (scaled by the share that does). */
 const CALLOUT_DEPTH_COST = 2500;
 
-let measureContext: CanvasRenderingContext2D | null | undefined;
-const widthCache = new Map<string, number>();
-
-/** Approximate rendered width of map text, with a small safety margin. */
-function textWidth(text: string, sizePx: number, weight = LABEL_WEIGHT): number {
-  const key = `${weight}|${sizePx}|${text}`;
-  const cached = widthCache.get(key);
-  if (cached !== undefined) return cached;
-  if (measureContext === undefined) measureContext = document.createElement("canvas").getContext("2d");
-  let width = text.length * sizePx * 0.62;
-  if (measureContext) {
-    measureContext.font = `${weight} ${sizePx}px ${getComputedStyle(document.body).fontFamily}`;
-    width = measureContext.measureText(text).width;
-  }
-  width = Math.ceil(width * 1.06);
-  widthCache.set(key, width);
-  return width;
-}
-
 const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 const inBox = ([x, y]: Point, b: Box) => x >= b.x0 && x <= b.x1 && y >= b.y0 && y <= b.y1;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -1662,7 +1644,7 @@ function placeOverlay(
         id,
         anchor: toScreen(map.project(c.label.coordinates)),
         text,
-        textWidth: textWidth(text, labelFont),
+        textWidth: textWidth(text, labelFont, LABEL_WEIGHT),
         explored: explored.has(id),
         callout: null,
         inline: true,
@@ -1879,7 +1861,7 @@ function placeOverlay(
       const extra = label.explored ? badgeExtra : 0;
       for (let i = 1; i < words.length; i++) {
         const split: [string, string] = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
-        const w = Math.max(textWidth(split[0], labelFont), textWidth(split[1], labelFont) + extra) + 2 * pad;
+        const w = Math.max(textWidth(split[0], labelFont, LABEL_WEIGHT), textWidth(split[1], labelFont, LABEL_WEIGHT) + extra) + 2 * pad;
         if (w < width) [lines, width] = [split, w];
       }
     }
@@ -2712,7 +2694,7 @@ function Overlay({ motion, layout: given, ...input }: OverlayProps) {
                     <text className={`${styles.calloutText} ${toneClass}`} fontSize={labelFont} x={x} y={y} textAnchor="middle" dominantBaseline="central">
                       {line}
                     </text>
-                    {i === 1 && explored && <ExploredBadge cx={x + textWidth(line, labelFont) / 2 + badge.gap + badge.r} cy={y} r={badge.r} onDark={false} />}
+                    {i === 1 && explored && <ExploredBadge cx={x + textWidth(line, labelFont, LABEL_WEIGHT) / 2 + badge.gap + badge.r} cy={y} r={badge.r} onDark={false} />}
                   </Fragment>
                 );
               })

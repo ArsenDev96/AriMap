@@ -4,7 +4,7 @@ For a review of the Quick Challenge on real phones before the uncommitted "All o
 
 ## Before you start
 
-- **Build**: the working tree on `next` (b500b77 plus the uncommitted changes): 45 countries, 15 questions, **60 seconds** per round (45 until 13 October 2026).
+- **Build**: the working tree on `next` (b500b77 plus the uncommitted changes): 40 countries asked (of 45 drawn), 15 questions, **60 seconds** per round (45 until 13 October 2026).
 - **Opening it on a phone**: the review preview listens on this PC only (`http://127.0.0.1:3100`). Either:
   - **Android over USB**: in Chrome on the PC, `chrome://inspect` → *Port forwarding* → `3100` → `localhost:3100`; then open `http://localhost:3100` in Chrome on the phone.
   - **Any phone on the same Wi-Fi**: in `D:\AriMap`, `npm run build`, then `npx next start -p 3100 -H 0.0.0.0`, and open `http://<the PC's local IP>:3100` (Windows may ask to let Node through the firewall).
@@ -13,16 +13,15 @@ For a review of the Quick Challenge on real phones before the uncommitted "All o
 
 Colours in a round: **Found** (green), **Missed** (yellow), **Your wrong choice** (red), as in the review's legend.
 
-## 1. San Marino and the Vatican
+## 1. Andorra and Luxembourg
 
 At the start view (whole Europe):
-- [ ] Seven rings show on every question (Luxembourg, Andorra, Malta, Liechtenstein, San Marino, Monaco, Vatican City), all alike: none marks the asked country.
-- [ ] A tap in the middle of San Marino's ring answers San Marino; in the Vatican's, Vatican City. (If it isn't the asked country: that ring turns red and the asked country yellow.)
-- [ ] The two rings overlap slightly (about 7 px of their 24 px): a tap in the overlap answers the ring whose centre is nearer. Note whether that feels fair to a finger.
+- [ ] Two dashed rings show on every question (Luxembourg, Andorra), alike: neither marks the asked country.
+- [ ] A tap in the middle of Andorra's ring answers Andorra; in Luxembourg's, Luxembourg. (If it isn't the asked country: that ring turns red and the asked country yellow.)
+- [ ] Malta, Liechtenstein, San Marino, Monaco and Vatican City are never asked, have no ring, and a tap on them answers nothing.
 
 After zooming in:
-- [ ] Zoom in once (**+** or a pinch), then drag Italy into view (one zoom about the middle leaves these rings below the map's edge). The rings are now apart; each still answers its own country, and a tap between them answers Italy.
-- [ ] San Marino's and the Vatican's rings stay up to the deepest zoom. (Only Luxembourg's ring goes, from about ×5.6; then Luxembourg's own shape is tapped.)
+- [ ] Andorra's ring stays up to the deepest zoom. Luxembourg's goes from about ×5.6; then Luxembourg's own shape is tapped.
 
 ## 2. Pinch, then answer while the relief sharpens
 
@@ -55,7 +54,6 @@ After zooming in:
 
 ## Known limitations (13 October 2026)
 
-- **San Marino and the Vatican**: their rings overlap by about 7 px on a 390 px-wide phone's start view; the nearer centre answers. Zoomed in once they are separate.
 - **Sharper relief arrives after a deep zoom.** After a fast pinch the soft whole-map relief shows until the sharper tiles load, as tiles are fetched only where a gesture ends. Answering is never blocked. The final view at the deepest zoom fetches 216–869 KB on a phone (most over the Urals); nothing is fetched during the gesture.
 - **Tile edges**: a faint hairline where two relief tiles meet (Chrome joins translucent images that way); the same everywhere, lessons included.
 - **Desktop**: on a 1366×800 screen the map is narrower than the window, with space beside it. At 1× pixel density its deepest zoom stays on the softer whole-map tiles (a 2× laptop screen gets the sharp ones).

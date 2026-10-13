@@ -28,9 +28,11 @@
   --map-control-radius: 12px;
 }
 
-/* On a phone (any screen under 900px wide): the map at about the shape of the whole of Europe, from Iceland to
-   the Urals and the Arctic islands (7:8, its frame being 3100 × 3575 units: src/geo/challengeMap.ts), and the
-   controls in a compact toolbar under it, at its right, so they never cover a country. */
+/* On a phone (any screen under 900px wide): the map at about the shape of the start view's frame, from Iceland to
+   the Urals and from Cape Nordkinn to Crete (the frame being 3100 × 2653 units: `frame.focus` in
+   europe-challenge.topo.json), a little taller (8:7) for room at its foot (Malta, Crete) at the same scale, so the
+   start view shows no band of Arctic sea above it (the Arctic islands are panned to), and the controls in a compact
+   toolbar under it, at its right, so they never cover a country. */
 @media (max-width: 899.98px) {
   .root {
     height: auto;
@@ -40,7 +42,7 @@
   }
   .root .frame {
     height: auto;
-    aspect-ratio: 7 / 8;
+    aspect-ratio: 8 / 7;
     /* A phone held sideways: no taller than most of the screen (the map is then shown narrower, centred). */
     max-height: 62svh;
   }
@@ -95,51 +97,67 @@
   pointer-events: none;
 }
 
-/* The small-country rings (smallCountries.ts): a dark ring on a light halo, the same for every small country
-   whatever is asked; in a feedback or review colour once that country has one. Never a pointer target of their own:
-   ChallengeMap resolves a press inside one (ringAt). */
+/* The small-country rings (smallCountries.ts): a thin dashed navy ring on a light halo, the same outline for every
+   small country whatever is asked or answered (twelve dashes, each about as long as the gap after it: the circle's
+   pathLength, RING_DASHES in ChallengeMap.tsx, makes each dash and gap here add up to one); its inside in a
+   feedback or review colour once that country has one. Never a pointer target of their own: ChallengeMap resolves a
+   press inside one (ringAt). */
 .ringHalo {
   fill: none;
   stroke: rgba(255, 255, 255, 0.9);
-  stroke-width: 4.5px;
+  stroke-width: 3.5px;
   pointer-events: none;
 }
 
 .ring {
   fill: rgba(255, 255, 255, 0.22);
   stroke: var(--ink);
-  stroke-width: 1.75px;
+  stroke-width: 1.25px;
+  stroke-dasharray: 0.5 0.5;
   pointer-events: none;
 }
 
 .ring[data-tone="correct"] {
   fill: rgba(21, 165, 151, 0.55);
-  stroke: #0b6f66;
-  stroke-width: 2.25px;
 }
 
 .ring[data-tone="missed"] {
   fill: var(--amber);
   fill-opacity: 0.6;
-  stroke: var(--ink);
-  stroke-width: 2.25px;
 }
 
 .ring[data-tone="chosen"] {
   fill: var(--coral);
   fill-opacity: 0.6;
+}
+
+/* A leader from a country (a dot at its label point) or its ring to its name, where the name stands off it
+   (mapNames.ts): thin navy on a white halo, as the rings. */
+.leader {
+  pointer-events: none;
+}
+
+.leader line {
   stroke: var(--ink);
-  stroke-width: 2.25px;
+  stroke-width: 1.1px;
+  stroke-linecap: round;
 }
 
-.ring[data-focus] {
-  stroke-width: 3px;
+.leader .leaderHalo {
+  stroke: rgba(255, 255, 255, 0.9);
+  stroke-width: 3.5px;
 }
 
-/* A country's name in the review, on a light halo. */
+.leader circle {
+  fill: var(--ink);
+  stroke: #fff;
+  stroke-width: 1.25px;
+}
+
+/* A country's name in a round's results and review, on a light halo; its size is set where it is placed (placeNames
+   in mapNames.ts), the review's selected country's a step larger. */
 .name {
   fill: var(--ink);
-  font-size: 13px;
   font-weight: 800;
   text-anchor: middle;
   dominant-baseline: middle;
@@ -150,6 +168,3 @@
   pointer-events: none;
 }
 
-.name[data-focus] {
-  font-size: 15px;
-}

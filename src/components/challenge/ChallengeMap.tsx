@@ -10,6 +10,7 @@ import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import type { CountryTone } from "@/core/lesson/mapView";
 import { loadChallengeMap, type ChallengeMapData } from "@/geo/challengeMap";
+import { fitWithRings, viewAt } from "@/geo/challengeCamera";
 import { applyTransform, fitTransform, type Bounds, type RegionMap, type Transform } from "@/geo/regionMap";
 import europeLand from "@/assets/map/challenge/europe-land.webp";
 import europeTone from "@/assets/map/challenge/europe-tone.webp";
@@ -21,6 +22,7 @@ import { Relief, type OwnRelief } from "../map/Relief";
 import { useCountryTap } from "../map/useTap";
 import lesson from "../map/RegionMap.module.css";
 import styles from "./ChallengeMap.module.css";
+import { placeNames, type Box, type PlacedName } from "./mapNames";
 
 /**
  * The Quick Challenge's map: the whole of Europe without names, from Iceland to the Urals, drawn as the levels'
@@ -42,7 +44,11 @@ interface Props {
   /** The countries the player can tap. The rest of the map is context, drawn paler and never an answer. */
   pool: readonly CountryId[];
   tones?: Readonly<Partial<Record<CountryId, ChallengeTone>>>;
-  /** Countries named on the map, at their label points (the review). */
+  /**
+   * Countries named on the map, by their label points (a round's results and review), most important first: `focus`'s
+   * name is placed first, then these in order, each where it overlaps no name or leader already placed, no ring and
+   * none of the map's buttons, or not at all until zooming in makes room (mapNames.ts).
+   */
   names?: readonly CountryId[];
   /** A country outlined to stand out and zoomed to (the review's selection). */
   focus?: CountryId | null;
@@ -57,6 +63,11 @@ interface Props {
 }
 
 const MAX_ZOOM = 6;
+/**
+ * A small-country ring's dashes, evenly round it: with .ring's stroke-dasharray (half dash, half gap of each twelfth),
+ * dashes and gaps about 3 px long each.
+ */
+const RING_DASHES = 12;
 /** The layer extends this share of the map's size past each edge, so a drag reveals map already drawn. */
 const OVERSCAN = 0.3;
 const ZOOM_STEP = 1.6;
@@ -105,15 +116,70 @@ function endMouseDrag() {
   window.dispatchEvent(new MouseEvent("mouseup", { view: window }));
 }
 
-function prefersReducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/**
+ * The pool country a press at (x, y) (client pixels) answers on the drawn map `layer`: a small country's ring if the press is in one (where rings overlap, the nearest centre's: ringAt), and otherwise the
+ * pool country whose shape is at its own position, as drawn now (the layer's CTM includes a gesture's placement): its
+ * fill only, never its outline, so a press by a border goes to the side it is on, by touch or mouse alike. Sea and the
+ * context countries answer nothing.
+ */
+function countryAtPoint(layer: SVGSVGElement | null, rings: readonly Ring[], shapeBounds: ReadonlyMap<CountryId, Bounds>, x: number, y: number): string | null {
+  const ringCtm = layer?.querySelector<SVGCircleElement>("circle[data-ring]")?.getScreenCTM();
+  if (ringCtm) {
+    const p = new DOMPoint(x, y).matrixTransform(ringCtm.inverse());
+    const ring = ringAt(rings, p.x, p.y);
+    if (ring) return ring;
+  }
+  const paths = layer?.querySelectorAll<SVGPathElement>("path[data-country]");
+  const ctm = paths?.[0]?.getScreenCTM();
+  if (!paths || !ctm) return null;
+  const p = new DOMPoint(x, y).matrixTransform(ctm.inverse());
+  let found: string | null = null;
+  for (const path of paths) {
+    const id = path.dataset.country!;
+    const [[x0, y0], [x1, y1]] = shapeBounds.get(id) ?? [[0, 0], [-1, -1]];
+    // The last one containing the point is the one drawn on top.
+    if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && path.isPointInFill(p)) found = id;
+  }
+  return found;
 }
 
-/** The view at scale `k` centred on the world point (cx, cy), moved as little as it takes to show nothing past `coverage`. */
-function viewAt(coverage: Bounds, k: number, cx: number, cy: number, width: number, height: number): Transform {
-  const [[c0x, c0y], [c1x, c1y]] = coverage;
-  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-  return { k, x: clamp(width / 2 - k * cx, width - k * c1x, -k * c0x), y: clamp(height / 2 - k * cy, height - k * c1y, -k * c0y) };
+/** The small-country rings of a view: every ring country of the pool drawn smaller than a ring, at its point, in RING_COUNTRIES' order. */
+function ringsFor(map: ChallengeMapData, pool: readonly CountryId[], view: Transform): Ring[] {
+  return Object.entries(RING_COUNTRIES).flatMap(([id, point]) => {
+    if (!pool.includes(id) || !ringShown((map.areas.get(id) ?? 0) * view.k * view.k)) return [];
+    const [x, y] = applyTransform(view, map.project(point));
+    return [{ id, x, y }];
+  });
+}
+
+/** The names of a view (mapNames.ts), at their label points: `names` in order, `focus`'s first, clear of `rings` and `chrome`. */
+function namesFor(
+  map: ChallengeMapData,
+  view: Transform,
+  size: { width: number; height: number },
+  names: readonly CountryId[],
+  focus: CountryId | null | undefined,
+  rings: readonly Ring[],
+  chrome: readonly Box[],
+  name: (id: CountryId) => string,
+): PlacedName[] {
+  const anchors = new Map<CountryId, readonly [number, number]>();
+  const bounds = new Map<CountryId, Box>();
+  for (const id of names) {
+    const point = labelPoint(id);
+    if (point) anchors.set(id, applyTransform(view, map.project(point)));
+    const shape = map.shapes.find((s) => s.id === id);
+    if (shape) {
+      const [[x0, y0], [x1, y1]] = [applyTransform(view, shape.bounds[0]), applyTransform(view, shape.bounds[1])];
+      bounds.set(id, { x0, y0, x1, y1 });
+    }
+  }
+  const toWorld = ([x, y]: readonly [number, number]) => [(x - view.x) / view.k, (y - view.y) / view.k] as const;
+  return placeNames({ names, focus, anchors, rings, chrome, size, shapes: map.shapes, toWorld, bounds, name });
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
 /** Fetches and decodes images, so they draw at once when the map needs them. */
@@ -184,49 +250,19 @@ function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKe
   const [final, setFinal] = useState(true);
   const margin = useMemo(() => ({ x: Math.round(size.width * OVERSCAN), y: Math.round(size.height * OVERSCAN) }), [size]);
 
-  // The small-country rings of the view drawn: every ring country of the pool drawn smaller than a ring, at its
-  // point, in a fixed order (RING_COUNTRIES'), whatever is asked.
-  const rings = useMemo<Ring[]>(() => {
-    if (!drawn) return [];
-    return Object.entries(RING_COUNTRIES).flatMap(([id, point]) => {
-      if (!pool.includes(id) || !ringShown((map.areas.get(id) ?? 0) * drawn.k * drawn.k)) return [];
-      const [x, y] = applyTransform(drawn, map.project(point));
-      return [{ id, x, y }];
-    });
-  }, [drawn, pool, map]);
+  // The small-country rings of the view drawn, whatever is asked.
+  const rings = useMemo<Ring[]>(() => (drawn ? ringsFor(map, pool, drawn) : []), [drawn, pool, map]);
   const ringsRef = useRef(rings);
   useEffect(() => {
     ringsRef.current = rings;
   }, [rings]);
 
+  // A pool country tapped answers (or, in the review, is selected). A tap is resolved by its own position
+  // (countryAtPoint); a drag or pinch never answers (useCountryTap); and the round takes one answer per question
+  // (quickChallenge.ts's answer).
   const tapCountry = useMemo(() => (onTap ? (id: string) => pool.includes(id) && onTap(id) : undefined), [onTap, pool]);
-  // A press answers with a small country's ring if it is in one (where rings overlap, the nearest centre's:
-  // ringAt), and otherwise with the pool country whose shape is at its own position (useCountryTap's countryAtPoint),
-  // as drawn now (the layer's CTM includes a gesture's placement): its fill only, never its outline, so a press by a
-  // border goes to the side it is on, by touch or mouse alike. Sea and the context countries answer nothing.
   const shapeBounds = useMemo(() => new Map(map.shapes.map((s) => [s.id, s.bounds])), [map]);
-  const countryAtPoint = (x: number, y: number): string | null => {
-    const layer = layerRef.current;
-    const ringCtm = layer?.querySelector<SVGCircleElement>("circle[data-ring]")?.getScreenCTM();
-    if (ringCtm) {
-      const p = new DOMPoint(x, y).matrixTransform(ringCtm.inverse());
-      const ring = ringAt(ringsRef.current, p.x, p.y);
-      if (ring) return ring;
-    }
-    const paths = layer?.querySelectorAll<SVGPathElement>("path[data-country]");
-    const ctm = paths?.[0]?.getScreenCTM();
-    if (!paths || !ctm) return null;
-    const p = new DOMPoint(x, y).matrixTransform(ctm.inverse());
-    let found: string | null = null;
-    for (const path of paths) {
-      const id = path.dataset.country!;
-      const [[x0, y0], [x1, y1]] = shapeBounds.get(id) ?? [[0, 0], [-1, -1]];
-      // The last one containing the point is the one drawn on top.
-      if (p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && path.isPointInFill(p)) found = id;
-    }
-    return found;
-  };
-  const tap = useCountryTap(tapCountry, endMouseDrag, countryAtPoint);
+  const tap = useCountryTap(tapCountry, endMouseDrag, (x, y) => countryAtPoint(layerRef.current, ringsRef.current, shapeBounds, x, y));
 
   useEffect(() => {
     const el = wrapperRef.current;
@@ -241,18 +277,21 @@ function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKe
 
   const padding = Math.max(8, Math.min(size.width, size.height) * 0.03);
   const [[c0x, c0y], [c1x, c1y]] = coverage;
-  const [[f0x, f0y], [f1x, f1y]] = map.focusBounds;
-  // Wider than Europe can be shown whole within the coverage (an ultra-wide desktop): narrower, centred.
+  const [[, f0y], [, f1y]] = map.focusBounds;
+  // Wider than the start view's frame can be shown whole within the coverage (an ultra-wide desktop): narrower, centred.
   const maxWidth = size.height > 0 ? Math.floor(((c1x - c0x) * (size.height - 2 * padding)) / (f1y - f0y)) : undefined;
 
-  // The start view: the whole of Europe, fitted with room around it, but never showing past the coverage (zooming in
-  // a little instead, then moved inside it). The player may zoom in MAX_ZOOM times and pan within the coverage.
+  // The start view (the ready screen, every new round, and "Show the whole map"): its frame, Iceland to the Urals and
+  // Cape Nordkinn to Crete (`focusBounds`; the Arctic above it is panned to), fitted with room around it and every
+  // small-country ring whole with room to spare (fitWithRings), but never showing past the coverage (zooming in a
+  // little instead, then moved inside it). The player may zoom in MAX_ZOOM times and pan within the coverage.
+  const ringPoints = useMemo(() => Object.values(RING_COUNTRIES).map((point) => map.project(point)), [map]);
   const base = useMemo<Transform | null>(() => {
     if (size.width < 1 || size.height < 1) return null;
-    const fit = fitTransform(map.focusBounds, size.width, size.height, padding);
+    const fit = fitWithRings(map.focusBounds, ringPoints, size.width, size.height, padding);
     const k = Math.max(fit.k, size.width / (c1x - c0x), size.height / (c1y - c0y));
-    return viewAt(coverage, k, (f0x + f1x) / 2, (f0y + f1y) / 2, size.width, size.height);
-  }, [map, coverage, size, padding, c0x, c0y, c1x, c1y, f0x, f0y, f1x, f1y]);
+    return viewAt(coverage, k, fit.cx, fit.cy, size.width, size.height);
+  }, [map, coverage, size, padding, ringPoints, c0x, c0y, c1x, c1y]);
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -377,22 +416,32 @@ function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKe
     return out;
   }, [tones]);
 
-  const labels = useMemo(() => {
-    if (!drawn || !names) return [];
-    return names.flatMap((id) => {
-      const point = labelPoint(id);
-      if (!point) return [];
-      const [x, y] = applyTransform(drawn, map.project(point));
-      // Beside a ring, not over it.
-      const ringed = rings.some((r) => r.id === id);
-      return [{ id, x, y: ringed ? y - RING_RADIUS - 10 : y, text: name(id) }];
-    });
-  }, [drawn, names, map, name, rings]);
+  // The map's buttons over it (About the map, and on a wide screen the zoom controls), in the stage's pixels: names
+  // keep clear of them. They sit at fixed places in the frame, so they are measured again only when its size changes.
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [chrome, setChrome] = useState<Box[]>([]);
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const stage = stageRef.current;
+    if (!root || !stage) return;
+    const s = stage.getBoundingClientRect();
+    const boxes = [...root.querySelectorAll("button")]
+      .filter((b) => !stage.contains(b))
+      .map((b) => b.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.right > s.left && r.left < s.right && r.bottom > s.top && r.top < s.bottom)
+      .map((r) => ({ x0: r.left - s.left, y0: r.top - s.top, x1: r.right - s.left, y1: r.bottom - s.top }));
+    setChrome((old) => (JSON.stringify(old) === JSON.stringify(boxes) ? old : boxes));
+  }, [size]);
+
+  const labels = useMemo(
+    () => (drawn && names ? namesFor(map, drawn, size, names, focus, rings, chrome, name) : []),
+    [drawn, names, focus, map, name, rings, chrome, size],
+  );
 
   return (
     // The map, and its zoom controls: over its corner on a wide screen, in a toolbar under it on a phone,
     // where they would cover countries (ChallengeMap.module.css).
-    <div className={styles.root} style={{ maxWidth }} data-testid="challenge-map">
+    <div ref={rootRef} className={styles.root} style={{ maxWidth }} data-testid="challenge-map">
       <div ref={wrapperRef} className={`${lesson.wrapper} ${lesson.atlas} ${styles.frame}`} data-map-style="atlas">
         {/* The map is answered by pointer; its countries are deliberately unnamed, so they are not listed for
             assistive technology (the panel says what to find, and Skip moves on). */}
@@ -415,27 +464,10 @@ function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKe
                 <Relief map={map} level={[]} own={own} tones={reliefTones} transform={drawn} viewport={size} final={final} endOnly />
                 <ContextVeil map={map} pool={pool} />
                 <Borders map={map} pool={pool} />
-                {focus && <path className={styles.focus} d={map.shapes.find((s) => s.id === focus)?.d} />}
+                {focus && <path className={styles.focus} d={map.outlines.get(focus)} />}
               </g>
-              {rings.map((ring) => (
-                <g key={ring.id}>
-                  <circle cx={ring.x} cy={ring.y} r={RING_RADIUS} className={styles.ringHalo} />
-                  <circle
-                    cx={ring.x}
-                    cy={ring.y}
-                    r={RING_RADIUS}
-                    className={styles.ring}
-                    data-ring={ring.id}
-                    data-tone={tones?.[ring.id]}
-                    data-focus={ring.id === focus ? "" : undefined}
-                  />
-                </g>
-              ))}
-              {labels.map((label) => (
-                <text key={label.id} className={styles.name} x={label.x} y={label.y} data-focus={label.id === focus ? "" : undefined}>
-                  {label.text}
-                </text>
-              ))}
+              <RingMarks rings={rings} tones={tones} />
+              <NameLayer labels={labels} focus={focus} />
             </svg>
           )}
         </div>
@@ -461,6 +493,52 @@ function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKe
         </button>
       </div>
     </div>
+  );
+}
+
+/** The small-country rings: a dashed ring on a white halo each, in its feedback or review colour once it has one. */
+function RingMarks({ rings, tones }: { rings: readonly Ring[]; tones?: Readonly<Partial<Record<CountryId, ChallengeTone>>> }) {
+  return (
+    <>
+      {rings.map((ring) => (
+        <g key={ring.id}>
+          <circle cx={ring.x} cy={ring.y} r={RING_RADIUS} className={styles.ringHalo} />
+          {/* pathLength: the dashes (.ring's stroke-dasharray, in its units) go evenly round the circle. */}
+          <circle cx={ring.x} cy={ring.y} r={RING_RADIUS} pathLength={RING_DASHES} className={styles.ring} data-ring={ring.id} data-tone={tones?.[ring.id]} />
+        </g>
+      ))}
+    </>
+  );
+}
+
+/** Names placed on a map (mapNames.ts), with their leaders where a name stands off its country or ring. */
+function NameLayer({ labels, focus }: { labels: readonly PlacedName[]; focus: CountryId | null | undefined }) {
+  return (
+    <>
+      {labels.map(
+        ({ id, leader }) =>
+          leader && (
+            <g key={id} className={styles.leader}>
+              <line className={styles.leaderHalo} x1={leader.from[0]} y1={leader.from[1]} x2={leader.to[0]} y2={leader.to[1]} />
+              <line x1={leader.from[0]} y1={leader.from[1]} x2={leader.to[0]} y2={leader.to[1]} />
+              {leader.dot && <circle cx={leader.from[0]} cy={leader.from[1]} r={2.25} />}
+            </g>
+          ),
+      )}
+      {labels.map((label) => (
+        <text
+          key={label.id}
+          className={styles.name}
+          x={label.x}
+          y={label.y}
+          style={{ fontSize: label.size }}
+          data-name={label.id}
+          data-focus={label.id === focus ? "" : undefined}
+        >
+          {label.text}
+        </text>
+      ))}
+    </>
   );
 }
 
@@ -528,19 +606,23 @@ const ContextVeil = memo(function ContextVeil({ map, pool }: { map: RegionMap; p
   return <path className={styles.veil} d={d} aria-hidden="true" />;
 });
 
-/** Borders over the relief, so each stays crisp (RegionMap's BorderLayer): the context's first, the pool's over them. */
-const Borders = memo(function Borders({ map, pool }: { map: RegionMap; pool: readonly CountryId[] }) {
+/**
+ * Borders over the relief, so each stays crisp (RegionMap's BorderLayer): the context's first, the pool's over them.
+ * Each country's outline without the data's cuts (`outlines`): no border is drawn where the data stops, such as
+ * Russia's in Siberia, which is not one.
+ */
+const Borders = memo(function Borders({ map, pool }: { map: ChallengeMapData; pool: readonly CountryId[] }) {
   return (
     <g className={lesson.borders} aria-hidden="true">
       {map.shapes
         .filter((s) => !pool.includes(s.id))
         .map((s) => (
-          <path key={s.id} d={s.d} className={lesson.borderContext} />
+          <path key={s.id} d={map.outlines.get(s.id)} className={lesson.borderContext} />
         ))}
       {map.shapes
         .filter((s) => pool.includes(s.id))
         .map((s) => (
-          <path key={s.id} d={s.d} className={lesson.borderActive} />
+          <path key={s.id} d={map.outlines.get(s.id)} className={lesson.borderActive} />
         ))}
     </g>
   );
