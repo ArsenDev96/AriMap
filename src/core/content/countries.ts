@@ -689,6 +689,202 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "soroca-fortress",
     },
   },
+  // Level 9's new countries (Montenegro and Greece are shared with earlier levels), each with
+  // its own illustration (supplied 2026-10-14). Their label points are the ones the Quick
+  // Challenge used for them before they had content here, so its map is unchanged.
+  KOS: {
+    id: "KOS",
+    name: { en: "Kosovo", hy: "Կոսովո" },
+    nameInText: { en: "Kosovo", hy: "Կոսովոն" },
+    // GeoNames's city-centre point: Wikipedia's (42.6667, 21.1667) is to the nearest minute.
+    capital: { name: { en: "Pristina", hy: "Պրիշտինա" }, coordinates: [21.1669, 42.6727] },
+    hint: {
+      en: "A small country with no coast in the north of this region, ringed by mountains.",
+      hy: "Փոքր երկիր առանց ծովի՝ տարածաշրջանի հյուսիսում, լեռներով շրջապատված։",
+    },
+    label: { coordinates: [20.9, 42.6] },
+    landmark: {
+      id: "prizren-fortress",
+      name: { en: "Prizren Fortress", hy: "Պրիզրենի ամրոց" },
+      nameInText: { en: "Prizren Fortress", hy: "Պրիզրենի ամրոցը" },
+      fact: {
+        en: "People lived on this cone-shaped hill above Prizren in the Bronze Age; it served as a fortress until 1912.",
+        hy: "Պրիզրենի վերևում գտնվող կոնաձև բլրի վրա մարդիկ ապրել են դեռ բրոնզի դարում, իսկ ամրոցը ծառայել է մինչև 1912 թվականը։",
+      },
+      // On its hill above Prizren's old town, not the capital.
+      coordinates: [20.7456, 42.2094],
+      illustration: "prizren-fortress",
+    },
+  },
+  ALB: {
+    id: "ALB",
+    name: { en: "Albania", hy: "Ալբանիա" },
+    nameInText: { en: "Albania", hy: "Ալբանիան" },
+    capital: { name: { en: "Tirana", hy: "Տիրանա" }, coordinates: [19.8181, 41.3283] },
+    hint: {
+      en: "A mountainous country on the west coast of this region, between Montenegro and Greece.",
+      hy: "Լեռնային երկիր տարածաշրջանի արևմտյան ափին՝ Չեռնոգորիայի և Հունաստանի միջև։",
+    },
+    label: { coordinates: [20.05, 41.2] },
+    landmark: {
+      id: "butrint",
+      name: { en: "Butrint", hy: "Բուտրինտ" },
+      nameInText: { en: "Butrint", hy: "Բուտրինտը" },
+      fact: {
+        en: "First a Greek town and then a Roman city, its ruins have been a UNESCO World Heritage Site since 1992.",
+        hy: "Սկզբում հունական քաղաք էր, ապա՝ հռոմեական, իսկ նրա ավերակները 1992 թվականից ՅՈՒՆԵՍԿՕ-ի համաշխարհային ժառանգության մաս են։",
+      },
+      // Near the Greek border, south of Sarandë, not the capital.
+      coordinates: [20.0206, 39.7456],
+      illustration: "butrint",
+    },
+  },
+  MKD: {
+    id: "MKD",
+    name: { en: "North Macedonia", hy: "Հյուսիսային Մակեդոնիա" },
+    nameInText: { en: "North Macedonia", hy: "Հյուսիսային Մակեդոնիան" },
+    capital: { name: { en: "Skopje", hy: "Սկոպիե" }, coordinates: [21.4317, 41.9961] },
+    hint: {
+      en: "A country with no coast in the east of this region, just north of Greece.",
+      hy: "Երկիր առանց ծովի՝ տարածաշրջանի արևելքում, Հունաստանից անմիջապես հյուսիս։",
+    },
+    // North Macedonia's middle, between Skopje and Prilep.
+    label: { coordinates: [21.6, 41.6] },
+    landmark: {
+      id: "kaneo-church",
+      name: { en: "Church of Saint John at Kaneo", hy: "Կանեոյի Սուրբ Հովհաննես եկեղեցի" },
+      nameInText: { en: "the Church of Saint John at Kaneo", hy: "Կանեոյի Սուրբ Հովհաննես եկեղեցին" },
+      fact: {
+        // A word joiner (U+2060) after the hyphen keeps the century on one line.
+        en: "Probably built in the 13th century, this small church stands on a cliff above Lake Ohrid.",
+        hy: "Հավանաբար կառուցվել է 13-⁠րդ դարում։ Այս փոքրիկ եկեղեցին կանգնած է Օխրիդ լճի վերևում գտնվող ժայռի վրա։",
+      },
+      // In Ohrid, on the cliff over Lake Ohrid, not the capital.
+      coordinates: [20.7887, 41.1111],
+      illustration: "kaneo-church",
+    },
+  },
+  // Level 10's countries (the Nordic countries), each with its own illustration (supplied 2026-10-14).
+  // Their label points are the ones the Quick Challenge used for them before they had content here, so
+  // its map is unchanged. Capitals: GeoNames's city-centre points.
+  DNK: {
+    id: "DNK",
+    name: { en: "Denmark", hy: "Դանիա" },
+    nameInText: { en: "Denmark", hy: "Դանիան" },
+    capital: { name: { en: "Copenhagen", hy: "Կոպենհագեն" }, coordinates: [12.5655, 55.6759] },
+    hint: {
+      en: "A small, low country in the south of this region: a peninsula and many islands.",
+      hy: "Փոքր, հարթ երկիր տարածաշրջանի հարավում՝ թերակղզի և բազմաթիվ կղզիներ։",
+    },
+    label: { coordinates: [9.1, 56.0] },
+    landmark: {
+      id: "kronborg",
+      name: { en: "Kronborg Castle", hy: "Կրոնբորգ ամրոց" },
+      nameInText: { en: "Kronborg Castle", hy: "Կրոնբորգ ամրոցը" },
+      fact: {
+        en: "Kronborg is world-famous as Elsinore, the castle in Shakespeare's play Hamlet.",
+        hy: "Կրոնբորգն աշխարհահայտ է որպես Էլսինոր՝ Շեքսպիրի «Համլետ» պիեսի դղյակը։",
+      },
+      // In Helsingør, on the Øresund's narrowest point, not the capital.
+      coordinates: [12.6212, 56.0391],
+      illustration: "kronborg",
+    },
+  },
+  SWE: {
+    id: "SWE",
+    name: { en: "Sweden", hy: "Շվեդիա" },
+    nameInText: { en: "Sweden", hy: "Շվեդիան" },
+    capital: { name: { en: "Stockholm", hy: "Ստոկհոլմ" }, coordinates: [18.0687, 59.3294] },
+    hint: {
+      en: "A long country in the middle of this region, between Norway and Finland.",
+      hy: "Երկար երկիր տարածաշրջանի կենտրոնում՝ Նորվեգիայի և Ֆինլանդիայի միջև։",
+    },
+    label: { coordinates: [15.2, 62.4] },
+    landmark: {
+      id: "visby-city-wall",
+      name: { en: "Visby City Wall", hy: "Վիսբյուի պարիսպ" },
+      nameInText: { en: "Visby City Wall", hy: "Վիսբյուի պարիսպը" },
+      fact: {
+        en: "Visby's medieval stone wall, with its towers and gates, still runs 3.4 km around the old town.",
+        hy: "Վիսբյուի միջնադարյան քարե պարիսպը՝ իր աշտարակներով ու դարպասներով, մինչ օրս 3,4 կմ երկարությամբ շրջապատում է հին քաղաքը։",
+      },
+      // In Visby, on the island of Gotland, not the capital.
+      coordinates: [18.2958, 57.6417],
+      illustration: "visby-city-wall",
+    },
+  },
+  NOR: {
+    id: "NOR",
+    name: { en: "Norway", hy: "Նորվեգիա" },
+    nameInText: { en: "Norway", hy: "Նորվեգիան" },
+    capital: { name: { en: "Oslo", hy: "Օսլո" }, coordinates: [10.7461, 59.9127] },
+    hint: {
+      en: "A long, mountainous country on the Atlantic coast, west of Sweden, with deep fjords.",
+      hy: "Երկար, լեռնային երկիր Ատլանտյան ափին՝ Շվեդիայից արևմուտք, խորը ֆյորդներով։",
+    },
+    label: { coordinates: [9.0, 61.6] },
+    landmark: {
+      id: "bryggen",
+      name: { en: "Bryggen", hy: "Բրյուգգեն" },
+      nameInText: { en: "Bryggen", hy: "Բրյուգգենը" },
+      fact: {
+        // The trading history and today's houses apart: the Hanseatic office ran from about 1350 to 1754, and
+        // the houses standing now were rebuilt after the fire of 1702 (docs/CONTENT.md).
+        en: "German Hanseatic merchants traded here for about 400 years. Its wooden houses were rebuilt the old way after a fire in 1702.",
+        hy: "Հանզայի գերմանացի վաճառականներն այստեղ առևտուր են արել մոտ 400 տարի։ Այստեղի փայտե տները 1702 թվականի հրդեհից հետո վերակառուցվել են հին ձևով։",
+      },
+      // On Bergen's harbour, not the capital.
+      coordinates: [5.3235, 60.3974],
+      illustration: "bryggen",
+    },
+  },
+  FIN: {
+    id: "FIN",
+    name: { en: "Finland", hy: "Ֆինլանդիա" },
+    nameInText: { en: "Finland", hy: "Ֆինլանդիան" },
+    capital: { name: { en: "Helsinki", hy: "Հելսինկի" }, coordinates: [24.9354, 60.1695] },
+    hint: {
+      en: "A land of forests and lakes in the east of this region.",
+      hy: "Անտառների և լճերի երկիր տարածաշրջանի արևելքում։",
+    },
+    label: { coordinates: [26.0, 62.8] },
+    landmark: {
+      id: "olavinlinna",
+      name: { en: "Olavinlinna", hy: "Օլավինլինա ամրոց" },
+      nameInText: { en: "Olavinlinna", hy: "Օլավինլինա ամրոցը" },
+      fact: {
+        en: "Olavinlinna was built in 1475 on a rocky island, so enemies would find it hard to reach.",
+        hy: "Օլավինլինան կառուցվել է 1475 թվականին ժայռոտ կղզու վրա, որպեսզի թշնամիները դժվարությամբ հասնեին նրան։",
+      },
+      // In Savonlinna, among the lakes of eastern Finland, not the capital.
+      coordinates: [28.8999, 61.8639],
+      illustration: "olavinlinna",
+    },
+  },
+  ISL: {
+    id: "ISL",
+    name: { en: "Iceland", hy: "Իսլանդիա" },
+    nameInText: { en: "Iceland", hy: "Իսլանդիան" },
+    capital: { name: { en: "Reykjavík", hy: "Ռեյկյավիկ" }, coordinates: [-21.8954, 64.1355] },
+    hint: {
+      en: "An island country in the North Atlantic, far to the west of the others.",
+      hy: "Կղզի-երկիր Ատլանտյան օվկիանոսի հյուսիսում՝ մյուսներից շատ արևմուտք։",
+    },
+    label: { coordinates: [-18.6, 64.9] },
+    landmark: {
+      id: "hallgrimskirkja",
+      name: { en: "Hallgrímskirkja", hy: "Հալթգրիմսկիրկյա" },
+      nameInText: { en: "Hallgrímskirkja", hy: "Հալթգրիմսկիրկյան" },
+      fact: {
+        en: "Finished in 1986, this church was designed to recall Iceland's basalt columns, mountains and glaciers.",
+        hy: "1986 թվականին ավարտված այս եկեղեցու ձևը հիշեցնում է Իսլանդիայի բազալտե սյուները, լեռներն ու սառցադաշտերը։",
+      },
+      // In Reykjavík, 2 km from the capital's point: its pin is hidden by the capital's on the whole map, as
+      // Tallinn Town Hall's is.
+      coordinates: [-21.9267, 64.1418],
+      illustration: "hallgrimskirkja",
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

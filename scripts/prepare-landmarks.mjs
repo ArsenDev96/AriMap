@@ -38,6 +38,8 @@ const THUMBNAILS = new Set([
   "trakai-island-castle",
   "sagrada-familia",
   "bran-castle",
+  "kaneo-church",
+  "olavinlinna",
 ]);
 /** Longest side of a thumbnail: the card's tile draws the art at most 52 CSS px, at up to 3× pixel density. */
 const THUMBNAIL_SIZE = 156;

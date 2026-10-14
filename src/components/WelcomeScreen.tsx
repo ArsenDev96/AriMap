@@ -7,7 +7,9 @@ import chapelBridge from "@/assets/landmarks/thumbnails/chapel-bridge.webp";
 import charlesBridge from "@/assets/landmarks/thumbnails/charles-bridge.webp";
 import dubrovnikCityWalls from "@/assets/landmarks/thumbnails/dubrovnik-city-walls.webp";
 import eiffelTower from "@/assets/landmarks/thumbnails/eiffel-tower.webp";
+import kaneoChurch from "@/assets/landmarks/thumbnails/kaneo-church.webp";
 import meteora from "@/assets/landmarks/thumbnails/meteora.webp";
+import olavinlinna from "@/assets/landmarks/thumbnails/olavinlinna.webp";
 import sagradaFamilia from "@/assets/landmarks/thumbnails/sagrada-familia.webp";
 import trakaiIslandCastle from "@/assets/landmarks/thumbnails/trakai-island-castle.webp";
 import landArt from "@/assets/map/world/land.webp";
@@ -218,6 +220,8 @@ const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
   "baltic-journey": "LTU",
   "iberian-journey": "ESP",
   "eastern-europe": "ROU",
+  "heart-of-the-balkans": "MKD",
+  "nordic-countries": "FIN",
 };
 
 /**
@@ -234,6 +238,8 @@ const LEVEL_THUMBNAILS: Readonly<Record<string, StaticImageData>> = {
   "trakai-island-castle": trakaiIslandCastle,
   "sagrada-familia": sagradaFamilia,
   "bran-castle": branCastle,
+  "kaneo-church": kaneoChurch,
+  olavinlinna,
 };
 
 function levelArt(level: LevelInfo) {

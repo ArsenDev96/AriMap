@@ -717,6 +717,38 @@
         "height": 948,
         "bytes": 150060
       }
+    },
+    "heart-of-the-balkans": {
+      "land": {
+        "x": 526,
+        "y": 678,
+        "width": 2001,
+        "height": 821,
+        "bytes": 244976
+      },
+      "tone": {
+        "x": 1209,
+        "y": 795,
+        "width": 636,
+        "height": 587,
+        "bytes": 64298
+      }
+    },
+    "nordic-countries": {
+      "land": {
+        "x": -1536,
+        "y": -1592,
+        "width": 4192,
+        "height": 1982,
+        "bytes": 299890
+      },
+      "tone": {
+        "x": -312,
+        "y": -1238,
+        "width": 1746,
+        "height": 1274,
+        "bytes": 69958
+      }
     }
   },
   "version": "a45fb07217",

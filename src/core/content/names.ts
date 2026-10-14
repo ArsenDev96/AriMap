@@ -18,19 +18,11 @@ export const UPCOMING_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> 
 export const CHALLENGE_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {
   GBR: { en: "United Kingdom", hy: "Միացյալ Թագավորություն" },
   IRL: { en: "Ireland", hy: "Իռլանդիա" },
-  DNK: { en: "Denmark", hy: "Դանիա" },
-  ALB: { en: "Albania", hy: "Ալբանիա" },
-  MKD: { en: "North Macedonia", hy: "Հյուսիսային Մակեդոնիա" },
-  KOS: { en: "Kosovo", hy: "Կոսովո" },
   LIE: { en: "Liechtenstein", hy: "Լիխտենշտայն" },
   MCO: { en: "Monaco", hy: "Մոնակո" },
   SMR: { en: "San Marino", hy: "Սան Մարինո" },
   VAT: { en: "Vatican City", hy: "Վատիկան" },
   MLT: { en: "Malta", hy: "Մալթա" },
-  ISL: { en: "Iceland", hy: "Իսլանդիա" },
-  NOR: { en: "Norway", hy: "Նորվեգիա" },
-  SWE: { en: "Sweden", hy: "Շվեդիա" },
-  FIN: { en: "Finland", hy: "Ֆինլանդիա" },
   RUS: { en: "Russia", hy: "Ռուսաստան" },
 };
 

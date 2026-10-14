@@ -41,6 +41,12 @@ const PROJECTION_FIT = ["FRA", "BEL", "NLD", "LUX", "DEU"];
  * stay, for attempts started on them). src/geo/relief.test.ts checks the manifest
  * against every version of every playable level, so a level added there without
  * rerunning this script fails the tests.
+ *
+ * A level drawn from the northern data (`dataset: "north"`, `map.dataset` in src/core/lessons: Level 10) has its
+ * countries' frame taken from that data (src/data/geo/europe-north.topo.json), and only its overview from here, at
+ * `overviewPx` pixels per world unit (half, as the Quick Challenge's: its area is four times a usual level's). Zoomed
+ * in it draws the Quick Challenge's tiles (scripts/generate-challenge-relief.mjs; loadLevelRelief in Relief.tsx), so
+ * it adds nothing to the shared tile grid, which stays where the levels' data is.
  */
 const LEVEL_AREAS = [
   { id: "western-europe-1", countries: ["FRA", "BEL", "NLD", "LUX", "DEU"], coverageHalf: [1150, 900] },
@@ -52,6 +58,8 @@ const LEVEL_AREAS = [
   { id: "baltic-journey-r2", countries: ["POL", "BLR", "LTU", "LVA", "EST"], coverageHalf: [850, 470] },
   { id: "iberian-journey", countries: ["PRT", "ESP", "AND", "FRA", "ITA"], coverageHalf: [910, 885] },
   { id: "eastern-europe", countries: ["POL", "BLR", "UKR", "MDA", "ROU"], coverageHalf: [720, 675] },
+  { id: "heart-of-the-balkans", countries: ["MNE", "KOS", "ALB", "MKD", "GRC"], coverageHalf: [1000, 410] },
+  { id: "nordic-countries", countries: ["DNK", "SWE", "NOR", "FIN", "ISL"], coverageHalf: [2095, 990], dataset: "north", overviewPx: 0.5 },
 ];
 /**
  * Where the zoomed tile grids are anchored: the corner of Level 1's pan area,
@@ -61,7 +69,12 @@ const LEVEL_AREAS = [
 const GRID_ANCHOR = [-216, -250];
 const topology = JSON.parse(readFileSync(file("src/data/geo/europe-west.topo.json"), "utf8"));
 const countries = feature(topology, topology.objects.countries);
-const collection = (ids) => ({ type: "FeatureCollection", features: countries.features.filter((f) => f.geometry && ids.includes(String(f.id))) });
+const north = JSON.parse(readFileSync(file("src/data/geo/europe-north.topo.json"), "utf8"));
+const datasets = { west: countries, north: feature(north, north.objects.countries) };
+const collection = (ids, dataset = "west") => ({
+  type: "FeatureCollection",
+  features: datasets[dataset].features.filter((f) => f.geometry && ids.includes(String(f.id))),
+});
 export const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([1000, 1000], collection(PROJECTION_FIT));
 
 /**
@@ -70,8 +83,8 @@ export const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([100
  * 0.25 in regionMap.ts); `lessonArea`, its countries, the only ones that ever
  * take a state colour (selection, answers, Travel).
  */
-function levelAreas({ id, countries: ids, coverageHalf: [hx, hy] }) {
-  const [[fx0, fy0], [fx1, fy1]] = geoPath(projection).bounds(collection(ids));
+function levelAreas({ id, countries: ids, coverageHalf: [hx, hy], dataset = "west", overviewPx = 1 }) {
+  const [[fx0, fy0], [fx1, fy1]] = geoPath(projection).bounds(collection(ids, dataset));
   const [cx, cy] = [(fx0 + fx1) / 2, (fy0 + fy1) / 2];
   const coverage = { x0: cx - hx, y0: cy - hy, x1: cx + hx, y1: cy + hy };
   const panArea = {
@@ -81,9 +94,11 @@ function levelAreas({ id, countries: ids, coverageHalf: [hx, hy] }) {
     y1: Math.min(coverage.y1, fy1 + (fy1 - fy0) * 0.25),
   };
   const lessonArea = { x0: fx0 - 4, y0: fy0 - 4, x1: fx1 + 4, y1: fy1 + 4 };
-  return { id, coverage, panArea, lessonArea };
+  return { id, coverage, panArea, lessonArea, overviewPx, sharedTiles: dataset === "west" };
 }
 const AREAS = LEVEL_AREAS.map(levelAreas);
+/** The levels whose zoomed views draw the shared tiles: those drawn from the levels' data. */
+const TILED_AREAS = AREAS.filter((a) => a.sharedTiles);
 const union = (boxes) => ({
   x0: Math.min(...boxes.map((b) => b.x0)),
   y0: Math.min(...boxes.map((b) => b.y0)),
@@ -564,6 +579,19 @@ export function block(painted, i0, j0, w, h) {
   return out;
 }
 
+/**
+ * A w×h image encoded at half its size, as scripts/generate-challenge-relief.mjs makes its overview (sharp averages
+ * with the alpha premultiplied; lanczos3).
+ */
+function halve(w, h, rgba) {
+  const buf = Buffer.alloc(w * h * 4);
+  for (let k = 0; k < buf.length; k++) buf[k] = Math.max(0, Math.min(255, Math.round(rgba[k])));
+  return sharp(buf, { raw: { width: w, height: h, channels: 4 } })
+    .resize(w / 2, h / 2, { kernel: "lanczos3" })
+    .webp({ quality: 72, alphaQuality: 50, effort: 6 })
+    .toBuffer();
+}
+
 export const maxAlpha = (rgba) => {
   let m = 0;
   for (let k = 3; k < rgba.length; k += 4) m = Math.max(m, rgba[k]);
@@ -584,22 +612,28 @@ if (isMain) {
   mkdirSync(RELIEF_ASSETS, { recursive: true });
 
   // --- Overviews, one per level: the land over the level's whole coverage, the tone over its countries.
-  for (const { id, coverage, lessonArea } of AREAS.filter((a) => !onlyOverview || a.id === onlyOverview)) {
+  for (const { id, coverage, lessonArea, overviewPx } of AREAS.filter((a) => !onlyOverview || a.id === onlyOverview)) {
     const level = LEVELS[0];
-    const area = { x0: Math.floor(coverage.x0), y0: Math.floor(coverage.y0), x1: Math.ceil(coverage.x1), y1: Math.ceil(coverage.y1) };
+    // Snapped to whole pixels of the overview: whole units, or (an overview at half a pixel per unit, Level 10's) even
+    // units, so its half-size image covers the area exactly.
+    const step = level.px / overviewPx;
+    const snap = (v, up) => (up ? Math.ceil(v / step) : Math.floor(v / step)) * step;
+    const area = { x0: snap(coverage.x0), y0: snap(coverage.y0), x1: snap(coverage.x1, true), y1: snap(coverage.y1, true) };
     const painted = paintLevel(level, area, await elevationSource(7, area), await treeSource(level.wcOverview, area));
-    const land = block(painted, 0, 0, painted.W, painted.H).land;
-    const landBuf = await encode(painted.W, painted.H, land);
+    // Painted at the overview level's pixel per unit, then (Level 10's) scaled down, as the Quick Challenge's
+    // overview is, so it is painted the same way.
+    const output = (w, h, rgba) => (overviewPx === level.px ? encode(w, h, rgba) : halve(w, h, rgba));
+    const landBuf = await output(painted.W, painted.H, block(painted, 0, 0, painted.W, painted.H).land);
     writeFileSync(`${RELIEF_ASSETS}${id}-land.webp`, landBuf);
-    const t = { x0: Math.floor(lessonArea.x0), y0: Math.floor(lessonArea.y0), x1: Math.ceil(lessonArea.x1), y1: Math.ceil(lessonArea.y1) };
+    const t = { x0: snap(lessonArea.x0), y0: snap(lessonArea.y0), x1: snap(lessonArea.x1, true), y1: snap(lessonArea.y1, true) };
     const [ti, tj, tw, th] = [(t.x0 - area.x0) * level.px, (t.y0 - area.y0) * level.px, (t.x1 - t.x0) * level.px, (t.y1 - t.y0) * level.px];
-    const toneBuf = await encode(tw, th, block(painted, ti, tj, tw, th).tone);
+    const toneBuf = await output(tw, th, block(painted, ti, tj, tw, th).tone);
     writeFileSync(`${RELIEF_ASSETS}${id}-tone.webp`, toneBuf);
     manifest.overviews[id] = {
       land: { x: area.x0, y: area.y0, width: painted.W / level.px, height: painted.H / level.px, bytes: landBuf.length },
       tone: { x: t.x0, y: t.y0, width: tw / level.px, height: th / level.px, bytes: toneBuf.length },
     };
-    console.log(`${id} overview: land ${landBuf.length} B, tone ${toneBuf.length} B`);
+    console.log(`${id} overview: land ${landBuf.length} B, tone ${toneBuf.length} B${overviewPx !== level.px ? ` (${overviewPx} px per unit)` : ""}`);
   }
 
   if (onlyOverview) {
@@ -608,7 +642,8 @@ if (isMain) {
     // can be panned to, and its elevation must come from sources the credits already name.
     const saved = JSON.parse(readFileSync(file("src/assets/map/relief.json"), "utf8"));
     const area = AREAS.find((a) => a.id === onlyOverview);
-    for (const level of saved.levels) {
+    // A level that draws the Quick Challenge's tiles (Level 10) needs none of the shared grid.
+    for (const level of area.sharedTiles ? saved.levels : []) {
       const [x1, y1] = [level.origin[0] + level.cols * level.tileWorld, level.origin[1] + level.rows * level.tileWorld];
       if (area.panArea.x0 < level.origin[0] || area.panArea.y0 < level.origin[1] || area.panArea.x1 > x1 || area.panArea.y1 > y1)
         throw new Error(`${onlyOverview}: the ${level.name} tile grid does not reach its pan area; rerun without --overview`);
@@ -624,7 +659,7 @@ if (isMain) {
   // --- Zoomed levels: 512px tiles over every level's pan area, in one grid shared by
   // all levels; tone tiles only over the levels' countries. The whole area is painted
   // at once, so tiles match where two levels' areas meet.
-  const panUnion = union(AREAS.map((a) => a.panArea));
+  const panUnion = union(TILED_AREAS.map((a) => a.panArea));
   const detailSource = await elevationSource(8, { x0: panUnion.x0 - 20, y0: panUnion.y0 - 20, x1: panUnion.x1 + 20, y1: panUnion.y1 + 20 });
   for (const level of LEVELS.slice(1)) {
     const tileWorld = TILE_PX / level.px;
@@ -640,9 +675,9 @@ if (isMain) {
         const [wx0, wy0] = [origin[0] + col * tileWorld, origin[1] + row * tileWorld];
         const box = { x0: wx0, y0: wy0, x1: wx0 + tileWorld, y1: wy0 + tileWorld };
         // Only where some level can be panned to when zoomed in.
-        if (!AREAS.some((a) => overlaps(box, a.panArea))) continue;
+        if (!TILED_AREAS.some((a) => overlaps(box, a.panArea))) continue;
         const tile = block(painted, col * TILE_PX, row * TILE_PX, TILE_PX, TILE_PX);
-        const toneWanted = AREAS.some((a) => overlaps(box, a.panArea) && overlaps(box, a.lessonArea));
+        const toneWanted = TILED_AREAS.some((a) => overlaps(box, a.panArea) && overlaps(box, a.lessonArea));
         for (const family of ["land", "tone"]) {
           if (family === "tone" && !toneWanted) continue;
           // Tiles with no visible relief (sea, flat lowland) are left out.
