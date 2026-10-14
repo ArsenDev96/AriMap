@@ -1,14 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Level 9 (Heart of the Balkans) from Discover to Results, its unlock from Level 8 (an existing save), its five
  * landmark cards (Montenegro's and Greece's artwork shared with earlier levels; Kosovo's, Albania's and North
  * Macedonia's own, supplied 2026-10-14), Find's hints and spoiler-free map (no artwork, even after a hint names the
  * landmark), the Montenegro → North Macedonia journey (two shortest routes, through Kosovo or through Albania; each
- * wrong turn runs out of crossings, recovered by Undo or Restart), Level 8's Next level, the level selection once
- * all nine levels are completed, and its map: all five countries whole, Kosovo and Montenegro tapped on the map
- * itself on phones (no close-up), and the landscape it loads.
+ * wrong turn runs out of crossings, recovered by Undo or Restart), Level 8's Next level, its own Next level (Level
+ * 10), the level selection once Level 9 is completed (Level 10 up next), and its map: all five countries whole,
+ * Kosovo and Montenegro tapped on the map itself on phones (no close-up), and the landscape it loads.
  */
 
 const L1 = "western-europe-1";
@@ -20,6 +21,7 @@ const L6 = "baltic-journey";
 const L7 = "iberian-journey";
 const L8 = "eastern-europe";
 const L9 = "heart-of-the-balkans";
+const L10 = "nordic-countries";
 const L9_COUNTRIES = ["MNE", "KOS", "ALB", "MKD", "GRC"];
 const NAMES: Record<string, string> = { MNE: "Montenegro", KOS: "Kosovo", ALB: "Albania", MKD: "North Macedonia", GRC: "Greece" };
 const NAMES_HY: Record<string, string> = { MNE: "Չեռնոգորիա", KOS: "Կոսովո", ALB: "Ալբանիա", MKD: "Հյուսիսային Մակեդոնիա", GRC: "Հունաստան" };
@@ -77,12 +79,9 @@ const EARLIER = {
   [L8]: done(["POL", "BLR", "UKR", "MDA", "ROU"], "pol-to-mda", ["POL", "UKR", "MDA"]),
 };
 const EARLIER_RECENT = [L8, L7, L6, L5, L4, L3, L2, L1];
-const ALL_DONE = { ...EARLIER, [L9]: done(L9_COUNTRIES, "mne-to-mkd", ["MNE", "KOS", "MKD"]) };
+/** Levels 1–9 completed: Level 10 up next (e2e/level10.spec.ts checks all ten completed). */
+const NINE_DONE = { ...EARLIER, [L9]: done(L9_COUNTRIES, "mne-to-mkd", ["MNE", "KOS", "MKD"]) };
 const ALL_RECENT = [L9, ...EARLIER_RECENT];
-const COMPLETION = {
-  en: "You've completed all 9 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 9 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
-};
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
 const findAsking = (target: string, hintLevel = 0) => ({
@@ -266,7 +265,7 @@ const mapState = (page: Page) =>
 
 const moves = (page: Page) => page.locator('[data-testid^="move-"]').evaluateAll((els) => els.filter((e) => !e.closest("[inert]")).map((e) => e.getAttribute("data-testid")!.slice(5)).sort());
 
-test("Level 9, Heart of the Balkans: unlock from a Level 8 save, Discover, Find, Travel, Results, and all nine levels completed", async ({ page }) => {
+test("Level 9, Heart of the Balkans: unlock from a Level 8 save, Discover, Find, Travel, Results, and Level 10 unlocked", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once, on the Pixel 7 project; layouts are checked at other sizes below.");
   test.setTimeout(300_000);
   const errors: string[] = [];
@@ -360,7 +359,7 @@ test("Level 9, Heart of the Balkans: unlock from a Level 8 save, Discover, Find,
   await stuck.getByRole("button", { name: "Undo" }).click();
   await page.getByTestId("move-MKD").click();
 
-  // --- Results: the last level; Back to levels ------------------------------------------------
+  // --- Results: Level 10 follows; Next level ------------------------------------------------
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
   for (const name of ["Montenegro", "Albania", "North Macedonia"]) await expect(page.getByTestId("result-route")).toContainText(name);
   await expect(page.getByTestId("result-crossings")).toContainText("2 of 2");
@@ -370,8 +369,9 @@ test("Level 9, Heart of the Balkans: unlock from a Level 8 save, Discover, Find,
   // crossing, Skopje.
   await expect(route).toHaveAttribute("data-route", "MNE,ALB,MKD");
   await expect(route).toHaveAttribute("data-points", "6");
-  await expect(page.getByTestId("next-level")).toHaveCount(0);
-  await expect(page.getByTestId("back-to-levels")).toBeVisible();
+  // Level 10 follows: Next level is the main action, naming it.
+  await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 10, Nordic Countries");
+  await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
   await expect(page.getByTestId("rating-attempt")).toHaveAttribute("data-stars", "2");
 
   // Replay journey without help, the other way, through Kosovo: the badge.
@@ -383,17 +383,20 @@ test("Level 9, Heart of the Balkans: unlock from a Level 8 save, Discover, Find,
   await expect(route).toHaveAttribute("data-route", "MNE,KOS,MKD");
   await expect(route).toHaveAttribute("data-points", "7");
 
-  // --- The level selection: all nine completed --------------------------------------------
-  await page.getByTestId("back-to-levels").click();
+  // --- The level selection: Levels 1–9 completed, Level 10 unlocked and up next; no completion message yet ------
+  await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L10).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(card(page, L10)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 10 · Nordic Countries$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L10).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("Level 8's Next level opens Level 9; all nine completed in Armenian", async ({ page }) => {
+test("Level 8's Next level opens Level 9; Level 10 up next once Level 9 is completed, in Armenian", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once.");
   // Level 8 at its Results, Level 9 never started: Next level opens it at Discover.
   await saveV2(page, EARLIER, { screen: "lesson", levelId: L8, recent: EARLIER_RECENT });
@@ -405,10 +408,13 @@ test("Level 8's Next level opens Level 9; all nine completed in Armenian", async
   await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "KOS");
   await page.reload();
   await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "KOS");
-  // All nine completed, in Armenian.
-  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L9, recent: ALL_RECENT });
+  // Levels 1–9 completed, in Armenian: Level 10 ready to play and up next, no completion message.
+  await saveV2(page, NINE_DONE, { locale: "hy", levelId: L9, recent: ALL_RECENT });
   await expect(card(page, L9)).toContainText("Բալկանների սրտում");
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.hy);
+  await expect(card(page, L10).getByTestId("level-status")).toHaveText("Պատրաստ է խաղալու");
+  await expect(card(page, L10)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveAttribute("data-level", L10);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
 });
 
 test("Level 9 on phones and desktop: every card in both languages, Find with Kosovo and Montenegro tapped on the map, the five whole", async ({ page }) => {

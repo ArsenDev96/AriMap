@@ -328,13 +328,13 @@ test.describe("level cards: the best stars", () => {
     // Europe's stars: the best ratings summed (3 + none + none), out of 3 per playable level; the
     // level list and the continent card say the same.
     await expect(page.getByTestId("continent-stars")).toHaveAttribute("data-earned", "3");
-    await expect(page.getByTestId("continent-stars").locator("[aria-hidden='true']")).toHaveText("3/27");
-    await expect(page.getByTestId("continent-stars").locator(".visually-hidden")).toHaveText("3 of 27 stars earned in Europe");
+    await expect(page.getByTestId("continent-stars").locator("[aria-hidden='true']")).toHaveText("3/30");
+    await expect(page.getByTestId("continent-stars").locator(".visually-hidden")).toHaveText("3 of 30 stars earned in Europe");
     // Continent progress counts completion, as before, apart from the stars.
     await page.getByTestId("back-to-continents").click();
-    await expect(page.getByTestId("continent-progress").first()).toContainText("3/9");
+    await expect(page.getByTestId("continent-progress").first()).toContainText("3/10");
     await expect(page.getByTestId("continent-stars")).toHaveAttribute("data-earned", "3");
-    await expect(page.getByTestId("continent-stars").locator("[aria-hidden='true']")).toHaveText("3/27");
+    await expect(page.getByTestId("continent-stars").locator("[aria-hidden='true']")).toHaveText("3/30");
   });
 });
 

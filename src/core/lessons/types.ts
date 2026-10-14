@@ -68,6 +68,12 @@ export interface LessonDefinition {
       country: CountryId;
       smallMapCorner?: "bottom-left" | "top-left";
       wideMapCorner?: "top-left" | "bottom-left";
+      /**
+       * On smaller maps the panel opens beside its toggle, along the map's edge, rather than
+       * above (or below) it: Level 10's, which above its toggle would cover Iceland on a 320px
+       * phone and in a 740×360 landscape. Without it, only maps too short for the panel there.
+       */
+      smallMapBeside?: boolean;
     };
     /**
      * Countries too small for an in-place name at the whole-map view: their
@@ -88,6 +94,15 @@ export interface LessonDefinition {
      * whose callout on a 320px phone in Armenian otherwise lay over the route into Albania.
      */
     calloutsClearRoute?: boolean;
+    /**
+     * A highlighted country (selected, or on Travel's journey) whose label point lies under the map
+     * controls (or the close-up) takes its callout's dot from the nearest point of the country clear
+     * of them, as a larger country's dot moves when no position from its label point is clear, rather
+     * than go unnamed: Level 10's Sweden and Norway at 200% text on a 320px phone, where the short map
+     * puts its controls in a row across its bottom right. A country with no part clear of them
+     * (Denmark there) is left out, and never opens the close-up, as in every other level.
+     */
+    calloutDotsClearControls?: boolean;
     /**
      * Where the Travel route line crosses each border, keyed by the two
      * country ids in alphabetical order ("BEL-FRA"). Each point lies on the

@@ -70,7 +70,8 @@ export const nordicCountriesLesson: LessonDefinition = {
     // data round (COVERAGE_HALF there).
     coverageHalf: [2095, 990],
     // Denmark, the smallest of the five (an 11 px circle on a 320×568 phone), with the Øresund to Malmö; Bornholm
-    // stays on the main map. Bottom-left on wide maps too: their top-left is Iceland.
+    // stays on the main map. Bottom-left on wide maps too: their top-left is Iceland. On smaller maps it opens
+    // beside its toggle, along the bottom edge: above the toggle it would cover Iceland on a 320px phone.
     inset: {
       bounds: [
         [7.9, 54.45],
@@ -78,7 +79,12 @@ export const nordicCountriesLesson: LessonDefinition = {
       ],
       country: "DNK",
       wideMapCorner: "bottom-left",
+      smallMapBeside: true,
     },
+    // At 200% text on a 320px phone the map is 304×112 in Armenian (304×150 in English), and its controls, in a
+    // row, cover the label points of Denmark, Sweden and Norway: a highlighted Sweden's or Norway's dot moves
+    // clear of them. Denmark lies wholly under them there; the close-up shows it.
+    calloutDotsClearControls: true,
     // Vertices of the shared Natural Earth borders (the Øresund's: the statutory boundary on the bridge): Sweden–
     // Finland at the Torne's mouth between Haparanda and Tornio, Sweden–Norway nearest Morokulien (Eda–Magnor, on
     // the Stockholm–Oslo road). Norway–Finland has none: no journey reaches it (see `travel`).

@@ -1,11 +1,18 @@
 # Level 10 (Nordic Countries): work-in-progress checkpoint
 
-Written 2026-10-14 when work moved to another computer. Level 10 is **implemented and playable, but not finished**:
-- Unit tests are only partly updated.
-- E2E specs and the docs are not updated.
-- No test suite has been run (by request).
+Written 2026-10-14 when work moved to another computer, and updated the same day when it was resumed (see "Resumed").
 
-Don't merge this branch yet.
+## Resumed (2026-10-14)
+Remaining tasks 1–5 below are done, apart from screenshots; no test suite has been run (by request).
+- **Unit tests:** `levels.test.ts` (ten levels, the Level 10 block, and the stale 8-entry expectations of issue 5), `rating.test.ts` (10 levels, 30 stars) and `content.test.ts` (Level 10's content; capitals' bounds now reach Reykjavík and Helsinki; Bryggen's two-sentence fact is allowed 125 characters, the others 110). The new claims were checked with a scratch script against the real modules.
+- **E2E:** new `e2e/level10.spec.ts`; `level6`–`level9`, `continents`, `levels`, `results-next`, `stars` and `phone-layout` updated for ten levels and 30 stars (Level 9 now has a Next level). `webkit-phone`'s `testMatch` was left as it was (Level 10's spec doesn't run there, like Level 8's and 9's).
+- **Docs:** README, `CONTENT.md`, `DATA.md` ("Level 10"), `TERRAIN.md`.
+- **Known issue 1 (200% text):** `map.calloutDotsClearControls`: a highlighted country whose label point is under the map controls takes its dot from the nearest point of it clear of them. Sweden and Norway are now named when selected or travelled through, in both languages. Denmark lies wholly under the controls there (its land at x ≈ 160–180 px, the controls' area from x 158), so it stays unnamed on the main map; the close-up names and shows it. Such a dot never opens the close-up. Levels 1–9 are unaffected (the option is off).
+- **Known issue 2 (close-up over Iceland):** `inset.smallMapBeside`: on smaller maps the close-up opens beside its toggle. Iceland's tap circle with it open: 28 px at 320×568 (was 0), 32 at 390×844, 36 at 740×360 (was 10); the others keep at least 26 px. At 200% text the map is shorter than the panel's minimum, so opened it still covers Iceland; it is closed by default there, Iceland is tapped with it closed and Denmark through it.
+- **Browser checks** (dev server, Chromium and WebKit): see `docs/DATA.md`, "Level 10", "Not verified". Quick Challenge unchanged.
+- Typecheck and lint clean.
+
+Don't merge this branch until the suites have been run.
 
 ## Approved decisions (from the planning rounds)
 

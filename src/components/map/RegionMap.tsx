@@ -188,6 +188,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
   const small = useMemo(() => new Set(lesson.map.smallCountries ?? []), [lesson]);
   const twoLine = useMemo(() => new Set(lesson.map.twoLineCallouts ?? []), [lesson]);
   const clearRoute = lesson.map.calloutsClearRoute === true;
+  const dotsClearControls = lesson.map.calloutDotsClearControls === true;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -516,18 +517,23 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
     return () => observer.disconnect();
   }, [caption, size.width, size.height]);
   const captionHeight = Math.max(INSET_CAPTION_HEIGHT, captionFit.height);
+  const wideMap = size.width >= INSET_AUTO_OPEN.width && size.height >= INSET_AUTO_OPEN.height;
+  // Beside its toggle on smaller maps, where the level asks (see smallMapBeside).
+  const besideOnSmallMaps = !wideMap && inset?.smallMapBeside === true;
   const insetSize = useMemo(() => {
     if (!insetBounds || size.width === 0) return null;
     const [[x0, y0], [x1, y1]] = insetBounds;
     const aspect = (y1 - y0) / (x1 - x0);
     const min = size.width < COMPACT_MAP_WIDTH ? INSET_WIDTH.compactMin : INSET_WIDTH.min;
     let width = Math.round(Math.min(INSET_WIDTH.max, Math.max(min, size.width * 0.3)));
-    // On short maps the panel shrinks so it always fits below its toggle.
-    const room = size.height - INSET_CHROME_HEIGHT - captionHeight;
-    if (width * aspect <= room) return { width, height: Math.round(width * aspect), beside: false };
-    if (Math.floor(room / aspect) >= INSET_MIN_WIDTH) {
-      width = Math.floor(room / aspect);
-      return { width, height: Math.round(width * aspect), beside: false };
+    if (!besideOnSmallMaps) {
+      // On short maps the panel shrinks so it always fits below its toggle.
+      const room = size.height - INSET_CHROME_HEIGHT - captionHeight;
+      if (width * aspect <= room) return { width, height: Math.round(width * aspect), beside: false };
+      if (Math.floor(room / aspect) >= INSET_MIN_WIDTH) {
+        width = Math.floor(room / aspect);
+        return { width, height: Math.round(width * aspect), beside: false };
+      }
     }
     // Too short even at its smallest (enlarged text on a phone, which shortens the map and
     // makes the caption taller): the panel opens beside its toggle instead, using the map's
@@ -535,14 +541,13 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
     const beside = size.height - 8 - 4 - captionHeight - 8;
     width = Math.max(INSET_MIN_WIDTH, Math.min(width, Math.floor(beside / aspect)));
     return { width, height: Math.round(width * aspect), beside: true };
-  }, [insetBounds, size.width, size.height, captionHeight]);
+  }, [insetBounds, size.width, size.height, captionHeight, besideOnSmallMaps]);
   const insetTransform = useMemo(
     () => (insetBounds && insetSize ? fitTransform(insetBounds, insetSize.width, insetSize.height, 0) : null),
     [insetBounds, insetSize],
   );
 
   const ready = base !== null;
-  const wideMap = size.width >= INSET_AUTO_OPEN.width && size.height >= INSET_AUTO_OPEN.height;
   // The close-up's corner: top-left on wide maps; on smaller ones bottom-left, opening
   // upwards, unless the level puts it top-left there too (Level 7, whose bottom-left
   // corner is Portugal), or bottom-left on wide maps too (Level 10, whose top-left is Iceland).
@@ -610,6 +615,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
       small,
       twoLine,
       clearRoute,
+      dotsClearControls,
       transform: base,
       viewport: size,
       textMode: "all",
@@ -619,7 +625,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, twoLine, clearRoute, l, name]);
+  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -639,9 +645,9 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
   const mainLayout = useMemo(
     () =>
       ready
-        ? layoutOverlay({ map, active: lesson.countries, view, route, routeStops, small, twoLine, clearRoute, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
+        ? layoutOverlay({ map, active: lesson.countries, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
         : null,
-    [ready, map, lesson.countries, view, route, routeStops, small, twoLine, clearRoute, settledView, size, textMode, obstacles, mainInsetArea, l, name],
+    [ready, map, lesson.countries, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, settledView, size, textMode, obstacles, mainInsetArea, l, name],
   );
   // Wave marks: Discover only, on the main map only.
   const scenery = stage === "discover" && mainLayout !== null;
@@ -725,6 +731,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
                 small={small}
                 twoLine={twoLine}
                 clearRoute={clearRoute}
+                dotsClearControls={dotsClearControls}
                 transform={settledView}
                 viewport={size}
                 textMode={textMode}
@@ -1476,6 +1483,8 @@ interface LayoutInput {
   twoLine?: ReadonlySet<CountryId>;
   /** Callouts keep clear of the route line where they can (the level's `calloutsClearRoute`). */
   clearRoute?: boolean;
+  /** A highlighted country's dot moves out from under the map controls (the level's `calloutDotsClearControls`). */
+  dotsClearControls?: boolean;
   transform: Transform;
   viewport: { width: number; height: number };
   /**
@@ -1605,7 +1614,7 @@ function placeOverlay(
   /** Long names in callouts go on two lines (see CALLOUT_WRAP_SHARE): in a layout tried again for a country's name. */
   wrap = false,
 ): OverlayLayout {
-  const { map, active, view, route: routeWorld, small, twoLine, clearRoute, transform, viewport, textMode, obstacles, insetArea, l, name } = input;
+  const { map, active, view, route: routeWorld, small, twoLine, clearRoute, dotsClearControls, transform, viewport, textMode, obstacles, insetArea, l, name } = input;
   const showText = textMode === "all" || textMode === "noCallouts";
   const toScreen = (p: Point) => applyTransform(transform, p);
   const toWorld = ([x, y]: Point): Point => [(x - transform.x) / transform.k, (y - transform.y) / transform.k];
@@ -1875,6 +1884,14 @@ function placeOverlay(
   // there is room.
   const hard: Box[] = [...obstacles, ...markerPoints];
   const visible = ([x, y]: Point) => x >= 0 && y >= 0 && x <= viewport.width && y <= viewport.height;
+  /** Offsets from `from` to points over a country's part in view on a 4 px grid, outside the obstacles, nearest first. */
+  const clearDots = (shape: CountryShape, [fx, fy]: Point): Point[] => {
+    const [[x0, y0], [x1, y1]] = [toScreen(shape.bounds[0]), toScreen(shape.bounds[1])];
+    const dots: Point[] = [];
+    for (let x = Math.max(0, Math.ceil(x0)); x <= Math.min(viewport.width, x1); x += 4)
+      for (let y = Math.max(0, Math.ceil(y0)); y <= Math.min(viewport.height, y1); y += 4) if (!obstacles.some((o) => inBox([x, y], o))) dots.push([x - fx, y - fy]);
+    return dots.sort((a, b) => Math.hypot(a[0], a[1]) - Math.hypot(b[0], b[1]));
+  };
   const leaders: [Point, Point][] = [];
   const crowded: CountryId[] = [];
   let fellBack = false;
@@ -1884,11 +1901,15 @@ function placeOverlay(
   let capitalPending = markerTexts.some((m) => m.key.startsWith("capital-") && visible(m.at));
   const placeCallout = (label: Label) => {
     // A callout for a country panned out of view, or whose dot is hidden under
-    // the close-up or the map controls, would point at nothing.
-    if (!visible(label.anchor) || obstacles.some((o) => inBox(label.anchor, o))) return;
+    // the close-up or the map controls, would point at nothing. Where the level asks, a highlighted country's
+    // dot moves out from under them instead (see calloutDotsClearControls and search below).
+    const highlighted = (view.tones[label.id] ?? "default") !== "default";
+    const hidden = obstacles.some((o) => inBox(label.anchor, o));
+    if (!visible(label.anchor) || (hidden && !(dotsClearControls && highlighted && !small.has(label.id)))) return;
     // The traveller's pin would cover this callout's dot (Luxembourg while the
     // traveller is there): the leader starts at the pin's tip, at the real capital.
-    const pin = markers.find((m) => m.kind === "current" && m.country === label.id);
+    // Not from under the map controls, where the pin is hidden too: the dot moves clear of them instead.
+    const pin = hidden ? undefined : markers.find((m) => m.kind === "current" && m.country === label.id);
     if (pin) {
       const [ax, ay] = label.anchor;
       if (ax >= pin.x + PIN_BOX.x0 - 3 && ax <= pin.x + PIN_BOX.x1 + 3 && ay >= pin.y + PIN_BOX.y0 - 3 && ay <= pin.y + PIN_BOX.y1 + 3) {
@@ -2111,13 +2132,18 @@ function placeOverlay(
     // under Montenegro's callout on a 320px map in Armenian): its leader would start beneath it.
     const covered = [...placed, ...markerTextBoxes].some((b) => inBox(label.anchor, b));
     const search = () => {
-      let best = covered ? null : bestAt(label.anchor);
+      let best = covered || hidden ? null : bestAt(label.anchor);
       if ((!best || best.cost > 0) && !small.has(label.id) && !label.pinAnchored) {
         const shape = shapeById(label.id);
         const [ax, ay] = label.anchor;
-        const busy = [...taken, ...placed, ...markerTextBoxes, ...markerPoints, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label), ...obstacles];
+        // A dot moved out from under the map controls may lie under another country's name, which its callout then
+        // moves aside like any name its leader crosses (see assess): Finland's, over the only clear part of Sweden.
+        const busy = [...(hidden ? [] : taken), ...placed, ...markerTextBoxes, ...markerPoints, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label), ...obstacles];
+        // From under the map controls, the nearest points of the country clear of them, on a grid of 4 px steps: the
+        // moves from its label point may all leave the country (Norway's, at its southern end, on a 304×112 map).
+        const moves = hidden ? clearDots(shapeById(label.id), label.anchor) : DOT_MOVES;
         let dots = DOT_TRIES;
-        for (const [dx, dy] of DOT_MOVES) {
+        for (const [dx, dy] of moves) {
           const dot: Point = [ax + dx, ay + dy];
           const zone = { x0: dot[0] - 5, y0: dot[1] - 5, x1: dot[0] + 5, y1: dot[1] + 5 };
           if (!visible(dot) || busy.some((b) => overlaps(zone, b)) || crossesLeader(zone) || !insideShape(shape, toWorld(dot))) continue;
@@ -2143,7 +2169,6 @@ function placeOverlay(
     let best = searchClear();
     // No room on one line anywhere: the name on two lines, where the level asks while the country is
     // highlighted (selected, or on the journey; see twoLineCallouts).
-    const highlighted = (view.tones[label.id] ?? "default") !== "default";
     if ((!best || best.left > 0) && lines === null && highlighted && twoLine?.has(label.id) && textMode !== "callouts") {
       const split = twoLines();
       if (split) {
@@ -2154,13 +2179,15 @@ function placeOverlay(
         else [lines, width, h] = [null, fullWidth(label) + 2 * pad, lineHeight(false)];
       }
     }
+    // A name whose dot was under the map controls never opens the close-up, as such a dot never did: on the short
+    // maps where this happens the close-up opens beside its toggle, over the level's other countries.
     if (!best) {
-      if (!label.overhang) crowded.push(label.id);
+      if (!label.overhang && !hidden) crowded.push(label.id);
       return;
     }
     if (best.fellBack) fellBack = true;
     label.anchor = best.anchor;
-    if (!best.near || best.left > 0) crowded.push(label.id);
+    if ((!best.near || best.left > 0) && !hidden) crowded.push(label.id);
     // No clear position anywhere (e.g. the close-up closed on a crowded 320px map):
     // leave the name out rather than print it over another. Opening the close-up
     // or zooming in brings it back.
