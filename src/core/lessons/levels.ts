@@ -8,6 +8,7 @@ import { centralEuropeLesson } from "./central-europe";
 import { easternEuropeLesson } from "./eastern-europe";
 import { heartOfTheBalkansLesson } from "./heart-of-the-balkans";
 import { iberianJourneyLesson } from "./iberian-journey";
+import { nordicCountriesLesson } from "./nordic-countries";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
@@ -174,6 +175,19 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: heartOfTheBalkansLesson.countries,
     lesson: heartOfTheBalkansLesson,
     unlockedBy: easternEuropeLesson.id,
+  },
+  {
+    id: nordicCountriesLesson.id,
+    continent: "europe",
+    number: 10,
+    title: { en: "Nordic Countries", hy: "Հյուսիսային երկրներ" },
+    description: {
+      en: "Explore the Nordic countries, from Denmark to Iceland.",
+      hy: "Ուսումնասիրիր Հյուսիսային երկրները՝ Դանիայից մինչև Իսլանդիա։",
+    },
+    countries: nordicCountriesLesson.countries,
+    lesson: nordicCountriesLesson,
+    unlockedBy: heartOfTheBalkansLesson.id,
   },
 ];
 

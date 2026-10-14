@@ -733,6 +733,22 @@
         "height": 587,
         "bytes": 64298
       }
+    },
+    "nordic-countries": {
+      "land": {
+        "x": -1536,
+        "y": -1592,
+        "width": 4192,
+        "height": 1982,
+        "bytes": 299890
+      },
+      "tone": {
+        "x": -312,
+        "y": -1238,
+        "width": 1746,
+        "height": 1274,
+        "bytes": 69958
+      }
     }
   },
   "version": "a45fb07217",

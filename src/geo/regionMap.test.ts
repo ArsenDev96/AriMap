@@ -4,18 +4,43 @@ import { feature, neighbors } from "topojson-client";
 import type { Feature, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
+import northJson from "@/data/geo/europe-north.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import { LESSON_VERSIONS, LESSONS, LEVELS, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
 import { shortestDistance, validateGraph, type BorderGraph } from "@/core/game/graph";
-import { applyTransform, fitTransform, getRegionMap, MAP_DATA_CLIP, MARK_EDGE_CLEARANCE, maxMapWidth, PROJECTION_FIT, regionMapFor, viewLimits, type Bounds, type ScreenMark, type Transform } from "./regionMap";
+import {
+  applyTransform,
+  fitTransform,
+  getRegionMap,
+  isMapDataLoaded,
+  MAP_DATA_CLIP,
+  MARK_EDGE_CLEARANCE,
+  maxMapWidth,
+  PROJECTION_FIT,
+  regionMapFor,
+  setNorthData,
+  viewLimits,
+  type Bounds,
+  type MapDataset,
+  type ScreenMark,
+  type Transform,
+} from "./regionMap";
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
 const geometries = topology.objects.countries.geometries;
+/** Level 10's northern data (scripts/prepare-north-geo.mjs), given to the map as loadMapData would. */
+const north = northJson as unknown as Topology<{ countries: GeometryCollection }> & {
+  projection: { rotate: [number, number]; scale: number; translate: [number, number] };
+  frame: { clip: Bounds };
+};
+setNorthData(north);
+const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north };
 
-function shapeOf(id: string) {
-  const g = geometries.find((x) => x.id === id)!;
-  return feature(topology, g) as Feature<Polygon | MultiPolygon>;
+function shapeOf(id: string, dataset: MapDataset = "west") {
+  const data = TOPOLOGIES[dataset];
+  const g = data.objects.countries.geometries.find((x) => x.id === id)!;
+  return feature(data, g) as Feature<Polygon | MultiPolygon>;
 }
 
 /**
@@ -25,51 +50,90 @@ function shapeOf(id: string) {
  * "Level 4"), and Belém Tower, which stands at the edge of the Tagus, 0.32 km beyond it
  * ("Level 7"); every other landmark must lie inside its country.
  */
-const COAST_MARGIN_KM: Readonly<Record<string, number>> = { "dubrovnik-city-walls": 0.6, "belem-tower": 0.4 };
+const COAST_MARGIN_KM: Readonly<Record<string, number>> = { "dubrovnik-city-walls": 0.6, "belem-tower": 0.4, kronborg: 0.3 };
 
 /** Whether some point within `km` of `p` lies inside the country. */
-function withinKm(id: string, p: readonly [number, number], km: number) {
+function withinKm(id: string, p: readonly [number, number], km: number, dataset: MapDataset = "west") {
   for (let d = 0.05; d <= km; d += 0.05)
     for (let a = 0; a < 360; a += 10) {
       const rad = (a * Math.PI) / 180;
       const q: [number, number] = [p[0] + (d / (111.32 * Math.cos((p[1] * Math.PI) / 180))) * Math.cos(rad), p[1] + (d / 110.57) * Math.sin(rad)];
-      if (geoContains(shapeOf(id), q)) return true;
+      if (geoContains(shapeOf(id, dataset), q)) return true;
     }
   return false;
 }
 
 describe("prepared map data", () => {
   it("has unique country ids", () => {
-    const ids = geometries.map((g) => g.id);
-    expect(new Set(ids).size).toBe(ids.length);
+    for (const data of Object.values(TOPOLOGIES)) {
+      const ids = data.objects.countries.geometries.map((g) => g.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    }
   });
 
-  // Every version of every level (Level 6's first included: attempts started on it go on).
+  // Every version of every level (Level 6's first included: attempts started on it go on), each in its own data.
   for (const lesson of LESSON_VERSIONS) {
+    const dataset = lesson.map.dataset ?? "west";
     it(`${versionKey(lesson)}: border graph matches shared boundaries in the data`, () => {
-      const adjacency = neighbors(geometries);
+      const own = TOPOLOGIES[dataset].objects.countries.geometries;
+      const adjacency = neighbors(own);
+      // A named fixed link (Level 10's Øresund) joins two countries that share no boundary: it is the only way an edge
+      // without one is accepted, and only for those two.
+      const linked = (a: string, b: string) => (lesson.map.borderLinks ?? []).some((l) => l.between.includes(a) && l.between.includes(b));
       for (const id of lesson.countries) {
-        const index = geometries.findIndex((g) => g.id === id);
+        const index = own.findIndex((g) => g.id === id);
         expect(index, id).toBeGreaterThanOrEqual(0);
-        const fromData = adjacency[index].map((i) => String(geometries[i].id)).filter((n) => lesson.countries.includes(n));
-        expect([...fromData].sort(), id).toEqual([...lesson.borders[id]].sort());
+        const fromData = adjacency[index].map((i) => String(own[i].id)).filter((n) => lesson.countries.includes(n));
+        for (const n of fromData) expect(linked(id, n), `${id}–${n} share a land border: not a fixed link`).toBe(false);
+        expect([...fromData].sort(), id).toEqual(lesson.borders[id].filter((n) => !linked(id, n)).sort());
+      }
+      for (const link of lesson.map.borderLinks ?? []) {
+        const [a, b] = link.between;
+        expect(lesson.borders[a], link.name).toContain(b);
+        expect(lesson.borders[b], link.name).toContain(a);
       }
     });
 
     it(`${versionKey(lesson)}: capitals, landmarks and label anchors fall inside their countries`, () => {
       for (const id of lesson.countries) {
         const c = COUNTRIES[id];
-        expect(geoContains(shapeOf(id), [...c.label.coordinates]), `${id} label`).toBe(true);
-        expect(geoContains(shapeOf(id), [...c.capital.coordinates]), `${id} capital`).toBe(true);
+        expect(geoContains(shapeOf(id, dataset), [...c.label.coordinates]), `${id} label`).toBe(true);
+        expect(geoContains(shapeOf(id, dataset), [...c.capital.coordinates]), `${id} capital`).toBe(true);
         if (c.landmark?.coordinates) {
-          const inside = geoContains(shapeOf(id), [...c.landmark.coordinates]);
+          const inside = geoContains(shapeOf(id, dataset), [...c.landmark.coordinates]);
           const margin = COAST_MARGIN_KM[c.landmark.id];
           if (margin === undefined) expect(inside, `${id} landmark`).toBe(true);
-          else expect(inside || withinKm(id, c.landmark.coordinates, margin), `${id} landmark within ${margin} km of its country`).toBe(true);
+          else expect(inside || withinKm(id, c.landmark.coordinates, margin, dataset), `${id} landmark within ${margin} km of its country`).toBe(true);
         }
       }
     });
   }
+
+  it("nordic-countries: its northern data is in the levels' projection, with Iceland, Jan Mayen and Åland as agreed and Svalbard left out", () => {
+    // The same projection as the levels' (prepare-north-geo.mjs writes it), so the relief lines up.
+    const map = regionMapFor(LESSONS["nordic-countries"]);
+    const west = regionMapFor(LESSONS["western-europe-1"]);
+    for (const p of [[12.5655, 55.6759], [-21.8954, 64.1355], [24.9354, 60.1695]] as const) expect(map.project(p)).toEqual(west.project(p));
+    expect(north.projection.rotate).toEqual([-8, -50]);
+    const ids = north.objects.countries.geometries.map((g) => String(g.id));
+    // Åland merged into Finland; the Faroes and Greenland their own (faded) shapes, never Denmark's.
+    expect(ids).not.toContain("ALD");
+    expect(geoContains(shapeOf("FIN", "north"), [19.94, 60.1])).toBe(true);
+    for (const [id, p] of [["FRO", [-6.77, 62.01]], ["GRL", [-22.0, 70.5]]] as const) {
+      expect(geoContains(shapeOf(id, "north"), [...p]), id).toBe(true);
+      expect(geoContains(shapeOf("DNK", "north"), [...p]), id).toBe(false);
+    }
+    // Bornholm is Denmark's; Peberholm, too small at this scale, is not in the data.
+    expect(geoContains(shapeOf("DNK", "north"), [14.92, 55.12])).toBe(true);
+    for (const id of ids) expect(geoContains(shapeOf(id, "north"), [12.7506, 55.5999]), id).toBe(false);
+    // Jan Mayen is Norway's, inside the frame the mainland sets; Svalbard (Bjørnøya too) is left out.
+    expect(geoContains(shapeOf("NOR", "north"), [-8.4, 71.0])).toBe(true);
+    const [[, fy0]] = map.focusBounds;
+    expect(map.project([-8.0, 71.15])[1]).toBeGreaterThan(fy0);
+    for (const p of [[19.0, 74.43], [16.5, 77.0], [15.6, 78.2]] as const) for (const id of ids) expect(geoContains(shapeOf(id, "north"), [...p]), `${id} at ${p}`).toBe(false);
+    // Crimea, where the data reaches it, is Ukraine's (as in the levels' data).
+    for (let lon = 32.5; lon <= 36.6; lon += 0.1) for (let lat = 44.4; lat <= 46.2; lat += 0.1) expect(geoContains(shapeOf("RUS", "north"), [lon, lat])).toBe(false);
+  });
 
   it("keeps the quantization grid of Levels 1–4's data, so extending the clip box moved none of their coordinates", () => {
     // scripts/prepare-geo.mjs rounds on this grid whatever the box (docs/DATA.md, "Level 5").
@@ -282,8 +346,14 @@ describe("map coverage", () => {
     const map = regionMapFor(lesson);
 
     it(`${versionKey(lesson)}: the coverage area lies inside the clipped data`, () => {
-      const [w, s, e, n] = MAP_DATA_CLIP;
       const [[x0, y0], [x1, y1]] = map.coverage;
+      if (lesson.map.dataset === "north") {
+        // The northern data is cut to a rectangle in world units (frame.clip), round this coverage.
+        const [[c0x, c0y], [c1x, c1y]] = north.frame.clip;
+        expect(x0 > c0x && y0 > c0y && x1 < c1x && y1 < c1y).toBe(true);
+        return;
+      }
+      const [w, s, e, n] = MAP_DATA_CLIP;
       for (let i = 0; i <= 50; i++) {
         const f = i / 50;
         for (const p of [
@@ -480,6 +550,31 @@ describe("start view with markers kept whole", () => {
     for (const r of room(podgorica, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
     for (const m of margins(base)) expect(m).toBeGreaterThanOrEqual(padding - 1e-6);
     expectInside(map, base, width, height, translateExtent);
+  });
+
+  it("nordic-countries: on the shortest phone map (304×112, 200% text in Armenian on a 320×568 phone), the five are whole with their padding, the pin in Copenhagen included", () => {
+    // The coverage is wide enough that this map shows the countries' own fit instead of zooming in to fill its width.
+    expect(isMapDataLoaded("north")).toBe(true);
+    const map = regionMapFor(LESSONS["nordic-countries"]);
+    for (const [width, height] of [
+      [304, 112],
+      [304, 150],
+    ]) {
+      const padding = paddingFor(width, height);
+      const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+      const margins = (t: Transform) => {
+        const [[sx0, sy0], [sx1, sy1]] = [applyTransform(t, [fx0, fy0]), applyTransform(t, [fx1, fy1])];
+        return [sx0, sy0, width - sx1, height - sy1];
+      };
+      const region = viewLimits(map, width, height, padding);
+      expect(region.base).toEqual(fitTransform(map.focusBounds, width, height, padding));
+      for (const m of margins(region.base)) expect(m).toBeGreaterThanOrEqual(padding - 1e-6);
+      const copenhagen = pinAt(map, "DNK");
+      const { base, translateExtent } = viewLimits(map, width, height, padding, [copenhagen]);
+      expect(base).toEqual(region.base);
+      for (const r of room(copenhagen, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+      expectInside(map, base, width, height, translateExtent);
+    }
   });
 
   it("changes the start view only where the pin would be cut: every level, every capital, phones to wide desktops", () => {

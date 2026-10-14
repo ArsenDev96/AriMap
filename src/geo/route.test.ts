@@ -4,34 +4,44 @@ import { feature, mesh } from "topojson-client";
 import type { Feature, MultiLineString, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
+import northJson from "@/data/geo/europe-north.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import { shortestDistance, type BorderGraph } from "@/core/game/graph";
+import { availableMoves, createAttempt, currentCountry, move } from "@/core/game/travel";
 import { LESSON_VERSIONS, LESSONS, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
-import { regionMapFor } from "./regionMap";
+import { regionMapFor, setNorthData, type MapDataset } from "./regionMap";
 import { borderKey, routeLine, routePoints, routeSettings, viaKey } from "./route";
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
+/** Level 10's northern data, given to the map as loadMapData would. */
+const north = northJson as unknown as Topology<{ countries: GeometryCollection }>;
+setNorthData(north);
+const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north };
 const EARTH_KM = 6371;
 const km = (a: LonLat, b: LonLat) => geoDistance([...a], [...b]) * EARTH_KM;
 
-const shapes = new Map<CountryId, Feature<Polygon | MultiPolygon>>();
-function shapeOf(id: CountryId) {
-  if (!shapes.has(id)) shapes.set(id, feature(topology, topology.objects.countries.geometries.find((x) => x.id === id)!) as Feature<Polygon | MultiPolygon>);
-  return shapes.get(id)!;
+const shapes = new Map<string, Feature<Polygon | MultiPolygon>>();
+function shapeOf(id: CountryId, dataset: MapDataset = "west") {
+  const key = `${dataset}:${id}`;
+  const data = TOPOLOGIES[dataset];
+  if (!shapes.has(key)) shapes.set(key, feature(data, data.objects.countries.geometries.find((x) => x.id === id)!) as Feature<Polygon | MultiPolygon>);
+  return shapes.get(key)!;
 }
 
 /** Whether a point lies in the country; its bounding box is checked first, as there are 74 countries to try. */
-const boxes = new Map<CountryId, [[number, number], [number, number]]>();
-function inCountry(id: CountryId, p: LonLat) {
-  if (!boxes.has(id)) boxes.set(id, geoBounds(shapeOf(id)));
-  const [[x0, y0], [x1, y1]] = boxes.get(id)!;
-  return p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1 && geoContains(shapeOf(id), [...p]);
+const boxes = new Map<string, [[number, number], [number, number]]>();
+function inCountry(id: CountryId, p: LonLat, dataset: MapDataset = "west") {
+  const key = `${dataset}:${id}`;
+  if (!boxes.has(key)) boxes.set(key, geoBounds(shapeOf(id, dataset)));
+  const [[x0, y0], [x1, y1]] = boxes.get(key)!;
+  return p[0] >= x0 && p[0] <= x1 && p[1] >= y0 && p[1] <= y1 && geoContains(shapeOf(id, dataset), [...p]);
 }
 
-function sharedBorder(a: CountryId, b: CountryId): MultiLineString {
-  return mesh(topology, topology.objects.countries, (x, y) => (x.id === a && y.id === b) || (x.id === b && y.id === a));
+function sharedBorder(a: CountryId, b: CountryId, dataset: MapDataset = "west"): MultiLineString {
+  const data = TOPOLOGIES[dataset];
+  return mesh(data, data.objects.countries, (x, y) => (x.id === a && y.id === b) || (x.id === b && y.id === a));
 }
 
 /** Points along the line as drawn: straight in the map projection, not along great circles. */
@@ -66,24 +76,61 @@ function allShortestPaths(graph: BorderGraph, from: CountryId, to: CountryId): C
 /** Near the crossing the drawn line may graze the (simplified) border line itself. */
 const BORDER_TOLERANCE_KM = 3;
 
-const ALL_IDS = topology.objects.countries.geometries.map((g) => String(g.id));
 const same = (p: LonLat, q: LonLat) => p[0] === q[0] && p[1] === q[1];
+
+/**
+ * Every move a journey can make: from each mission's start, within its crossings (Undo and Restart only go back).
+ * Every move of the earlier levels; Level 10's Norway → Finland, a real border, is never reached.
+ */
+function reachableMoves(lesson: (typeof LESSON_VERSIONS)[number]): Set<string> {
+  const found = new Set<string>();
+  const walk = (attempt: ReturnType<typeof createAttempt>) => {
+    for (const next of availableMoves(attempt, lesson.borders)) {
+      found.add(`${currentCountry(attempt)}>${next}`);
+      walk(move(attempt, lesson.borders, next).attempt);
+    }
+  };
+  for (const mission of [lesson.travel.mission, ...(lesson.travel.earlierMissions ?? [])]) walk(createAttempt(lesson.borders, mission));
+  return found;
+}
 
 // Every version of every level: an attempt started on Level 6's first version still draws its journey.
 for (const lesson of LESSON_VERSIONS) {
+  const dataset = lesson.map.dataset ?? "west";
+  const ALL_IDS = TOPOLOGIES[dataset].objects.countries.geometries.map((g) => String(g.id));
   const crossings = lesson.map.routeCrossings ?? {};
   const via = lesson.map.routeVia ?? {};
   const settings = routeSettings(lesson);
-  const moves = lesson.countries.flatMap((a) => lesson.borders[a].map((b) => [a, b] as const));
+  const reachable = reachableMoves(lesson);
+  const allMoves = lesson.countries.flatMap((a) => lesson.borders[a].map((b) => [a, b] as const));
+  // The moves drawn: every border with a crossing (both ways). Every reachable move has one (checked below).
+  const moves = allMoves.filter(([a, b]) => borderKey(a, b) in crossings);
   const links = lesson.map.routeLinks ?? [];
+  const borderLinks = lesson.map.borderLinks ?? [];
   /** The fixed link (a bridge inside one country) a leg segment follows, if any. */
   const linkOf = (country: CountryId, p: LonLat, q: LonLat) =>
     links.find((l) => l.country === country && ((same(l.points[0], p) && same(l.points[1], q)) || (same(l.points[0], q) && same(l.points[1], p))));
+  /** The named fixed link between two countries (Level 10's Øresund) a leg segment follows, if any. */
+  const borderLinkOf = (a: CountryId, b: CountryId, p: LonLat, q: LonLat) =>
+    borderLinks.find(
+      (l) => l.between.includes(a) && l.between.includes(b) && l.points.some((x, i) => i > 0 && ((same(l.points[i - 1], p) && same(x, q)) || (same(l.points[i - 1], q) && same(x, p)))),
+    );
 
   describe(`${versionKey(lesson)}: Travel route line`, () => {
-    it("has a crossing for exactly the level's borders, and turning points only for them", () => {
-      const expected = new Set(moves.map(([a, b]) => borderKey(a, b)));
-      expect(new Set(Object.keys(crossings))).toEqual(expected);
+    it("has a crossing for every border a journey can cross, only for the level's borders, and turning points only for them", () => {
+      for (const key of reachable) {
+        const [a, b] = key.split(">");
+        expect(borderKey(a, b) in crossings, `${key} has no crossing`).toBe(true);
+      }
+      const borders = new Set(allMoves.map(([a, b]) => borderKey(a, b)));
+      for (const key of Object.keys(crossings)) expect(borders.has(key), key).toBe(true);
+      // Level 10 draws no leg no journey takes: Norway–Finland, never reached within the crossings, has none. (Levels 8
+      // and 9 kept crossings for a border no journey reaches: Moldova–Romania, Greece–North Macedonia.)
+      if (lesson.id === "nordic-countries") {
+        const crossed = new Set([...reachable].map((key) => borderKey(...(key.split(">") as [string, string]))));
+        expect(new Set(Object.keys(crossings))).toEqual(crossed);
+        expect(crossed.has("FIN-NOR")).toBe(false);
+      }
       for (const key of Object.keys(via)) expect(moves.some(([a, b]) => viaKey(a, b) === key), key).toBe(true);
     });
 
@@ -94,9 +141,16 @@ for (const lesson of LESSON_VERSIONS) {
         const [viaA, viaB] = [via[viaKey(a, b)] ?? [], via[viaKey(b, a)] ?? []];
         expect(line).toEqual([COUNTRIES[a].capital.coordinates, ...viaA, crossing, ...[...viaB].reverse(), COUNTRIES[b].capital.coordinates]);
 
-        // The crossing point is on the real shared border (a vertex of it, rounded to ~10 m).
-        const border = sharedBorder(a, b).coordinates.flat() as unknown as LonLat[];
-        expect(Math.min(...border.map((p) => km(p, crossing))), "distance to shared border").toBeLessThan(0.05);
+        const named = borderLinks.find((l) => l.between.includes(a) && l.between.includes(b));
+        if (named) {
+          // A fixed link, not a land border: the crossing is the national boundary on it, one of its points.
+          expect(sharedBorder(a, b, dataset).coordinates).toEqual([]);
+          expect(named.points.some((p) => same(p, crossing)), `${named.name}: the crossing is on the link`).toBe(true);
+        } else {
+          // The crossing point is on the real shared border (a vertex of it, rounded to ~10 m).
+          const border = sharedBorder(a, b, dataset).coordinates.flat() as unknown as LonLat[];
+          expect(Math.min(...border.map((p) => km(p, crossing))), "distance to shared border").toBeLessThan(0.05);
+        }
 
         // Capital → (turning points →) crossing is drawn inside the start country, and on to the capital inside the next one.
         const at = line.indexOf(crossing);
@@ -106,17 +160,45 @@ for (const lesson of LESSON_VERSIONS) {
           if (link) {
             // A declared fixed link (a bridge inside the country) may cross water, but never another country.
             for (const p of drawnSamples(lesson, line[i - 1], line[i])) {
-              for (const id of ALL_IDS.filter((x) => x !== country)) expect(inCountry(id, p), `${link.name} enters ${id}`).toBe(false);
+              for (const id of ALL_IDS.filter((x) => x !== country)) expect(inCountry(id, p, dataset), `${link.name} enters ${id}`).toBe(false);
+            }
+            continue;
+          }
+          const over = borderLinkOf(a, b, line[i - 1], line[i]);
+          if (over) {
+            // A named fixed link between the two countries may cross water, but never a third country.
+            for (const p of drawnSamples(lesson, line[i - 1], line[i])) {
+              for (const id of ALL_IDS.filter((x) => x !== a && x !== b)) expect(inCountry(id, p, dataset), `${over.name} enters ${id}`).toBe(false);
             }
             continue;
           }
           const outside = drawnSamples(lesson, line[i - 1], line[i]).filter(
-            (p) => km(p, crossing) > BORDER_TOLERANCE_KM && !geoContains(shapeOf(country), [...p]),
+            (p) => km(p, crossing) > BORDER_TOLERANCE_KM && !geoContains(shapeOf(country, dataset), [...p]),
           );
           expect(outside, `${a} → ${b}: points outside ${country}`).toEqual([]);
         }
       });
     }
+
+    it("follows each named fixed link between two countries from one's land to the other's, its boundary on it", () => {
+      for (const link of borderLinks) {
+        const [a, b] = link.between;
+        expect(lesson.countries, link.name).toContain(a);
+        expect(lesson.countries, link.name).toContain(b);
+        // Its ends on the two countries' land; its boundary point is the border's crossing.
+        expect(geoContains(shapeOf(a, dataset), [...link.points[0]]), `${link.name} starts in ${a}`).toBe(true);
+        expect(geoContains(shapeOf(b, dataset), [...link.points[link.points.length - 1]]), `${link.name} ends in ${b}`).toBe(true);
+        const crossing = crossings[borderKey(a, b)];
+        expect(link.points.some((p) => same(p, crossing)), link.name).toBe(true);
+        // A bridge and tunnel, not a sea route.
+        const length = link.points.slice(1).reduce((sum, p, i) => sum + km(link.points[i], p), 0);
+        expect(length, link.name).toBeLessThan(25);
+        // Followed by both legs: each country's turning points end with the link's points on its side.
+        const at = link.points.findIndex((p) => same(p, crossing));
+        expect(via[viaKey(a, b)]?.slice(-at), `${a}'s leg follows ${link.name}`).toEqual(link.points.slice(0, at));
+        expect(via[viaKey(b, a)]?.slice(-(link.points.length - at - 1)), `${b}'s leg follows ${link.name}`).toEqual(link.points.slice(at + 1).reverse());
+      }
+    });
 
     it("uses each fixed link in a leg of its own country, joining two parts of that country's land", () => {
       for (const link of links) {
@@ -124,7 +206,7 @@ for (const lesson of LESSON_VERSIONS) {
         // Short: a bridge, not a sea route.
         expect(km(link.points[0], link.points[1]), link.name).toBeLessThan(5);
         // Both ends on the country's land.
-        for (const p of link.points) expect(geoContains(shapeOf(link.country), [...p]), `${link.name} end ${p}`).toBe(true);
+        for (const p of link.points) expect(geoContains(shapeOf(link.country, dataset), [...p]), `${link.name} end ${p}`).toBe(true);
         // Used by some leg of that country, as two consecutive points.
         const used = Object.entries(via).some(([key, points]) => key.startsWith(`${link.country}@`) && points.some((p, i) => i > 0 && linkOf(link.country, points[i - 1], p) === link));
         expect(used, link.name).toBe(true);
@@ -184,12 +266,16 @@ for (const lesson of LESSON_VERSIONS) {
       if (lesson.id === "eastern-europe") {
         expect(paths.map((p) => p.join("→"))).toEqual(["POL→UKR→MDA"]);
       }
+      // One: Sweden over the Øresund, then Finland. Through Norway runs out of crossings.
+      if (lesson.id === "nordic-countries") {
+        expect(paths.map((p) => p.join("→"))).toEqual(["DNK→SWE→FIN"]);
+      }
       for (const path of paths) {
         const line = routeLine(path, settings);
         const others = lesson.countries.filter((id) => !path.includes(id));
         for (let i = 1; i < line.length; i++) {
           for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
-            for (const id of others) expect(geoContains(shapeOf(id), [...p]), `${path.join("→")} enters ${id}`).toBe(false);
+            for (const id of others) expect(geoContains(shapeOf(id, dataset), [...p]), `${path.join("→")} enters ${id}`).toBe(false);
           }
         }
       }

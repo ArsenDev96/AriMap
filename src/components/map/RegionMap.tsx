@@ -14,6 +14,8 @@ import type { LessonDefinition } from "@/core/lessons/types";
 import {
   applyTransform,
   fitTransform,
+  isMapDataLoaded,
+  loadMapData,
   maxMapWidth,
   projectBounds,
   regionMapFor,
@@ -32,7 +34,7 @@ import { AboutMap, ABOUT_BUTTON_EXTENT } from "./AboutMap";
 import { insideShape } from "./insideShape";
 import { textWidth } from "./textWidth";
 import { createLiveView, gestureModeFor, placeLayer, type LiveView } from "./liveView";
-import { Relief } from "./Relief";
+import { loadLevelRelief, Relief, type OwnRelief } from "./Relief";
 import { Scenery } from "./Scenery";
 import { useCountryTap } from "./useTap";
 import styles from "./RegionMap.module.css";
@@ -144,7 +146,42 @@ function prefersReducedMotion() {
   return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
+/**
+ * A level's map, once its data is there: the levels' own at once, or a level drawn from the northern data (Level
+ * 10), whose data and landscape are loaded with it (loadMapData, loadLevelRelief). Until then the map's frame shows,
+ * empty.
+ */
+export function RegionMap(props: Props) {
+  const { t, l } = useI18n();
+  const loaded = useLevelMapData(props.lesson);
+  if (loaded) return <LoadedRegionMap {...props} own={loaded.own} />;
+  return (
+    <div className={`${styles.wrapper} ${styles.atlas}`} data-map-style="atlas">
+      <div className={styles.stage} role="group" aria-label={t("map.label", { region: l(props.lesson.regionName) })} aria-busy="true" />
+    </div>
+  );
+}
+
+/** A level's map data and, for one drawn from the northern data, its landscape (null while they load). */
+function useLevelMapData(lesson: LessonDefinition): { own?: OwnRelief } | null {
+  const dataset = lesson.map.dataset;
+  const key = versionKey(lesson);
+  const [loaded, setLoaded] = useState<{ key: string; own: OwnRelief } | null>(null);
+  useEffect(() => {
+    if (!dataset) return;
+    let live = true;
+    void Promise.all([loadMapData(dataset), loadLevelRelief(key)]).then(([, own]) => {
+      if (live) setLoaded({ key, own });
+    });
+    return () => {
+      live = false;
+    };
+  }, [dataset, key]);
+  if (!dataset) return {};
+  return loaded?.key === key && isMapDataLoaded(dataset) ? loaded : null;
+}
+
+function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { own?: OwnRelief }) {
   const { t, l, name, countryParams } = useI18n();
   const map = useMemo(() => regionMapFor(lesson), [lesson]);
   // Countries named in a callout until zoomed in (Level 1's Luxembourg, Level 7's Andorra); none in most levels.
@@ -508,8 +545,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const wideMap = size.width >= INSET_AUTO_OPEN.width && size.height >= INSET_AUTO_OPEN.height;
   // The close-up's corner: top-left on wide maps; on smaller ones bottom-left, opening
   // upwards, unless the level puts it top-left there too (Level 7, whose bottom-left
-  // corner is Portugal).
-  const insetTop = wideMap || inset?.smallMapCorner === "top-left";
+  // corner is Portugal), or bottom-left on wide maps too (Level 10, whose top-left is Iceland).
+  const insetTop = wideMap ? inset?.wideMapCorner !== "bottom-left" : inset?.smallMapCorner === "top-left";
 
   // Track the inset panel's footprint so map labels can avoid it.
   useEffect(() => {
@@ -662,7 +699,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 <SeaTexture map={map} />
                 <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
                 <LandTexture map={map} darkKey={tonedKey} />
-                {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={settledView} viewport={size} final={settledFinal} />}
+                {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={view.tones} transform={settledView} viewport={size} final={settledFinal} />}
                 {scenery && (
                   <Scenery
                     map={map}
@@ -754,7 +791,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                   <SeaTexture map={map} />
                   <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
                   <LandTexture map={map} darkKey={tonedKey} />
-                  {showRelief && <Relief map={map} level={versionKey(lesson)} tones={view.tones} transform={insetTransform} viewport={insetSize} />}
+                  {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={view.tones} transform={insetTransform} viewport={insetSize} />}
                   <BorderLayer map={map} active={lesson.countries} />
                   <FlashLayer map={map} flash={flash} />
                 </g>
@@ -817,7 +854,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
               <SeaTexture map={map} />
               <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
               <LandTexture map={map} darkKey={copyTones.key} />
-              {showRelief && <Relief map={map} level={versionKey(lesson)} tones={copyTones.tones} transform={settledView} viewport={size} final={settledFinal} instant />}
+              {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={copyTones.tones} transform={settledView} viewport={size} final={settledFinal} instant />}
               {scenery && (
                 <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
               )}

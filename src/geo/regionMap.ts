@@ -37,7 +37,16 @@ export interface RegionMap {
 }
 
 type CountryProps = { name: string };
-const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection<CountryProps> }>;
+type CountryTopology = Topology<{ countries: GeometryCollection<CountryProps> }>;
+const topology = topologyJson as unknown as CountryTopology;
+
+/**
+ * The data a level's map is drawn from: the levels' own (src/data/geo/europe-west.topo.json, bundled with the
+ * levels), or the northern data (src/data/geo/europe-north.topo.json: Level 10's Nordic countries, which reach far
+ * beyond the levels' 62°N), a file of its own loaded only with a level that names it (`map.dataset`). Both are drawn
+ * in the same projection (see PROJECTION_FIT), so the painted relief lines up with either.
+ */
+export type MapDataset = "west" | "north";
 
 // Fixed world size for the projection; screen fitting is done by the zoom transform.
 const WORLD = 1000;
@@ -70,18 +79,57 @@ const PAN_MARGIN = 0.25;
 
 const cache = new Map<string, RegionMap>();
 
-let shared: { projection: GeoProjection; features: Feature<Polygon | MultiPolygon, CountryProps>[]; coasts: Map<string, string> } | null = null;
+interface ProjectedData {
+  features: Feature<Polygon | MultiPolygon, CountryProps>[];
+  coasts: Map<string, string>;
+}
+
+let shared: { projection: GeoProjection; west: ProjectedData } | null = null;
 
 /** The projection shared by every level: equal-area azimuthal, centred at 8°E 50°N, fitted to PROJECTION_FIT. */
 function sharedProjection() {
   if (!shared) {
-    const collection = feature(topology, topology.objects.countries) as FeatureCollection<Polygon | MultiPolygon, CountryProps>;
-    const features = collection.features.filter((f) => f.geometry);
+    const features = featuresOf(topology);
     const fit: FeatureCollection = { type: "FeatureCollection", features: features.filter((f) => PROJECTION_FIT.includes(String(f.id))) };
     const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([WORLD, WORLD], fit);
-    shared = { projection, features, coasts: coastPaths(geoPath(projection)) };
+    shared = { projection, west: { features, coasts: coastPaths(topology, geoPath(projection)) } };
   }
   return shared;
+}
+
+function featuresOf(data: CountryTopology): Feature<Polygon | MultiPolygon, CountryProps>[] {
+  const collection = feature(data, data.objects.countries) as FeatureCollection<Polygon | MultiPolygon, CountryProps>;
+  return collection.features.filter((f) => f.geometry);
+}
+
+/** The northern data, once loaded (loadMapData), projected as the levels' data is. */
+let north: ProjectedData | null = null;
+let northLoading: Promise<void> | null = null;
+
+/** Projects the northern data (loadMapData does this once it has loaded; tests may pass the file's contents directly). */
+export function setNorthData(data: unknown) {
+  if (north) return;
+  const northTopology = data as CountryTopology;
+  north = { features: featuresOf(northTopology), coasts: coastPaths(northTopology, geoPath(sharedProjection().projection)) };
+}
+
+/** Whether a dataset's map can be drawn now: the levels' always, the northern one once loaded. */
+export function isMapDataLoaded(dataset: MapDataset = "west"): boolean {
+  return dataset === "west" || north !== null;
+}
+
+/** Loads a dataset (once per page): the northern data with the first level that needs it; the levels' data is bundled. */
+export function loadMapData(dataset: MapDataset = "west"): Promise<void> {
+  if (isMapDataLoaded(dataset)) return Promise.resolve();
+  northLoading ??= import("@/data/geo/europe-north.topo.json").then((module) => setNorthData(module.default));
+  return northLoading;
+}
+
+function projectedData(dataset: MapDataset): ProjectedData {
+  const { west } = sharedProjection();
+  if (dataset === "west") return west;
+  if (!north) throw new Error("The northern map data is not loaded yet (loadMapData)");
+  return north;
 }
 
 /**
@@ -90,12 +138,12 @@ function sharedProjection() {
  * ends where a land border meets the sea, where a round cap (see .coast in the CSS) covers what the round
  * join of the whole outline covered.
  */
-function coastPaths(path: ReturnType<typeof geoPath>): Map<string, string> {
+function coastPaths(data: CountryTopology, path: ReturnType<typeof geoPath>): Map<string, string> {
   const coasts = new Map<string, string>();
   const same = (a: Position, b: Position) => a[0] === b[0] && a[1] === b[1];
-  for (const g of topology.objects.countries.geometries) {
+  for (const g of data.objects.countries.geometries) {
     if (g.type == null || g.id == null) continue;
-    const lines = mesh(topology, topology.objects.countries, (a, b) => a === b && a === g).coordinates;
+    const lines = mesh(data, data.objects.countries, (a, b) => a === b && a === g).coordinates;
     coasts.set(
       String(g.id),
       lines.map((line) => (path({ type: "LineString", coordinates: line }) ?? "") + (line.length > 2 && same(line[0], line[line.length - 1]) ? "Z" : "")).join(""),
@@ -108,14 +156,20 @@ function coastPaths(path: ReturnType<typeof geoPath>): Map<string, string> {
  * Projects the prepared Natural Earth data for a level. The projection is
  * shared by every level (see PROJECTION_FIT) and by shapes, labels, markers
  * and routes; the level's countries set the focus area and, with
- * `coverageHalf`, the area the map may ever show.
+ * `coverageHalf`, the area the map may ever show. A level drawn from the northern data (`dataset`) must have
+ * loaded it first (loadMapData).
  */
-export function getRegionMap(activeIds: readonly CountryId[], coverageHalf: readonly [number, number] = DEFAULT_COVERAGE_HALF): RegionMap {
-  const key = `${activeIds.join(",")}|${coverageHalf.join(",")}`;
+export function getRegionMap(
+  activeIds: readonly CountryId[],
+  coverageHalf: readonly [number, number] = DEFAULT_COVERAGE_HALF,
+  dataset: MapDataset = "west",
+): RegionMap {
+  const key = `${dataset}|${activeIds.join(",")}|${coverageHalf.join(",")}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
-  const { projection, features, coasts } = sharedProjection();
+  const { projection } = sharedProjection();
+  const { features, coasts } = projectedData(dataset);
   const active: FeatureCollection = {
     type: "FeatureCollection",
     features: features.filter((f) => activeIds.includes(String(f.id))),
@@ -148,9 +202,9 @@ export function getRegionMap(activeIds: readonly CountryId[], coverageHalf: read
   return map;
 }
 
-/** The map of a level: its countries and its coverage. */
+/** The map of a level: its countries, its coverage and its data. */
 export function regionMapFor(lesson: Pick<LessonDefinition, "countries" | "map">): RegionMap {
-  return getRegionMap(lesson.countries, lesson.map.coverageHalf);
+  return getRegionMap(lesson.countries, lesson.map.coverageHalf, lesson.map.dataset);
 }
 
 export interface Transform {

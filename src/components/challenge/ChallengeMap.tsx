@@ -79,11 +79,6 @@ const ZOOM_STEP = 1.6;
 const EXTRA_LABELS: Readonly<Record<CountryId, LonLat>> = {
   GBR: [-1.6, 52.8],
   IRL: [-8.0, 53.2],
-  DNK: [9.1, 56.0],
-  ISL: [-18.6, 64.9],
-  NOR: [9.0, 61.6],
-  SWE: [15.2, 62.4],
-  FIN: [26.0, 62.8],
   // European Russia's middle, east of Moscow.
   RUS: [44.0, 57.0],
   ...RING_COUNTRIES,

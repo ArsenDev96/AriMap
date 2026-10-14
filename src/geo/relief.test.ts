@@ -2,24 +2,34 @@ import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
 import relief from "@/assets/map/relief.json";
+import challengeRelief from "@/assets/map/challenge-relief.json";
+import northJson from "@/data/geo/europe-north.topo.json";
 import type { LonLat } from "@/core/content/types";
 import { LESSON_VERSIONS, LESSONS, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
-import { regionMapFor, viewLimits, type RegionMap } from "./regionMap";
+import { regionMapFor, setNorthData, viewLimits, type RegionMap } from "./regionMap";
 import { FORESTS, MOUNTAIN_RANGES } from "./terrain";
 
 type Overview = (typeof relief.overviews)["western-europe-1"];
 const overviews = relief.overviews as Record<string, Overview | undefined>;
 /** Every version of every level: an attempt started on an earlier version (Level 6's first) draws that version's own overview. */
 const lessons = LESSON_VERSIONS;
+/** The levels drawn from the levels' data, whose zoomed views draw the shared tiles (Level 10 draws the Quick Challenge's). */
+const tiled = lessons.filter((lesson) => !lesson.map.dataset);
+// Level 10's northern data, given to the map as loadMapData would.
+setNorthData(northJson);
 
-/** Strongest relief opacity (0–255) within `r` pixels of a point, in a level version's land overview (by versionKey). */
+/**
+ * Strongest relief opacity (0–255) within `r` pixels of a point, in a level version's land overview (by versionKey):
+ * a pixel per world unit, or half that (Level 10's).
+ */
 async function alphaSampler(key: string, map: RegionMap) {
   const { data, info } = await sharp(`src/assets/map/relief/${key}-land.webp`).raw().toBuffer({ resolveWithObject: true });
   const o = overviews[key]!.land;
+  const scale = info.width / o.width;
   return (p: LonLat, r = 2) => {
     const [x, y] = map.project(p);
-    const [i, j] = [Math.floor(x - o.x), Math.floor(y - o.y)];
+    const [i, j] = [Math.floor((x - o.x) * scale), Math.floor((y - o.y) * scale)];
     let m = 0;
     for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) m = Math.max(m, data[((j + dj) * info.width + i + di) * info.channels + 3]);
     return m;
@@ -73,7 +83,19 @@ describe("painted relief", () => {
     });
 
     it(`${key}: zoomed tiles cover everywhere its map can be zoomed and panned to`, () => {
-      const [[e0x, e0y], [e1x, e1y]] = viewLimits(regionMapFor(lesson), 390, 400, 16).translateExtent;
+      const map = regionMapFor(lesson);
+      const [[e0x, e0y], [e1x, e1y]] = viewLimits(map, 390, 400, 16).translateExtent;
+      if (lesson.map.dataset === "north") {
+        // Level 10 draws the Quick Challenge's tiles (loadLevelRelief in Relief.tsx): their grid covers its pan area but
+        // for a strip at most 16 units wide west of Iceland, open sea, where the overview shows.
+        const { origin, cols, rows, tileWorld } = challengeRelief.tiles;
+        expect(origin[0] - e0x).toBeLessThan(16);
+        expect(map.shapes.find((s) => s.id === "ISL")!.bounds[0][0]).toBeGreaterThan(origin[0]);
+        expect(origin[1]).toBeLessThanOrEqual(e0y);
+        expect(origin[0] + cols * tileWorld).toBeGreaterThanOrEqual(e1x);
+        expect(origin[1] + rows * tileWorld).toBeGreaterThanOrEqual(e1y);
+        return;
+      }
       for (const level of relief.levels) {
         expect(level.origin[0]).toBeLessThanOrEqual(e0x);
         expect(level.origin[1]).toBeLessThanOrEqual(e0y);
@@ -84,7 +106,7 @@ describe("painted relief", () => {
   }
 
   it("has one tile grid for all levels, no larger than their pan areas need, and every listed tile exists", () => {
-    const extents = lessons.map((lesson) => viewLimits(regionMapFor(lesson), 390, 400, 16).translateExtent);
+    const extents = tiled.map((lesson) => viewLimits(regionMapFor(lesson), 390, 400, 16).translateExtent);
     const x1 = Math.max(...extents.map((e) => e[1][0]));
     const y1 = Math.max(...extents.map((e) => e[1][1]));
     let previous = 0;
@@ -105,6 +127,33 @@ describe("painted relief", () => {
     const sources = Object.keys(relief.elevationSources);
     expect(sources.length).toBeGreaterThan(0);
     for (const source of sources) expect(["srtm", "gmted", "etopo1"], source).toContain(source);
+  });
+
+  it("Level 10: its overview at half a pixel per unit (four times a usual level's area), the Quick Challenge's tiles registered for its zoomed views", async () => {
+    const { land, tone } = overviews["nordic-countries"]!;
+    for (const [family, o] of [["land", land], ["tone", tone]] as const) {
+      const meta = await sharp(`src/assets/map/relief/nordic-countries-${family}.webp`).metadata();
+      expect(meta.width, family).toBe(o.width / 2);
+      expect(meta.height, family).toBe(o.height / 2);
+    }
+    const source = readFileSync("src/components/map/Relief.tsx", "utf8");
+    expect(source).toContain('import("@/assets/map/challenge-relief.json")');
+    expect(source).toContain("folder: `/relief-challenge/${manifest.version}`");
+  });
+
+  // Reference points: the Wikipedia articles' coordinates (checked 2026-10-14; see docs/TERRAIN.md).
+  it("Level 10: shows the Scandinavian Mountains and Iceland's ice caps, forests from Småland to Finland; Lolland's farmland stays bare", async () => {
+    const alphaNear = await alphaSampler("nordic-countries", regionMapFor(LESSONS["nordic-countries"]));
+    const summits: Record<string, [LonLat, number]> = {
+      "Galdhøpiggen (Jotunheimen)": [[8.312, 61.636], 200],
+      Kebnekaise: [[18.53, 67.9], 200],
+      "Hvannadalshnúkur (Vatnajökull)": [[-16.68, 64.01], 200],
+      Halti: [[21.27, 69.31], 45],
+    };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    const forests: Record<string, LonLat> = { "Finnish Lakeland": [27.0, 62.5], Småland: [14.8, 57.0], Norrland: [16.5, 63.5] };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    expect(alphaNear([11.4, 54.75], 0), "Lolland").toBeLessThanOrEqual(10);
   });
 
   it("Level 1: shows mountains and upland ranges where they are, and leaves open lowlands flat", async () => {

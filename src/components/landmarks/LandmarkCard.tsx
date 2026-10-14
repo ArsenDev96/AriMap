@@ -11,6 +11,7 @@ import bledCastle from "@/assets/landmarks/bled-castle.webp";
 import brandenburgGate from "@/assets/landmarks/brandenburg-gate.webp";
 import branCastle from "@/assets/landmarks/bran-castle.webp";
 import bratislavaCastle from "@/assets/landmarks/bratislava-castle.webp";
+import bryggen from "@/assets/landmarks/bryggen.webp";
 import butrint from "@/assets/landmarks/butrint.webp";
 import casaDeLaVall from "@/assets/landmarks/casa-de-la-vall.webp";
 import chapelBridge from "@/assets/landmarks/chapel-bridge.webp";
@@ -20,10 +21,13 @@ import dubrovnikCityWalls from "@/assets/landmarks/dubrovnik-city-walls.webp";
 import eiffelTower from "@/assets/landmarks/eiffel-tower.webp";
 import esztergomBasilica from "@/assets/landmarks/esztergom-basilica.webp";
 import golubacFortress from "@/assets/landmarks/golubac-fortress.webp";
+import hallgrimskirkja from "@/assets/landmarks/hallgrimskirkja.webp";
 import houseOfTheBlackHeads from "@/assets/landmarks/house-of-the-black-heads.webp";
 import kaneoChurch from "@/assets/landmarks/kaneo-church.webp";
+import kronborg from "@/assets/landmarks/kronborg.webp";
 import meteora from "@/assets/landmarks/meteora.webp";
 import mirCastle from "@/assets/landmarks/mir-castle.webp";
+import olavinlinna from "@/assets/landmarks/olavinlinna.webp";
 import ostrogMonastery from "@/assets/landmarks/ostrog-monastery.webp";
 import prizrenFortress from "@/assets/landmarks/prizren-fortress.webp";
 import rilaMonastery from "@/assets/landmarks/rila-monastery.webp";
@@ -34,6 +38,7 @@ import sorocaFortress from "@/assets/landmarks/soroca-fortress.webp";
 import stariMost from "@/assets/landmarks/stari-most.webp";
 import tallinnTownHall from "@/assets/landmarks/tallinn-town-hall.webp";
 import trakaiIslandCastle from "@/assets/landmarks/trakai-island-castle.webp";
+import visbyCityWall from "@/assets/landmarks/visby-city-wall.webp";
 import wawelCastle from "@/assets/landmarks/wawel-castle.webp";
 import { useI18n } from "../i18n";
 import styles from "./LandmarkCard.module.css";
@@ -74,6 +79,11 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
   butrint,
   "kaneo-church": kaneoChurch,
   "prizren-fortress": prizrenFortress,
+  kronborg,
+  "visby-city-wall": visbyCityWall,
+  bryggen,
+  olavinlinna,
+  hallgrimskirkja,
 };
 
 /**
@@ -83,7 +93,7 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
  * tile's height; in the shallow tile (about 262×62px at 320×568) it is drawn no larger than in
  * the square one until about 2:1 (Adolphe Bridge, 1.71: 100×58px square, about 106×62px wide),
  * but well beyond it (Schönbrunn Palace, 3.26: 100×30px square, about 200×62px wide). The current
- * copies are 0.76–1.71 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25, Level 7's three 0.93–1.08, Level 8's three 1.05–1.27, Level 9's three 1.00–1.70). Desktop is unaffected.
+ * copies are 0.76–1.84 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25, Level 7's three 0.93–1.08, Level 8's three 1.05–1.27, Level 9's three 1.00–1.70, Level 10's five 0.94–1.84, Bryggen's row of houses the widest). Desktop is unaffected.
  */
 export const WIDE_ART_ASPECT = 2;
 
