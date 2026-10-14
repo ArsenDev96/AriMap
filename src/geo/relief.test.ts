@@ -336,4 +336,26 @@ describe("painted relief", () => {
     const open: Record<string, LonLat> = { "Black Sea Lowland": [33.0, 47.0], Budjak: [29.5, 46.0], "Bălți Steppe": [27.8333, 47.7667] };
     for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
   });
+
+  it("Level 9: paints the Prokletije, Korab, the Šar Mountains, the Pindus and Olympus, the Dadia forest; the plains stay bare", async () => {
+    const alphaNear = await alphaSampler("heart-of-the-balkans", regionMapFor(LESSONS["heart-of-the-balkans"]));
+    const summits: Record<string, LonLat> = {
+      "Maja Jezercë (Prokletije)": [19.8136, 42.4419],
+      "Gjeravica (Kosovo's highest)": [20.1392, 42.5328],
+      "Korab (Albania's and North Macedonia's highest)": [20.5458, 41.7903],
+      "Titov Vrv (Šar Mountains)": [20.8178, 41.9997],
+      "Smolikas (Pindus)": [20.9175, 40.0886],
+      "Mytikas (Mount Olympus)": [22.3583, 40.0857],
+    };
+    for (const [name, p] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(200);
+    // A lowland forest, so its paint is the forest's, not a mountain's.
+    expect(alphaNear([26.1, 41.12], 2), "Dadia Forest").toBeGreaterThanOrEqual(40);
+    const open: Record<string, LonLat> = {
+      "Thessalian Plain (Larissa)": [22.42, 39.6],
+      "Myzeqe plain (Albania)": [19.6, 40.8],
+      "Kosovo Field (Fushë Kosova)": [21.07, 42.63],
+      "Axios delta (Thessaloniki plain)": [22.7, 40.6],
+    };
+    for (const [name, p] of Object.entries(open)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+  });
 });

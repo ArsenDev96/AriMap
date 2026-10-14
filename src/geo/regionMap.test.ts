@@ -462,6 +462,26 @@ describe("start view with markers kept whole", () => {
     for (const margin of [sx0, sy0, width - sx1, height - sy1]) expect(margin).toBeGreaterThanOrEqual(0);
   });
 
+  it("heart-of-the-balkans: on the shortest phone map (304×112, 200% text in Armenian on a 320×568 phone), the five are whole with their padding, the pin in Podgorica included", () => {
+    // The coverage is wide enough that this map shows the countries' own fit instead of zooming in to fill its width.
+    const map = regionMapFor(LESSONS["heart-of-the-balkans"]);
+    const [width, height] = [304, 112];
+    const padding = paddingFor(width, height);
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    const margins = (t: Transform) => {
+      const [[sx0, sy0], [sx1, sy1]] = [applyTransform(t, [fx0, fy0]), applyTransform(t, [fx1, fy1])];
+      return [sx0, sy0, width - sx1, height - sy1];
+    };
+    const region = viewLimits(map, width, height, padding);
+    expect(region.base).toEqual(fitTransform(map.focusBounds, width, height, padding));
+    for (const m of margins(region.base)) expect(m).toBeGreaterThanOrEqual(padding - 1e-6);
+    const podgorica = pinAt(map, "MNE");
+    const { base, translateExtent } = viewLimits(map, width, height, padding, [podgorica]);
+    for (const r of room(podgorica, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+    for (const m of margins(base)) expect(m).toBeGreaterThanOrEqual(padding - 1e-6);
+    expectInside(map, base, width, height, translateExtent);
+  });
+
   it("changes the start view only where the pin would be cut: every level, every capital, phones to wide desktops", () => {
     const changed: string[] = [];
     for (const lesson of LESSON_VERSIONS) {

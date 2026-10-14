@@ -689,6 +689,81 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "soroca-fortress",
     },
   },
+  // Level 9's new countries (Montenegro and Greece are shared with earlier levels), each with
+  // its own illustration (supplied 2026-10-14). Their label points are the ones the Quick
+  // Challenge used for them before they had content here, so its map is unchanged.
+  KOS: {
+    id: "KOS",
+    name: { en: "Kosovo", hy: "Կոսովո" },
+    nameInText: { en: "Kosovo", hy: "Կոսովոն" },
+    // GeoNames's city-centre point: Wikipedia's (42.6667, 21.1667) is to the nearest minute.
+    capital: { name: { en: "Pristina", hy: "Պրիշտինա" }, coordinates: [21.1669, 42.6727] },
+    hint: {
+      en: "A small country with no coast in the north of this region, ringed by mountains.",
+      hy: "Փոքր երկիր առանց ծովի՝ տարածաշրջանի հյուսիսում, լեռներով շրջապատված։",
+    },
+    label: { coordinates: [20.9, 42.6] },
+    landmark: {
+      id: "prizren-fortress",
+      name: { en: "Prizren Fortress", hy: "Պրիզրենի ամրոց" },
+      nameInText: { en: "Prizren Fortress", hy: "Պրիզրենի ամրոցը" },
+      fact: {
+        en: "People lived on this cone-shaped hill above Prizren in the Bronze Age; it served as a fortress until 1912.",
+        hy: "Պրիզրենի վերևում գտնվող կոնաձև բլրի վրա մարդիկ ապրել են դեռ բրոնզի դարում, իսկ ամրոցը ծառայել է մինչև 1912 թվականը։",
+      },
+      // On its hill above Prizren's old town, not the capital.
+      coordinates: [20.7456, 42.2094],
+      illustration: "prizren-fortress",
+    },
+  },
+  ALB: {
+    id: "ALB",
+    name: { en: "Albania", hy: "Ալբանիա" },
+    nameInText: { en: "Albania", hy: "Ալբանիան" },
+    capital: { name: { en: "Tirana", hy: "Տիրանա" }, coordinates: [19.8181, 41.3283] },
+    hint: {
+      en: "A mountainous country on the west coast of this region, between Montenegro and Greece.",
+      hy: "Լեռնային երկիր տարածաշրջանի արևմտյան ափին՝ Չեռնոգորիայի և Հունաստանի միջև։",
+    },
+    label: { coordinates: [20.05, 41.2] },
+    landmark: {
+      id: "butrint",
+      name: { en: "Butrint", hy: "Բուտրինտ" },
+      nameInText: { en: "Butrint", hy: "Բուտրինտը" },
+      fact: {
+        en: "First a Greek town and then a Roman city, its ruins have been a UNESCO World Heritage Site since 1992.",
+        hy: "Սկզբում հունական քաղաք էր, ապա՝ հռոմեական, իսկ նրա ավերակները 1992 թվականից ՅՈՒՆԵՍԿՕ-ի համաշխարհային ժառանգության մաս են։",
+      },
+      // Near the Greek border, south of Sarandë, not the capital.
+      coordinates: [20.0206, 39.7456],
+      illustration: "butrint",
+    },
+  },
+  MKD: {
+    id: "MKD",
+    name: { en: "North Macedonia", hy: "Հյուսիսային Մակեդոնիա" },
+    nameInText: { en: "North Macedonia", hy: "Հյուսիսային Մակեդոնիան" },
+    capital: { name: { en: "Skopje", hy: "Սկոպիե" }, coordinates: [21.4317, 41.9961] },
+    hint: {
+      en: "A country with no coast in the east of this region, just north of Greece.",
+      hy: "Երկիր առանց ծովի՝ տարածաշրջանի արևելքում, Հունաստանից անմիջապես հյուսիս։",
+    },
+    // North Macedonia's middle, between Skopje and Prilep.
+    label: { coordinates: [21.6, 41.6] },
+    landmark: {
+      id: "kaneo-church",
+      name: { en: "Church of Saint John at Kaneo", hy: "Կանեոյի Սուրբ Հովհաննես եկեղեցի" },
+      nameInText: { en: "the Church of Saint John at Kaneo", hy: "Կանեոյի Սուրբ Հովհաննես եկեղեցին" },
+      fact: {
+        // A word joiner (U+2060) after the hyphen keeps the century on one line.
+        en: "Probably built in the 13th century, this small church stands on a cliff above Lake Ohrid.",
+        hy: "Հավանաբար կառուցվել է 13-⁠րդ դարում։ Այս փոքրիկ եկեղեցին կանգնած է Օխրիդ լճի վերևում գտնվող ժայռի վրա։",
+      },
+      // In Ohrid, on the cliff over Lake Ohrid, not the capital.
+      coordinates: [20.7887, 41.1111],
+      illustration: "kaneo-church",
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

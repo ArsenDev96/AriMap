@@ -58,6 +58,19 @@ export interface LessonDefinition {
      */
     smallCountries?: readonly CountryId[];
     /**
+     * Countries whose name, in a callout, goes on two lines where one line finds no room on the map
+     * at all, while the country is highlighted (selected, or on Travel's journey): North Macedonia's
+     * in Level 9, in Armenian at 200% text on a 320px phone. Otherwise their callouts are placed as
+     * any other's.
+     */
+    twoLineCallouts?: readonly CountryId[];
+    /**
+     * Callouts keep clear of the Travel route line (as of another callout's leader) wherever that
+     * leaves them a place; where it doesn't, they are placed as without it. Level 9's Montenegro,
+     * whose callout on a 320px phone in Armenian otherwise lay over the route into Albania.
+     */
+    calloutsClearRoute?: boolean;
+    /**
      * Where the Travel route line crosses each border, keyed by the two
      * country ids in alphabetical order ("BEL-FRA"). Each point lies on the
      * countries' shared border, and the lines from it to both capitals stay

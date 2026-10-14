@@ -9,9 +9,10 @@ import { homeToEurope } from "./helpers/home";
  * scrolling with enlarged text and in short landscape), Find's hints and spoiler-free map (no artwork, even
  * after a hint names the landmark), the
  * Poland → Moldova journey (one shortest route, through Ukraine; Belarus and Romania offered too, and running
- * out of crossings there, recovered by Undo or Restart), Level 7's Next level, the level selection once all
- * eight levels are completed, and its map: framing (Crimea included, as part of Ukraine), the traveller's pin
- * in Warsaw and Chisinau, and the landscape it loads.
+ * out of crossings there, recovered by Undo or Restart), Level 7's Next level, its own Next level (Level 9),
+ * the level selection once Level 8 is completed (Level 9 up next) and once all nine levels are, and its map:
+ * framing (Crimea included, as part of Ukraine), the traveller's pin in Warsaw and Chisinau, and the
+ * landscape it loads.
  */
 
 const L1 = "western-europe-1";
@@ -22,6 +23,7 @@ const L5 = "towards-greece";
 const L6 = "baltic-journey";
 const L7 = "iberian-journey";
 const L8 = "eastern-europe";
+const L9 = "heart-of-the-balkans";
 const L8_COUNTRIES = ["POL", "BLR", "UKR", "MDA", "ROU"];
 const NAMES: Record<string, string> = { POL: "Poland", BLR: "Belarus", UKR: "Ukraine", MDA: "Moldova", ROU: "Romania" };
 const NAMES_HY: Record<string, string> = { POL: "Լեհաստան", BLR: "Բելառուս", UKR: "Ուկրաինա", MDA: "Մոլդովա", ROU: "Ռումինիա" };
@@ -82,11 +84,14 @@ const EARLIER = {
 };
 const EARLIER_RECENT = [L7, L6, L5, L4, L3, L2, L1];
 const L8_DONE = done(L8_COUNTRIES, "pol-to-mda", ["POL", "UKR", "MDA"]);
-const ALL_DONE = { ...EARLIER, [L8]: L8_DONE };
+const L9_DONE = done(["MNE", "KOS", "ALB", "MKD", "GRC"], "mne-to-mkd", ["MNE", "KOS", "MKD"]);
+/** All nine levels completed (Level 9 included, so the completion message shows). */
+const ALL_DONE = { ...EARLIER, [L8]: L8_DONE, [L9]: L9_DONE };
 const ALL_RECENT = [L8, ...EARLIER_RECENT];
+const ALL_DONE_RECENT = [L9, ...ALL_RECENT];
 const COMPLETION = {
-  en: "You've completed all 8 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 8 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
+  en: "You've completed all 9 levels! Play any of them again whenever you like.",
+  hy: "Ավարտել ես բոլոր 9 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
 };
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
@@ -336,7 +341,7 @@ const pinRoom = (page: Page) =>
 
 const moves = (page: Page) => page.locator('[data-testid^="move-"]').evaluateAll((els) => els.filter((e) => !e.closest("[inert]")).map((e) => e.getAttribute("data-testid")!.slice(5)).sort());
 
-test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Travel, Results, and all eight levels completed", async ({ page }) => {
+test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Travel, Results, and Level 9 unlocked", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once, on the Pixel 7 project; layouts are checked at other sizes below.");
   test.setTimeout(300_000);
   const errors: string[] = [];
@@ -420,7 +425,7 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   expect(await moves(page)).toEqual(["BLR", "MDA", "ROU"]);
   await page.getByTestId("move-MDA").click();
 
-  // --- Results: the last level; Back to levels ------------------------------------------------
+  // --- Results: Level 9 follows; Next level ------------------------------------------------
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
   for (const name of ["Poland", "Ukraine", "Moldova"]) await expect(page.getByTestId("result-route")).toContainText(name);
   await expect(page.getByTestId("result-crossings")).toContainText("2 of 2");
@@ -429,8 +434,9 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   // Warsaw, the Polish–Ukrainian crossing, Kyiv, the Ukrainian–Moldovan crossing, Chisinau: straight legs.
   await expect(route).toHaveAttribute("data-route", "POL,UKR,MDA");
   await expect(route).toHaveAttribute("data-points", "5");
-  await expect(page.getByTestId("next-level")).toHaveCount(0);
-  await expect(page.getByTestId("back-to-levels")).toBeVisible();
+  // Level 9 follows: Next level is the main action, naming it.
+  await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 9, Heart of the Balkans");
+  await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
   // Help was used: one star less than the best possible, rated by the existing rule.
   await expect(page.getByTestId("rating-attempt")).toHaveAttribute("data-stars", "2");
 
@@ -440,13 +446,16 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   for (const id of ["UKR", "MDA"]) await page.getByTestId(`move-${id}`).click();
   await expect(page.getByTestId("badge")).toBeVisible();
 
-  // --- The level selection: all eight completed --------------------------------------------
-  await page.getByTestId("back-to-levels").click();
+  // --- The level selection: Levels 1–8 completed, Level 9 unlocked and up next; no completion message yet ------
+  await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6, L7, L8]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L9).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(card(page, L9)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 9 · Heart of the Balkans$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L9).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
@@ -485,8 +494,8 @@ test("Level 7's Next level opens Level 8 (or resumes it); Home, Continue, View r
   for (const id of [L1, L2, L3, L4, L5, L6, L7]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L8).getByTestId("level-status")).toHaveText("In progress: Discover");
 
-  // All eight completed: Play again keeps every level completed; the replay is continued, not the message.
-  await saveV2(page, ALL_DONE, { levelId: L8, recent: ALL_RECENT });
+  // All nine completed: Play again keeps every level completed; the replay is continued, not the message.
+  await saveV2(page, ALL_DONE, { levelId: L8, recent: ALL_DONE_RECENT });
   await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
   await card(page, L8).getByTestId("level-details-toggle").click();
   await card(page, L8).getByRole("button", { name: /^Play again/ }).click();
@@ -494,7 +503,7 @@ test("Level 7's Next level opens Level 8 (or resumes it); Home, Continue, View r
   await dialog.getByRole("button", { name: "Play again" }).click();
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
   await homeToEurope(page);
-  for (const id of [L1, L2, L3, L4, L5, L6, L7, L8]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
+  for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(mainAction(page)).toHaveText(/^Continue\s*Level 8 · Eastern Europe$/);
 });
 
@@ -613,12 +622,12 @@ test("Level 8 at phone and desktop sizes: every card, unanswered Find, Travel an
         await textSize(page, size);
         await expect(page.getByTestId("out-of-crossings").getByRole("button").first()).toBeVisible();
         await expectNoHorizontalOverflow(page, `${where} out of crossings`);
-        // Results: the last level's action pinned and on screen.
+        // Results: the main action (Next level, to Level 9) pinned and on screen.
         await saveV2(page, ALL_DONE, { locale, screen: "lesson", levelId: L8, recent: ALL_RECENT });
         await textSize(page, size);
-        const back = (await page.getByTestId("back-to-levels").boundingBox())!;
-        expect(back.y + back.height, `${where}: Back to levels off screen`).toBeLessThanOrEqual(height + 0.5);
-        expect(back.height).toBeGreaterThanOrEqual(44);
+        const next = (await page.getByTestId("next-level").boundingBox())!;
+        expect(next.y + next.height, `${where}: Next level off screen`).toBeLessThanOrEqual(height + 0.5);
+        expect(next.height).toBeGreaterThanOrEqual(44);
         await expectNoHorizontalOverflow(page, `${where} Results`);
         await shot(page, `${locale}-results${size === 100 ? "" : `-text${size}`}`);
       }

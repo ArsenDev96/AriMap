@@ -6,6 +6,7 @@ import { alpsLesson } from "./alps";
 import { balticJourneyLesson, balticJourneyOriginalLesson } from "./baltic-journey";
 import { centralEuropeLesson } from "./central-europe";
 import { easternEuropeLesson } from "./eastern-europe";
+import { heartOfTheBalkansLesson } from "./heart-of-the-balkans";
 import { iberianJourneyLesson } from "./iberian-journey";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
@@ -160,6 +161,19 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: easternEuropeLesson.countries,
     lesson: easternEuropeLesson,
     unlockedBy: iberianJourneyLesson.id,
+  },
+  {
+    id: heartOfTheBalkansLesson.id,
+    continent: "europe",
+    number: 9,
+    title: { en: "Heart of the Balkans", hy: "Բալկանների սրտում" },
+    description: {
+      en: "Explore the southern Balkans, from Montenegro to Greece.",
+      hy: "Ուսումնասիրիր Հարավային Բալկանները՝ Չեռնոգորիայից մինչև Հունաստան։",
+    },
+    countries: heartOfTheBalkansLesson.countries,
+    lesson: heartOfTheBalkansLesson,
+    unlockedBy: easternEuropeLesson.id,
   },
 ];
 

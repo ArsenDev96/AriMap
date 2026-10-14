@@ -149,6 +149,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const map = useMemo(() => regionMapFor(lesson), [lesson]);
   // Countries named in a callout until zoomed in (Level 1's Luxembourg, Level 7's Andorra); none in most levels.
   const small = useMemo(() => new Set(lesson.map.smallCountries ?? []), [lesson]);
+  const twoLine = useMemo(() => new Set(lesson.map.twoLineCallouts ?? []), [lesson]);
+  const clearRoute = lesson.map.calloutsClearRoute === true;
   const wrapperRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<SVGSVGElement>(null);
@@ -569,6 +571,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       route,
       routeStops,
       small,
+      twoLine,
+      clearRoute,
       transform: base,
       viewport: size,
       textMode: "all",
@@ -578,7 +582,7 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, l, name]);
+  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, twoLine, clearRoute, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -598,9 +602,9 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
   const mainLayout = useMemo(
     () =>
       ready
-        ? layoutOverlay({ map, active: lesson.countries, view, route, routeStops, small, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
+        ? layoutOverlay({ map, active: lesson.countries, view, route, routeStops, small, twoLine, clearRoute, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
         : null,
-    [ready, map, lesson.countries, view, route, routeStops, small, settledView, size, textMode, obstacles, mainInsetArea, l, name],
+    [ready, map, lesson.countries, view, route, routeStops, small, twoLine, clearRoute, settledView, size, textMode, obstacles, mainInsetArea, l, name],
   );
   // Wave marks: Discover only, on the main map only.
   const scenery = stage === "discover" && mainLayout !== null;
@@ -682,6 +686,8 @@ export function RegionMap({ lesson, view, stage, onCountryTap }: Props) {
                 route={route}
                 routeStops={routeStops}
                 small={small}
+                twoLine={twoLine}
+                clearRoute={clearRoute}
                 transform={settledView}
                 viewport={size}
                 textMode={textMode}
@@ -1429,6 +1435,10 @@ interface LayoutInput {
   routeStops: number[];
   /** Countries named in a callout until zooming makes them large enough (the level's `smallCountries`). */
   small: ReadonlySet<CountryId>;
+  /** Countries whose callout goes on two lines where one line finds no room (the level's `twoLineCallouts`). */
+  twoLine?: ReadonlySet<CountryId>;
+  /** Callouts keep clear of the route line where they can (the level's `calloutsClearRoute`). */
+  clearRoute?: boolean;
   transform: Transform;
   viewport: { width: number; height: number };
   /**
@@ -1558,7 +1568,7 @@ function placeOverlay(
   /** Long names in callouts go on two lines (see CALLOUT_WRAP_SHARE): in a layout tried again for a country's name. */
   wrap = false,
 ): OverlayLayout {
-  const { map, active, view, route: routeWorld, small, transform, viewport, textMode, obstacles, insetArea, l, name } = input;
+  const { map, active, view, route: routeWorld, small, twoLine, clearRoute, transform, viewport, textMode, obstacles, insetArea, l, name } = input;
   const showText = textMode === "all" || textMode === "noCallouts";
   const toScreen = (p: Point) => applyTransform(transform, p);
   const toWorld = ([x, y]: Point): Point => [(x - transform.x) / transform.k, (y - transform.y) / transform.k];
@@ -1573,6 +1583,8 @@ function placeOverlay(
     Object.entries(view.tones).some(([id, tone]) => tone !== undefined && DARK_TONES.has(tone) && insideShape(shapeById(id as CountryId), toWorld(p)));
 
   const route = routeWorld.map(toScreen);
+  // The route's segments, which callouts keep clear of as of leader lines where the level asks (see calloutsClearRoute).
+  const routeLines: [Point, Point][] = clearRoute ? route.slice(1).map((p, i) => [route[i], p]) : [];
 
   // Hint circle around the country's interior label point, sized from its area and
   // capped so large countries (France incl. Corsica) still get a helpful, local circle.
@@ -1857,15 +1869,25 @@ function placeOverlay(
     let lines: [string, string] | null = null;
     let width = fullWidth(label) + 2 * pad;
     const words = label.text.split(" ");
-    if (wrap && textMode !== "callouts" && !white(label) && words.length > 1 && width > viewport.width * CALLOUT_WRAP_SHARE) {
+    /** The name on two lines: the break where the longer line is shortest, if narrower than on one. */
+    const twoLines = () => {
+      let best: [[string, string], number] | null = null;
       const extra = label.explored ? badgeExtra : 0;
       for (let i = 1; i < words.length; i++) {
         const split: [string, string] = [words.slice(0, i).join(" "), words.slice(i).join(" ")];
         const w = Math.max(textWidth(split[0], labelFont, LABEL_WEIGHT), textWidth(split[1], labelFont, LABEL_WEIGHT) + extra) + 2 * pad;
-        if (w < width) [lines, width] = [split, w];
+        if (w < (best?.[1] ?? width)) best = [split, w];
       }
+      return best;
+    };
+    if (wrap && textMode !== "callouts" && !white(label) && words.length > 1 && width > viewport.width * CALLOUT_WRAP_SHARE) {
+      const split = twoLines();
+      if (split) [lines, width] = split;
     }
-    const h = lines ? calloutHeight + Math.round(labelFont * CALLOUT_LINE_STEP) : calloutHeight;
+    const lineHeight = (two: boolean) => (two ? calloutHeight + Math.round(labelFont * CALLOUT_LINE_STEP) : calloutHeight);
+    let h = lineHeight(lines !== null);
+    // Whether positions keep clear of the route line (see calloutsClearRoute and searchClear below).
+    let avoidRoute = true;
     // In the inset the country is large, and its name must not hide it.
     const own: Box[] = [];
     if (textMode === "callouts") {
@@ -1909,7 +1931,7 @@ function placeOverlay(
       const otherDots = leaderZones.filter((z) => leaderZoneOf.get(z) !== label && !(ax0 >= z.x0 && ax0 <= z.x1 && ay0 >= z.y0 && ay0 <= z.y1));
       // A larger country's callout (a name too long for it) starts beside its dot, over the country itself, rather
       // than past its far edge: a leader as short as the room around the dot allows (Serbia's, on a phone).
-      const { ranked, between, edge, lastResort } = calloutCandidates(anchor, small.has(label.id) ? reach : 0, width, h, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed, leaders);
+      const { ranked, between, edge, lastResort } = calloutCandidates(anchor, small.has(label.id) ? reach : 0, width, h, viewport, [...hard, ...own, ...otherDots], taken, depth, obstacles, placed, avoidRoute ? [...leaders, ...routeLines] : leaders);
       // A name too long for its country never takes a last-resort position (over a marker, or crossing a leader).
       const candidates = label.overhang && lastResort ? [] : ranked;
       // Nowhere clear of the map controls and the close-up: no callout.
@@ -2051,20 +2073,48 @@ function placeOverlay(
     // A label point under another callout or a capital's name is no place for a dot (Bosnia and Herzegovina's,
     // under Montenegro's callout on a 320px map in Armenian): its leader would start beneath it.
     const covered = [...placed, ...markerTextBoxes].some((b) => inBox(label.anchor, b));
-    let best = covered ? null : bestAt(label.anchor);
-    if ((!best || best.cost > 0) && !small.has(label.id) && !label.pinAnchored) {
-      const shape = shapeById(label.id);
-      const [ax, ay] = label.anchor;
-      const busy = [...taken, ...placed, ...markerTextBoxes, ...markerPoints, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label), ...obstacles];
-      let dots = DOT_TRIES;
-      for (const [dx, dy] of DOT_MOVES) {
-        const dot: Point = [ax + dx, ay + dy];
-        const zone = { x0: dot[0] - 5, y0: dot[1] - 5, x1: dot[0] + 5, y1: dot[1] + 5 };
-        if (!visible(dot) || busy.some((b) => overlaps(zone, b)) || crossesLeader(zone) || !insideShape(shape, toWorld(dot))) continue;
-        if (dots-- === 0) break;
-        const there = bestAt(dot);
-        if (there && (!best || there.cost < best.cost)) best = there;
-        if (best?.cost === 0) break;
+    const search = () => {
+      let best = covered ? null : bestAt(label.anchor);
+      if ((!best || best.cost > 0) && !small.has(label.id) && !label.pinAnchored) {
+        const shape = shapeById(label.id);
+        const [ax, ay] = label.anchor;
+        const busy = [...taken, ...placed, ...markerTextBoxes, ...markerPoints, ...leaderZones.filter((z) => leaderZoneOf.get(z) !== label), ...obstacles];
+        let dots = DOT_TRIES;
+        for (const [dx, dy] of DOT_MOVES) {
+          const dot: Point = [ax + dx, ay + dy];
+          const zone = { x0: dot[0] - 5, y0: dot[1] - 5, x1: dot[0] + 5, y1: dot[1] + 5 };
+          if (!visible(dot) || busy.some((b) => overlaps(zone, b)) || crossesLeader(zone) || !insideShape(shape, toWorld(dot))) continue;
+          if (dots-- === 0) break;
+          const there = bestAt(dot);
+          if (there && (!best || there.cost < best.cost)) best = there;
+          if (best?.cost === 0) break;
+        }
+      }
+      return best;
+    };
+    // Clear of the route only where that leaves the name a place: otherwise placed as without it (see calloutsClearRoute).
+    const searchClear = () => {
+      let best = search();
+      if ((!best || best.left > 0) && routeLines.length > 0) {
+        avoidRoute = false;
+        const any = search();
+        avoidRoute = true;
+        if (any && (!best || any.left < best.left)) best = any;
+      }
+      return best;
+    };
+    let best = searchClear();
+    // No room on one line anywhere: the name on two lines, where the level asks while the country is
+    // highlighted (selected, or on the journey; see twoLineCallouts).
+    const highlighted = (view.tones[label.id] ?? "default") !== "default";
+    if ((!best || best.left > 0) && lines === null && highlighted && twoLine?.has(label.id) && textMode !== "callouts") {
+      const split = twoLines();
+      if (split) {
+        [lines, width] = split;
+        h = lineHeight(true);
+        const two = searchClear();
+        if (two && (!best || two.left < best.left)) best = two;
+        else [lines, width, h] = [null, fullWidth(label) + 2 * pad, lineHeight(false)];
       }
     }
     if (!best) {

@@ -337,3 +337,39 @@ describe("iberian-journey: reuses Level 2's France–Italy line; Lisbon's leg go
     expect(straight.some((p) => !geoContains(shapeOf("PRT"), [...p]))).toBe(true);
   });
 });
+
+describe("heart-of-the-balkans: two ways to Skopje, on land; Athens's legs leave as Level 5's does", () => {
+  const lesson = LESSONS["heart-of-the-balkans"];
+  const settings = routeSettings(lesson);
+
+  it("turns only where a straight leg would leave its country or graze its edge; no fixed links", () => {
+    expect(Object.keys(lesson.map.routeVia ?? {}).sort()).toEqual(["ALB@ALB-MNE", "GRC@ALB-GRC", "GRC@GRC-MKD", "MNE@KOS-MNE"]);
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+    // Athens's first two turning points are Level 5's: north out of Attica, then west of Lamia.
+    const level5 = LESSONS["towards-greece"].map.routeVia!["GRC@BGR-GRC"].slice(0, 2);
+    expect(lesson.map.routeVia!["GRC@ALB-GRC"]).toEqual(level5);
+    expect(lesson.map.routeVia!["GRC@GRC-MKD"]).toEqual(level5);
+    // A straight line from Podgorica to the Kosovan crossing would cut through Albania's northern tip (Vermosh).
+    const straight = drawnSamples(lesson, COUNTRIES.MNE.capital.coordinates, lesson.map.routeCrossings!["KOS-MNE"], 300);
+    expect(straight.some((p) => inCountry("ALB", p))).toBe(true);
+  });
+
+  for (const path of [
+    ["MNE", "KOS", "MKD"],
+    ["MNE", "ALB", "MKD"],
+    ["MNE", "ALB", "GRC"],
+  ]) {
+    it(`draws ${path.join(" → ")} on its own countries' land, never at sea, in Serbia, Bulgaria or the other way's country`, () => {
+      const line = routeLine(path, settings);
+      const crossings = Object.values(lesson.map.routeCrossings ?? {});
+      const others = ["MNE", "KOS", "ALB", "MKD", "GRC"].filter((id) => !path.includes(id));
+      for (let i = 1; i < line.length; i++) {
+        for (const p of drawnSamples(lesson, line[i - 1], line[i], 300)) {
+          if (crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+          expect(path.some((id) => inCountry(id, p)), `${p} at sea or abroad`).toBe(true);
+          for (const id of [...others, "SRB", "BGR", "TUR", "BIH"]) expect(inCountry(id, p), `${p} in ${id}`).toBe(false);
+        }
+      }
+    });
+  }
+});

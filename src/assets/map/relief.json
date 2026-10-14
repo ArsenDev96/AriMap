@@ -717,6 +717,22 @@
         "height": 948,
         "bytes": 150060
       }
+    },
+    "heart-of-the-balkans": {
+      "land": {
+        "x": 526,
+        "y": 678,
+        "width": 2001,
+        "height": 821,
+        "bytes": 244976
+      },
+      "tone": {
+        "x": 1209,
+        "y": 795,
+        "width": 636,
+        "height": 587,
+        "bytes": 64298
+      }
     }
   },
   "version": "a45fb07217",

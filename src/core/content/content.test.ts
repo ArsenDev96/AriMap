@@ -7,7 +7,7 @@ import { translate, translatePlural } from "../i18n/translate";
 import { LESSON_VERSIONS, LESSONS, LEVELS } from "../lessons";
 import { balticJourneyOriginalLesson } from "../lessons/baltic-journey";
 import { COUNTRIES, countryHint } from "./countries";
-import { countryName } from "./names";
+import { CHALLENGE_COUNTRY_NAMES, countryName } from "./names";
 
 describe("translations", () => {
   it("Armenian has exactly the English keys, all non-empty", () => {
@@ -407,6 +407,67 @@ describe("country content", () => {
       for (const text of [countryHint(l8, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
     }
     expect(l8.regionName).toEqual({ en: "Eastern Europe", hy: "Արևելյան Եվրոպա" });
+  });
+
+  it("gives Level 9's new countries their capital and a localized landmark with its own illustration, and Montenegro and Greece their shared content", () => {
+    // Country and capital names as in the English and Armenian Wikipedia article titles («Սկոպիե», not «Սկոպյե»).
+    // Landmark names in Armenian are our own renderings where no article exists (docs/CONTENT.md flags them).
+    const expected: Record<string, [string, string, string, string, string, string, string, string, string]> = {
+      KOS: ["Kosovo", "Կոսովո", "Pristina", "Պրիշտինա", "Prizren Fortress", "Պրիզրենի ամրոց", "Պրիզրենի ամրոցը", "Prizren Fortress", "prizren-fortress"],
+      ALB: ["Albania", "Ալբանիա", "Tirana", "Տիրանա", "Butrint", "Բուտրինտ", "Բուտրինտը", "Butrint", "butrint"],
+      MKD: ["North Macedonia", "Հյուսիսային Մակեդոնիա", "Skopje", "Սկոպիե", "Church of Saint John at Kaneo", "Կանեոյի Սուրբ Հովհաննես եկեղեցի", "Կանեոյի Սուրբ Հովհաննես եկեղեցին", "the Church of Saint John at Kaneo", "kaneo-church"],
+    };
+    const l9 = LESSONS["heart-of-the-balkans"];
+    expect(l9.countries).toEqual(["MNE", "KOS", "ALB", "MKD", "GRC"]);
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, landmarkInTextEn, illustration]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      expect(countryName(id), id).toEqual({ en, hy });
+      // The shared registry names it now: no duplicate challenge-only name.
+      expect(CHALLENGE_COUNTRY_NAMES[id], id).toBeUndefined();
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      expect(landmark.nameInText, id).toEqual({ en: landmarkInTextEn, hy: landmarkInText });
+      expect(landmark.coordinates, id).toBeDefined();
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // Its own artwork (supplied 2026-10-14), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkInTextEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
+      // Names drawn in the app's fonts: no Latin letters beyond the "latin" subset it loads.
+      for (const text of [c.name.en, c.capital.name.en, landmark.name.en, landmark.fact.en]) expect(text, id).toMatch(/^[\u0000-ÿ–⁠]*$/u);
+    }
+    // Each landmark is away from its capital, with its own pin: Prizren, Ohrid, and Butrint by the Greek border.
+    const kmApart = (id: string) => {
+      const [[lon1, lat1], [lon2, lat2]] = [COUNTRIES[id].capital.coordinates, COUNTRIES[id].landmark!.coordinates!];
+      return Math.hypot((lon2 - lon1) * 111.32 * Math.cos((lat1 * Math.PI) / 180), (lat2 - lat1) * 110.57);
+    };
+    expect(kmApart("KOS")).toBeGreaterThan(50);
+    expect(kmApart("MKD")).toBeGreaterThan(100);
+    expect(kmApart("ALB")).toBeGreaterThan(150);
+    // The Quick Challenge's label points for them, kept: its map draws them as before.
+    expect(COUNTRIES.KOS.label.coordinates).toEqual([20.9, 42.6]);
+    expect(COUNTRIES.ALB.label.coordinates).toEqual([20.05, 41.2]);
+    expect(COUNTRIES.MKD.label.coordinates).toEqual([21.6, 41.6]);
+    // Montenegro and Greece keep their content and artwork from earlier levels; only Montenegro's hint is this level's own.
+    expect(COUNTRIES.MNE.landmark!.illustration).toBe("ostrog-monastery");
+    expect(COUNTRIES.GRC.landmark!.illustration).toBe("meteora");
+    expect(countryHint(l9, "MNE").en).toBe("A small mountainous country on the Adriatic in the north-west of this region.");
+    expect(countryHint(LESSONS["along-the-adriatic"], "MNE")).toEqual(COUNTRIES.MNE.hint);
+    expect(COUNTRIES.MNE.hint.en).toContain("south-east of this region");
+    // Greece's own hint fits here: the southernmost of the five.
+    expect(countryHint(l9, "GRC")).toEqual(COUNTRIES.GRC.hint);
+    // One hint per country, all different, in each language; no player-facing "lesson" wording.
+    const hints = l9.countries.map((id) => countryHint(l9, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l9.countries) {
+      const c = COUNTRIES[id];
+      for (const text of [countryHint(l9, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    expect(l9.regionName).toEqual({ en: "the southern Balkans", hy: "Հարավային Բալկաններ" });
   });
 
   it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {

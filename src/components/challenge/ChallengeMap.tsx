@@ -80,10 +80,6 @@ const EXTRA_LABELS: Readonly<Record<CountryId, LonLat>> = {
   GBR: [-1.6, 52.8],
   IRL: [-8.0, 53.2],
   DNK: [9.1, 56.0],
-  ALB: [20.05, 41.2],
-  // North Macedonia's middle, between Skopje and Prilep.
-  MKD: [21.6, 41.6],
-  KOS: [20.9, 42.6],
   ISL: [-18.6, 64.9],
   NOR: [9.0, 61.6],
   SWE: [15.2, 62.4],
