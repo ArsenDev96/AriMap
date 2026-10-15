@@ -102,7 +102,7 @@ describe("levels", () => {
     expect(LEVELS[4].unlockedBy).toBe(L4);
     // Level 6 opens after Level 5.
     expect(LEVELS[5].id).toBe("baltic-journey");
-    expect(LEVELS[5].countries).toEqual(["DEU", "POL", "LTU", "LVA", "EST"]);
+    expect(LEVELS[5].countries).toEqual(["POL", "BLR", "LTU", "LVA", "EST"]);
     expect(LEVELS[5].unlockedBy).toBe(L5);
     // Level 7 opens after Level 6.
     expect(LEVELS[6].id).toBe("iberian-journey");
@@ -546,7 +546,7 @@ describe("Level 3: Central Europe", () => {
 
   it("an existing save with Level 2 completed unlocks it; the main action starts it", () => {
     const s = parseSavedState(oldSave());
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "ready", "locked", "locked", "locked", "locked", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "ready", "locked", "locked", "locked", "locked", "locked", "locked", "locked"]);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L3 } });
     const opened = run(s, open(L3));
     expect(opened).toMatchObject({ screen: "lesson", levelId: L3, recent: [L3, L2, L1] });
@@ -674,7 +674,7 @@ describe("Level 4: Along the Adriatic", () => {
 
   it("an existing save with Level 3 completed unlocks it; the main action starts it", () => {
     const s = parseSavedState(oldSave());
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "ready", "locked", "locked", "locked", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "ready", "locked", "locked", "locked", "locked", "locked", "locked"]);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L4 } });
     const opened = run(s, open(L4));
     expect(opened).toMatchObject({ screen: "lesson", levelId: L4, recent: [L4, L3, L2, L1] });
@@ -884,7 +884,7 @@ describe("Level 5: Towards Greece", () => {
   };
   it("an existing save with Level 4 completed unlocks it; the main action starts it", () => {
     const s = parseSavedState(oldSave());
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "ready", "locked", "locked", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "ready", "locked", "locked", "locked", "locked", "locked"]);
     expect(allLevelsComplete(s)).toBe(false);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L5 } });
     const opened = run(s, open(L5));
@@ -967,7 +967,7 @@ describe("Level 5: Towards Greece", () => {
 
   it("completing it unlocks Level 6, which the main action starts", () => {
     const s = refresh(run(level5Done(), { type: "goHome" }));
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "ready", "locked", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "ready", "locked", "locked", "locked", "locked"]);
     expect(allLevelsComplete(s)).toBe(false);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L6 } });
   });
@@ -984,7 +984,7 @@ describe("Level 6: Baltic Journey", () => {
   it("an existing save with Level 5 completed unlocks it, with every earlier level's progress intact; the main action starts it", () => {
     const before = JSON.parse(oldSave());
     const s = parseSavedState(oldSave());
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "ready", "locked", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "ready", "locked", "locked", "locked", "locked"]);
     expect(allLevelsComplete(s)).toBe(false);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L6 } });
     for (const id of [L1, L2, L3, L4, L5]) expect(JSON.parse(JSON.stringify(s.levels[id]))).toEqual(before.levels[id]);
@@ -1120,7 +1120,7 @@ describe("Level 6: Baltic Journey", () => {
 
   it("completing it unlocks Level 7, which the main action starts", () => {
     const s = refresh(run(level6Done(), { type: "goHome" }));
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "completed", "ready", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "completed", "ready", "locked", "locked", "locked"]);
     expect(allLevelsComplete(s)).toBe(false);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L7 } });
   });
@@ -1282,7 +1282,7 @@ describe("Level 7: Iberian Journey", () => {
   it("an existing save with Level 6 completed unlocks it, with every earlier level's progress intact; the main action starts it", () => {
     const before = JSON.parse(oldSave());
     const s = parseSavedState(oldSave());
-    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "completed", "ready", "locked"]);
+    expect(LEVELS.map((l) => levelStatus(s, l).kind)).toEqual(["completed", "completed", "completed", "completed", "completed", "completed", "ready", "locked", "locked", "locked"]);
     expect(allLevelsComplete(s)).toBe(false);
     expect(mainAction(s)).toMatchObject({ kind: "start", level: { id: L7 } });
     for (const id of [L1, L2, L3, L4, L5, L6]) expect(JSON.parse(JSON.stringify(s.levels[id]))).toEqual(before.levels[id]);

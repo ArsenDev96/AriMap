@@ -722,15 +722,29 @@ describe("start view with markers kept whole", () => {
     });
 
     it("moves only for a pin it must keep: the level's own capitals in Travel start as without the reach where their pins fit", () => {
+      const moved: string[] = [];
       for (const [width, height] of sizes) {
         const padding = paddingFor(width, height);
+        const region = viewLimits(before, width, height, padding).base;
         for (const country of adriatic.countries) {
           const pin = pinAt(map, country);
-          const plain = viewLimits(before, width, height, padding, [pin]);
-          if (room(pin, plain.base, width, height).every((r) => r >= MARK_EDGE_CLEARANCE - 1e-6))
-            expect(viewLimits(map, width, height, padding, [pin], true).base, `${country} ${width}×${height}`).toEqual(plain.base);
+          const plain = viewLimits(before, width, height, padding, [pin]).base;
+          const travel = viewLimits(map, width, height, padding, [pin], true).base;
+          // Where the pin fits the start view, or the view is left as it is without the reach (a short map that cuts
+          // the countries already: the pin may be cut, as before), the same view.
+          if (room(pin, region, width, height).every((r) => r >= MARK_EDGE_CLEARANCE - 1e-6) || JSON.stringify(plain) === JSON.stringify(region)) {
+            expect(travel, `${country} ${width}×${height}`).toEqual(plain);
+            continue;
+          }
+          // Where the view moves for the pin, the reach may move it north instead of zooming in: the pin whole, and
+          // never zoomed in further than without the reach.
+          for (const r of room(pin, travel, width, height)) expect(r, `${country} ${width}×${height}`).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          expect(travel.k).toBeLessThanOrEqual(plain.k + 1e-9);
+          if (JSON.stringify(travel) !== JSON.stringify(plain)) moved.push(`${country} ${width}×${height}`);
         }
       }
+      // Ljubljana and Zagreb at 200% text (English): moved north at the start zoom (×1.09 and ×1.02 without the reach).
+      expect(moved).toEqual(["SVN 304×150", "HRV 304×150"]);
     });
   });
 

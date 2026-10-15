@@ -14,9 +14,15 @@ Level 10 is complete in code, content, assets and docs; the remaining tasks of 2
 
 Docs: README; `docs/DATA.md` (Travel-only neighbours per level, "Level 4: Travel's reach north", "The traveller clear of the map controls", Level 7's start); `docs/CONTENT.md` (the new strings); `docs/TERRAIN.md` (Level 4's taller overview).
 
-**Validation (2026-10-15).** `npm run typecheck` and `npm run lint` clean (ESLint already ignores `.next/**`, where the temporary preview builds went, and `.next-e2e/**`). No unit test, e2e suite or spec has been run, by request.
+**Validation (2026-10-15).** `npm run typecheck` and `npm run lint` clean (ESLint already ignores `.next/**`, where the temporary preview builds went, and `.next-e2e/**`).
 
-**Tests written or updated, not run:**
+**Validation of `b49a961` (2026-10-15, later).** Run, by request: `travel.test.ts`, `levels.test.ts`, `regionMap.test.ts`, `route.test.ts` and `relief.test.ts` (570 tests, all passing), and the save tests in `lesson.test.ts` and `rating.test.ts` (17, all passing). Their first run had 10 failures, fixed in the tests only (uncommitted):
+- 8 in `levels.test.ts`, failing before this work: seven level-status lists still of 8 levels, and Level 6's countries before its second version (Belarus for Germany).
+- 1 in `route.test.ts`, failing before this work: Level 10's route line, sampled against every other country, takes about 7 s (11 s with the Travel-only neighbours), over the 5 s default; it now has 30 s.
+- 1 in `regionMap.test.ts`, a new test's condition: at 304×150 (200% text, English) the start view cuts Ljubljana's and Zagreb's pins without the reach too; the view without the reach zooms in (×1.09, ×1.02), Travel's moves north at the start zoom instead. The test now compares the views where the pin fits the start view or the view is left as it was, and elsewhere asserts the pin whole and no more zoom.
+The full unit suite and the e2e specs have not been run.
+
+**Tests written or updated (the e2e specs not run):**
 - `src/core/game/travel.test.ts`: non-neighbour options (a synthetic graph).
 - `src/core/progress/levels.test.ts`: Travel-only neighbours per level (no forced move left but the documented ones; budgets and completing routes unchanged; saves with them), Level 7's France (unchanged attempt, notice, map tones, refresh, Spain, Undo, stars), the options' validity.
 - `src/geo/regionMap.test.ts`: Level 4's reach (Discover and Find limits unchanged; Budapest's pin whole); the pin clear of the controls (every level, every country the traveller can stand in; no zoom-in with the controls off the map, Helsinki in view).
@@ -30,19 +36,19 @@ Docs: README; `docs/DATA.md` (Travel-only neighbours per level, "Level 4: Travel
 - The controls below the map at 320×568 with 200% text, and in the panel at 568×320 with 200% text: map sizes unchanged, 44 px buttons, zoom, reset, focus ring, the panel scrolled (controls kept at its top, reachable, nothing showing above them), turning upright and back (the same view as before and after a reload), no resize loops, camera jumps or console errors.
 - Screenshot reviews (not in the repository; `/screenshots` is ignored): `level10-pin-framing-review.zip`, `level10-toolbar-review.zip`, `level10-landscape-final-review.zip`.
 - Saves (a probe on the real modules): a save from the previous commit loads with every level's completion, Results and best rating (3,2,1,3,2,3,1,2,3,3 kept), Level 6 on its second version, and journeys under way restored; a Level 7 France choice is not saved. Quick Challenge unchanged: pool 40, 15 questions, 60 s.
-- Not checked for this work: WebKit.
+- WebKit 26.6 (2026-10-15, scratch script on a dev server, English and Armenian; 636 checks): Level 4 into Hungary, Undo and restored there (390×844, 320×568 at 200%); Level 7's France three times (no move, crossing, saved help or notice; the notice shown) then Spain; Level 10's wrong turns through Germany (Poland, the Netherlands, Undo, Restart) then Denmark → Sweden → Finland and Results (390×844, 1366×800, 320×568 and 568×320 at 200%); the short maps at 200% (Copenhagen, Warsaw restored, Helsinki in Results, Budapest): the controls below the map or in the panel, 44 px, reachable (the panel scrolled too), zoom and reset, no camera move after load, the pin whole and clear, Finland 100% in view, Warsaw ×0.94–1.00 of the start zoom. The only failures: Zagreb's pin cut at the top at 320×568 with 200% text in Armenian (limitation 4, as in Chromium).
 
 **Remaining limitations:**
-1. The suites have not been run. `levels.test.ts`, `regionMap.test.ts` and `level10.spec.ts` carry many new assertions (their numbers checked with scratch scripts against the real modules). Run them before merging; the full e2e run takes about 50 minutes.
+1. The full unit suite and the e2e specs have not been run (the five targeted unit-test files and the save tests have: above). `level10.spec.ts` carries many new assertions. Run them before merging; the full e2e run takes about 50 minutes.
 2. Armenian wording needs native review: Level 10's hints, facts, Travel note and names (Known issue 6), and the new `travel.regionNeighbours` and `travel.notNeighbour` («… և … ընդհանուր սահման չունեն։ Ընտրիր հարևան երկիր։»).
 3. Labels are unchanged by this work: at 200% text Denmark stays unnamed on the main map in Discover (Known issue 1), and Poland is not named in Armenian in some Travel views (Warsaw at 320×568, normal and 200% text). Where the controls are off the map, names no longer avoid them.
-4. On short maps (200% text), a traveller in a level's own country may still be cut at the map's edge (Levels 1–9: 16 such states, as before): the clearance moves the view only for a pin under the controls or "About the map", or in a Travel-only country.
+4. On short maps (200% text), a traveller in a level's own country may still be cut at the map's edge (Levels 1–9: 16 such states, as before; among them Zagreb and Ljubljana at 320×568 with 200% text in Armenian, in WebKit too): the clearance moves the view only for a pin under the controls or "About the map", or in a Travel-only country.
 5. Two moves in quick succession (before the camera reaches the first move's view) leave the camera at the first move's view, the pin whole there; unchanged from before.
 6. Results' map is 6 px taller than Travel's (its header is shorter), at 200% text too: expected.
 
 ## Resumed (2026-10-14)
 Remaining tasks 1–5 below are done, apart from screenshots; no test suite has been run (by request).
-- **Unit tests:** `levels.test.ts` (ten levels, the Level 10 block, and the stale 8-entry expectations of issue 5), `rating.test.ts` (10 levels, 30 stars) and `content.test.ts` (Level 10's content; capitals' bounds now reach Reykjavík and Helsinki; Bryggen's two-sentence fact is allowed 125 characters, the others 110). The new claims were checked with a scratch script against the real modules.
+- **Unit tests:** `levels.test.ts` (ten levels, the Level 10 block, and the stale 8-entry expectations of issue 5; seven more, and Level 6's countries, were found when the file was run on 2026-10-15), `rating.test.ts` (10 levels, 30 stars) and `content.test.ts` (Level 10's content; capitals' bounds now reach Reykjavík and Helsinki; Bryggen's two-sentence fact is allowed 125 characters, the others 110). The new claims were checked with a scratch script against the real modules.
 - **E2E:** new `e2e/level10.spec.ts`; `level6`–`level9`, `continents`, `levels`, `results-next`, `stars` and `phone-layout` updated for ten levels and 30 stars (Level 9 now has a Next level). `webkit-phone`'s `testMatch` was left as it was (Level 10's spec doesn't run there, like Level 8's and 9's).
 - **Docs:** README, `CONTENT.md`, `DATA.md` ("Level 10"), `TERRAIN.md`.
 - **Known issue 1 (200% text):** `map.calloutDotsClearControls`: a highlighted country whose label point is under the map controls takes its dot from the nearest point of it clear of them. Sweden and Norway are now named when selected or travelled through, in both languages. Denmark lies wholly under the controls there (its land at x ≈ 160–180 px, the controls' area from x 158), so it stays unnamed on the main map; the close-up names and shows it. Such a dot never opens the close-up. Levels 1–9 are unaffected (the option is off).

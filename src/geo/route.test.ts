@@ -283,7 +283,9 @@ for (const lesson of LESSON_VERSIONS) {
           }
         }
       }
-    });
+      // Level 10's line, sampled against Norway's coast and its Travel-only neighbours, takes about 11 s alone (7 s
+      // before them): over the 5 s default.
+    }, 30_000);
   });
 }
 
