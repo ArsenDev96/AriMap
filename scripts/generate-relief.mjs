@@ -42,11 +42,11 @@ const PROJECTION_FIT = ["FRA", "BEL", "NLD", "LUX", "DEU"];
  * against every version of every playable level, so a level added there without
  * rerunning this script fails the tests.
  *
- * A level drawn from the northern data (`dataset: "north"`, `map.dataset` in src/core/lessons: Level 10) has its
- * countries' frame taken from that data (src/data/geo/europe-north.topo.json), and only its overview from here, at
- * `overviewPx` pixels per world unit (half, as the Quick Challenge's: its area is four times a usual level's). Zoomed
- * in it draws the Quick Challenge's tiles (scripts/generate-challenge-relief.mjs; loadLevelRelief in Relief.tsx), so
- * it adds nothing to the shared tile grid, which stays where the levels' data is.
+ * A level drawn from data of its own (`map.dataset` in src/core/lessons: Level 10's "north", Level 11's "channel") has
+ * its countries' frame taken from that data (src/data/geo/europe-north.topo.json, europe-channel.topo.json), and only
+ * its overview from here, at `overviewPx` pixels per world unit (half, as the Quick Challenge's: its area is about four
+ * times a usual level's). Zoomed in it draws the Quick Challenge's tiles (scripts/generate-challenge-relief.mjs;
+ * loadLevelRelief in Relief.tsx), so it adds nothing to the shared tile grid, which stays where the levels' data is.
  */
 const LEVEL_AREAS = [
   { id: "western-europe-1", countries: ["FRA", "BEL", "NLD", "LUX", "DEU"], coverageHalf: [1150, 900] },
@@ -61,6 +61,7 @@ const LEVEL_AREAS = [
   { id: "eastern-europe", countries: ["POL", "BLR", "UKR", "MDA", "ROU"], coverageHalf: [720, 675] },
   { id: "heart-of-the-balkans", countries: ["MNE", "KOS", "ALB", "MKD", "GRC"], coverageHalf: [1000, 410] },
   { id: "nordic-countries", countries: ["DNK", "SWE", "NOR", "FIN", "ISL"], coverageHalf: [2095, 990], dataset: "north", overviewPx: 0.5 },
+  { id: "across-the-channel", countries: ["GBR", "IRL", "FRA", "BEL", "DEU"], coverageHalf: [2390, 880], dataset: "channel", overviewPx: 0.5 },
 ];
 /**
  * Where the zoomed tile grids are anchored: the corner of Level 1's pan area,
@@ -71,7 +72,8 @@ const GRID_ANCHOR = [-216, -250];
 const topology = JSON.parse(readFileSync(file("src/data/geo/europe-west.topo.json"), "utf8"));
 const countries = feature(topology, topology.objects.countries);
 const north = JSON.parse(readFileSync(file("src/data/geo/europe-north.topo.json"), "utf8"));
-const datasets = { west: countries, north: feature(north, north.objects.countries) };
+const channel = JSON.parse(readFileSync(file("src/data/geo/europe-channel.topo.json"), "utf8"));
+const datasets = { west: countries, north: feature(north, north.objects.countries), channel: feature(channel, channel.objects.countries) };
 const collection = (ids, dataset = "west") => ({
   type: "FeatureCollection",
   features: datasets[dataset].features.filter((f) => f.geometry && ids.includes(String(f.id))),

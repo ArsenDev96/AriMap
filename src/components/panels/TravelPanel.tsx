@@ -202,7 +202,7 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
       </div>
       {/* The level's own note where the usual one would not tell the whole story (Level 10's fixed link and Iceland);
           where Travel can also enter some neighbours (`travelOnly`), the usual one says so. */}
-      <p className={styles.note} data-testid="travel-note">
+      <p className={`${styles.note} ${styles.travelNote}`} data-testid="travel-note">
         {lesson.travel.note ? l(lesson.travel.note) : t(lesson.travelOnly?.length ? "travel.regionNeighbours" : "travel.region")}
       </p>
     </>

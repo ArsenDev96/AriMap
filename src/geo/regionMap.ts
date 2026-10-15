@@ -49,11 +49,14 @@ const topology = topologyJson as unknown as CountryTopology;
 
 /**
  * The data a level's map is drawn from: the levels' own (src/data/geo/europe-west.topo.json, bundled with the
- * levels), or the northern data (src/data/geo/europe-north.topo.json: Level 10's Nordic countries, which reach far
- * beyond the levels' 62°N), a file of its own loaded only with a level that names it (`map.dataset`). Both are drawn
- * in the same projection (see PROJECTION_FIT), so the painted relief lines up with either.
+ * levels), or a file of its own loaded only with a level that names it (`map.dataset`): the northern data
+ * (src/data/geo/europe-north.topo.json: Level 10's Nordic countries, which reach far beyond the levels' 62°N), or the
+ * Channel's (src/data/geo/europe-channel.topo.json: Level 11's, from Corsica to Shetland and the Faroes, on maps as
+ * short as 112 px). All are drawn in the same projection (see PROJECTION_FIT), so the painted relief lines up with each.
  */
-export type MapDataset = "west" | "north";
+export type MapDataset = "west" | "north" | "channel";
+/** The datasets loaded only with a level that names them. */
+export type LoadedDataset = Exclude<MapDataset, "west">;
 
 // Fixed world size for the projection; screen fitting is done by the zoom transform.
 const WORLD = 1000;
@@ -109,34 +112,45 @@ function featuresOf(data: CountryTopology): Feature<Polygon | MultiPolygon, Coun
   return collection.features.filter((f) => f.geometry);
 }
 
-/** The northern data, once loaded (loadMapData), projected as the levels' data is. */
-let north: ProjectedData | null = null;
-let northLoading: Promise<void> | null = null;
+/** Each dataset loaded with its levels (loadMapData), once loaded, projected as the levels' data is. */
+const loadedData: Partial<Record<LoadedDataset, ProjectedData>> = {};
+const loading: Partial<Record<LoadedDataset, Promise<void>>> = {};
+/** Their files: each a download of its own, fetched with the first level that names it, never with the others. */
+const DATA_FILES: Readonly<Record<LoadedDataset, () => Promise<{ default: unknown }>>> = {
+  north: () => import("@/data/geo/europe-north.topo.json"),
+  channel: () => import("@/data/geo/europe-channel.topo.json"),
+};
 
-/** Projects the northern data (loadMapData does this once it has loaded; tests may pass the file's contents directly). */
+/** Projects a dataset's data (loadMapData does this once it has loaded; tests may pass the file's contents directly). */
+export function setMapData(dataset: LoadedDataset, data: unknown) {
+  if (loadedData[dataset]) return;
+  const loadedTopology = data as CountryTopology;
+  loadedData[dataset] = { features: featuresOf(loadedTopology), coasts: coastPaths(loadedTopology, geoPath(sharedProjection().projection)) };
+}
+
+/** Projects the northern data (Level 10's): setMapData("north", …). */
 export function setNorthData(data: unknown) {
-  if (north) return;
-  const northTopology = data as CountryTopology;
-  north = { features: featuresOf(northTopology), coasts: coastPaths(northTopology, geoPath(sharedProjection().projection)) };
+  setMapData("north", data);
 }
 
-/** Whether a dataset's map can be drawn now: the levels' always, the northern one once loaded. */
+/** Whether a dataset's map can be drawn now: the levels' always, the others once loaded. */
 export function isMapDataLoaded(dataset: MapDataset = "west"): boolean {
-  return dataset === "west" || north !== null;
+  return dataset === "west" || loadedData[dataset] !== undefined;
 }
 
-/** Loads a dataset (once per page): the northern data with the first level that needs it; the levels' data is bundled. */
+/** Loads a dataset (once per page) with the first level that needs it; the levels' data is bundled. */
 export function loadMapData(dataset: MapDataset = "west"): Promise<void> {
-  if (isMapDataLoaded(dataset)) return Promise.resolve();
-  northLoading ??= import("@/data/geo/europe-north.topo.json").then((module) => setNorthData(module.default));
-  return northLoading;
+  if (dataset === "west" || isMapDataLoaded(dataset)) return Promise.resolve();
+  loading[dataset] ??= DATA_FILES[dataset]().then((module) => setMapData(dataset, module.default));
+  return loading[dataset];
 }
 
 function projectedData(dataset: MapDataset): ProjectedData {
   const { west } = sharedProjection();
   if (dataset === "west") return west;
-  if (!north) throw new Error("The northern map data is not loaded yet (loadMapData)");
-  return north;
+  const data = loadedData[dataset];
+  if (!data) throw new Error(`The ${dataset} map data is not loaded yet (loadMapData)`);
+  return data;
 }
 
 /**
@@ -163,8 +177,8 @@ function coastPaths(data: CountryTopology, path: ReturnType<typeof geoPath>): Ma
  * Projects the prepared Natural Earth data for a level. The projection is
  * shared by every level (see PROJECTION_FIT) and by shapes, labels, markers
  * and routes; the level's countries set the focus area and, with
- * `coverageHalf`, the area the map may ever show. A level drawn from the northern data (`dataset`) must have
- * loaded it first (loadMapData).
+ * `coverageHalf`, the area the map may ever show. A level drawn from data of its own (`dataset`: the northern data,
+ * or the Channel's) must have loaded it first (loadMapData).
  */
 export function getRegionMap(
   activeIds: readonly CountryId[],

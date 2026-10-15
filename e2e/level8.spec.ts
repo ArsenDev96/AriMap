@@ -10,7 +10,7 @@ import { homeToEurope } from "./helpers/home";
  * after a hint names the landmark), the
  * Poland → Moldova journey (one shortest route, through Ukraine; Belarus and Romania offered too, and running
  * out of crossings there, recovered by Undo or Restart), Level 7's Next level, its own Next level (Level 9),
- * the level selection once Level 8 is completed (Level 9 up next) and once all ten levels are, and its map:
+ * the level selection once Level 8 is completed (Level 9 up next) and once all eleven levels are, and its map:
  * framing (Crimea included, as part of Ukraine), the traveller's pin in Warsaw and Chisinau, and the
  * landscape it loads.
  */
@@ -25,6 +25,7 @@ const L7 = "iberian-journey";
 const L8 = "eastern-europe";
 const L9 = "heart-of-the-balkans";
 const L10 = "nordic-countries";
+const L11 = "across-the-channel";
 const L8_COUNTRIES = ["POL", "BLR", "UKR", "MDA", "ROU"];
 const NAMES: Record<string, string> = { POL: "Poland", BLR: "Belarus", UKR: "Ukraine", MDA: "Moldova", ROU: "Romania" };
 const NAMES_HY: Record<string, string> = { POL: "Լեհաստան", BLR: "Բելառուս", UKR: "Ուկրաինա", MDA: "Մոլդովա", ROU: "Ռումինիա" };
@@ -87,13 +88,14 @@ const EARLIER_RECENT = [L7, L6, L5, L4, L3, L2, L1];
 const L8_DONE = done(L8_COUNTRIES, "pol-to-mda", ["POL", "UKR", "MDA"]);
 const L9_DONE = done(["MNE", "KOS", "ALB", "MKD", "GRC"], "mne-to-mkd", ["MNE", "KOS", "MKD"]);
 const L10_DONE = done(["DNK", "SWE", "NOR", "FIN", "ISL"], "dnk-to-fin", ["DNK", "SWE", "FIN"]);
-/** All ten levels completed (Levels 9 and 10 included, so the completion message shows). */
-const ALL_DONE = { ...EARLIER, [L8]: L8_DONE, [L9]: L9_DONE, [L10]: L10_DONE };
+const L11_DONE = done(["GBR", "IRL", "FRA", "BEL", "DEU"], "deu-to-gbr", ["DEU", "FRA", "GBR"]);
+/** All eleven levels completed (Levels 9, 10 and 11 included, so the completion message shows). */
+const ALL_DONE = { ...EARLIER, [L8]: L8_DONE, [L9]: L9_DONE, [L10]: L10_DONE, [L11]: L11_DONE };
 const ALL_RECENT = [L8, ...EARLIER_RECENT];
-const ALL_DONE_RECENT = [L10, L9, ...ALL_RECENT];
+const ALL_DONE_RECENT = [L11, L10, L9, ...ALL_RECENT];
 const COMPLETION = {
-  en: "You've completed all 10 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 10 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
+  en: "You've completed all 11 levels! Play any of them again whenever you like.",
+  hy: "Ավարտել ես բոլոր 11 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
 };
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
@@ -504,7 +506,7 @@ test("Level 7's Next level opens Level 8 (or resumes it); Home, Continue, View r
   for (const id of [L1, L2, L3, L4, L5, L6, L7]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(card(page, L8).getByTestId("level-status")).toHaveText("In progress: Discover");
 
-  // All ten completed: Play again keeps every level completed; the replay is continued, not the message.
+  // All eleven completed: Play again keeps every level completed; the replay is continued, not the message.
   await saveV2(page, ALL_DONE, { levelId: L8, recent: ALL_DONE_RECENT });
   await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
   await card(page, L8).getByTestId("level-details-toggle").click();
@@ -513,7 +515,7 @@ test("Level 7's Next level opens Level 8 (or resumes it); Home, Continue, View r
   await dialog.getByRole("button", { name: "Play again" }).click();
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
   await homeToEurope(page);
-  for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9, L10]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
+  for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9, L10, L11]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   await expect(mainAction(page)).toHaveText(/^Continue\s*Level 8 · Eastern Europe$/);
 });
 

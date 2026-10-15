@@ -2,6 +2,7 @@
 
 import Image, { type StaticImageData } from "next/image";
 import { useId, useLayoutEffect, useRef, useState, type Dispatch } from "react";
+import bigBen from "@/assets/landmarks/thumbnails/big-ben.webp";
 import branCastle from "@/assets/landmarks/thumbnails/bran-castle.webp";
 import chapelBridge from "@/assets/landmarks/thumbnails/chapel-bridge.webp";
 import charlesBridge from "@/assets/landmarks/thumbnails/charles-bridge.webp";
@@ -222,6 +223,7 @@ const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
   "eastern-europe": "ROU",
   "heart-of-the-balkans": "MKD",
   "nordic-countries": "FIN",
+  "across-the-channel": "GBR",
 };
 
 /**
@@ -240,6 +242,7 @@ const LEVEL_THUMBNAILS: Readonly<Record<string, StaticImageData>> = {
   "bran-castle": branCastle,
   "kaneo-church": kaneoChurch,
   olavinlinna,
+  "big-ben": bigBen,
 };
 
 function levelArt(level: LevelInfo) {

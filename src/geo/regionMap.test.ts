@@ -5,6 +5,7 @@ import type { Feature, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import northJson from "@/data/geo/europe-north.topo.json";
+import channelJson from "@/data/geo/europe-channel.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import { LESSON_VERSIONS, LESSONS, LEVELS, travelCountries, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
@@ -19,6 +20,7 @@ import {
   maxMapWidth,
   PROJECTION_FIT,
   regionMapFor,
+  setMapData,
   setNorthData,
   viewLimits,
   type Bounds,
@@ -30,13 +32,19 @@ import {
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
 const geometries = topology.objects.countries.geometries;
-/** Level 10's northern data (scripts/prepare-north-geo.mjs), given to the map as loadMapData would. */
-const north = northJson as unknown as Topology<{ countries: GeometryCollection }> & {
+/** A dataset of its own, cut to a rectangle in world units round its level's coverage (frame.clip). */
+type FramedTopology = Topology<{ countries: GeometryCollection }> & {
   projection: { rotate: [number, number]; scale: number; translate: [number, number] };
   frame: { clip: Bounds };
 };
+/** Level 10's northern data (scripts/prepare-north-geo.mjs), given to the map as loadMapData would. */
+const north = northJson as unknown as FramedTopology;
 setNorthData(north);
-const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north };
+/** Level 11's Channel data (scripts/prepare-channel-geo.mjs), likewise. */
+const channel = channelJson as unknown as FramedTopology;
+setMapData("channel", channel);
+const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north, channel };
+const FRAMED: Readonly<Record<Exclude<MapDataset, "west">, FramedTopology>> = { north, channel };
 
 function shapeOf(id: string, dataset: MapDataset = "west") {
   const data = TOPOLOGIES[dataset];
@@ -153,6 +161,53 @@ describe("prepared map data", () => {
     for (const p of [[19.0, 74.43], [16.5, 77.0], [15.6, 78.2]] as const) for (const id of ids) expect(geoContains(shapeOf(id, "north"), [...p]), `${id} at ${p}`).toBe(false);
     // Crimea, where the data reaches it, is Ukraine's (as in the levels' data).
     for (let lon = 32.5; lon <= 36.6; lon += 0.1) for (let lat = 44.4; lat <= 46.2; lat += 0.1) expect(geoContains(shapeOf("RUS", "north"), [lon, lat])).toBe(false);
+  });
+
+  it("across-the-channel: its Channel data is in the levels' projection and on their grid, with the levels' shapes, Northern Ireland, Shetland, Orkney and Corsica, and the Crown Dependencies their own", () => {
+    // The same projection and quantization grid as the levels' (prepare-channel-geo.mjs writes them), so the relief
+    // lines up, and the shapes Level 1 draws are the same, vertex for vertex.
+    const map = regionMapFor(LESSONS["across-the-channel"]);
+    const west = regionMapFor(LESSONS["western-europe-1"]);
+    for (const p of [[-0.1257, 51.5085], [-6.2489, 53.3331], [13.405, 52.52]] as const) expect(map.project(p)).toEqual(west.project(p));
+    expect(channel.projection.rotate).toEqual([-8, -50]);
+    expect(channel.transform).toEqual(topology.transform);
+    for (const id of ["GBR", "IRL", "FRA", "BEL", "DEU", "LUX", "NLD"]) expect(shapeOf(id, "channel").geometry, id).toEqual(shapeOf(id).geometry);
+    // So the focus is the levels' data's frame of the five.
+    expect(map.focusBounds).toEqual(getRegionMap(LESSONS["across-the-channel"].countries).focusBounds);
+    // Northern Ireland is the United Kingdom's: Belfast, Derry and Enniskillen, beside the border, not Ireland's.
+    for (const [name, p] of Object.entries({ Belfast: [-5.93, 54.6], Derry: [-7.31, 54.996], Enniskillen: [-7.64, 54.34] })) {
+      expect(geoContains(shapeOf("GBR", "channel"), p as [number, number]), name).toBe(true);
+      expect(geoContains(shapeOf("IRL", "channel"), p as [number, number]), name).toBe(false);
+    }
+    // The UK–Ireland border, the island of Ireland's, is in the data: their shapes share it.
+    const own = channel.objects.countries.geometries;
+    const index = (id: string) => own.findIndex((g) => g.id === id);
+    expect(neighbors(own)[index("GBR")].map((i) => own[i].id)).toEqual(["IRL"]);
+    // Shetland, Orkney and the Hebrides are the United Kingdom's; Corsica is France's.
+    for (const [name, p] of Object.entries({ Lerwick: [-1.145, 60.155], Unst: [-0.85, 60.75], Kirkwall: [-2.96, 58.98], Lewis: [-6.39, 58.21] }))
+      expect(geoContains(shapeOf("GBR", "channel"), p as [number, number]), name).toBe(true);
+    for (const [name, p] of Object.entries({ Bastia: [9.45, 42.7], Bonifacio: [9.16, 41.39] })) expect(geoContains(shapeOf("FRA", "channel"), p as [number, number]), name).toBe(true);
+    // Shetland and Corsica set the frame's top and bottom: every part of the five lies inside the focus.
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    for (const id of LESSONS["across-the-channel"].countries) {
+      const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === id)!.bounds;
+      expect(x0 >= fx0 && y0 >= fy0 && x1 <= fx1 && y1 <= fy1, id).toBe(true);
+    }
+    expect(map.project([-0.85, 60.75])[1] - fy0).toBeLessThan(10);
+    expect(fy1 - map.project([9.16, 41.39])[1]).toBeLessThan(10);
+    // The Crown Dependencies (Jersey, Guernsey, the Isle of Man) are their own shapes, faded as neighbours, never the
+    // United Kingdom's; so are the Faroes, Denmark's.
+    for (const [id, p] of [["JEY", [-2.13, 49.215]], ["GGY", [-2.54, 49.455]], ["IMN", [-4.48, 54.15]], ["FRO", [-6.77, 62.01]]] as const) {
+      expect(geoContains(shapeOf(id, "channel"), [...p]), id).toBe(true);
+      expect(geoContains(shapeOf("GBR", "channel"), [...p]), id).toBe(false);
+    }
+    // Crimea, where the data reaches it, is Ukraine's (as in the levels' data); Åland is Finland's.
+    for (let lon = 32.5; lon <= 36.6; lon += 0.1) for (let lat = 44.4; lat <= 46.2; lat += 0.1) expect(geoContains(shapeOf("RUS", "channel"), [lon, lat])).toBe(false);
+    expect(own.map((g) => g.id)).not.toContain("ALD");
+    // Its close-up (Belgium's, with the Strait of Dover): beside its toggle on smaller maps, bottom-left on wide ones,
+    // and never opened by itself; the only level that keeps it closed so (docs/DATA.md, "Level 11").
+    expect(LESSONS["across-the-channel"].map.inset).toMatchObject({ country: "BEL", smallMapBeside: true, wideMapCorner: "bottom-left", autoOpen: false });
+    for (const lesson of LESSON_VERSIONS) if (lesson.id !== "across-the-channel") expect(lesson.map.inset?.autoOpen, lesson.id).toBeUndefined();
   });
 
   it("keeps the quantization grid of Levels 1–4's data, so extending the clip box moved none of their coordinates", () => {
@@ -370,9 +425,9 @@ describe("map coverage", () => {
       if (!lesson.map.travelReachNorth) expect(map.travelCoverage).toEqual(map.coverage);
       expect(map.travelCoverage[1]).toEqual(map.coverage[1]);
       const [[x0, y0], [x1, y1]] = map.travelCoverage;
-      if (lesson.map.dataset === "north") {
-        // The northern data is cut to a rectangle in world units (frame.clip), round this coverage.
-        const [[c0x, c0y], [c1x, c1y]] = north.frame.clip;
+      if (lesson.map.dataset) {
+        // The northern and the Channel data are cut to a rectangle in world units (frame.clip), round this coverage.
+        const [[c0x, c0y], [c1x, c1y]] = FRAMED[lesson.map.dataset].frame.clip;
         expect(x0 > c0x && y0 > c0y && x1 < c1x && y1 < c1y).toBe(true);
         return;
       }
@@ -597,6 +652,34 @@ describe("start view with markers kept whole", () => {
       expect(base).toEqual(region.base);
       for (const r of room(copenhagen, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
       expectInside(map, base, width, height, translateExtent);
+    }
+  });
+
+  it("across-the-channel: on the shortest phone maps (304×112 and 304×150, 200% text on a 320×568 phone), the five are whole with their padding, the pin in Berlin and London included", () => {
+    // The five are taller than wide (Corsica to Shetland): the coverage is wide enough, and tall enough, that these maps
+    // show the countries' own fit, not a view zoomed in to fill them.
+    expect(isMapDataLoaded("channel")).toBe(true);
+    const map = regionMapFor(LESSONS["across-the-channel"]);
+    for (const [width, height] of [
+      [304, 112],
+      [304, 150],
+    ]) {
+      const padding = paddingFor(width, height);
+      const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+      const margins = (t: Transform) => {
+        const [[sx0, sy0], [sx1, sy1]] = [applyTransform(t, [fx0, fy0]), applyTransform(t, [fx1, fy1])];
+        return [sx0, sy0, width - sx1, height - sy1];
+      };
+      const region = viewLimits(map, width, height, padding);
+      expect(region.base).toEqual(fitTransform(map.focusBounds, width, height, padding));
+      for (const m of margins(region.base)) expect(m).toBeGreaterThanOrEqual(padding - 1e-6);
+      for (const country of ["DEU", "GBR"]) {
+        const pin = pinAt(map, country);
+        const { base, translateExtent } = viewLimits(map, width, height, padding, [pin]);
+        expect(base).toEqual(region.base);
+        for (const r of room(pin, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+        expectInside(map, base, width, height, translateExtent);
+      }
     }
   });
 
@@ -845,6 +928,48 @@ describe("start view with markers kept whole", () => {
         const controls = chrome(width, height)[0];
         const gaps = [controls.x0 - (x + warsaw.extent.x1), controls.y0 - (y + warsaw.extent.y1)];
         expect(Math.max(...gaps), `${width}×${height}`).toBeCloseTo(MARK_EDGE_CLEARANCE, 6);
+      }
+    });
+
+    const channelLesson = LESSONS["across-the-channel"];
+
+    it("across-the-channel: in every country of the level and Luxembourg (Travel only), and in Results, the traveller's pin is whole and uncovered", () => {
+      // Ireland too, though this level's journey ends in the United Kingdom: a pin there is as whole as anywhere.
+      const map = regionMapFor(channelLesson);
+      for (const [width, height, off] of sizes)
+        for (const country of travelCountries(channelLesson)) {
+          const pin = traveller(map, channelLesson, country, width, height, off);
+          const { base, translateExtent } = viewLimits(map, width, height, paddingFor(width, height), [pin]);
+          const at = `${country} ${width}×${height}`;
+          for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          for (const b of chrome(width, height, off)) expect(clearOf(pin, base, b), at).toBe(true);
+          expectInside(map, base, width, height, translateExtent);
+        }
+    });
+
+    it("across-the-channel: with the controls off the map (200% text on a 320×568 phone, and in landscape), no start view zooms in, and London, the destination, stays in view", () => {
+      const map = regionMapFor(channelLesson);
+      const london = map.project(COUNTRIES.GBR.capital.coordinates);
+      for (const [width, height] of [
+        [304, 150],
+        [304, 112],
+        [304, 156],
+        [280, 182],
+        [280, 180],
+        [280, 188],
+      ]) {
+        const padding = paddingFor(width, height);
+        const own = viewLimits(map, width, height, padding).base;
+        for (const country of travelCountries(channelLesson)) {
+          const pin = traveller(map, channelLesson, country, width, height, true);
+          const { base } = viewLimits(map, width, height, padding, [pin]);
+          const at = `${country} ${width}×${height}`;
+          expect(base.k, at).toBeLessThanOrEqual(own.k + 1e-9);
+          expect(base.k / own.k, at).toBeGreaterThan(0.9);
+          for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          const [lx, ly] = applyTransform(base, london);
+          expect(lx > 0 && lx < width && ly > 0 && ly < height, `${at}: London in view`).toBe(true);
+        }
       }
     });
 

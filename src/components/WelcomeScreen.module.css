@@ -896,6 +896,9 @@
 .levelCard[data-tone="6"] { --tone: #8a7be8; }
 .levelCard[data-tone="7"] { --tone: #ec6b9b; }
 .levelCard[data-tone="8"] { --tone: #8fb339; }
+.levelCard[data-tone="9"] { --tone: #e0883a; }
+.levelCard[data-tone="10"] { --tone: #5b7fe0; }
+.levelCard[data-tone="11"] { --tone: #b0679f; }
 
 /* A destination card: white, rounded, a quiet shadow, and a band of its colour along the start edge. */
 .levelsPage .levelCard {

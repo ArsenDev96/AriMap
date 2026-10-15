@@ -77,8 +77,6 @@ const ZOOM_STEP = 1.6;
  * country's main land; a ring country's is its ring's point.
  */
 const EXTRA_LABELS: Readonly<Record<CountryId, LonLat>> = {
-  GBR: [-1.6, 52.8],
-  IRL: [-8.0, 53.2],
   // European Russia's middle, east of Moscow.
   RUS: [44.0, 57.0],
   ...RING_COUNTRIES,

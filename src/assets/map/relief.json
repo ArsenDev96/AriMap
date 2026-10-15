@@ -749,6 +749,22 @@
         "height": 1274,
         "bytes": 69958
       }
+    },
+    "across-the-channel": {
+      "land": {
+        "x": -1986,
+        "y": -602,
+        "width": 4782,
+        "height": 1762,
+        "bytes": 356460
+      },
+      "tone": {
+        "x": -170,
+        "y": -446,
+        "width": 1152,
+        "height": 1450,
+        "bytes": 86968
+      }
     }
   },
   "version": "a45fb07217",

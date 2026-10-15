@@ -5,20 +5,24 @@ import type { Feature, MultiLineString, MultiPolygon, Polygon } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import northJson from "@/data/geo/europe-north.topo.json";
+import channelJson from "@/data/geo/europe-channel.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import { shortestDistance, type BorderGraph } from "@/core/game/graph";
 import { availableMoves, createAttempt, currentCountry, move } from "@/core/game/travel";
 import { LESSON_VERSIONS, LESSONS, travelCountries, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
-import { regionMapFor, setNorthData, type MapDataset } from "./regionMap";
+import { regionMapFor, setMapData, setNorthData, type MapDataset } from "./regionMap";
 import { borderKey, routeLine, routePoints, routeSettings, viaKey } from "./route";
 
 const topology = topologyJson as unknown as Topology<{ countries: GeometryCollection }>;
 /** Level 10's northern data, given to the map as loadMapData would. */
 const north = northJson as unknown as Topology<{ countries: GeometryCollection }>;
 setNorthData(north);
-const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north };
+/** Level 11's Channel data, likewise. */
+const channel = channelJson as unknown as Topology<{ countries: GeometryCollection }>;
+setMapData("channel", channel);
+const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north, channel };
 const EARTH_KM = 6371;
 const km = (a: LonLat, b: LonLat) => geoDistance([...a], [...b]) * EARTH_KM;
 
@@ -125,12 +129,13 @@ for (const lesson of LESSON_VERSIONS) {
       }
       const borders = new Set(allMoves.map(([a, b]) => borderKey(a, b)));
       for (const key of Object.keys(crossings)) expect(borders.has(key), key).toBe(true);
-      // Level 10 draws no leg no journey takes: Norway–Finland, never reached within the crossings, has none. (Levels 8
-      // and 9 kept crossings for a border no journey reaches: Moldova–Romania, Greece–North Macedonia.)
-      if (lesson.id === "nordic-countries") {
+      // Levels 10 and 11 draw no leg no journey takes: Level 10's Norway–Finland, never reached within the crossings, and
+      // Level 11's United Kingdom–Ireland, beyond the journey's end in the United Kingdom, have none. (Levels 8 and 9 kept
+      // crossings for a border no journey reaches: Moldova–Romania, Greece–North Macedonia.)
+      if (lesson.id === "nordic-countries" || lesson.id === "across-the-channel") {
         const crossed = new Set([...reachable].map((key) => borderKey(...(key.split(">") as [string, string]))));
         expect(new Set(Object.keys(crossings))).toEqual(crossed);
-        expect(crossed.has("FIN-NOR")).toBe(false);
+        expect(crossed.has(lesson.id === "nordic-countries" ? "FIN-NOR" : "GBR-IRL")).toBe(false);
       }
       for (const key of Object.keys(via)) expect(moves.some(([a, b]) => viaKey(a, b) === key), key).toBe(true);
     });
@@ -191,9 +196,10 @@ for (const lesson of LESSON_VERSIONS) {
         expect(geoContains(shapeOf(b, dataset), [...link.points[link.points.length - 1]]), `${link.name} ends in ${b}`).toBe(true);
         const crossing = crossings[borderKey(a, b)];
         expect(link.points.some((p) => same(p, crossing)), link.name).toBe(true);
-        // A bridge and tunnel, not a sea route.
+        // A bridge or a tunnel, not a sea route: the Øresund's 20.6 km from Kastrup to the Swedish shore, the Channel
+        // Tunnel's line from portal to portal (50.45 km; simplified here, a little shorter).
         const length = link.points.slice(1).reduce((sum, p, i) => sum + km(link.points[i], p), 0);
-        expect(length, link.name).toBeLessThan(25);
+        expect(length, link.name).toBeLessThan(link.name === "Channel Tunnel" ? 50.5 : 25);
         // Followed by both legs: each country's turning points end with the link's points on its side.
         const at = link.points.findIndex((p) => same(p, crossing));
         expect(via[viaKey(a, b)]?.slice(-at), `${a}'s leg follows ${link.name}`).toEqual(link.points.slice(0, at));
@@ -489,6 +495,61 @@ describe("nordic-countries: Germany (Travel only) is reached over Denmark's own 
           for (const id of ["SWE", "NOR", "BEL", "CZE", "LTU", "RUS"]) expect(inCountry(id, p, "north"), `${path.join("→")} enters ${id}`).toBe(false);
         }
       }
+    }
+  });
+});
+
+describe("across-the-channel: Berlin to London through France and the Channel Tunnel, on land and under the sea", () => {
+  const lesson = LESSONS["across-the-channel"];
+  const settings = routeSettings(lesson);
+  const tunnel = lesson.map.borderLinks!.find((l) => l.name === "Channel Tunnel")!;
+
+  it("keeps the Channel Tunnel the only link between two countries, with no fixed link inside one; Level 1's crossings on the Continent", () => {
+    expect(lesson.map.borderLinks?.map((l) => [l.name, ...l.between])).toEqual([["Channel Tunnel", "FRA", "GBR"]]);
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+    // France and the United Kingdom share no land border; the frontier is on the tunnel, between its portals.
+    expect(sharedBorder("FRA", "GBR", "channel").coordinates).toEqual([]);
+    const crossing = lesson.map.routeCrossings!["FRA-GBR"];
+    const at = tunnel.points.findIndex((p) => same(p, crossing));
+    expect(at).toBeGreaterThan(0);
+    expect(at).toBeLessThan(tunnel.points.length - 1);
+    // About 22.6 km from the French portal and 27.7 km from the English one, along the tunnel.
+    const along = (points: readonly LonLat[]) => points.slice(1).reduce((sum, p, i) => sum + km(points[i], p), 0);
+    expect(along(tunnel.points.slice(0, at + 1))).toBeCloseTo(22.6, 0);
+    expect(along(tunnel.points.slice(at))).toBeCloseTo(27.7, 0);
+    // The Continent's crossings are Level 1's (the same capitals, and vertices of the same borders in this data).
+    const level1 = LESSONS["western-europe-1"].map.routeCrossings!;
+    for (const key of ["BEL-FRA", "DEU-FRA", "BEL-DEU", "FRA-LUX", "BEL-LUX", "DEU-LUX"]) expect(lesson.map.routeCrossings![key], key).toEqual(level1[key]);
+    // Paris and London reach the tunnel's portals in straight lines: their turning points are the tunnel's own.
+    expect(lesson.map.routeVia![viaKey("FRA", "GBR")]).toEqual(tunnel.points.slice(0, at));
+    expect(lesson.map.routeVia![viaKey("GBR", "FRA")]).toEqual(tunnel.points.slice(at + 1).reverse());
+  });
+
+  it("draws Germany → France → the United Kingdom on those countries' land and the tunnel only, never in Belgium, Luxembourg or the Netherlands", () => {
+    const line = routeLine(["DEU", "FRA", "GBR"], settings);
+    expect(line).toHaveLength(22);
+    const ends = [tunnel.points[0], tunnel.points[tunnel.points.length - 1]];
+    const crossings = Object.values(lesson.map.routeCrossings ?? {});
+    for (let i = 1; i < line.length; i++) {
+      const underSea = tunnel.points.some((p, j) => j > 0 && ((same(tunnel.points[j - 1], line[i - 1]) && same(p, line[i])) || (same(tunnel.points[j - 1], line[i]) && same(p, line[i - 1]))));
+      for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
+        for (const id of ["BEL", "LUX", "NLD", "CHE", "IRL", "JEY", "GGY"]) expect(inCountry(id, p, "channel"), `${p} in ${id}`).toBe(false);
+        if (underSea || crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+        expect(["DEU", "FRA", "GBR"].some((id) => inCountry(id, p, "channel")), `${p} at sea`).toBe(true);
+      }
+    }
+    // The tunnel's portals are on land, in France and in the United Kingdom.
+    expect(inCountry("FRA", ends[0], "channel")).toBe(true);
+    expect(inCountry("GBR", ends[1], "channel")).toBe(true);
+  });
+
+  it("draws the wrong turns through Belgium and Luxembourg on the Continent, never towards the Channel", () => {
+    for (const path of [["DEU", "BEL", "FRA"], ["DEU", "BEL", "LUX"], ["DEU", "LUX", "FRA"], ["DEU", "LUX", "BEL"], ["DEU", "FRA", "BEL"], ["DEU", "FRA", "LUX"]]) {
+      const line = routeLine(path, settings);
+      for (let i = 1; i < line.length; i++)
+        for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
+          for (const id of ["GBR", "NLD", "CHE"]) expect(inCountry(id, p, "channel"), `${path.join("→")}: ${p} in ${id}`).toBe(false);
+        }
     }
   });
 });

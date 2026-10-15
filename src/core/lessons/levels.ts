@@ -1,6 +1,7 @@
 import type { CountryId } from "../content/types";
 import type { LocalizedText } from "../i18n/locales";
 import type { ContinentId } from "./continents";
+import { acrossTheChannelLesson } from "./across-the-channel";
 import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { balticJourneyLesson, balticJourneyOriginalLesson } from "./baltic-journey";
@@ -188,6 +189,19 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: nordicCountriesLesson.countries,
     lesson: nordicCountriesLesson,
     unlockedBy: heartOfTheBalkansLesson.id,
+  },
+  {
+    id: acrossTheChannelLesson.id,
+    continent: "europe",
+    number: 11,
+    title: { en: "Across the Channel", hy: "Լա Մանշի այն կողմ" },
+    description: {
+      en: "Explore north-western Europe, from Germany to Ireland.",
+      hy: "Ուսումնասիրիր Հյուսիսարևմտյան Եվրոպան՝ Գերմանիայից մինչև Իռլանդիա։",
+    },
+    countries: acrossTheChannelLesson.countries,
+    lesson: acrossTheChannelLesson,
+    unlockedBy: nordicCountriesLesson.id,
   },
 ];
 

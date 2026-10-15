@@ -16,8 +16,6 @@ export const UPCOMING_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> 
  * and Armenian Wikipedia article titles, like the levels' countries (docs/CONTENT.md).
  */
 export const CHALLENGE_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>> = {
-  GBR: { en: "United Kingdom", hy: "Միացյալ Թագավորություն" },
-  IRL: { en: "Ireland", hy: "Իռլանդիա" },
   LIE: { en: "Liechtenstein", hy: "Լիխտենշտայն" },
   MCO: { en: "Monaco", hy: "Մոնակո" },
   SMR: { en: "San Marino", hy: "Սան Մարինո" },

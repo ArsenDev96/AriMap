@@ -885,6 +885,56 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "hallgrimskirkja",
     },
   },
+  // Level 11's new countries (Across the Channel), each with its own illustration (supplied 2026-10-15). Their names
+  // and label points are the ones the Quick Challenge used for them before they had content here, so its map is
+  // unchanged. Capitals: GeoNames's city-centre points.
+  GBR: {
+    id: "GBR",
+    name: { en: "United Kingdom", hy: "Միացյալ Թագավորություն" },
+    nameInText: { en: "the United Kingdom", hy: "Միացյալ Թագավորությունը" },
+    capital: { name: { en: "London", hy: "Լոնդոն" }, coordinates: [-0.1257, 51.5085] },
+    hint: {
+      en: "An island country across the Channel from France. It includes Great Britain and Northern Ireland.",
+      hy: "Կղզի-երկիր Լա Մանշի մյուս կողմում՝ Ֆրանսիայի դիմաց։ Այն ներառում է Մեծ Բրիտանիան և Հյուսիսային Իռլանդիան։",
+    },
+    label: { coordinates: [-1.6, 52.8] },
+    landmark: {
+      id: "big-ben",
+      name: { en: "Big Ben", hy: "Բիգ Բեն" },
+      nameInText: { en: "Big Ben", hy: "Բիգ Բենը" },
+      fact: {
+        en: "Big Ben is the name of the great bell inside this clock tower. It first rang out in 1859.",
+        hy: "Բիգ Բենը այս ժամացույցի աշտարակի ներսում գտնվող մեծ զանգի անունն է։ Առաջին անգամ այն հնչել է 1859 թվականին։",
+      },
+      // The clock tower (the Elizabeth Tower since 2012), at the Palace of Westminster, 0.9 km from the capital's point:
+      // its pin is hidden by the capital's on the whole map, as Tallinn Town Hall's and Hallgrímskirkja's are.
+      coordinates: [-0.1246, 51.5007],
+      illustration: "big-ben",
+    },
+  },
+  IRL: {
+    id: "IRL",
+    name: { en: "Ireland", hy: "Իռլանդիա" },
+    nameInText: { en: "Ireland", hy: "Իռլանդիան" },
+    capital: { name: { en: "Dublin", hy: "Դուբլին" }, coordinates: [-6.2489, 53.3331] },
+    hint: {
+      en: "The westernmost country of this region. It shares the island of Ireland with Northern Ireland, part of the United Kingdom.",
+      hy: "Տարածաշրջանի ամենաարևմտյան երկիրը։ Իռլանդիա կղզին այն կիսում է Հյուսիսային Իռլանդիայի հետ, որը Միացյալ Թագավորության մաս է։",
+    },
+    label: { coordinates: [-8.0, 53.2] },
+    landmark: {
+      id: "cliffs-of-moher",
+      name: { en: "Cliffs of Moher", hy: "Մոհերի ժայռեր" },
+      nameInText: { en: "the Cliffs of Moher", hy: "Մոհերի ժայռերը" },
+      fact: {
+        en: "At their highest, these Atlantic sea cliffs rise 214 metres. O'Brien's Tower has stood on them since 1835.",
+        hy: "Իրենց ամենաբարձր կետում այս ատլանտյան ծովափնյա ժայռերը հասնում են 214 մետրի։ Օ'Բրայենի աշտարակը դրանց վրա կանգնած է 1835 թվականից։",
+      },
+      // At O'Brien's Tower, near the cliffs' highest point, in County Clare on the Atlantic coast, not the capital.
+      coordinates: [-9.4312, 52.9731],
+      illustration: "cliffs-of-moher",
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */
