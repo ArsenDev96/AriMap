@@ -33,6 +33,13 @@ export interface RegionMap {
    * artificial straight edges of the clipped dataset stay off screen.
    */
   coverage: Bounds;
+  /**
+   * The area Travel (and its Results) may show: `coverage`, reaching further north by the level's
+   * `map.travelReachNorth` (Level 4's, for the traveller in Budapest); `coverage` itself in every other level.
+   * Only how far the map can be panned and moved to keep the traveller whole changes with it: the zoom
+   * limits, and so every start view without the traveller near that edge, stay `coverage`'s.
+   */
+  travelCoverage: Bounds;
   project(point: LonLat): Point;
 }
 
@@ -163,8 +170,9 @@ export function getRegionMap(
   activeIds: readonly CountryId[],
   coverageHalf: readonly [number, number] = DEFAULT_COVERAGE_HALF,
   dataset: MapDataset = "west",
+  travelReachNorth = 0,
 ): RegionMap {
-  const key = `${dataset}|${activeIds.join(",")}|${coverageHalf.join(",")}`;
+  const key = `${dataset}|${activeIds.join(",")}|${coverageHalf.join(",")}|${travelReachNorth}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -196,15 +204,19 @@ export function getRegionMap(
       [cx - coverageHalf[0], cy - coverageHalf[1]],
       [cx + coverageHalf[0], cy + coverageHalf[1]],
     ],
+    travelCoverage: [
+      [cx - coverageHalf[0], cy - coverageHalf[1] - travelReachNorth],
+      [cx + coverageHalf[0], cy + coverageHalf[1]],
+    ],
     project: (point) => (projection([point[0], point[1]]) ?? [0, 0]) as Point,
   };
   cache.set(key, map);
   return map;
 }
 
-/** The map of a level: its countries, its coverage and its data. */
+/** The map of a level: its countries, its coverage (and Travel's: `travelReachNorth`) and its data. */
 export function regionMapFor(lesson: Pick<LessonDefinition, "countries" | "map">): RegionMap {
-  return getRegionMap(lesson.countries, lesson.map.coverageHalf, lesson.map.dataset);
+  return getRegionMap(lesson.countries, lesson.map.coverageHalf, lesson.map.dataset, lesson.map.travelReachNorth);
 }
 
 export interface Transform {
@@ -240,6 +252,26 @@ export interface ViewLimits {
 export interface ScreenMark {
   at: Point;
   extent: { x0: number; y0: number; x1: number; y1: number };
+  /**
+   * Kept whole even where that cuts the level's countries, on maps too short to show them whole (enlarged text
+   * on a phone) or where they and the mark don't fit together: the traveller in a Travel-only country, which may
+   * lie at the map's edge (Level 4's Budapest). Other marks are kept whole only as far as the countries allow.
+   */
+  keep?: boolean;
+  /**
+   * Screen areas the mark must stay clear of, by MARK_EDGE_CLEARANCE: the map controls, for the traveller (Level
+   * 10's Poland, at the map's bottom right). Where the start view puts the mark under one, the view moves, as little
+   * as it can, so the mark is whole and clear of them however the countries are cut, as for a mark to keep.
+   */
+  clearOf?: readonly ScreenBox[];
+}
+
+/** A screen area (px from the map's top-left), such as the map controls. */
+export interface ScreenBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
 }
 
 /** Clear room the start view keeps between a marker and the map's edge (px). */
@@ -258,9 +290,18 @@ export const MARK_ZOOM_LIMIT = 1.15;
  * data coverage. Pan limits are centred on the focus and stay inside coverage.
  * Where that view shows the countries whole, markers drawn on them (`marks`, such
  * as the traveller's pin, which stands 23px above its capital) are kept whole too:
- * see keepMarksWhole.
+ * see keepMarksWhole. In Travel (`travel`), the map may be panned, and moved to keep
+ * the traveller whole, as far north as `travelCoverage` (Level 4's Budapest); the
+ * zoom limits, and so the start view without the traveller there, are the same.
  */
-export function viewLimits(map: RegionMap, width: number, height: number, padding: number, marks: readonly ScreenMark[] = []): ViewLimits {
+export function viewLimits(
+  map: RegionMap,
+  width: number,
+  height: number,
+  padding: number,
+  marks: readonly ScreenMark[] = [],
+  travel = false,
+): ViewLimits {
   const fit = fitTransform(map.focusBounds, width, height, padding);
   const [[c0x, c0y], [c1x, c1y]] = map.coverage;
   const minK = Math.max(width / (c1x - c0x), height / (c1y - c0y));
@@ -271,11 +312,13 @@ export function viewLimits(map: RegionMap, width: number, height: number, paddin
   const [[x0, y0], [x1, y1]] = map.focusBounds;
   const mx = (x1 - x0) * PAN_MARGIN;
   const my = (y1 - y0) * PAN_MARGIN;
+  const cover = travel ? map.travelCoverage : map.coverage;
   const translateExtent: Bounds = [
-    [Math.max(c0x, x0 - mx), Math.max(c0y, y0 - my)],
+    // Travel's reach north (where it is further than the coverage) is all pannable: the traveller's pin there is.
+    [Math.max(c0x, x0 - mx), cover[0][1] < c0y ? cover[0][1] : Math.max(c0y, y0 - my)],
     [Math.min(c1x, x1 + mx), Math.min(c1y, y1 + my)],
   ];
-  const base = keepMarksWhole(map, regionBase, translateExtent, [width, height], padding, marks);
+  const base = keepMarksWhole(map, regionBase, translateExtent, [width, height], padding, marks, cover);
   return { base, minScale: Math.min(base.k, regionBase.k), translateExtent };
 }
 
@@ -334,7 +377,12 @@ function placeOnAxis({ lower, upper }: AxisBounds, k: number, target: number): n
  * possible (zooming out a little, or moving the view); failing that (the
  * traveller in Tallinn, on the coast at the top of a 231px map, where the data
  * ends just north of the view), with the marks whole and the countries' far side
- * cut as little as possible, zooming in by at most MARK_ZOOM_LIMIT.
+ * cut as little as possible, zooming in by at most MARK_ZOOM_LIMIT. A mark to keep
+ * (`keep`: the traveller in a Travel-only country) is kept whole however the countries
+ * are cut, on a map too short to show them whole too, inside `cover` and the pan limits.
+ * So is a mark the start view puts under an area it must stay clear of (`clearOf`):
+ * the view that clears it, on whichever side (left of the map controls, or above them),
+ * changing the zoom least, then moving the countries least, is taken.
  */
 function keepMarksWhole(
   map: RegionMap,
@@ -343,35 +391,65 @@ function keepMarksWhole(
   size: readonly [number, number],
   padding: number,
   marks: readonly ScreenMark[],
+  cover: Bounds,
 ): Transform {
   if (marks.length === 0) return base;
   const at = (t: Transform, d: 0 | 1) => (d === 0 ? t.x : t.y);
   const [f0, f1] = map.focusBounds;
   const whole = [0, 1].every((d) => f0[d] * base.k + at(base, d as 0 | 1) >= -0.5 && f1[d] * base.k + at(base, d as 0 | 1) <= size[d] + 0.5);
-  if (!whole) return base;
   const lo = (m: ScreenMark, d: number) => (d === 0 ? m.extent.x0 : m.extent.y0);
   const hi = (m: ScreenMark, d: number) => (d === 0 ? m.extent.x1 : m.extent.y1);
+  const boxLo = (b: ScreenBox, d: number) => (d === 0 ? b.x0 : b.y0);
+  const boxHi = (b: ScreenBox, d: number) => (d === 0 ? b.x1 : b.y1);
+  // Whether mark m, in view t, is clear of area b on some axis.
+  const clear = (t: Transform, m: ScreenMark, b: ScreenBox) =>
+    ([0, 1] as const).some((d) => {
+      const s = m.at[d] * t.k + at(t, d);
+      return s + hi(m, d) <= boxLo(b, d) - MARK_EDGE_CLEARANCE + 1e-6 || s + lo(m, d) >= boxHi(b, d) + MARK_EDGE_CLEARANCE - 1e-6;
+    });
+  const covered = marks.some((m) => (m.clearOf ?? []).some((b) => !clear(base, m, b)));
+  const keep = covered || marks.some((m) => m.keep);
+  if (!whole && !keep) return base;
   const fits = (t: Transform) =>
-    marks.every((m) =>
-      ([0, 1] as const).every((d) => {
-        const s = m.at[d] * t.k + at(t, d);
-        return s + lo(m, d) >= MARK_EDGE_CLEARANCE - 1e-6 && s + hi(m, d) <= size[d] - MARK_EDGE_CLEARANCE + 1e-6;
-      }),
+    marks.every(
+      (m) =>
+        ([0, 1] as const).every((d) => {
+          const s = m.at[d] * t.k + at(t, d);
+          return s + lo(m, d) >= MARK_EDGE_CLEARANCE - 1e-6 && s + hi(m, d) <= size[d] - MARK_EDGE_CLEARANCE + 1e-6;
+        }) && (m.clearOf ?? []).every((b) => clear(t, m, b)),
     );
   if (fits(base)) return base;
 
-  const [c0, c1] = map.coverage;
+  const [c0, c1] = cover;
   const centre = centerOf(map.focusBounds);
-  // Bounds on each axis; with `pad`, also the countries whole with that padding.
-  const axes = (pad: number | null): AxisBounds[] =>
+  // Each way of keeping the marks clear of their areas: for each mark and area, one side of the area (before or
+  // after it on an axis), as a bound on that axis. One empty way where there are no such areas.
+  type Side = { m: ScreenMark; b: ScreenBox; d: 0 | 1; after: boolean };
+  let ways: Side[][] = [[]];
+  for (const m of marks)
+    for (const b of m.clearOf ?? [])
+      ways = ways.flatMap((w) => ([0, 1] as const).flatMap((d) => [false, true].map((after) => [...w, { m, b, d, after }])));
+  // On each axis, whether the view fits inside the pan limits (true) or is larger and centred on them (false):
+  // as the base view does, or, for a mark under an area to keep clear of, either (Level 10's Poland at 200% text,
+  // where the base view, wider than the pan limits, is centred on them: zoomed in enough to fit inside them, the
+  // map may be moved to show Warsaw left of the controls).
+  type Model = readonly [boolean, boolean];
+  const span = (d: 0 | 1) => extent[1][d] - extent[0][d];
+  const baseModel: Model = [size[0] / base.k <= span(0), size[1] / base.k <= span(1)];
+  const models: Model[] = [baseModel];
+  if (covered)
+    for (const m of [[true, true], [true, false], [false, true], [false, false]] as const)
+      if (m[0] !== baseModel[0] || m[1] !== baseModel[1]) models.push(m);
+  // Bounds on each axis; with `pad`, also the countries whole with that padding; on the sides `way` takes.
+  const axes = (pad: number | null, way: readonly Side[], model: Model): AxisBounds[] =>
     ([0, 1] as const).map((d) => {
       const S = size[d];
       // Never beyond the coverage.
       const lower: Bound[] = [{ p: S, q: c1[d] }];
       const upper: Bound[] = [{ p: 0, q: c0[d] }];
-      // Within the pan limits where the base view fits inside them; where it is larger
+      // Within the pan limits where the view fits inside them; where it is larger
       // (a wide map), centred on them, as d3-zoom keeps such a view.
-      if (S / base.k <= extent[1][d] - extent[0][d]) {
+      if (model[d]) {
         lower.push({ p: S, q: extent[1][d] });
         upper.push({ p: 0, q: extent[0][d] });
       } else {
@@ -387,12 +465,23 @@ function keepMarksWhole(
         lower.push({ p: pad, q: f0[d] });
         upper.push({ p: S - pad, q: f1[d] });
       }
+      for (const s of way)
+        if (s.d === d) {
+          if (s.after) lower.push({ p: boxHi(s.b, d) + MARK_EDGE_CLEARANCE - lo(s.m, d), q: s.m.at[d] });
+          else upper.push({ p: boxLo(s.b, d) - MARK_EDGE_CLEARANCE - hi(s.m, d), q: s.m.at[d] });
+        }
       return { lower, upper };
     });
-  const solve = (pad: number | null): Transform | null => {
-    const bounds = axes(pad);
-    const scales = feasibleScales(bounds);
-    if (!scales) return null;
+  const solveWay = (pad: number | null, way: readonly Side[], model: Model): Transform | null => {
+    const bounds = axes(pad, way, model);
+    let scales = feasibleScales(bounds);
+    // Another model than the base view's holds only at the zooms where the view fits the pan limits, or not, as it says.
+    if (scales && model !== baseModel)
+      for (const d of [0, 1] as const) {
+        const fitFrom = size[d] / span(d);
+        scales = model[d] ? [Math.max(scales[0], fitFrom), scales[1]] : [scales[0], Math.min(scales[1], fitFrom)];
+      }
+    if (!scales || scales[0] > scales[1]) return null;
     const k = Math.min(scales[1], Math.max(scales[0], base.k));
     return {
       k,
@@ -400,9 +489,28 @@ function keepMarksWhole(
       y: placeOnAxis(bounds[1], k, size[1] / 2 - k * centre[1]),
     };
   };
-  if (!solve(0)) {
+  // How far a view is from the start view: its change of zoom first, then how far the countries' centre moves (px).
+  const change = (t: Transform) => [
+    Math.abs(Math.log(t.k / base.k)),
+    Math.hypot(...([0, 1] as const).map((d) => centre[d] * (t.k - base.k) + at(t, d) - at(base, d))),
+  ];
+  const nearer = (t: Transform, than: Transform) => {
+    const [a, b] = [change(t), change(than)];
+    return a[0] < b[0] - 1e-9 || (a[0] <= b[0] + 1e-9 && a[1] < b[1]);
+  };
+  // The nearest view, in any model and on any side.
+  const solve = (pad: number | null): Transform | null => {
+    let best: Transform | null = null;
+    for (const model of models)
+      for (const way of ways) {
+        const t = solveWay(pad, way, model);
+        if (t && (!best || nearer(t, best))) best = t;
+      }
+    return best;
+  };
+  if (!whole || !solve(0)) {
     const cut = solve(null);
-    return cut && cut.k <= base.k * MARK_ZOOM_LIMIT ? cut : base;
+    return cut && (keep || cut.k <= base.k * MARK_ZOOM_LIMIT) ? cut : base;
   }
   // The most padding that still leaves room for the marks.
   let [ok, no] = [0, padding];

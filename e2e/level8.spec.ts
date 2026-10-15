@@ -408,10 +408,18 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
   await expect(page.getByTestId("panel")).toContainText("Shortest route: 2 crossings");
   expect(await moves(page)).toEqual(["BLR", "UKR"]);
-  // Through Belarus: real neighbours, but the crossings run out in Ukraine.
+  await expect(page.getByTestId("travel-note")).toHaveText(
+    "On this journey, you can travel through these five countries and some of their neighbours. Other neighbouring countries cannot be selected.",
+  );
+  // Through Belarus: real neighbours, but the crossings run out in Ukraine or Latvia.
   await page.getByTestId("move-BLR").click();
-  // Poland, the start, is not offered again.
-  expect(await moves(page)).toEqual(["UKR"]);
+  // Poland, the start, is not offered again; Latvia (Travel only) is, beside Ukraine.
+  expect(await moves(page)).toEqual(["LVA", "UKR"]);
+  await page.getByTestId("move-LVA").click();
+  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
+  await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "POL,BLR,LVA");
+  await expect(page.locator('[data-testid="map-main"] [data-country="LVA"]')).toHaveAttribute("data-tone", "current");
+  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
   await page.getByTestId("move-UKR").click();
   const stuck = page.getByTestId("out-of-crossings");
   await expect(stuck).toContainText("No crossings left. Each move crossed a real border, but this route is longer than the shortest one.");

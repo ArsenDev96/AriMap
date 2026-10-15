@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
@@ -9,7 +9,7 @@ import { getCountry } from "@/core/content/countries";
 import type { CountryId } from "@/core/content/types";
 import type { LocalizedText } from "@/core/i18n/locales";
 import type { CountryTone, MapMarker, MapView } from "@/core/lesson/mapView";
-import { versionKey } from "@/core/lessons";
+import { travelCountries, versionKey } from "@/core/lessons";
 import type { LessonDefinition } from "@/core/lessons/types";
 import {
   applyTransform,
@@ -48,6 +48,12 @@ const INSET_AUTO_OPEN = { width: 600, height: 420 };
  * on a 320px phone, under its open close-up. It keeps its width, and its start view crops north and south.
  */
 const MIN_CAPPED_HEIGHT = 300;
+/**
+ * A Travel or Results map this tall or less has its controls off the map, below it or at the top of the panel beside
+ * it (see controlsPlacement): the height at which they turn into a row on the map (RegionMap.module.css), as for 200%
+ * text on a 320×568 phone (304×150 or 304×112) or a 568×320 phone in landscape (280×182 or 280×180).
+ */
+const CONTROLS_OFF_MAP_HEIGHT = 190;
 /** Inset layout (see CSS): 8px from the corner, 44px toggle and 6px gap (above it on wide maps), 2px frame; then the caption strip. */
 const INSET_CHROME_HEIGHT = 8 + 44 + 6 + 4 + 8;
 /** The caption strip's height at the usual text size; it is measured once shown (enlarged text makes it taller). */
@@ -123,6 +129,11 @@ interface Props {
   /** Current lesson stage; a close-up opened automatically stays open for that stage only. */
   stage: string;
   onCountryTap?: (country: CountryId) => void;
+  /**
+   * An element at the top of the panel, for the map's controls where a very short map has the panel beside it (see
+   * controlsPlacement). Without it they stay on the map there.
+   */
+  controlsSlot?: HTMLElement | null;
 }
 
 /** Screen-space rectangle. */
@@ -181,9 +192,14 @@ function useLevelMapData(lesson: LessonDefinition): { own?: OwnRelief } | null {
   return loaded?.key === key && isMapDataLoaded(dataset) ? loaded : null;
 }
 
-function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { own?: OwnRelief }) {
+function LoadedRegionMap({ lesson, view, stage, onCountryTap, controlsSlot, own }: Props & { own?: OwnRelief }) {
   const { t, l, name, countryParams } = useI18n();
   const map = useMemo(() => regionMapFor(lesson), [lesson]);
+  // The countries drawn as the level's (in its colours, named, toned): in Travel and its Results, its Travel-only
+  // neighbours too (`travelOnly`), which a journey can enter; in Discover and Find, its own five only. The map's
+  // framing stays the level's own (regionMapFor).
+  const travelStage = stage === "travel" || stage === "results";
+  const active = useMemo(() => (travelStage ? travelCountries(lesson) : lesson.countries), [lesson, travelStage]);
   // Countries named in a callout until zoomed in (Level 1's Luxembourg, Level 7's Andorra); none in most levels.
   const small = useMemo(() => new Set(lesson.map.smallCountries ?? []), [lesson]);
   const twoLine = useMemo(() => new Set(lesson.map.twoLineCallouts ?? []), [lesson]);
@@ -198,7 +214,8 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
   const insetRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<ZoomBehavior<HTMLDivElement, unknown> | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  // `stacked`: the panel lies below the map, not beside it (see controlsPlacement).
+  const [size, setSize] = useState({ width: 0, height: 0, stacked: false });
   // The view the map is drawn for. During a gesture the live view runs ahead of
   // it: the drawn layer and the names follow the live view until it settles.
   const [transform, setTransform] = useState<Transform>({ k: 1, x: 0, y: 0 });
@@ -241,7 +258,9 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
       const { width, height } = entry.contentRect;
-      setSize((s) => (Math.abs(s.width - width) < 1 && Math.abs(s.height - height) < 1 ? s : { width, height }));
+      // Set by the page's layout (LessonScreen's --map-room-below): the panel lies below the map, not beside it.
+      const stacked = getComputedStyle(el).getPropertyValue("--map-room-below").trim() === "1";
+      setSize((s) => (Math.abs(s.width - width) < 1 && Math.abs(s.height - height) < 1 && s.stacked === stacked ? s : { width, height, stacked }));
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -254,17 +273,48 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
   const padding = Math.max(10, Math.min(size.width, size.height) * 0.04);
   // The pan limits, and the start view for the countries alone. The map is set up
   // (and set to its start view) again only when these change: with the map's size.
+  // In Travel and its Results, a level that reaches further north there (Level 4's `travelReachNorth`) may be panned
+  // that far; only such a level's limits change with the stage, so no other level's map is set up again.
+  const travelFraming = travelStage && (lesson.map.travelReachNorth ?? 0) > 0;
+  // In Travel and its Results, on a map too short for its controls' column (CONTROLS_OFF_MAP_HEIGHT: 200% text on a
+  // phone), the controls go off the map, so the traveller's pin needn't keep clear of them by zooming in (up to 3.3
+  // times for Warsaw on a 320×568 phone, 1.9 times in landscape). With the panel below the map ("below"), they go
+  // under it, and the page gives them room from the panel so the map keeps its height (LessonScreen.module.css);
+  // with the panel beside it ("panel": a phone in landscape, where the map takes the screen's height), they go to
+  // the top of the panel (`controlsSlot`), kept there while it scrolls. The map's size is unchanged either way.
+  const shortTravelMap = travelStage && size.height > 0 && size.height <= CONTROLS_OFF_MAP_HEIGHT;
+  const controlsPlacement: "map" | "below" | "panel" = !shortTravelMap ? "map" : size.stacked ? "below" : controlsSlot ? "panel" : "map";
+  const controlsBelow = controlsPlacement === "below";
+  // The controls' box on the map, where they are on it.
+  const controlsOnMap = controlsPlacement === "map" ? controlsBox : null;
   const limits = useMemo(
-    () => (size.width > 0 ? viewLimits(map, size.width, size.height, padding) : null),
-    [map, size, padding],
+    () => (size.width > 0 ? viewLimits(map, size.width, size.height, padding, [], travelFraming) : null),
+    [map, size, padding, travelFraming],
   );
   // The start view ("Show the whole map"), with the markers drawn now kept whole: the
   // traveller's pin stands 23px above its capital, and Tallinn is on the coast at the
-  // top of the map. Elsewhere the same as the countries' own.
-  const marks = useMemo(() => view.markers.map((m) => ({ at: map.project(m.coordinates), extent: markerExtent(m.kind) })), [view.markers, map]);
+  // top of the map. Elsewhere the same as the countries' own. The traveller in a Travel-only
+  // country is kept whole even where that cuts the level's countries (see ScreenMark.keep);
+  // the traveller anywhere is kept clear of the map controls and "About the map" (Level 10's
+  // Poland, Helsinki in Results: see ScreenMark.clearOf); of "About the map" only where the controls are off the map.
+  const travellerClearOf = useMemo(() => {
+    const about = { x0: size.width - ABOUT_BUTTON_EXTENT, y0: 0, x1: size.width, y1: ABOUT_BUTTON_EXTENT };
+    if (controlsPlacement !== "map") return [about];
+    return controlsOnMap ? [controlsOnMap, about] : [];
+  }, [controlsOnMap, controlsPlacement, size.width]);
+  const marks = useMemo(
+    () =>
+      view.markers.map((m) => ({
+        at: map.project(m.coordinates),
+        extent: markerExtent(m.kind),
+        keep: m.kind === "current" && (lesson.travelOnly ?? []).includes(m.country),
+        clearOf: m.kind === "current" ? travellerClearOf : undefined,
+      })),
+    [view.markers, map, lesson, travellerClearOf],
+  );
   const start = useMemo(
-    () => (size.width > 0 ? viewLimits(map, size.width, size.height, padding, marks) : null),
-    [map, size, padding, marks],
+    () => (size.width > 0 ? viewLimits(map, size.width, size.height, padding, marks, travelFraming) : null),
+    [map, size, padding, marks, travelFraming],
   );
   const base = start?.base ?? null;
   // Read when the map is set up; changes after that are followed by the effect below it.
@@ -565,17 +615,17 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
     return () => observer.disconnect();
   }, [ready]);
 
-  // Same for the zoom controls.
+  // Same for the zoom controls, while they are on the map (off it, they are drawn again there: see controlsPlacement).
   useEffect(() => {
     const el = controlsRef.current;
-    if (!el) return;
+    if (!el || controlsPlacement !== "map") return;
     const observer = new ResizeObserver(() => {
       const box = { x0: el.offsetLeft, y0: el.offsetTop, x1: el.offsetLeft + el.offsetWidth, y1: el.offsetTop + el.offsetHeight };
       setControlsBox((b) => (b && b.x0 === box.x0 && b.y0 === box.y0 && b.x1 === box.x1 && b.y1 === box.y1 ? b : box));
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [controlsPlacement]);
 
   // The inset only names its country while that name is already visible on the map,
   // so it never gives away a Find answer or a hidden Travel country.
@@ -584,7 +634,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
 
   const obstacles = useMemo(() => {
     const boxes: Box[] = [];
-    if (controlsBox) boxes.push({ x0: controlsBox.x0 - 4, y0: controlsBox.y0 - 4, x1: size.width, y1: size.height });
+    if (controlsOnMap) boxes.push({ x0: controlsOnMap.x0 - 4, y0: controlsOnMap.y0 - 4, x1: size.width, y1: size.height });
     // "About the map", in the top-right corner.
     boxes.push({ x0: size.width - ABOUT_BUTTON_EXTENT - 4, y0: 0, x1: size.width, y1: ABOUT_BUTTON_EXTENT + 4 });
     // The inset sits in a left-hand corner (see insetTop); its area runs to the map
@@ -594,7 +644,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
       boxes.push({ x0: 0, y0: top ? 0 : insetBox.y0 - 4, x1: insetBox.x1 + 4, y1: top ? insetBox.y1 + 4 : size.height });
     }
     return boxes;
-  }, [size, insetBox, controlsBox, insetTop]);
+  }, [size, insetBox, controlsOnMap, insetTop]);
 
   // Would Luxembourg's name (or another small country's) fit on the main map at
   // the whole-map view, in a nearby callout clear of names, markers and controls?
@@ -608,7 +658,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
     const closedObstacles = [...obstacles.filter((o) => o.x0 !== 0), toggle];
     const layout = layoutOverlay({
       map,
-      active: lesson.countries,
+      active,
       view,
       route,
       routeStops,
@@ -625,7 +675,7 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
       name,
     });
     return layout.crowded.length > 0;
-  }, [base, size, lesson.map.inset, showLabels, lesson.countries, obstacles, wideMap, insetTop, map, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, l, name]);
+  }, [base, size, lesson.map.inset, showLabels, active, obstacles, wideMap, insetTop, map, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, l, name]);
 
   // No clear nearby spot in Discover: the close-up opens, with the name inside it.
   // It stays open for the rest of Discover, and never reopens once the player
@@ -645,15 +695,15 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
   const mainLayout = useMemo(
     () =>
       ready
-        ? layoutOverlay({ map, active: lesson.countries, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
+        ? layoutOverlay({ map, active, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, transform: settledView, viewport: size, textMode, obstacles, insetArea: mainInsetArea, l, name })
         : null,
-    [ready, map, lesson.countries, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, settledView, size, textMode, obstacles, mainInsetArea, l, name],
+    [ready, map, active, view, route, routeStops, small, twoLine, clearRoute, dotsClearControls, settledView, size, textMode, obstacles, mainInsetArea, l, name],
   );
   // Wave marks: Discover only, on the main map only.
   const scenery = stage === "discover" && mainLayout !== null;
   // Lesson countries in a state colour (selection, Find answers, Travel): the
   // land texture is lighter over them, and the relief uses its neutral overlay.
-  const tonedKey = lesson.countries.filter((id) => (view.tones[id] ?? "default") !== "default").join(",");
+  const tonedKey = active.filter((id) => (view.tones[id] ?? "default") !== "default").join(",");
   // The gesture copy's colours: brought up to date once the browser is idle, or
   // as soon as the map starts moving (see "The gesture copy").
   const [copyTones, setCopyTones] = useState({ tones: view.tones, key: tonedKey });
@@ -673,217 +723,235 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, own }: Props & { o
         ]
       : [];
 
-  return (
-    // data-crowded: a small country's name has no nearby clear spot on the whole-map view.
-    // The same illustrated landscape (atlas surface and relief) in every stage.
-    <div className={`${styles.wrapper} ${styles.atlas}`} ref={wrapperRef} style={{ maxWidth }} data-crowded={crowded || undefined} data-map-style="atlas" data-gesture-mode={gestureMode}>
-      {/* The stage takes the gestures and taps; taps reach the countries in the drawn layer. */}
-      <div
-        ref={stageRef}
-        data-testid="map-main"
-        className={styles.stage}
-        role="group"
-        aria-label={t("map.label", { region: l(lesson.regionName) })}
-        aria-describedby="map-gestures"
-        {...tap}
-      >
-        {ready && mainLayout && (
-          <>
-            {/* The drawn map, larger than the view by `margin` on each side (its
-                user space still starts at the view's corner), moved as one layer
-                during a gesture. */}
-            <svg
-              ref={worldRef}
-              className={styles.world}
-              width={size.width + 2 * margin.x}
-              height={size.height + 2 * margin.y}
-              viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
-              style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
-              role="none"
-            >
-              <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
-                <SeaTexture map={map} />
-                <CountryLayer map={map} active={lesson.countries} view={view} focusable onKeyTap={tapHandler} />
-                <LandTexture map={map} darkKey={tonedKey} />
-                {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={view.tones} transform={settledView} viewport={size} final={settledFinal} />}
-                {scenery && (
-                  <Scenery
-                    map={map}
-                    transform={transform}
-                    viewport={size}
-                    avoid={sceneryAvoid(transform)}
-                    compact={size.width < COMPACT_MAP_WIDTH}
-                  />
-                )}
-                <BorderLayer map={map} active={lesson.countries} />
-                <FlashLayer map={map} flash={flash} />
-              </g>
-            </svg>
-            {/* Names, markers and the route, in screen space, over the drawn map. */}
-            <svg className={styles.overlayLayer} width={size.width} height={size.height} aria-hidden="true" data-overlay="">
-              <LiveOverlay
-                live={live}
-                map={map}
-                active={lesson.countries}
-                view={view}
-                route={route}
-                routeStops={routeStops}
-                small={small}
-                twoLine={twoLine}
-                clearRoute={clearRoute}
-                dotsClearControls={dotsClearControls}
-                transform={settledView}
-                viewport={size}
-                textMode={textMode}
-                obstacles={obstacles}
-                insetArea={mainInsetArea}
-                motion={motion}
-                layout={mainLayout}
-              />
-            </svg>
-          </>
-        )}
-      </div>
-      <p id="map-gestures" className="visually-hidden">
-        {t("map.gestures")}
-      </p>
+  // Zoom in, zoom out and reset: on the map, below it, or at the top of the panel beside it (see controlsPlacement).
+  const controlsClass = { map: styles.controls, below: `${styles.controls} ${styles.controlsBelow}`, panel: `${styles.controls} ${styles.controlsInPanel}` }[controlsPlacement];
+  const controls = (
+    <div className={controlsClass} ref={controlsRef} data-testid="map-controls" data-placement={controlsPlacement === "map" ? undefined : controlsPlacement}>
+      <button type="button" className={styles.control} onClick={() => zoomBy(1.6)} aria-label={t("map.zoomIn")} title={t("map.zoomIn")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button type="button" className={styles.control} onClick={() => zoomBy(1 / 1.6)} aria-label={t("map.zoomOut")} title={t("map.zoomOut")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button type="button" className={styles.control} onClick={resetZoom} aria-label={t("map.reset")} title={t("map.reset")}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+    </div>
+  );
 
-      {ready && insetBounds && insetSize && insetTransform && (
-        // Wide maps: top-left, over sea and neighbours. Smaller (phone) maps:
-        // bottom-left, opposite the zoom controls, opening upwards (in Level 1 over
-        // western France, which leaves the crowded Low Countries and their names
-        // clear), or top-left where the level says so (Level 7: over the Bay of
-        // Biscay, clear of Portugal).
+  return (
+    <>
+      {/* data-crowded: a small country's name has no nearby clear spot on the whole-map view.
+          The same illustrated landscape (atlas surface and relief) in every stage. */}
+      <div
+        className={`${styles.wrapper} ${styles.atlas}`}
+        ref={wrapperRef}
+        style={{ maxWidth }}
+        data-crowded={crowded || undefined}
+        data-map-style="atlas"
+        data-gesture-mode={gestureMode}
+        data-controls-below={controlsBelow || undefined}
+      >
+        {/* The stage takes the gestures and taps; taps reach the countries in the drawn layer. */}
         <div
-          className={`${styles.inset} ${insetTop ? "" : styles.insetBottom} ${insetSize.beside ? styles.insetBeside : ""}`}
-          ref={insetRef}
-          data-corner={insetTop ? "top-left" : "bottom-left"}
-          data-beside={insetSize.beside || undefined}
+          ref={stageRef}
+          data-testid="map-main"
+          className={styles.stage}
+          role="group"
+          aria-label={t("map.label", { region: l(lesson.regionName) })}
+          aria-describedby="map-gestures"
+          {...tap}
         >
-          <button
-            type="button"
-            className={styles.insetToggle}
-            aria-expanded={insetOpen}
-            aria-label={insetOpen ? t("map.insetHide") : t("map.insetShow")}
-            title={insetOpen ? t("map.insetHide") : t("map.insetShow")}
-            data-testid="inset-toggle"
-            onClick={() => setChoice({ stage, open: !insetOpen })}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.2" />
-              <path d="M15 15l5.5 5.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-              <path d={insetOpen ? "M7 10h6" : "M7 10h6M10 7v6"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-          {insetOpen && (
-            <figure className={styles.insetPanel} style={{ width: insetSize.width }}>
-              {/* Visible caption is just "Close-up"; the dashed key ties it to the outlined area on the map. */}
-              <figcaption className={styles.insetCaption} data-testid="inset-title" ref={setCaption}>
-                <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true" className={styles.insetKey}>
-                  <rect x="1.5" y="1.5" width="11" height="11" rx="2" />
-                </svg>
-                <span>{t("map.insetCaption")}</span>
-              </figcaption>
+          {ready && mainLayout && (
+            <>
+              {/* The drawn map, larger than the view by `margin` on each side (its
+                  user space still starts at the view's corner), moved as one layer
+                  during a gesture. */}
               <svg
-                data-testid="map-inset"
-                className={styles.insetSvg}
-                width={insetSize.width}
-                height={insetSize.height}
-                role="group"
-                aria-label={insetTitle}
-                {...tap}
+                ref={worldRef}
+                className={styles.world}
+                width={size.width + 2 * margin.x}
+                height={size.height + 2 * margin.y}
+                viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
+                style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
+                role="none"
               >
-                <rect className={styles.sea} width={insetSize.width} height={insetSize.height} />
-                <g transform={`translate(${insetTransform.x},${insetTransform.y}) scale(${insetTransform.k})`}>
+                <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
                   <SeaTexture map={map} />
-                  <CountryLayer map={map} active={lesson.countries} view={view} focusable={false} />
+                  <CountryLayer map={map} active={active} view={view} focusable onKeyTap={tapHandler} />
                   <LandTexture map={map} darkKey={tonedKey} />
-                  {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={view.tones} transform={insetTransform} viewport={insetSize} />}
-                  <BorderLayer map={map} active={lesson.countries} />
+                  {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={view.tones} transform={settledView} viewport={size} final={settledFinal} />}
+                  {scenery && (
+                    <Scenery
+                      map={map}
+                      transform={transform}
+                      viewport={size}
+                      avoid={sceneryAvoid(transform)}
+                      compact={size.width < COMPACT_MAP_WIDTH}
+                    />
+                  )}
+                  <BorderLayer map={map} active={active} />
                   <FlashLayer map={map} flash={flash} />
                 </g>
-                <Overlay
+              </svg>
+              {/* Names, markers and the route, in screen space, over the drawn map. */}
+              <svg className={styles.overlayLayer} width={size.width} height={size.height} aria-hidden="true" data-overlay="">
+                <LiveOverlay
+                  live={live}
                   map={map}
-                  active={lesson.countries}
+                  active={active}
                   view={view}
                   route={route}
                   routeStops={routeStops}
                   small={small}
-                  transform={insetTransform}
-                  viewport={insetSize}
-                  textMode={showLabels && calloutsInInset ? "callouts" : "none"}
-                  obstacles={[]}
-                  insetArea={null}
+                  twoLine={twoLine}
+                  clearRoute={clearRoute}
+                  dotsClearControls={dotsClearControls}
+                  transform={settledView}
+                  viewport={size}
+                  textMode={textMode}
+                  obstacles={obstacles}
+                  insetArea={mainInsetArea}
+                  motion={motion}
+                  layout={mainLayout}
                 />
               </svg>
-            </figure>
+            </>
           )}
         </div>
-      )}
+        <p id="map-gestures" className="visually-hidden">
+          {t("map.gestures")}
+        </p>
 
-      <AboutMap />
-
-      <div className={styles.controls} ref={controlsRef} data-testid="map-controls">
-        <button type="button" className={styles.control} onClick={() => zoomBy(1.6)} aria-label={t("map.zoomIn")} title={t("map.zoomIn")}>
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-          </svg>
-        </button>
-        <button type="button" className={styles.control} onClick={() => zoomBy(1 / 1.6)} aria-label={t("map.zoomOut")} title={t("map.zoomOut")}>
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 12h14" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
-          </svg>
-        </button>
-        <button type="button" className={styles.control} onClick={resetZoom} aria-label={t("map.reset")} title={t("map.reset")}>
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </button>
-      </div>
-
-      {ready && copyMode && (
-        // The gesture copy (see below): at rest nearly transparent and kept drawn
-        // (Blink) or fully transparent and not drawn (Firefox); a layer behind the
-        // names and map controls, in place of the map, while the map moves (see CSS).
-        // No language of its own (lang=""): it has no text, and following the page's would draw the whole
-        // copy again (and the borders' layer) on every language switch, though nothing in it changes.
-        <div className={styles.gesture} aria-hidden="true" inert lang="">
-          <svg
-            ref={copyRef}
-            className={styles.gestureLayer}
-            width={size.width + 2 * margin.x}
-            height={size.height + 2 * margin.y}
-            viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
-            style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
-            data-gesture-copy=""
+        {ready && insetBounds && insetSize && insetTransform && (
+          // Wide maps: top-left, over sea and neighbours. Smaller (phone) maps:
+          // bottom-left, opposite the zoom controls, opening upwards (in Level 1 over
+          // western France, which leaves the crowded Low Countries and their names
+          // clear), or top-left where the level says so (Level 7: over the Bay of
+          // Biscay, clear of Portugal).
+          <div
+            className={`${styles.inset} ${insetTop ? "" : styles.insetBottom} ${insetSize.beside ? styles.insetBeside : ""}`}
+            ref={insetRef}
+            data-corner={insetTop ? "top-left" : "bottom-left"}
+            data-beside={insetSize.beside || undefined}
           >
-            <g transform={svgTransform(copyView)} style={{ "--inv": 1 / copyView.k } as CSSProperties}>
-              <SeaTexture map={map} />
-              <CountryFills map={map} active={lesson.countries} tones={copyTones.tones} />
-              <LandTexture map={map} darkKey={copyTones.key} />
-              {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={copyTones.tones} transform={settledView} viewport={size} final={settledFinal} instant />}
-              {scenery && (
-                <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
-              )}
-              {gestureMode === "copyWithBorders" && <BorderLayer map={map} active={lesson.countries} />}
-            </g>
-          </svg>
-          {gestureMode === "copy" && (
+            <button
+              type="button"
+              className={styles.insetToggle}
+              aria-expanded={insetOpen}
+              aria-label={insetOpen ? t("map.insetHide") : t("map.insetShow")}
+              title={insetOpen ? t("map.insetHide") : t("map.insetShow")}
+              data-testid="inset-toggle"
+              onClick={() => setChoice({ stage, open: !insetOpen })}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="10" cy="10" r="6.5" fill="none" stroke="currentColor" strokeWidth="2.2" />
+                <path d="M15 15l5.5 5.5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+                <path d={insetOpen ? "M7 10h6" : "M7 10h6M10 7v6"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+            {insetOpen && (
+              <figure className={styles.insetPanel} style={{ width: insetSize.width }}>
+                {/* Visible caption is just "Close-up"; the dashed key ties it to the outlined area on the map. */}
+                <figcaption className={styles.insetCaption} data-testid="inset-title" ref={setCaption}>
+                  <svg width="12" height="12" viewBox="0 0 14 14" aria-hidden="true" className={styles.insetKey}>
+                    <rect x="1.5" y="1.5" width="11" height="11" rx="2" />
+                  </svg>
+                  <span>{t("map.insetCaption")}</span>
+                </figcaption>
+                <svg
+                  data-testid="map-inset"
+                  className={styles.insetSvg}
+                  width={insetSize.width}
+                  height={insetSize.height}
+                  role="group"
+                  aria-label={insetTitle}
+                  {...tap}
+                >
+                  <rect className={styles.sea} width={insetSize.width} height={insetSize.height} />
+                  <g transform={`translate(${insetTransform.x},${insetTransform.y}) scale(${insetTransform.k})`}>
+                    <SeaTexture map={map} />
+                    <CountryLayer map={map} active={active} view={view} focusable={false} />
+                    <LandTexture map={map} darkKey={tonedKey} />
+                    {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={view.tones} transform={insetTransform} viewport={insetSize} />}
+                    <BorderLayer map={map} active={active} />
+                    <FlashLayer map={map} flash={flash} />
+                  </g>
+                  <Overlay
+                    map={map}
+                    active={active}
+                    view={view}
+                    route={route}
+                    routeStops={routeStops}
+                    small={small}
+                    transform={insetTransform}
+                    viewport={insetSize}
+                    textMode={showLabels && calloutsInInset ? "callouts" : "none"}
+                    obstacles={[]}
+                    insetArea={null}
+                  />
+                </svg>
+              </figure>
+            )}
+          </div>
+        )}
+
+        <AboutMap />
+
+        {controlsPlacement === "map" && controls}
+
+        {ready && copyMode && (
+          // The gesture copy (see below): at rest nearly transparent and kept drawn
+          // (Blink) or fully transparent and not drawn (Firefox); a layer behind the
+          // names and map controls, in place of the map, while the map moves (see CSS).
+          // No language of its own (lang=""): it has no text, and following the page's would draw the whole
+          // copy again (and the borders' layer) on every language switch, though nothing in it changes.
+          <div className={styles.gesture} aria-hidden="true" inert lang="">
             <svg
-              ref={bordersRef}
+              ref={copyRef}
               className={styles.gestureLayer}
               width={size.width + 2 * margin.x}
               height={size.height + 2 * margin.y}
               viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
               style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
-              data-live-borders=""
+              data-gesture-copy=""
             >
-              <LiveBorders map={map} active={lesson.countries} groupRef={bordersGroupRef} />
+              <g transform={svgTransform(copyView)} style={{ "--inv": 1 / copyView.k } as CSSProperties}>
+                <SeaTexture map={map} />
+                <CountryFills map={map} active={active} tones={copyTones.tones} />
+                <LandTexture map={map} darkKey={copyTones.key} />
+                {showRelief && <Relief map={map} level={versionKey(lesson)} own={own} tones={copyTones.tones} transform={settledView} viewport={size} final={settledFinal} instant />}
+                {scenery && (
+                  <Scenery map={map} transform={copyView} viewport={size} avoid={sceneryAvoid(copyView)} compact={size.width < COMPACT_MAP_WIDTH} copy />
+                )}
+                {gestureMode === "copyWithBorders" && <BorderLayer map={map} active={active} />}
+              </g>
             </svg>
-          )}
-        </div>
-      )}
-    </div>
+            {gestureMode === "copy" && (
+              <svg
+                ref={bordersRef}
+                className={styles.gestureLayer}
+                width={size.width + 2 * margin.x}
+                height={size.height + 2 * margin.y}
+                viewBox={`${-margin.x} ${-margin.y} ${size.width + 2 * margin.x} ${size.height + 2 * margin.y}`}
+                style={{ left: -margin.x, top: -margin.y, transformOrigin: `${margin.x}px ${margin.y}px` }}
+                data-live-borders=""
+              >
+                <LiveBorders map={map} active={active} groupRef={bordersGroupRef} />
+              </svg>
+            )}
+          </div>
+        )}
+      </div>
+      {controlsBelow && controls}
+      {controlsPlacement === "panel" && controlsSlot && createPortal(controls, controlsSlot)}
+    </>
   );
 }
 

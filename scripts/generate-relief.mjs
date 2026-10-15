@@ -52,7 +52,8 @@ const LEVEL_AREAS = [
   { id: "western-europe-1", countries: ["FRA", "BEL", "NLD", "LUX", "DEU"], coverageHalf: [1150, 900] },
   { id: "around-the-alps", countries: ["FRA", "CHE", "DEU", "AUT", "ITA"], coverageHalf: [1090, 840] },
   { id: "central-europe", countries: ["DEU", "POL", "CZE", "SVK", "AUT"], coverageHalf: [715, 760] },
-  { id: "along-the-adriatic", countries: ["ITA", "SVN", "HRV", "BIH", "MNE"], coverageHalf: [1000, 505] },
+  // Travel reaches 160 units further north (`map.travelReachNorth`: the traveller's pin in Budapest).
+  { id: "along-the-adriatic", countries: ["ITA", "SVN", "HRV", "BIH", "MNE"], coverageHalf: [1000, 505], travelReachNorth: 160 },
   { id: "towards-greece", countries: ["HUN", "ROU", "SRB", "BGR", "GRC"], coverageHalf: [1100, 600] },
   { id: "baltic-journey", countries: ["DEU", "POL", "LTU", "LVA", "EST"], coverageHalf: [1100, 570] },
   { id: "baltic-journey-r2", countries: ["POL", "BLR", "LTU", "LVA", "EST"], coverageHalf: [850, 470] },
@@ -81,15 +82,17 @@ export const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([100
  * A level's areas: `coverage`, everything its map can ever show (coverage in
  * regionMap.ts); `panArea`, where it can be panned when zoomed in (PAN_MARGIN
  * 0.25 in regionMap.ts); `lessonArea`, its countries, the only ones that ever
- * take a state colour (selection, answers, Travel).
+ * take a state colour (selection, answers, Travel). A level whose Travel reaches
+ * further north (`travelReachNorth`, Level 4's) has both reaching that far: its
+ * map can show it, and be panned to it, in Travel (travelCoverage in regionMap.ts).
  */
-function levelAreas({ id, countries: ids, coverageHalf: [hx, hy], dataset = "west", overviewPx = 1 }) {
+function levelAreas({ id, countries: ids, coverageHalf: [hx, hy], dataset = "west", overviewPx = 1, travelReachNorth = 0 }) {
   const [[fx0, fy0], [fx1, fy1]] = geoPath(projection).bounds(collection(ids, dataset));
   const [cx, cy] = [(fx0 + fx1) / 2, (fy0 + fy1) / 2];
-  const coverage = { x0: cx - hx, y0: cy - hy, x1: cx + hx, y1: cy + hy };
+  const coverage = { x0: cx - hx, y0: cy - hy - travelReachNorth, x1: cx + hx, y1: cy + hy };
   const panArea = {
     x0: Math.max(coverage.x0, fx0 - (fx1 - fx0) * 0.25),
-    y0: Math.max(coverage.y0, fy0 - (fy1 - fy0) * 0.25),
+    y0: travelReachNorth > 0 ? coverage.y0 : Math.max(coverage.y0, fy0 - (fy1 - fy0) * 0.25),
     x1: Math.min(coverage.x1, fx1 + (fx1 - fx0) * 0.25),
     y1: Math.min(coverage.y1, fy1 + (fy1 - fy0) * 0.25),
   };

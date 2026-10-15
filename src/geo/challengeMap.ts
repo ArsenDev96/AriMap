@@ -61,6 +61,8 @@ function buildChallengeMap(topology: ChallengeTopology): ChallengeMapData {
     shapes,
     focusBounds: topology.frame.focus,
     coverage: topology.frame.coverage,
+    // No Travel here: the same area.
+    travelCoverage: topology.frame.coverage,
     project: (point) => (projection([point[0], point[1]]) ?? [0, 0]) as [number, number],
     areas: new Map(features.map((f) => [String(f.id), path.area(f)])),
     outlines: new Map(

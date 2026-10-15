@@ -585,9 +585,26 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   await expect(page.getByText("Shortest route: 3 crossings")).toBeVisible();
   const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
   const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
-  // Every real neighbour in the level, and no others: Portugal meets only Spain.
-  expect(await moves()).toEqual(["ESP"]);
+  // Portugal meets only Spain; France is offered beside it, a card like Spain's, but shares no border with Portugal.
+  expect(await moves()).toEqual(["ESP", "FRA"]);
+  const [spainCard, franceCard] = [page.getByTestId("move-ESP"), page.getByTestId("move-FRA")];
+  expect(await franceCard.getAttribute("class")).toBe(await spainCard.getAttribute("class"));
+  // Choosing France, again and again: nothing moves, no crossing is used, no route is drawn; Travel says why.
+  for (let i = 0; i < 2; i++) {
+    await franceCard.click();
+    await expect(page.getByTestId("travel-not-neighbour")).toHaveText("There's no border between Portugal and France. Choose a neighbouring country.");
+    await expect(page.getByTestId("crossings-left")).toHaveText("3 crossings left");
+    await expect(route).toHaveCount(0);
+    await expect(page.locator('[data-testid="map-main"] [data-traveller="PRT"]')).toHaveCount(1);
+    // France is named and shown on the map in the wrong-answer colour; Spain is not marked.
+    await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toHaveAttribute("data-tone", "wrong");
+    await expect(page.locator('[data-testid="map-main"] [data-label="FRA"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="map-main"] path[data-country="ESP"]')).toHaveAttribute("data-tone", "default");
+    expect(await moves()).toEqual(["ESP", "FRA"]);
+  }
+  await expect(page.getByText("Help used on this journey")).toHaveCount(0);
   await page.getByTestId("move-ESP").click();
+  await expect(page.getByTestId("travel-not-neighbour")).toHaveCount(0);
   // Spain offers Andorra too; Portugal, the start, is not offered again.
   expect(await moves()).toEqual(["AND", "FRA"]);
   // Lisbon → north of the Tagus estuary → the border → Madrid.
@@ -605,7 +622,8 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   await expect(route).toHaveAttribute("data-route", "PRT,ESP,AND");
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
-  expect(await moves()).toEqual(["ESP"]);
+  // Back in Portugal: France is offered beside Spain again.
+  expect(await moves()).toEqual(["ESP", "FRA"]);
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   await page.getByTestId("move-ESP").click();
   await page.getByTestId("move-FRA").click();

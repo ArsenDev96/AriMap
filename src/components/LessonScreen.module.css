@@ -28,20 +28,29 @@
   flex-direction: column;
 }
 
+/* Travel and Results on a very short map (200% text on a 320×568 phone): the map's controls sit below it, in
+   their own room (8px and their 46px row), taken from the panel's, so the map keeps its height (see
+   controlsBelow in RegionMap.tsx). */
+.main:has([data-controls-below]) {
+  --map-controls-below: 54px;
+}
+
 /* Mobile: fixed map height (svh avoids resizes when browser bars move), panel scrolls below.
    With enlarged text the header and the pinned action grow too: the map then gives the panel
    the room it keeps (see .panel's flex-basis), down to a height that still holds its controls. */
 .mapArea {
   flex: 0 1 auto;
-  height: clamp(220px, 46svh, 520px);
-  min-height: 120px;
+  height: calc(clamp(220px, 46svh, 520px) + var(--map-controls-below, 0px));
+  min-height: calc(120px + var(--map-controls-below, 0px));
   padding: 8px 8px 0;
+  /* Read by RegionMap: the panel is below the map here, so a very short map's controls may go below it too. */
+  --map-room-below: 1;
 }
 
 /* Short phones: leave the panel enough room for the instruction and its action. */
 @media (max-height: 700px) {
   .mapArea {
-    height: clamp(200px, 42svh, 520px);
+    height: calc(clamp(200px, 42svh, 520px) + var(--map-controls-below, 0px));
   }
 }
 .panel {
@@ -49,7 +58,7 @@
      the text is enlarged: 18px for each pixel the root text size grows past 16px (none at the
      default size, so the map keeps its height there; about 288px at 200%). Never more than
      leaves the map its minimum. */
-  flex: 1 0 min(max(0px, (1rem - 16px) * 18), 100% - 120px);
+  flex: 1 0 max(0px, min(max(0px, (1rem - 16px) * 18), 100% - 120px) - var(--map-controls-below, 0px));
   min-height: 0;
   overflow-y: auto;
   /* The containing block of the hidden headings and labels inside (.visually-hidden is absolutely
@@ -62,6 +71,31 @@
   gap: 14px;
   font-size: 1rem;
   line-height: 1.5;
+}
+
+/* The map's controls where a very short map sits beside the panel (Travel and Results on a phone in landscape with
+   enlarged text; see controlsPlacement in RegionMap.tsx): at the top of the panel, at its right, and kept there over
+   its content while it scrolls, on the panel's white. Empty (every other layout), it takes no room. */
+.mapControlsSlot {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding-bottom: 6px;
+  background: #fff;
+}
+/* Held below the panel's top padding: white over that band too, so nothing scrolls into view (or is tapped) above them. */
+.mapControlsSlot::before {
+  content: "";
+  position: absolute;
+  inset: -16px 0 100%;
+  background: #fff;
+}
+.mapControlsSlot:empty {
+  display: none;
+}
+/* Whatever the panel scrolls into view (a focused card, the out-of-crossings message) stops below them. */
+.panel:has(> .mapControlsSlot:not(:empty)) {
+  scroll-padding-top: 58px;
 }
 
 /* Panel content never shrinks; the panel scrolls instead. */
@@ -87,6 +121,7 @@
     height: auto;
     min-height: 0;
     padding: 12px;
+    --map-room-below: 0;
   }
   .panel {
     flex: 0 0 clamp(360px, 30vw, 440px);
@@ -114,6 +149,7 @@
     height: auto;
     min-height: 0;
     padding: 8px 0 8px 8px;
+    --map-room-below: 0;
   }
   .panel {
     flex: 0 0 clamp(280px, 46vw, 400px);

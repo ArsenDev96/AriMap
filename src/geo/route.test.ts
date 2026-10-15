@@ -9,7 +9,7 @@ import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import { shortestDistance, type BorderGraph } from "@/core/game/graph";
 import { availableMoves, createAttempt, currentCountry, move } from "@/core/game/travel";
-import { LESSON_VERSIONS, LESSONS, versionKey } from "@/core/lessons";
+import { LESSON_VERSIONS, LESSONS, travelCountries, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
 import { regionMapFor, setNorthData, type MapDataset } from "./regionMap";
 import { borderKey, routeLine, routePoints, routeSettings, viaKey } from "./route";
@@ -102,7 +102,8 @@ for (const lesson of LESSON_VERSIONS) {
   const via = lesson.map.routeVia ?? {};
   const settings = routeSettings(lesson);
   const reachable = reachableMoves(lesson);
-  const allMoves = lesson.countries.flatMap((a) => lesson.borders[a].map((b) => [a, b] as const));
+  // Every border of the level, its Travel-only neighbours' included (Levels 4, 8 and 10).
+  const allMoves = travelCountries(lesson).flatMap((a) => lesson.borders[a].map((b) => [a, b] as const));
   // The moves drawn: every border with a crossing (both ways). Every reachable move has one (checked below).
   const moves = allMoves.filter(([a, b]) => borderKey(a, b) in crossings);
   const links = lesson.map.routeLinks ?? [];
@@ -203,8 +204,9 @@ for (const lesson of LESSON_VERSIONS) {
     it("uses each fixed link in a leg of its own country, joining two parts of that country's land", () => {
       for (const link of links) {
         expect(lesson.countries, link.name).toContain(link.country);
-        // Short: a bridge, not a sea route.
-        expect(km(link.points[0], link.points[1]), link.name).toBeLessThan(5);
+        // Short: a bridge, not a sea route. Level 10's Great Belt Fixed Link (two bridges by Sprogø, which the data
+        // doesn't show: one segment of 18.8 km in it, the link itself 18 km) is the only longer one.
+        expect(km(link.points[0], link.points[1]), link.name).toBeLessThan(link.name === "Great Belt Fixed Link" ? 19 : 5);
         // Both ends on the country's land.
         for (const p of link.points) expect(geoContains(shapeOf(link.country, dataset), [...p]), `${link.name} end ${p}`).toBe(true);
         // Used by some leg of that country, as two consecutive points.
@@ -270,16 +272,20 @@ for (const lesson of LESSON_VERSIONS) {
       if (lesson.id === "nordic-countries") {
         expect(paths.map((p) => p.join("→"))).toEqual(["DNK→SWE→FIN"]);
       }
+      // No shortest journey goes through a Travel-only country (Levels 4, 8 and 10).
+      for (const path of paths) for (const id of lesson.travelOnly ?? []) expect(path, id).not.toContain(id);
       for (const path of paths) {
         const line = routeLine(path, settings);
-        const others = lesson.countries.filter((id) => !path.includes(id));
+        const others = travelCountries(lesson).filter((id) => !path.includes(id));
         for (let i = 1; i < line.length; i++) {
           for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
             for (const id of others) expect(geoContains(shapeOf(id, dataset), [...p]), `${path.join("→")} enters ${id}`).toBe(false);
           }
         }
       }
-    });
+      // Level 10's line, sampled against Norway's coast and its Travel-only neighbours, takes about 11 s alone (7 s
+      // before them): over the 5 s default.
+    }, 30_000);
   });
 }
 
@@ -458,4 +464,31 @@ describe("heart-of-the-balkans: two ways to Skopje, on land; Athens's legs leave
       }
     });
   }
+});
+
+describe("nordic-countries: Germany (Travel only) is reached over Denmark's own bridges, never a ferry", () => {
+  const lesson = LESSONS["nordic-countries"];
+  const settings = routeSettings(lesson);
+
+  it("keeps the Øresund the only link between two countries; Copenhagen's leg to Germany crosses the Great Belt and the Little Belt", () => {
+    expect(lesson.map.borderLinks?.map((l) => l.name)).toEqual(["Øresund Bridge and Drogden Tunnel"]);
+    expect(lesson.map.routeLinks?.map((l) => l.name)).toEqual(["Copenhagen's inner-harbour bridges", "Great Belt Fixed Link", "New Little Belt Bridge"]);
+    const leg = lesson.map.routeVia![viaKey("DNK", "DEU")];
+    for (const link of lesson.map.routeLinks!.slice(1)) {
+      const at = leg.findIndex((p) => same(p, link.points[0]));
+      expect(at, link.name).toBeGreaterThanOrEqual(0);
+      expect(leg[at + 1], link.name).toEqual(link.points[1]);
+    }
+  });
+
+  it("draws Denmark → Germany → Poland and → the Netherlands on those countries' land and Denmark's bridges, never in Sweden", () => {
+    for (const path of [["DNK", "DEU", "POL"], ["DNK", "DEU", "NLD"]]) {
+      const line = routeLine(path, settings);
+      for (let i = 1; i < line.length; i++) {
+        for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
+          for (const id of ["SWE", "NOR", "BEL", "CZE", "LTU", "RUS"]) expect(inCountry(id, p, "north"), `${path.join("→")} enters ${id}`).toBe(false);
+        }
+      }
+    }
+  });
 });

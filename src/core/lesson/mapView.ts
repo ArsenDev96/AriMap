@@ -41,8 +41,8 @@ export interface MapView {
   /** Discover only: countries already explored, marked beside their names. */
   explored: CountryId[];
   /**
-   * Find only: the latest answer, for brief on-map feedback. `key` changes with
-   * every tap, so each answer is emphasised once.
+   * Find: the latest answer, for brief on-map feedback; Travel: a non-neighbour option just
+   * chosen (always "wrong"). `key` changes with every tap, so each answer is emphasised once.
    */
   feedback: { country: CountryId; kind: "correct" | "wrong"; key: string } | null;
   /** Travel: the journey has reached its destination. */
@@ -132,6 +132,13 @@ export function buildMapView(lesson: LessonDefinition, progress: LessonProgress,
       if (progress.stage === "travel" && ui.travelHintVisible) {
         for (const n of neighborsOf(lesson.borders, here)) labels.add(n);
       }
+      // A non-neighbour option just chosen (Level 7's France): shown and named on the map, in Find's wrong-answer
+      // colour, so the player sees where it lies; the neighbour (the move) is not marked.
+      const notice = progress.stage === "travel" ? progress.travelNotice : undefined;
+      if (notice) {
+        tones[notice.country] = "wrong";
+        labels.add(notice.country);
+      }
       return {
         ...EMPTY,
         tones,
@@ -139,6 +146,8 @@ export function buildMapView(lesson: LessonDefinition, progress: LessonProgress,
         markers: [{ kind: "current", country: here, coordinates: getCountry(here).capital.coordinates }],
         route: attempt.path,
         arrived: attempt.status === "arrived",
+        // Outlined briefly as a wrong Find answer is, again at each such choice.
+        feedback: notice ? { country: notice.country, kind: "wrong", key: `travel.${notice.seq}` } : null,
       };
     }
   }

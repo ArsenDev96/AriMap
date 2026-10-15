@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { adriaticLesson } from "../lessons/adriatic";
 import { westernEuropeLesson as lesson } from "../lessons/western-europe";
-import { shortestDistance, shortestPath, validateGraph } from "./graph";
+import { shortestDistance, shortestPath, validateGraph, type BorderGraph } from "./graph";
 import {
   availableMoves,
+  choose,
   createAttempt,
   crossingsLeft,
   isDeadEnd,
@@ -11,7 +12,9 @@ import {
   markHintUsed,
   move,
   restart,
+  travelChoices,
   undo,
+  type NonNeighbourOption,
   type TravelAttempt,
 } from "./travel";
 
@@ -163,8 +166,16 @@ describe("travel mission France → Netherlands", () => {
   });
 });
 
-describe("a dead end with crossings left (Level 4, Montenegro → Italy)", () => {
-  const adriatic = adriaticLesson.borders;
+describe("a dead end with crossings left (Level 4, Montenegro → Italy, before Hungary and Serbia)", () => {
+  // Level 4's five countries alone, as before its Travel-only neighbours: Bosnia and Herzegovina entered from Croatia
+  // was a dead end. Kept as a graph of its own to test the rule; the level now offers Serbia there (below).
+  const adriatic: BorderGraph = {
+    ITA: ["SVN"],
+    SVN: ["ITA", "HRV"],
+    HRV: ["SVN", "BIH", "MNE"],
+    BIH: ["HRV", "MNE"],
+    MNE: ["HRV", "BIH"],
+  };
   const toItaly = adriaticLesson.travel.mission;
   const via = (route: string[]) => {
     let attempt = createAttempt(adriatic, toItaly);
@@ -203,5 +214,68 @@ describe("a dead end with crossings left (Level 4, Montenegro → Italy)", () =>
     const attempt = move(longer, adriatic, "SVN").attempt;
     expect(attempt.status).toBe("outOfCrossings");
     expect(isDeadEnd(attempt, adriatic)).toBe(false);
+  });
+
+  it("is no dead end in the level now: Serbia, a Travel-only neighbour, is offered there", () => {
+    let attempt = createAttempt(adriaticLesson.borders, toItaly);
+    for (const country of ["HRV", "BIH"]) attempt = move(attempt, adriaticLesson.borders, country).attempt;
+    expect(availableMoves(attempt, adriaticLesson.borders)).toEqual(["SRB"]);
+    expect(isDeadEnd(attempt, adriaticLesson.borders)).toBe(false);
+  });
+});
+
+describe("non-neighbour options: shown among the choices, never a move (Level 7's France, at the start in Portugal)", () => {
+  const iberia: BorderGraph = {
+    PRT: ["ESP"],
+    ESP: ["PRT", "AND", "FRA"],
+    AND: ["ESP", "FRA"],
+    FRA: ["ESP", "AND", "ITA"],
+    ITA: ["FRA"],
+  };
+  const toItaly = { id: "prt-to-ita", from: "PRT", to: "ITA" };
+  const options: NonNeighbourOption[] = [{ route: ["PRT"], country: "FRA" }];
+
+  it("is a choice at its route only, styled as one: the moves, then the option", () => {
+    const start = createAttempt(iberia, toItaly);
+    expect(travelChoices(start, iberia, options)).toEqual([
+      { country: "ESP", neighbour: true },
+      { country: "FRA", neighbour: false },
+    ]);
+    // Without options, or elsewhere on the journey, the choices are the moves.
+    expect(travelChoices(start, iberia)).toEqual([{ country: "ESP", neighbour: true }]);
+    const inSpain = move(start, iberia, "ESP").attempt;
+    expect(travelChoices(inSpain, iberia, options).map((c) => c.country)).toEqual(availableMoves(inSpain, iberia));
+    // A country that is a neighbour there is a move, never an option.
+    expect(travelChoices(start, iberia, [{ route: ["PRT"], country: "ESP" }])).toEqual([{ country: "ESP", neighbour: true }]);
+  });
+
+  it("moves nothing when chosen: the same attempt (route, crossings, help), any number of times", () => {
+    const start = createAttempt(iberia, toItaly);
+    let attempt = start;
+    for (let i = 0; i < 3; i++) {
+      const result = choose(attempt, iberia, "FRA", options);
+      expect(result.outcome).toBe("notNeighbour");
+      expect(result.attempt).toBe(start);
+      attempt = result.attempt;
+    }
+    expect(crossingsLeft(attempt)).toBe(3);
+    expect(attempt).toMatchObject({ path: ["PRT"], status: "playing", hintUsed: false, undoUsed: false });
+    // The graph is unchanged: as a move, France is invalid there.
+    expect(move(start, iberia, "FRA").outcome).toBe("invalid");
+    expect(choose(start, iberia, "FRA").outcome).toBe("invalid");
+  });
+
+  it("leaves real moves, wrong turns, Undo and Restart as they were", () => {
+    const start = createAttempt(iberia, toItaly);
+    expect(choose(start, iberia, "ESP", options)).toEqual(move(start, iberia, "ESP"));
+    const andorra = choose(choose(start, iberia, "ESP", options).attempt, iberia, "AND", options).attempt;
+    const wrong = choose(andorra, iberia, "FRA", options);
+    expect(wrong).toEqual(move(andorra, iberia, "FRA"));
+    expect(wrong.outcome).toBe("outOfCrossings");
+    // Back at the start by Undo or Restart: the option is shown again.
+    expect(travelChoices(undo(choose(start, iberia, "ESP", options).attempt), iberia, options).map((c) => c.country)).toEqual(["ESP", "FRA"]);
+    expect(travelChoices(restart(wrong.attempt), iberia, options).map((c) => c.country)).toEqual(["ESP", "FRA"]);
+    // Out of crossings: no choices at all.
+    expect(travelChoices(wrong.attempt, iberia, options)).toEqual([]);
   });
 });

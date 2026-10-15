@@ -61,7 +61,7 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * with playable levels (Europe) opens its level selection, from its land or its card (its name is the
  * card's one button, for the keyboard and assistive technology); the others are tiles that say
  * "Coming soon" and do nothing. Oceania and Antarctica are drawn as context only. Europe's levels
- * completed ("Completed: 2/8") are shown once, on its card, never on the map. The main action, right
+ * completed ("Completed: 2/10") are shown once, on its card, never on the map. The main action, right
  * under the cards, resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
  * the level's title too in its accessible name), or else opens Europe (Explore Europe); it scrolls with
  * the content. The page's frame (header, scrolling content) is the level selection's
@@ -234,8 +234,8 @@ function Silhouette({ continent }: { continent: ContinentId }) {
 }
 
 /**
- * A continent's levels completed, from the permanent records: "Completed: 2/8" (the count kept on one
- * line, beside a check) and a bar, read in full ("2 of 8 Europe levels completed"), on its card under
+ * A continent's levels completed, from the permanent records: "Completed: 2/10" (the count kept on one
+ * line, beside a check) and a bar, read in full ("2 of 10 Europe levels completed"), on its card under
  * its name; under them, apart from the bar, its stars ("★ 17/24", StarTotal), which measure how
  * well the levels were played rather than how many.
  */

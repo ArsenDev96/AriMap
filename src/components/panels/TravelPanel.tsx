@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { availableMoves, crossingsLeft, currentCountry, isAssisted, isDeadEnd } from "@/core/game/travel";
+import { crossingsLeft, currentCountry, isAssisted, isDeadEnd, travelChoices, type TravelAttempt } from "@/core/game/travel";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
 import styles from "../LessonScreen.module.css";
@@ -64,7 +64,10 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
   const attempt = progress.travel;
   // Out of crossings, or a dead end with crossings left (every neighbour already on the route).
   const isStuck = !!attempt && (attempt.status === "outOfCrossings" || isDeadEnd(attempt, lesson.borders));
-  const labelsKey = attempt ? availableMoves(attempt, lesson.borders).map((id) => name(id)).join("|") : "";
+  // The state's choices: its moves, and a non-neighbour option shown there (Level 7's France at the start), as alike
+  // cards; which one is no neighbour is never shown before it is chosen.
+  const choicesOf = (a: TravelAttempt) => travelChoices(a, lesson.borders, lesson.travel.nonNeighbourOptions).map((c) => c.country);
+  const labelsKey = attempt ? choicesOf(attempt).map((id) => name(id)).join("|") : "";
   const { gridRef, measureRef, columns } = useNeighborColumns(labelsKey);
 
   // On phones the panel is short: bring the Undo/Retry choice into view.
@@ -76,7 +79,9 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
 
   const left = crossingsLeft(attempt);
   const here = currentCountry(attempt);
-  const moves = availableMoves(attempt, lesson.borders);
+  const moves = choicesOf(attempt);
+  // The last choice was a non-neighbour option: said in place of the usual line, again at each such choice.
+  const notice = progress.travelNotice;
   const deadEnd = isDeadEnd(attempt, lesson.borders);
   const stuck = attempt.status === "outOfCrossings" || deadEnd;
   const hasMoved = attempt.path.length > 1;
@@ -116,7 +121,12 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
       </div>
 
       <div role="status" aria-live="polite">
-        {!stuck && (
+        {!stuck && notice && (
+          <p key={notice.seq} className={`${styles.feedback} ${styles.travelStatus} ${styles.feedbackWrong}`} data-testid="travel-not-neighbour">
+            {t("travel.notNeighbour", { here: countryParams(notice.from).country, there: countryParams(notice.country).country })}
+          </p>
+        )}
+        {!stuck && !notice && (
           <p className={`${styles.feedback} ${styles.travelStatus} ${hasMoved ? styles.feedbackCorrect : styles.feedbackInfo}`}>
             {hasMoved ? t("travel.moved", countryParams(here)) : t("travel.current", countryParams(here))}
           </p>
@@ -190,9 +200,10 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
           {t("travel.restart")}
         </button>
       </div>
-      {/* The level's own note where the usual one would not tell the whole story (Level 10's fixed link and Iceland). */}
+      {/* The level's own note where the usual one would not tell the whole story (Level 10's fixed link and Iceland);
+          where Travel can also enter some neighbours (`travelOnly`), the usual one says so. */}
       <p className={styles.note} data-testid="travel-note">
-        {lesson.travel.note ? l(lesson.travel.note) : t("travel.region")}
+        {lesson.travel.note ? l(lesson.travel.note) : t(lesson.travelOnly?.length ? "travel.regionNeighbours" : "travel.region")}
       </p>
     </>
   );

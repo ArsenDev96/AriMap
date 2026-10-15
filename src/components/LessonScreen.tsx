@@ -57,6 +57,9 @@ export function LessonScreen({ lesson, progress, next, newBest, dispatch }: Prop
     if (discoverSelected) panelRef.current?.scrollTo({ top: 0 });
   }, [discoverSelected]);
 
+  // The top of the panel, where the map's controls go when a very short map sits beside it (see RegionMap's controlsPlacement).
+  const [controlsSlot, setControlsSlot] = useState<HTMLDivElement | null>(null);
+
   const view = useMemo(() => buildMapView(lesson, progress, { travelHintVisible }), [lesson, progress, travelHintVisible]);
 
   const onCountryTap = (country: CountryId) => {
@@ -75,9 +78,10 @@ export function LessonScreen({ lesson, progress, next, newBest, dispatch }: Prop
       <Header progress={progress} dispatch={dispatch} />
       <main className={styles.main}>
         <div className={styles.mapArea}>
-          <RegionMap lesson={lesson} view={view} stage={progress.stage} onCountryTap={onCountryTap} />
+          <RegionMap lesson={lesson} view={view} stage={progress.stage} onCountryTap={onCountryTap} controlsSlot={controlsSlot} />
         </div>
         <section ref={panelRef} className={styles.panel} data-testid="panel">
+          <div ref={setControlsSlot} className={styles.mapControlsSlot} data-testid="map-controls-slot" />
           {progress.stage === "discover" && <DiscoverPanel {...panelProps} />}
           {progress.stage === "find" && <FindPanel {...panelProps} />}
           {progress.stage === "travel" && (

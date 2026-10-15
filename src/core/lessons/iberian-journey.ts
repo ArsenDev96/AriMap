@@ -24,7 +24,13 @@ export const iberianJourneyLesson: LessonDefinition = {
   // Three crossings, by exactly one shortest route: Spain, then France. Through
   // Andorra takes four (Spain → Andorra → France is one crossing more than Spain →
   // France), so a player who goes that way runs out of crossings in France.
-  travel: { mission: { id: "prt-to-ita", from: "PRT", to: "ITA" } },
+  travel: {
+    mission: { id: "prt-to-ita", from: "PRT", to: "ITA" },
+    // Portugal borders only Spain, so the start offered one move. France is shown beside it, styled the same, as a
+    // geography distractor: Portugal and France share no border (Spain lies between), so choosing it moves nothing
+    // and uses no crossing, and Travel says so. Not an edge of `borders`.
+    nonNeighbourOptions: [{ route: ["PRT"], country: "FRA" }],
+  },
   // France's usual hint ("the largest country in this region, with coasts on the
   // Atlantic and the Mediterranean") is true here but fits Spain almost as well: both
   // have the two coasts, and they look about the same size. Here it is told by the

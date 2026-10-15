@@ -493,7 +493,7 @@ test.describe("continents", () => {
     await dialog.getByRole("button", { name: "Start over" }).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeVisible();
     await page.getByTestId("home").click();
-    await expect(progressText(page)).toHaveText("Completed: 2/9");
+    await expect(progressText(page)).toHaveText("Completed: 2/10");
     await expect(continueButton(page)).toHaveAttribute("data-level", L3);
     await europeName(page).click();
     await expect(page.getByTestId(`level-${L3}`).getByTestId("level-status")).toHaveText("In progress: Discover");

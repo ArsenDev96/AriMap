@@ -57,7 +57,8 @@ describe("painted relief", () => {
       expect(existsSync(`src/assets/map/relief/${key}-land.webp`)).toBe(true);
       expect(existsSync(`src/assets/map/relief/${key}-tone.webp`)).toBe(true);
       const { land, tone } = o!;
-      const [[c0x, c0y], [c1x, c1y]] = map.coverage;
+      // Travel's reach included (Level 4's, further north: travelReachNorth); every other level's is its coverage.
+      const [[c0x, c0y], [c1x, c1y]] = map.travelCoverage;
       expect(land.x).toBeLessThanOrEqual(c0x);
       expect(land.y).toBeLessThanOrEqual(c0y);
       expect(land.x + land.width).toBeGreaterThanOrEqual(c1x - 1);
@@ -84,7 +85,8 @@ describe("painted relief", () => {
 
     it(`${key}: zoomed tiles cover everywhere its map can be zoomed and panned to`, () => {
       const map = regionMapFor(lesson);
-      const [[e0x, e0y], [e1x, e1y]] = viewLimits(map, 390, 400, 16).translateExtent;
+      // In Travel, as far as Travel can be panned (Level 4's reach north; the same as elsewhere in every other level).
+      const [[e0x, e0y], [e1x, e1y]] = viewLimits(map, 390, 400, 16, [], true).translateExtent;
       if (lesson.map.dataset === "north") {
         // Level 10 draws the Quick Challenge's tiles (loadLevelRelief in Relief.tsx): their grid covers its pan area but
         // for a strip at most 16 units wide west of Iceland, open sea, where the overview shows.

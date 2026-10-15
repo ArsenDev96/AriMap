@@ -10,10 +10,11 @@ import {
   type FindSession,
 } from "../game/find";
 import {
+  choose,
   createAttempt,
+  currentCountry,
   isIndependentCompletion,
   markHintUsed,
-  move,
   restart,
   undo,
   type TravelAttempt,
@@ -69,6 +70,22 @@ export interface LessonProgress {
    */
   journeyReplay: boolean;
   records: LessonRecords;
+  /**
+   * Travel's answer to the last choice, when it was a non-neighbour option (choose: "notNeighbour", Level 7's France
+   * at the start): the two countries share no border. It changes nothing else: the attempt, its crossings and its
+   * help are as they were, and no rating changes. `seq` counts such choices in a row, so each is said again. The
+   * next Travel action clears it; a save is never read back with it (parseLessonProgress), so a refresh drops it.
+   */
+  travelNotice?: TravelNotice;
+}
+
+export interface TravelNotice {
+  kind: "notNeighbour";
+  /** The country the player is in. */
+  from: CountryId;
+  /** The country chosen, which shares no border with it. */
+  country: CountryId;
+  seq: number;
 }
 
 export type LessonAction =
@@ -186,15 +203,21 @@ export function lessonReducer(lesson: LessonDefinition, state: LessonProgress, a
 
     case "travelMove": {
       if (state.stage !== "travel" || !state.travel) return state;
-      const { attempt, outcome } = move(state.travel, lesson.borders, action.country);
+      // A move, or a non-neighbour option shown here (lesson.travel.nonNeighbourOptions), which moves nothing.
+      const { attempt, outcome } = choose(state.travel, lesson.borders, action.country, lesson.travel.nonNeighbourOptions);
       if (outcome === "invalid") return state;
-      if (outcome !== "arrived") return { ...state, travel: attempt };
+      if (outcome === "notNeighbour") {
+        const seq = (state.travelNotice?.seq ?? 0) + 1;
+        return { ...state, travelNotice: { kind: "notNeighbour", from: currentCountry(state.travel), country: action.country, seq } };
+      }
+      if (outcome !== "arrived") return { ...state, travel: attempt, travelNotice: undefined };
       const independent = isIndependentCompletion(attempt);
       // A full-level attempt is rated as it completes; a journey replay is not.
       const rating = !state.journeyReplay && state.find?.status === "complete" ? rateAttempt(state.find.results, { independent }) : null;
       return {
         ...state,
         travel: attempt,
+        travelNotice: undefined,
         stage: "results",
         lastTravelResult: {
           missionId: attempt.missionId,
@@ -215,18 +238,18 @@ export function lessonReducer(lesson: LessonDefinition, state: LessonProgress, a
 
     case "travelHint":
       if (state.stage !== "travel" || !state.travel) return state;
-      return { ...state, travel: markHintUsed(state.travel) };
+      return { ...state, travel: markHintUsed(state.travel), travelNotice: undefined };
 
     case "travelUndo":
       if (state.stage !== "travel" || !state.travel) return state;
-      return { ...state, travel: undo(state.travel) };
+      return { ...state, travel: undo(state.travel), travelNotice: undefined };
 
     case "travelRestart":
       if (state.stage !== "travel" || !state.travel) return state;
-      return { ...state, travel: restart(state.travel) };
+      return { ...state, travel: restart(state.travel), travelNotice: undefined };
 
     case "replayTravel":
       if (!state.records.findDone) return state;
-      return { ...state, started: true, stage: "travel", travel: createAttempt(lesson.borders, lesson.travel.mission), journeyReplay: true };
+      return { ...state, started: true, stage: "travel", travel: createAttempt(lesson.borders, lesson.travel.mission), journeyReplay: true, travelNotice: undefined };
   }
 }

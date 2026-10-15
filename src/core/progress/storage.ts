@@ -3,7 +3,7 @@ import { isValidOrder, MAX_HINT_LEVEL, type FindAnswer, type FindFeedback, type 
 import { crossingBudget, type TravelAttempt, type TravelStatus } from "../game/travel";
 import { isConnectedRoute } from "../game/graph";
 import { isLocale } from "../i18n/locales";
-import { getLevel, hasPlayableLevels, isContinentId, LESSONS, LEVELS, levelVersion, type LevelInfo } from "../lessons";
+import { getLevel, hasPlayableLevels, isContinentId, LESSONS, LEVELS, levelVersion, travelCountries, type LevelInfo } from "../lessons";
 import type { LessonDefinition, TravelMission } from "../lessons/types";
 import {
   createLessonProgress,
@@ -325,10 +325,12 @@ function savedMission(lesson: LessonDefinition, id: unknown): TravelMission | nu
   return [lesson.travel.mission, ...(lesson.travel.earlierMissions ?? [])].find((m) => m.id === id) ?? null;
 }
 
+/** A saved route: its countries the level's own or its Travel-only neighbours (a route that ran out of crossings in one). */
 function parseRoute(lesson: LessonDefinition, mission: TravelMission, v: unknown, budget: number): CountryId[] | null {
   const { from } = mission;
   if (!Array.isArray(v) || v[0] !== from || v.length - 1 > budget) return null;
-  if (!v.every((id) => typeof id === "string" && lesson.countries.includes(id))) return null;
+  const countries = travelCountries(lesson);
+  if (!v.every((id) => typeof id === "string" && countries.includes(id))) return null;
   return isConnectedRoute(lesson.borders, v) ? (v as CountryId[]) : null;
 }
 

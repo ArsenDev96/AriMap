@@ -19,6 +19,58 @@ export interface TravelAttempt {
 
 export type MoveOutcome = "moved" | "arrived" | "outOfCrossings" | "invalid";
 
+/**
+ * A country shown among a journey's choices at one point of it although it is no neighbour of the country there:
+ * a geography distractor (Level 7's France, at the start in Portugal). It is never an edge of the border graph:
+ * choosing it moves nothing (outcome "notNeighbour"), and the player chooses again. Shown only while the route is
+ * exactly `route` (so again after Undo or Restart back to it) and moves are possible.
+ */
+export interface NonNeighbourOption {
+  route: readonly CountryId[];
+  country: CountryId;
+}
+
+/** One of a state's choices: a real neighbour (a move) or a non-neighbour option (a distractor). */
+export interface TravelChoice {
+  country: CountryId;
+  neighbour: boolean;
+}
+
+export type ChoiceOutcome = MoveOutcome | "notNeighbour";
+
+const sameRoute = (a: readonly CountryId[], b: readonly CountryId[]) => a.length === b.length && a.every((id, i) => id === b[i]);
+
+/** The non-neighbour options shown at this state (never a neighbour of the current country, nor a country on the route). */
+export function nonNeighbourChoices(a: TravelAttempt, graph: BorderGraph, options: readonly NonNeighbourOption[] = []): readonly CountryId[] {
+  if (a.status !== "playing" || crossingsLeft(a) <= 0) return [];
+  const here = currentCountry(a);
+  return options
+    .filter((o) => sameRoute(o.route, a.path) && !areNeighbors(graph, here, o.country) && !a.path.includes(o.country))
+    .map((o) => o.country);
+}
+
+/** Every choice at this state: the moves (availableMoves), then the non-neighbour options shown there. */
+export function travelChoices(a: TravelAttempt, graph: BorderGraph, options: readonly NonNeighbourOption[] = []): TravelChoice[] {
+  return [
+    ...availableMoves(a, graph).map((country) => ({ country, neighbour: true })),
+    ...nonNeighbourChoices(a, graph, options).map((country) => ({ country, neighbour: false })),
+  ];
+}
+
+/**
+ * Takes one of the state's choices: a neighbour is a move (see move); a non-neighbour option shown here leaves the
+ * attempt exactly as it was (no crossing, no route, no help recorded) with outcome "notNeighbour".
+ */
+export function choose(
+  a: TravelAttempt,
+  graph: BorderGraph,
+  to: CountryId,
+  options: readonly NonNeighbourOption[] = [],
+): { attempt: TravelAttempt; outcome: ChoiceOutcome } {
+  if (nonNeighbourChoices(a, graph, options).includes(to)) return { attempt: a, outcome: "notNeighbour" };
+  return move(a, graph, to);
+}
+
 export function crossingBudget(graph: BorderGraph, mission: TravelMission): number {
   const distance = shortestDistance(graph, mission.from, mission.to);
   if (distance === null) throw new Error(`No route from ${mission.from} to ${mission.to}`);
