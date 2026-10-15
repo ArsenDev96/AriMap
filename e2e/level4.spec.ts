@@ -368,13 +368,17 @@ test("Level 4, Along the Adriatic: Discover, Find, Travel and Results", async ({
   await expect(page.getByText("Shortest route: 3 crossings")).toBeVisible();
   const moves = async () => (await page.locator('[data-testid^="move-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.slice(5)))).sort();
   const route = page.locator('[data-testid="map-main"] [data-testid="route-line"]');
-  // Every real neighbour in the level, and no others: Montenegro meets Croatia and Bosnia and Herzegovina (no sea crossing to Italy).
-  expect(await moves()).toEqual(["BIH", "HRV"]);
+  // Every real neighbour, Serbia (Travel only) included, and no others: Montenegro meets Croatia, Bosnia and Herzegovina
+  // and Serbia (no sea crossing to Italy). The note says some neighbours can be entered too.
+  expect(await moves()).toEqual(["BIH", "HRV", "SRB"]);
+  await expect(page.getByTestId("travel-note")).toHaveText(
+    "On this journey, you can travel through these five countries and some of their neighbours. Other neighbouring countries cannot be selected.",
+  );
   // Through Bosnia and Herzegovina first: real borders, but the crossings run out in Slovenia, before Italy.
   await page.getByTestId("move-BIH").click();
-  expect(await moves()).toEqual(["HRV"]);
+  expect(await moves()).toEqual(["HRV", "SRB"]);
   await page.getByTestId("move-HRV").click();
-  expect(await moves()).toEqual(["SVN"]);
+  expect(await moves()).toEqual(["HUN", "SRB", "SVN"]);
   await page.getByTestId("move-SVN").click();
   await expect(page.getByTestId("out-of-crossings")).toBeVisible();
   await expect(page.getByTestId("crossings-left")).toHaveText("0 crossings left");
@@ -385,28 +389,51 @@ test("Level 4, Along the Adriatic: Discover, Find, Travel and Results", async ({
   await expect(route).toHaveAttribute("data-route", "MNE,BIH,HRV");
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
-  expect(await moves()).toEqual(["BIH", "HRV"]);
+  expect(await moves()).toEqual(["BIH", "HRV", "SRB"]);
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   // Podgorica → a turning point north of the Bay of Kotor → the border → down the coast, over the Pelješac Bridge → Zagreb.
   await page.getByTestId("move-HRV").click();
   await expect(route).toHaveAttribute("data-route", "MNE,HRV");
   await expect(route).toHaveAttribute("data-points", "13");
   // Montenegro, the start, is not offered again.
-  expect(await moves()).toEqual(["BIH", "SVN"]);
-  // Into Bosnia and Herzegovina from Croatia: a dead end with a crossing left (both its neighbours are on the route).
+  expect(await moves()).toEqual(["BIH", "HUN", "SRB", "SVN"]);
+  // Into Bosnia and Herzegovina from Croatia: no dead end now; Serbia (Travel only) is its one way on.
   await page.getByTestId("move-BIH").click();
-  const dead = page.getByTestId("dead-end");
-  await expect(dead).toContainText("Dead end in Bosnia and Herzegovina.");
+  await expect(page.getByTestId("dead-end")).toHaveCount(0);
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  await expect(page.getByTestId("out-of-crossings")).toHaveCount(0);
-  expect(await moves()).toEqual([]);
-  await dead.getByRole("button", { name: "Undo" }).click();
-  expect(await moves()).toEqual(["BIH", "SVN"]);
-  // Retry from the dead end: back in Montenegro.
-  await page.getByTestId("move-BIH").click();
-  await dead.getByRole("button", { name: "Retry" }).click();
+  expect(await moves()).toEqual(["SRB"]);
+  // Into Serbia: out of crossings there, drawn on the map, and restored as it was after a refresh.
+  await page.getByTestId("move-SRB").click();
+  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
+  await expect(route).toHaveAttribute("data-route", "MNE,HRV,BIH,SRB");
+  await expect(page.locator('[data-testid="map-main"] [data-country="SRB"]')).toHaveAttribute("data-tone", "current");
+  await page.reload();
+  await expect(route).toHaveAttribute("data-route", "MNE,HRV,BIH,SRB");
+  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
+  // Retry: back in Montenegro.
+  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Retry" }).click();
   await expect(route).toHaveCount(0);
-  expect(await moves()).toEqual(["BIH", "HRV"]);
+  expect(await moves()).toEqual(["BIH", "HRV", "SRB"]);
+  // Slovenia, a crossing left: Italy or Hungary (Travel only), a choice.
+  await page.getByTestId("move-HRV").click();
+  await page.getByTestId("move-SVN").click();
+  expect(await moves()).toEqual(["HUN", "ITA"]);
+  await page.getByTestId("move-HUN").click();
+  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
+  // The traveller in Budapest, 20 units inside the level's coverage at its north edge: Travel reaches further north
+  // (travelReachNorth), so the camera moves to show the pin whole, 2px clear of the map's edge.
+  await expect(page.locator('[data-testid="map-main"] [data-traveller="HUN"]')).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const pin = (await page.locator('[data-testid="map-main"] [data-traveller="HUN"]').boundingBox())!;
+      const map = (await page.getByTestId("map-main").boundingBox())!;
+      return pin.y >= map.y + 1 && pin.x >= map.x && pin.x + pin.width <= map.x + map.width && pin.y + pin.height <= map.y + map.height;
+    })
+    .toBe(true);
+  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("move-ITA")).toBeVisible();
+  await page.getByRole("button", { name: "Restart" }).click();
+  await expect(route).toHaveCount(0);
   await page.getByTestId("move-HRV").click();
   await page.getByTestId("move-SVN").click();
   await page.getByTestId("move-ITA").click();
@@ -457,7 +484,8 @@ test("Level 4: saves from when the journey ran Italy → Montenegro keep it; Rep
     await expect(page.getByRole("heading", { name: italyToMontenegro })).toBeVisible();
     await expect(route).toHaveAttribute("data-route", "ITA,SVN");
     await expect(page.getByTestId("crossings-left")).toHaveText(locale === "en" ? "2 crossings left" : "Մնաց 2 սահմանահատում");
-    expect(await moves()).toEqual(["HRV"]);
+    // Croatia, or Hungary (Travel only).
+    expect(await moves()).toEqual(["HRV", "HUN"]);
     await page.getByTestId("travel-tools").getByRole("button", { name: locale === "en" ? "Restart" : "Սկսել նորից" }).click();
     await expect(page.getByRole("heading", { name: italyToMontenegro })).toBeVisible();
     expect(await moves()).toEqual(["SVN"]);
@@ -472,7 +500,7 @@ test("Level 4: saves from when the journey ran Italy → Montenegro keep it; Rep
     await expect(page.getByTestId("result-crossings")).toContainText("3");
     await page.getByRole("button", { name: locale === "en" ? "Replay journey" : "Նորից ճամփորդել" }).click();
     await expect(page.getByRole("heading", { name: montenegroToItaly })).toBeVisible();
-    expect(await moves()).toEqual(["BIH", "HRV"]);
+    expect(await moves()).toEqual(["BIH", "HRV", "SRB"]);
   }
 });
 

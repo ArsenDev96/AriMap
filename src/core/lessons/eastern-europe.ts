@@ -7,23 +7,27 @@ export const easternEuropeLesson: LessonDefinition = {
     hy: "Արևելյան Եվրոպա",
   },
   countries: ["POL", "BLR", "UKR", "MDA", "ROU"],
-  // Every real land border among the five (CIA World Factbook, last edition; checked
-  // against the map data in src/geo/regionMap.test.ts). Restricted to the level's
-  // countries: e.g. Poland–Germany, Belarus–Lithuania, Ukraine–Russia, Ukraine–Hungary
-  // and Romania–Bulgaria are real but out of scope. Poland and Belarus meet neither
+  // Travel only: Latvia, Belarus's real neighbour to the north, so Belarus (entered with one crossing left)
+  // offers a choice, not only Ukraine. It borders no other country here, and is never on a shortest route.
+  travelOnly: ["LVA"],
+  // Every real land border among the six (CIA World Factbook, last edition; checked
+  // against the map data in src/geo/regionMap.test.ts). Restricted to them: e.g.
+  // Poland–Germany, Belarus–Lithuania, Ukraine–Russia, Ukraine–Hungary and
+  // Romania–Bulgaria are real but out of scope. Poland and Belarus meet neither
   // Moldova nor Romania: Ukraine lies between. Moldova lies between Romania and Ukraine
   // only. Ukraine and Romania meet in two places (Maramureș and Bukovina in the north,
   // the Danube delta in the south), one border here. No sea connection is added.
   borders: {
     POL: ["BLR", "UKR"],
-    BLR: ["POL", "UKR"],
+    BLR: ["POL", "UKR", "LVA"],
     UKR: ["POL", "BLR", "MDA", "ROU"],
     MDA: ["UKR", "ROU"],
     ROU: ["UKR", "MDA"],
+    LVA: ["BLR"],
   },
   // Two crossings, by exactly one shortest route: Ukraine, then Moldova. Only Ukraine
-  // borders both Poland and Moldova; through Belarus or Romania takes three, so a player
-  // who goes that way runs out of crossings before Moldova.
+  // borders both Poland and Moldova; through Belarus (then Ukraine or Latvia) or Romania
+  // takes three, so a player who goes that way runs out of crossings before Moldova.
   travel: { mission: { id: "pol-to-mda", from: "POL", to: "MDA" } },
   // Poland's usual hint ("in the north-east of this region") and Romania's ("the largest
   // country in this region") were written for Levels 3 and 5; here Poland is in the west
@@ -57,6 +61,9 @@ export const easternEuropeLesson: LessonDefinition = {
       "MDA-UKR": [29.4589, 47.2934],
       "ROU-UKR": [24.6617, 47.8538],
       "MDA-ROU": [27.9631, 47.0435],
+      // Travel only: Level 6's, in Latvia's south-east (docs/DATA.md, "Level 8"; written out here, as Level 6
+      // reads this level's crossings). Riga's and Minsk's legs to it are straight.
+      "BLR-LVA": [27.1107, 55.8362],
     },
   },
 };

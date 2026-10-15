@@ -1,3 +1,14 @@
+/* The map buttons' surface: on the map, and its controls where they are off it (.controlsBelow, .controlsInPanel). */
+.wrapper,
+.controlsBelow,
+.controlsInPanel {
+  --map-control: #fffaf3;
+  --map-control-hover: #f6eee1;
+  --map-control-border: rgba(31, 58, 95, 0.16);
+  --map-control-shadow: 0 2px 8px rgba(31, 58, 95, 0.12);
+  --map-control-radius: 12px;
+}
+
 /* Map palette. Kept local so the rest of the UI (e.g. Travel's neighbour
    buttons, which use --land) is unaffected. */
 .wrapper {
@@ -14,11 +25,6 @@
   --map-label-halo: rgba(255, 255, 255, 0.78);
   --map-label-on-dark: #ffffff;
   --map-label-on-dark-halo: rgba(9, 74, 67, 0.55);
-  --map-control: #fffaf3;
-  --map-control-hover: #f6eee1;
-  --map-control-border: rgba(31, 58, 95, 0.16);
-  --map-control-shadow: 0 2px 8px rgba(31, 58, 95, 0.12);
-  --map-control-radius: 12px;
   --map-route: var(--ink);
   --map-glow: rgba(255, 187, 69, 0.85);
   /* Stroke widths on screen, shared by the map and the gesture copy (see .gestureLayer). */
@@ -43,6 +49,12 @@
   isolation: isolate;
   /* For the controls' query below: how tall the map is. */
   container: map / size;
+}
+
+/* With its controls below it (Travel and Results on a very short map, see controlsBelow in RegionMap.tsx), the
+   map keeps its height: its area is taller by their room (--map-controls-below, LessonScreen.module.css). */
+.wrapper[data-controls-below] {
+  height: calc(100% - var(--map-controls-below, 0px));
 }
 
 /* Takes the gestures and taps; holds the drawn layer and the names over it. */
@@ -683,6 +695,28 @@
     border-top: 0;
     border-left: 1px solid rgba(31, 58, 95, 0.12);
   }
+}
+
+/* Below the map, at its right (Travel and Results on a very short map): the same row, 8px under it. Its room,
+   8px and its 46px, is --map-controls-below (LessonScreen.module.css). */
+.controlsBelow {
+  position: static;
+  width: fit-content;
+  margin: 8px 0 0 auto;
+  flex-direction: row;
+}
+/* At the top of the panel beside the map (Travel and Results on a very short map in landscape): the same row, at the
+   panel's right, in its slot (LessonScreen.module.css), which keeps it in view while the panel scrolls. */
+.controlsInPanel {
+  position: static;
+  width: fit-content;
+  margin-left: auto;
+  flex-direction: row;
+}
+.controlsBelow .control + .control,
+.controlsInPanel .control + .control {
+  border-top: 0;
+  border-left: 1px solid rgba(31, 58, 95, 0.12);
 }
 
 @media (hover: hover) {

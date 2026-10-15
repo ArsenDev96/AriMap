@@ -18,7 +18,7 @@ export interface ContinentInfo {
   name: LocalizedText;
   /** Name as used inside a phrase, e.g. "Explore Europe" / «Բացահայտել Եվրոպան». */
   nameInText: LocalizedText;
-  /** Name describing something of the continent's, e.g. "2 of 7 Europe levels" / «Եվրոպայի 7 մակարդակից». */
+  /** Name describing something of the continent's, e.g. "2 of 10 Europe levels" / «Եվրոպայի 10 մակարդակից». */
   nameOf: LocalizedText;
 }
 

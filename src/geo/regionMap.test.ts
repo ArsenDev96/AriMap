@@ -6,7 +6,7 @@ import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import northJson from "@/data/geo/europe-north.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
-import { LESSON_VERSIONS, LESSONS, LEVELS, versionKey } from "@/core/lessons";
+import { LESSON_VERSIONS, LESSONS, LEVELS, travelCountries, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
 import { shortestDistance, validateGraph, type BorderGraph } from "@/core/game/graph";
 import {
@@ -23,6 +23,7 @@ import {
   viewLimits,
   type Bounds,
   type MapDataset,
+  type ScreenBox,
   type ScreenMark,
   type Transform,
 } from "./regionMap";
@@ -80,10 +81,13 @@ describe("prepared map data", () => {
       // A named fixed link (Level 10's Øresund) joins two countries that share no boundary: it is the only way an edge
       // without one is accepted, and only for those two.
       const linked = (a: string, b: string) => (lesson.map.borderLinks ?? []).some((l) => l.between.includes(a) && l.between.includes(b));
-      for (const id of lesson.countries) {
+      // The level's countries and its Travel-only neighbours (Levels 4, 8 and 10): every real border among them, and no other.
+      const countries = travelCountries(lesson);
+      expect(Object.keys(lesson.borders).sort()).toEqual([...countries].sort());
+      for (const id of countries) {
         const index = own.findIndex((g) => g.id === id);
         expect(index, id).toBeGreaterThanOrEqual(0);
-        const fromData = adjacency[index].map((i) => String(own[i].id)).filter((n) => lesson.countries.includes(n));
+        const fromData = adjacency[index].map((i) => String(own[i].id)).filter((n) => countries.includes(n));
         for (const n of fromData) expect(linked(id, n), `${id}–${n} share a land border: not a fixed link`).toBe(false);
         expect([...fromData].sort(), id).toEqual(lesson.borders[id].filter((n) => !linked(id, n)).sort());
       }
@@ -93,6 +97,22 @@ describe("prepared map data", () => {
         expect(lesson.borders[b], link.name).toContain(a);
       }
     });
+
+    if (lesson.travelOnly?.length) {
+      it(`${versionKey(lesson)}: Travel-only countries' capitals and label anchors are in them, inside the area the map can show`, () => {
+        const map = regionMapFor(lesson);
+        const [[x0, y0], [x1, y1]] = map.coverage;
+        for (const id of lesson.travelOnly!) {
+          expect(lesson.countries, id).not.toContain(id);
+          const c = COUNTRIES[id];
+          for (const [what, p] of [["capital", c.capital.coordinates], ["label", c.label.coordinates]] as const) {
+            expect(geoContains(shapeOf(id, dataset), [...p]), `${id} ${what}`).toBe(true);
+            const [x, y] = map.project(p);
+            expect(x >= x0 && x <= x1 && y >= y0 && y <= y1, `${id} ${what} in the coverage`).toBe(true);
+          }
+        }
+      });
+    }
 
     it(`${versionKey(lesson)}: capitals, landmarks and label anchors fall inside their countries`, () => {
       for (const id of lesson.countries) {
@@ -345,8 +365,11 @@ describe("map coverage", () => {
   for (const lesson of lessons) {
     const map = regionMapFor(lesson);
 
-    it(`${versionKey(lesson)}: the coverage area lies inside the clipped data`, () => {
-      const [[x0, y0], [x1, y1]] = map.coverage;
+    it(`${versionKey(lesson)}: the coverage area, and Travel's, lie inside the clipped data`, () => {
+      // Travel's reaches further north only in Level 4 (travelReachNorth); in every other level it is the coverage.
+      if (!lesson.map.travelReachNorth) expect(map.travelCoverage).toEqual(map.coverage);
+      expect(map.travelCoverage[1]).toEqual(map.coverage[1]);
+      const [[x0, y0], [x1, y1]] = map.travelCoverage;
       if (lesson.map.dataset === "north") {
         // The northern data is cut to a rectangle in world units (frame.clip), round this coverage.
         const [[c0x, c0y], [c1x, c1y]] = north.frame.clip;
@@ -626,5 +649,207 @@ describe("start view with markers kept whole", () => {
         expect(viewLimits(map, width, height, paddingFor(width, height), [pinAt(map, "EST")]).base).toEqual(region.base);
       }
     }
+  });
+
+  describe("Level 4's traveller in Hungary (Travel only), at Budapest near the map's north edge", () => {
+    const adriatic = LESSONS["along-the-adriatic"];
+    const map = regionMapFor(adriatic);
+    /** The same level without Travel's reach north, as before Hungary was added. */
+    const before = getRegionMap(adriatic.countries, adriatic.map.coverageHalf, adriatic.map.dataset);
+    const budapest = (): ScreenMark => ({ ...pinAt(map, "HUN"), keep: true });
+    // Phones (portrait, landscape, 200% text: 304×112 in Armenian, 304×150 in English), tablets and desktops.
+    const sizes = [
+      [304, 112],
+      [304, 150],
+      [304, 231],
+      [374, 388],
+      [390, 420],
+      [280, 240],
+      [392, 280],
+      [448, 310],
+      [724, 192],
+      [828, 260],
+      [1366, 560],
+      [1920, 900],
+    ];
+
+    it("reaches 160 units further north in Travel only, inside the data; Discover and Find (no reach) frame and pan as before", () => {
+      expect(adriatic.map.travelReachNorth).toBe(160);
+      expect(map.travelCoverage[0][1]).toBeCloseTo(map.coverage[0][1] - 160, 6);
+      // Budapest is inside the coverage, but only 20 units inside its north edge.
+      expect(budapest().at[1] - map.coverage[0][1]).toBeGreaterThan(0);
+      expect(budapest().at[1] - map.coverage[0][1]).toBeLessThan(25);
+      for (const [width, height] of sizes) {
+        const padding = paddingFor(width, height);
+        expect(viewLimits(map, width, height, padding)).toEqual(viewLimits(before, width, height, padding));
+        // In Travel: the same start view and zoom limits; only the pan limit north is Travel's reach.
+        const travel = viewLimits(map, width, height, padding, [], true);
+        const plain = viewLimits(before, width, height, padding);
+        expect(travel.base).toEqual(plain.base);
+        expect(travel.minScale).toBe(plain.minScale);
+        expect(travel.translateExtent[0][1]).toBeCloseTo(map.travelCoverage[0][1], 6);
+        expect([travel.translateExtent[0][0], travel.translateExtent[1][0], travel.translateExtent[1][1]]).toEqual([
+          plain.translateExtent[0][0],
+          plain.translateExtent[1][0],
+          plain.translateExtent[1][1],
+        ]);
+      }
+    });
+
+    it("keeps the traveller's pin in Budapest whole, with the usual clearance, on every map size, inside Travel's reach", () => {
+      for (const [width, height] of sizes) {
+        const { base, translateExtent } = viewLimits(map, width, height, paddingFor(width, height), [budapest()], true);
+        for (const r of room(budapest(), base, width, height)) expect(r, `${width}×${height}`).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+        const view: Bounds = [
+          [-base.x / base.k, -base.y / base.k],
+          [(width - base.x) / base.k, (height - base.y) / base.k],
+        ];
+        for (const d of [0, 1]) {
+          expect(view[0][d]).toBeGreaterThanOrEqual(map.travelCoverage[0][d] - 1e-6);
+          expect(view[1][d]).toBeLessThanOrEqual(map.travelCoverage[1][d] + 1e-6);
+          if (view[1][d] - view[0][d] <= translateExtent[1][d] - translateExtent[0][d]) {
+            expect(view[0][d]).toBeGreaterThanOrEqual(translateExtent[0][d] - 1e-6);
+            expect(view[1][d]).toBeLessThanOrEqual(translateExtent[1][d] + 1e-6);
+          }
+        }
+      }
+      // Without the reach (as before), no size could show it whole at the start view but by zooming in far.
+      const cut = sizes.filter(([width, height]) => {
+        const { base } = viewLimits(before, width, height, paddingFor(width, height), [budapest()]);
+        return room(budapest(), base, width, height).some((r) => r < MARK_EDGE_CLEARANCE - 1e-6);
+      });
+      expect(cut.length).toBeGreaterThan(0);
+    });
+
+    it("moves only for a pin it must keep: the level's own capitals in Travel start as without the reach where their pins fit", () => {
+      for (const [width, height] of sizes) {
+        const padding = paddingFor(width, height);
+        for (const country of adriatic.countries) {
+          const pin = pinAt(map, country);
+          const plain = viewLimits(before, width, height, padding, [pin]);
+          if (room(pin, plain.base, width, height).every((r) => r >= MARK_EDGE_CLEARANCE - 1e-6))
+            expect(viewLimits(map, width, height, padding, [pin], true).base, `${country} ${width}×${height}`).toEqual(plain.base);
+        }
+      }
+    });
+  });
+
+  describe("the traveller clear of the map controls and “About the map”", () => {
+    /**
+     * The zoom controls (RegionMap.module.css): 8px from the bottom-right corner, a column of three 44px buttons, or a
+     * row on a map 190px tall or less; "About the map" with its margin in the top-right. In Travel and Results on such a
+     * short map the controls are off it (`off`): below it with the panel below (200% text on a 320×568 phone: 304×150 in
+     * English, 304×112 in Armenian, 304×156 in English Results), at the top of the panel beside it (the same in landscape,
+     * 568×320: 280×182, 280×180, 280×188 in Results). The traveller then keeps clear of "About the map" only.
+     */
+    const chrome = (width: number, height: number, off = false): ScreenBox[] => [
+      ...(off ? [] : [height <= 190 ? { x0: width - 142, y0: height - 54, x1: width - 8, y1: height - 8 } : { x0: width - 54, y0: height - 142, x1: width - 8, y1: height - 8 }]),
+      { x0: width - 44, y0: 0, x1: width, y1: 44 },
+    ];
+    /** Whether the mark, at a view, keeps MARK_EDGE_CLEARANCE from an area on some side. */
+    const clearOf = (mark: ScreenMark, t: Transform, b: ScreenBox) => {
+      const [x, y] = applyTransform(t, mark.at);
+      const c = MARK_EDGE_CLEARANCE - 1e-6;
+      return x + mark.extent.x1 <= b.x0 - c || x + mark.extent.x0 >= b.x1 + c || y + mark.extent.y1 <= b.y0 - c || y + mark.extent.y0 >= b.y1 + c;
+    };
+    // Phones (320×568, 390×844, landscape) and, with 200% text, the controls off the map (320×568 and landscape), a
+    // tablet and a desktop.
+    const sizes: [number, number, boolean][] = [
+      [304, 231, false],
+      [304, 150, true],
+      [304, 112, true],
+      [374, 380, false],
+      [280, 240, false],
+      [280, 182, true],
+      [280, 180, true],
+      [448, 310, false],
+      [932, 712, false],
+    ];
+    const nordic = LESSONS["nordic-countries"];
+    const traveller = (map: ReturnType<typeof regionMapFor>, lesson: (typeof LESSON_VERSIONS)[number], country: string, width: number, height: number, off: boolean): ScreenMark => ({
+      ...pinAt(map, country),
+      keep: (lesson.travelOnly ?? []).includes(country),
+      clearOf: chrome(width, height, off),
+    });
+
+    it("nordic-countries: in every country the traveller can stand in (Germany, Poland and the Netherlands too), and in Results, the pin is whole and uncovered", () => {
+      const map = regionMapFor(nordic);
+      for (const [width, height, off] of sizes)
+        for (const country of travelCountries(nordic)) {
+          if (country === "ISL") continue; // No journey reaches Iceland.
+          const pin = traveller(map, nordic, country, width, height, off);
+          const { base, translateExtent } = viewLimits(map, width, height, paddingFor(width, height), [pin]);
+          const at = `${country} ${width}×${height}`;
+          for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          for (const b of chrome(width, height, off)) expect(clearOf(pin, base, b), at).toBe(true);
+          expectInside(map, base, width, height, translateExtent);
+        }
+    });
+
+    it("nordic-countries: with the controls off the map (200% text on a 320×568 phone, and in landscape), no start view zooms in, and Helsinki, the destination, stays in view", () => {
+      const map = regionMapFor(nordic);
+      const helsinki = map.project(COUNTRIES.FIN.capital.coordinates);
+      for (const [width, height] of [
+        [304, 150],
+        [304, 112],
+        [304, 156],
+        [280, 182],
+        [280, 180],
+        [280, 188],
+      ]) {
+        const padding = paddingFor(width, height);
+        const own = viewLimits(map, width, height, padding).base;
+        for (const country of travelCountries(nordic)) {
+          if (country === "ISL") continue;
+          const pin = traveller(map, nordic, country, width, height, true);
+          const { base } = viewLimits(map, width, height, padding, [pin]);
+          const at = `${country} ${width}×${height}`;
+          // The countries' own zoom, or a little less (×0.93 at least) for a Travel-only country's pin at the bottom edge.
+          expect(base.k, at).toBeLessThanOrEqual(own.k + 1e-9);
+          expect(base.k / own.k, at).toBeGreaterThan(0.9);
+          for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          const [hx, hy] = applyTransform(base, helsinki);
+          expect(hx > 0 && hx < width && hy > 0 && hy < height, `${at}: Helsinki in view`).toBe(true);
+        }
+      }
+    });
+
+    it("nordic-countries: with the controls on the map, Warsaw's pin lay under them on 320px and 390px phones and in landscape; the view moves no further than it must", () => {
+      const map = regionMapFor(nordic);
+      for (const [width, height] of [
+        [304, 231],
+        [374, 380],
+        [280, 240],
+      ]) {
+        const padding = paddingFor(width, height);
+        const warsaw = traveller(map, nordic, "POL", width, height, false);
+        const before = viewLimits(map, width, height, padding, [{ ...warsaw, clearOf: undefined }]).base;
+        expect(clearOf(warsaw, before, chrome(width, height)[0]), `${width}×${height}`).toBe(false);
+        const { base } = viewLimits(map, width, height, padding, [warsaw]);
+        // Just clear of the controls: on their left, or above them, by MARK_EDGE_CLEARANCE.
+        const [x, y] = applyTransform(base, warsaw.at);
+        const controls = chrome(width, height)[0];
+        const gaps = [controls.x0 - (x + warsaw.extent.x1), controls.y0 - (y + warsaw.extent.y1)];
+        expect(Math.max(...gaps), `${width}×${height}`).toBeCloseTo(MARK_EDGE_CLEARANCE, 6);
+      }
+    });
+
+    it("changes the start view only where the pin was under the controls or “About the map”: every level, every country the traveller can stand in", () => {
+      for (const lesson of LESSON_VERSIONS) {
+        const map = regionMapFor(lesson);
+        for (const [width, height, off] of sizes) {
+          const padding = paddingFor(width, height);
+          const travel = (lesson.map.travelReachNorth ?? 0) > 0;
+          for (const country of travelCountries(lesson)) {
+            const pin = traveller(map, lesson, country, width, height, off);
+            const plain = viewLimits(map, width, height, padding, [{ ...pin, clearOf: undefined }], travel).base;
+            const { base } = viewLimits(map, width, height, padding, [pin], travel);
+            const at = `${versionKey(lesson)} ${country} ${width}×${height}`;
+            if (chrome(width, height, off).every((b) => clearOf(pin, plain, b))) expect(base, at).toEqual(plain);
+            else for (const b of chrome(width, height, off)) expect(clearOf(pin, base, b), at).toBe(true);
+          }
+        }
+      }
+    });
   });
 });

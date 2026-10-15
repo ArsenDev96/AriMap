@@ -1,3 +1,4 @@
+import type { CountryId } from "../content/types";
 import { LEVELS, levelVersions } from "./levels";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
@@ -15,6 +16,11 @@ export const DEFAULT_LESSON_ID = westernEuropeLesson.id;
 
 export function getLesson(id: string): LessonDefinition | undefined {
   return LESSONS[id];
+}
+
+/** The countries a level's journeys can enter: its own, then its Travel-only neighbours (`travelOnly`). */
+export function travelCountries(lesson: Pick<LessonDefinition, "countries" | "travelOnly">): readonly CountryId[] {
+  return lesson.travelOnly?.length ? [...lesson.countries, ...lesson.travelOnly] : lesson.countries;
 }
 
 /**

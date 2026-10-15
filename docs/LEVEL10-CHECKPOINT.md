@@ -1,6 +1,44 @@
-# Level 10 (Nordic Countries): work-in-progress checkpoint
+# Level 10 (Nordic Countries): checkpoint
 
-Written 2026-10-14 when work moved to another computer, and updated the same day when it was resumed (see "Resumed").
+Written 2026-10-14 when work moved to another computer, updated when it was resumed the same day, and brought up to date on 2026-10-15 for the commit that adds the Travel follow-ups below ("Final state").
+
+## Final state (2026-10-15)
+
+Level 10 is complete in code, content, assets and docs; the remaining tasks of 2026-10-14 (below) are done. Since that commit (`b4012a6`), Travel changed across levels:
+
+- **Travel-only neighbours** (`travelOnly` in a level's definition, `travelCountries` in `src/core/lessons/index.ts`): real neighbours outside a level's five that Travel can enter where the five alone forced a single move: Hungary and Serbia in Level 4, Latvia in Level 8, Germany, Poland and the Netherlands in Level 10. They are drawn, named and selectable in Travel and Results, never in Discover, Find, completion or stars; none lies on a shortest route, so crossings and completing routes are unchanged. Saved routes may now contain them (`parseRoute`).
+- **Level 4's reach north** (`map.travelReachNorth: 160`, `travelCoverage`): in Travel and Results the map may be panned north far enough for the traveller's pin in Budapest. Only Level 4's relief overview was regenerated (`along-the-adriatic-land.webp` and its `relief.json` entry); the shared tiles and every other asset are byte-identical.
+- **Level 7's non-neighbour option** (`travel.nonNeighbourOptions`; `choose` and `nonNeighbourChoices` in `src/core/game/travel.ts`; `travelNotice` in `src/core/lesson/progress.ts`): at the start in Portugal, France is offered beside Spain, styled the same. Choosing it moves nothing, uses no crossing, records no help and changes no rating; Travel says the two share no border (`travel.notNeighbour`, English and Armenian) and France is outlined and named on the map. The notice is never read back from a save.
+- **The traveller's pin** (`ScreenMark.keep` and `ScreenMark.clearOf` in `src/geo/regionMap.ts`): kept whole in a Travel-only country, and kept clear of the zoom controls and "About the map", the start view moving as little as it can.
+- **The zoom controls off a very short map** (`controlsPlacement` in `RegionMap.tsx`; `mapControlsSlot`, `--map-controls-below` and `--map-room-below` in `LessonScreen`): in Travel and Results, on a map 190 px tall or less (200% text on a phone), the controls go below the map when the panel is below it (the map keeps its height; their room comes from the panel), or to a sticky slot at the top of the panel when it is beside the map (landscape). The camera then keeps clear of "About the map" only, so it no longer zooms in for them (Warsaw had been ×3.3 at 320×568 and ×1.9 at 568×320). The choice follows the map's size and the page layout, not the language or a text-size setting. Discover, Find and taller maps keep the controls on the map.
+
+Docs: README; `docs/DATA.md` (Travel-only neighbours per level, "Level 4: Travel's reach north", "The traveller clear of the map controls", Level 7's start); `docs/CONTENT.md` (the new strings); `docs/TERRAIN.md` (Level 4's taller overview).
+
+**Validation (2026-10-15).** `npm run typecheck` and `npm run lint` clean (ESLint already ignores `.next/**`, where the temporary preview builds went, and `.next-e2e/**`). No unit test, e2e suite or spec has been run, by request.
+
+**Tests written or updated, not run:**
+- `src/core/game/travel.test.ts`: non-neighbour options (a synthetic graph).
+- `src/core/progress/levels.test.ts`: Travel-only neighbours per level (no forced move left but the documented ones; budgets and completing routes unchanged; saves with them), Level 7's France (unchanged attempt, notice, map tones, refresh, Spain, Undo, stars), the options' validity.
+- `src/geo/regionMap.test.ts`: Level 4's reach (Discover and Find limits unchanged; Budapest's pin whole); the pin clear of the controls (every level, every country the traveller can stand in; no zoom-in with the controls off the map, Helsinki in view).
+- `src/geo/route.test.ts`, `src/geo/relief.test.ts`: the new crossings; Level 4's overview covering Travel's reach.
+- `e2e/level4.spec.ts`, `e2e/level7.spec.ts`, `e2e/level8.spec.ts`, `e2e/level10.spec.ts` (Travel-only moves; France; Budapest's and Level 10's pins; where the controls are, their reach, the panel scrolled, turning upright and back); `e2e/continents.spec.ts` (a stale "Completed: 2/9", now 2/10).
+
+**Browser checks done** (Chromium on a dev server, English and Armenian; scratch scripts, not the suites):
+- Travel-only neighbours selectable in Levels 4, 8 and 10 and kept out of Discover and Find; Level 7's France chosen three times in a row leaves the route, crossings and traveller unchanged, and Spain then moves.
+- Budapest's pin whole at 390×844, 320×568, 844×390, 568×320 (100% and 200% text) and 1366×800.
+- Level 10's pin whole and uncovered, restored and entered in Germany, Poland and the Netherlands, after Undo and Restart, and in Results, at 320×568 (100% and 200%), 390×844, 844×390, 568×320 and 1366×800 (132 states); Levels 1–9's traveller in every country it can stand in, at six sizes (336 states), never under the controls.
+- The controls below the map at 320×568 with 200% text, and in the panel at 568×320 with 200% text: map sizes unchanged, 44 px buttons, zoom, reset, focus ring, the panel scrolled (controls kept at its top, reachable, nothing showing above them), turning upright and back (the same view as before and after a reload), no resize loops, camera jumps or console errors.
+- Screenshot reviews (not in the repository; `/screenshots` is ignored): `level10-pin-framing-review.zip`, `level10-toolbar-review.zip`, `level10-landscape-final-review.zip`.
+- Saves (a probe on the real modules): a save from the previous commit loads with every level's completion, Results and best rating (3,2,1,3,2,3,1,2,3,3 kept), Level 6 on its second version, and journeys under way restored; a Level 7 France choice is not saved. Quick Challenge unchanged: pool 40, 15 questions, 60 s.
+- Not checked for this work: WebKit.
+
+**Remaining limitations:**
+1. The suites have not been run. `levels.test.ts`, `regionMap.test.ts` and `level10.spec.ts` carry many new assertions (their numbers checked with scratch scripts against the real modules). Run them before merging; the full e2e run takes about 50 minutes.
+2. Armenian wording needs native review: Level 10's hints, facts, Travel note and names (Known issue 6), and the new `travel.regionNeighbours` and `travel.notNeighbour` («… և … ընդհանուր սահման չունեն։ Ընտրիր հարևան երկիր։»).
+3. Labels are unchanged by this work: at 200% text Denmark stays unnamed on the main map in Discover (Known issue 1), and Poland is not named in Armenian in some Travel views (Warsaw at 320×568, normal and 200% text). Where the controls are off the map, names no longer avoid them.
+4. On short maps (200% text), a traveller in a level's own country may still be cut at the map's edge (Levels 1–9: 16 such states, as before): the clearance moves the view only for a pin under the controls or "About the map", or in a Travel-only country.
+5. Two moves in quick succession (before the camera reaches the first move's view) leave the camera at the first move's view, the pin whole there; unchanged from before.
+6. Results' map is 6 px taller than Travel's (its header is shorter), at 200% text too: expected.
 
 ## Resumed (2026-10-14)
 Remaining tasks 1–5 below are done, apart from screenshots; no test suite has been run (by request).
@@ -12,7 +50,6 @@ Remaining tasks 1–5 below are done, apart from screenshots; no test suite has 
 - **Browser checks** (dev server, Chromium and WebKit): see `docs/DATA.md`, "Level 10", "Not verified". Quick Challenge unchanged.
 - Typecheck and lint clean.
 
-Don't merge this branch until the suites have been run.
 
 ## Approved decisions (from the planning rounds)
 
@@ -110,19 +147,15 @@ Don't merge this branch until the suites have been run.
     - no page errors.
   - **Not done:** 390×844 and 1366×800 (the probe stopped at the English 320×568 level-list step; see below), WebKit, Quick Challenge in the browser.
 
-## Known issues
+## Known issues (as of 2026-10-14; see "Final state" for what changed since)
 1. **200% text, 320×568 (304×112 map):** the selected country's name is sometimes left out: Denmark in both languages, Sweden and Norway in Armenian. Denmark's tap room there is 0–4 px; the close-up works for it. This needs label-placement work, as Level 9's North Macedonia did.
 2. **Close-up on small phones:** once opened, it covers part of Iceland. It is closed by default and can be closed again.
 3. **Landscape 724×192:** the start view crops about 13 px top and bottom, like the other levels' landscape views.
 4. **Level 10's pan area** reaches 13 units (open sea west of Iceland) beyond the challenge's tile grid; the overview shows there.
-5. **Stale expectations already in HEAD**, apparently from earlier levels:
-   - `levels.test.ts` line ~292: an unlock chain of 8 entries;
-   - lines ~1348/1365: `Array(7)` patterns with 8 entries;
-   - `rating.test.ts` ~199: `total: 8`.
-   Check them when running the suites.
+5. **Stale expectations** from earlier levels (an unlock chain of 8 entries, `Array(7)` patterns with 8, `total: 8`): fixed on 2026-10-14; the last one, `continents.spec.ts`'s "Completed: 2/9", on 2026-10-15.
 6. **Armenian wording needs native review:** hints, facts, the Travel note, Հալթգրիմսկիրկյա, Օլավինլինա ամրոց, and Էրեսունդ vs Էրեսուն.
 
-## Remaining tasks
+## Remaining tasks (2026-10-14; all done but running the suites)
 1. **`src/core/progress/levels.test.ts`:**
    - ten levels; the Level 10 entry; locked count; continent totals 10;
    - Level 9's Next level is now Level 10; "all nine completed" becomes ten;
@@ -137,8 +170,8 @@ Don't merge this branch until the suites have been run.
    - `docs/DATA.md`: northern dataset, exclusions, Peberholm, Øresund boundary source, crossings, harbour link, unreachable Norway–Finland, measured sizes, verification limits;
    - `docs/TERRAIN.md`: overview at 0.5 px per unit, challenge tiles, no new credit;
    - `README`.
-5. **Browser checks still to do:** EN/HY at 390×844 and 1366×800, WebKit, a "Ready to play" level card with the Olavinlinna thumbnail, and Quick Challenge (pool 40, 15 questions, 60 s; unchanged in code). Then an isolated preview build. Ask the user whether they prefer localhost review or screenshots before taking any.
-6. **Then:** typecheck, lint, and run the suites only if the user asks (the full e2e run takes about 50 minutes).
+5. **Browser checks:** done on 2026-10-14 (English and Armenian at 390×844 and 1366×800, WebKit at 390×664 and at 320×568 with 200% text, the Quick Challenge played through: `docs/DATA.md`, "Level 10", "Not verified"), and for the Travel follow-ups on 2026-10-15 ("Final state").
+6. **Still to do:** run the suites, when asked (the full e2e run takes about 50 minutes).
 
 ## Resume
 ```

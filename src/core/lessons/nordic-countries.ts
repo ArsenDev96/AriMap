@@ -1,5 +1,7 @@
 import type { LonLat } from "../content/types";
+import { centralEuropeLesson } from "./central-europe";
 import type { LessonDefinition } from "./types";
+import { westernEuropeLesson } from "./western-europe";
 
 /**
  * The Denmark–Sweden boundary where the Øresund Bridge crosses it: Sweden's statutory line in the Øresund (SFS
@@ -29,6 +31,20 @@ const COPENHAGEN_HARBOUR: readonly [LonLat, LonLat] = [
   [12.5625, 55.6759],
   [12.5901, 55.6724],
 ];
+/**
+ * The Great Belt Fixed Link (Storebæltsforbindelsen), Zealand to Funen: from Halsskov to Knudshoved, by the East
+ * Bridge, Sprogø and the West Bridge. Sprogø is not in the map data, so the link is one segment between Danish land
+ * on either side in the data (18.8 km; the link itself is 18 km). Inside Denmark: Copenhagen's leg to Germany.
+ */
+const GREAT_BELT: readonly [LonLat, LonLat] = [
+  [11.11, 55.34],
+  [10.82, 55.305],
+];
+/** The New Little Belt Bridge (Nye Lillebæltsbro), Funen to Jutland near Middelfart, between Danish land in the data (2.9 km). */
+const LITTLE_BELT: readonly [LonLat, LonLat] = [
+  [9.7195, 55.5148],
+  [9.6948, 55.537],
+];
 
 export const nordicCountriesLesson: LessonDefinition = {
   id: "nordic-countries",
@@ -37,23 +53,31 @@ export const nordicCountriesLesson: LessonDefinition = {
     hy: "Հյուսիսային երկրներ",
   },
   countries: ["DNK", "SWE", "NOR", "FIN", "ISL"],
-  // Every real land border among the five (CIA World Factbook, final edition; checked against the map data in
-  // src/geo/regionMap.test.ts): Sweden–Norway, Sweden–Finland and Norway–Finland. Restricted to the level's
-  // countries: Denmark–Germany, Norway–Russia and Finland–Russia are real but out of scope. Denmark and Sweden
-  // share no land border: they are joined by the Øresund's fixed link (`map.borderLinks`), a move across it
-  // crossing their border on the bridge. Iceland has no land border and no fixed link: no journey reaches it.
-  // No sea connection (ferry or flight) is added.
+  // Travel only: Germany, Denmark's one land neighbour, so Denmark offers a choice at the start, not only Sweden;
+  // and the Netherlands and Poland, Germany's neighbours on the North Sea and the Baltic, so Germany (entered with
+  // one crossing left) offers one too. None of them leads to Finland within the crossings.
+  travelOnly: ["DEU", "POL", "NLD"],
+  // Every real land border among the eight (CIA World Factbook, final edition; checked against the map data in
+  // src/geo/regionMap.test.ts): Sweden–Norway, Sweden–Finland, Norway–Finland, Denmark–Germany, Germany–Poland and
+  // Germany–Netherlands. Restricted to them: Norway–Russia, Finland–Russia and Poland–Lithuania are real but out of
+  // scope. Denmark and Sweden share no land border: they are joined by the Øresund's fixed link (`map.borderLinks`), a
+  // move across it crossing their border on the bridge. Iceland has no land border and no fixed link: no journey
+  // reaches it. No sea connection (ferry or flight) is added: not Rødby–Puttgarden, nor the Fehmarn Belt tunnel, which
+  // is not open.
   borders: {
-    DNK: ["SWE"],
+    DNK: ["SWE", "DEU"],
     SWE: ["DNK", "NOR", "FIN"],
     NOR: ["SWE", "FIN"],
     FIN: ["SWE", "NOR"],
     ISL: [],
+    DEU: ["DNK", "POL", "NLD"],
+    POL: ["DEU"],
+    NLD: ["DEU"],
   },
-  // Two crossings, by one shortest route: Sweden (Denmark's only neighbour here) over the Øresund, then Finland at
-  // Haparanda–Tornio. The wrong turn is Sweden → Norway, after which the crossings run out: Norway → Finland, a real
-  // border, is never reached within the budget (checked in src/core/progress/levels.test.ts), so the route line has
-  // no leg for it. No dead end can be reached with crossings left.
+  // Two crossings, by one shortest route: Sweden over the Øresund, then Finland at Haparanda–Tornio. The wrong turns
+  // are Sweden → Norway and Denmark → Germany (then Poland or the Netherlands), after which the crossings run out:
+  // Norway → Finland, a real border, is never reached within the budget (checked in src/core/progress/levels.test.ts),
+  // so the route line has no leg for it. No dead end can be reached with crossings left.
   travel: {
     mission: { id: "dnk-to-fin", from: "DNK", to: "FIN" },
     note: {
@@ -92,13 +116,35 @@ export const nordicCountriesLesson: LessonDefinition = {
       "DNK-SWE": ORESUND_BOUNDARY,
       "FIN-SWE": [24.164, 65.8409],
       "NOR-SWE": [12.2903, 59.9587],
+      // Travel only (docs/DATA.md, "Level 10"): Padborg–Ellund, on the E45; Level 3's Frankfurt (Oder)–Słubice and
+      // Level 1's Emmerich, vertices of the same borders in the northern data too (within 30 m).
+      "DEU-DNK": [9.3664, 54.8171],
+      "DEU-POL": centralEuropeLesson.map.routeCrossings!["DEU-POL"],
+      "DEU-NLD": westernEuropeLesson.map.routeCrossings!["DEU-NLD"],
     },
     // Where a straight leg would leave its country (checked in src/geo/route.test.ts): Copenhagen to the link crosses
     // the inner harbour to Amager, then follows the link; Stockholm to Lernacken would cut across bays of the Baltic
     // coast (it turns inland: Katrineholm, Linköping, south of Lake Vättern, Hässleholm, Malmö); Stockholm to Haparanda
     // would cross the Gulf of Bothnia (it runs inland: Uppsala, Bollnäs, Sollefteå, Lycksele, Älvsbyn, north of Kalix);
     // Helsinki to Tornio would cut the Gulf's coast (it runs inland, by Jyväskylä and west of Kajaani, then to the Torne).
+    // Copenhagen to the German border crosses Zealand, the Great Belt, Funen and the Little Belt (Roskilde, Ringsted,
+    // Slagelse, Halsskov; Knudshoved, Odense, Middelfart; Snoghøj, west of Fredericia, Aabenraa); Berlin to it would cut
+    // the bays of the Baltic coast (it turns at Hamburg).
     routeVia: {
+      "DNK@DEU-DNK": [
+        [12.08, 55.64],
+        [11.79, 55.44],
+        [11.35, 55.4],
+        [11.17, 55.38],
+        [11.12, 55.355],
+        ...GREAT_BELT,
+        [10.39, 55.4],
+        ...LITTLE_BELT,
+        [9.66, 55.56],
+        [9.5, 55.53],
+        [9.42, 55.04],
+      ],
+      "DEU@DEU-DNK": [[10.0, 53.55]],
       "DNK@DNK-SWE": [...COPENHAGEN_HARBOUR, ...ORESUND_LINK.slice(0, ORESUND_LINK.indexOf(ORESUND_BOUNDARY))],
       "SWE@DNK-SWE": [
         [16.2, 59.0],
@@ -122,7 +168,11 @@ export const nordicCountriesLesson: LessonDefinition = {
         [24.9, 66.05],
       ],
     },
-    routeLinks: [{ country: "DNK", name: "Copenhagen's inner-harbour bridges", points: COPENHAGEN_HARBOUR }],
+    routeLinks: [
+      { country: "DNK", name: "Copenhagen's inner-harbour bridges", points: COPENHAGEN_HARBOUR },
+      { country: "DNK", name: "Great Belt Fixed Link", points: GREAT_BELT },
+      { country: "DNK", name: "New Little Belt Bridge", points: LITTLE_BELT },
+    ],
     borderLinks: [{ between: ["DNK", "SWE"], name: "Øresund Bridge and Drogden Tunnel", points: ORESUND_LINK }],
   },
 };

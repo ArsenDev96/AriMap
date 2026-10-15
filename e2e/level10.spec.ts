@@ -302,6 +302,51 @@ const drawnNames = (page: Page, names: Record<string, string>) =>
 
 const moves = (page: Page) => page.locator('[data-testid^="move-"]').evaluateAll((els) => els.filter((e) => !e.closest("[inert]")).map((e) => e.getAttribute("data-testid")!.slice(5)).sort());
 
+/** The traveller's pin in a country: "clear" when whole on the map and under neither the zoom controls nor "About the map". */
+const travellerPin = (page: Page, id: string) =>
+  page.evaluate((id) => {
+    const map = document.querySelector('[data-testid="map-main"]')!.getBoundingClientRect();
+    const pin = document.querySelector(`[data-testid="map-main"] [data-traveller="${id}"]`)?.getBoundingClientRect();
+    if (!pin) return "no pin";
+    if (pin.left < map.left || pin.top < map.top || pin.right > map.right || pin.bottom > map.bottom) return "cut by the map's edge";
+    for (const chrome of ["map-controls", "map-about"]) {
+      const r = document.querySelector(`[data-testid="${chrome}"]`)!.getBoundingClientRect();
+      if (pin.left < r.right && r.left < pin.right && pin.top < r.bottom && r.top < pin.bottom) return `under ${chrome}`;
+    }
+    return "clear";
+  }, id);
+
+/**
+ * Where the zoom controls are ("on the map", or "below" it: 8px under its right edge, in Travel and Results on a very
+ * short map with the panel below it), their buttons' size, the map's height, and how much of Finland's outline (its
+ * box, %) is in view.
+ */
+const toolbar = (page: Page) =>
+  page.evaluate(() => {
+    const map = document.querySelector('[data-testid="map-main"]')!.getBoundingClientRect();
+    const controls = document.querySelector('[data-testid="map-controls"]')!;
+    const c = controls.getBoundingClientRect();
+    const inside = c.left >= map.left - 0.5 && c.right <= map.right + 0.5 && c.top >= map.top - 0.5 && c.bottom <= map.bottom + 0.5;
+    const below = Math.abs(c.top - map.bottom - 8) < 1 && Math.abs(c.right - map.right) < 1;
+    const inPanel = !!document.querySelector('[data-testid="map-controls-slot"]')?.contains(controls);
+    const fin = document.querySelector('[data-testid="map-main"] path[data-country="FIN"]')!.getBoundingClientRect();
+    const seen = Math.max(0, Math.min(fin.right, map.right) - Math.max(fin.left, map.left)) * Math.max(0, Math.min(fin.bottom, map.bottom) - Math.max(fin.top, map.top));
+    const size = (b: Element) => b.getBoundingClientRect();
+    // Every button is what a tap at its centre reaches.
+    const reachable = [...controls.querySelectorAll("button")].every((b) => {
+      const r = size(b);
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!hit && b.contains(hit);
+    });
+    return {
+      placement: inside ? "on the map" : below ? "below" : inPanel ? "panel" : "elsewhere",
+      reachable,
+      buttons: [...controls.querySelectorAll("button")].map((b) => `${Math.round(size(b).width)}×${Math.round(size(b).height)}`).join(" "),
+      mapHeight: Math.round(map.height),
+      finland: Math.round((100 * seen) / (fin.width * fin.height)),
+    };
+  });
+
 test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Travel, Results, and all ten levels completed", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once, on the Pixel 7 project; layouts are checked at other sizes below.");
   test.setTimeout(300_000);
@@ -373,8 +418,27 @@ test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Tr
   await expect(page.getByTestId("panel")).toContainText("Shortest route: 2 crossings");
   // The level's own note: the fixed link, and Iceland not on the journey.
   await expect(page.getByTestId("travel-note")).toHaveText(NOTE);
-  // Denmark's only move is Sweden; Iceland is never offered.
-  expect(await moves(page)).toEqual(["SWE"]);
+  // Denmark offers Sweden or Germany (Travel only); Iceland is never offered.
+  expect(await moves(page)).toEqual(["DEU", "SWE"]);
+  // Denmark → Germany: a crossing left, Poland or the Netherlands, both away from Finland.
+  await page.getByTestId("move-DEU").click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves(page)).toEqual(["NLD", "POL"]);
+  const germany = page.locator(`${MAIN} [data-testid="route-line"]`);
+  // Copenhagen across Zealand, the Great Belt, Funen and the Little Belt, Jutland to the border, Hamburg, Berlin.
+  await expect(germany).toHaveAttribute("data-route", "DNK,DEU");
+  await expect(germany).toHaveAttribute("data-points", "17");
+  await expect(page.locator(`${MAIN} [data-country="DEU"]`)).toHaveAttribute("data-tone", "current");
+  await page.getByTestId("move-NLD").click();
+  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
+  await expect(germany).toHaveAttribute("data-route", "DNK,DEU,NLD");
+  await expect(germany).toHaveAttribute("data-points", "19");
+  // A refresh keeps the journey where it ran out; Retry goes back to Denmark.
+  await page.reload();
+  await expect(germany).toHaveAttribute("data-route", "DNK,DEU,NLD");
+  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Retry" }).click();
+  await expect(germany).toHaveCount(0);
+  expect(await moves(page)).toEqual(["DEU", "SWE"]);
   await page.getByTestId("move-SWE").click();
   expect(await moves(page)).toEqual(["FIN", "NOR"]);
   // Sweden → Norway: a real neighbour, but the crossings run out in Norway (Norway → Finland is never reached).
@@ -503,6 +567,84 @@ test("Level 10 on phones and desktop: every card in both languages, Find with Ic
         await tapCountry(page, "DNK");
       }
       await expect(page.getByTestId("find-feedback")).toContainText(locale === "en" ? "Correct! That's Denmark." : "Ճիշտ է");
+    }
+  }
+});
+
+test("Level 10's traveller pin whole and clear of the map controls: Germany, Poland and the Netherlands entered and restored, Undo, Restart, Results", async ({ page }) => {
+  test.skip(!["small-phone", "desktop"].includes(project()), "Runs on small-phone and desktop.");
+  test.setTimeout(600_000);
+  // Phones (320×568; 390×844; landscape, with 200% text too) and a desktop. Without the clearance, Warsaw's pin lay
+  // under the controls on 320 and 390px phones and in landscape, and Helsinki's in Results on a 320px phone. With 200%
+  // text on a 320×568 phone (a 304×150 map in English, 304×112 in Armenian, 304×156 in English Results), the controls
+  // are below the map, so its view never zooms in to keep the pin clear of them, and Finland stays in view; in
+  // landscape with 200% text (280×182, 280×180 in Armenian), beside the panel, they are at the panel's top, likewise.
+  const sizes = project() === "desktop" ? [[1366, 800, 100]] : [[320, 568, 100], [320, 568, 200], [390, 844, 100], [568, 320, 100], [568, 320, 200]];
+  for (const [width, height, text] of sizes) {
+    await page.setViewportSize({ width, height });
+    for (const locale of ["en", "hy"] as const) {
+      const where = `${width}×${height}${text === 100 ? "" : ` ${text}% text`} ${locale}`;
+      const enlarge = () => text !== 100 && page.evaluate((s) => (document.documentElement.style.fontSize = `${s}%`), text);
+      // With 200% text the controls are off the map: below it on the 320×568 phone, in the panel beside it in landscape.
+      const placement = text !== 200 ? "on the map" : width === 320 ? "below" : "panel";
+      const expectClear = async (id: string, at: string) => {
+        await expect.poll(() => travellerPin(page, id), `${where}, ${at}: ${id}`).toBe("clear");
+        await expect.poll(async () => (await toolbar(page)).placement, `${where}, ${at}: the zoom controls`).toBe(placement);
+        const t = await toolbar(page);
+        expect(t.buttons, `${where}, ${at}: the zoom buttons' size`).toBe("44×44 44×44 44×44");
+        expect(t.reachable, `${where}, ${at}: the zoom buttons uncovered`).toBe(true);
+        if (placement !== "on the map") {
+          // The map keeps the height it has in Discover and Find (Results' shorter header gives it 6px more).
+          expect(placement === "below" ? [150, 156, 112] : [182, 188, 180, 186], `${where}, ${at}: the map's height`).toContain(t.mapHeight);
+          await expect.poll(async () => (await toolbar(page)).finland, `${where}, ${at}: Finland in view`).toBe(100);
+        }
+        if (placement === "panel") {
+          // Kept at the panel's top, and reachable, with its content scrolled to the end.
+          const panel = page.getByTestId("panel");
+          const top = async () => (await page.getByTestId("map-controls").boundingBox())!.y - (await panel.boundingBox())!.y;
+          const before = await top();
+          await panel.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+          expect(await top(), `${where}, ${at}: the zoom controls scrolled away`).toBeCloseTo(before, 0);
+          expect((await toolbar(page)).reachable, `${where}, ${at}: the zoom buttons covered while scrolled`).toBe(true);
+          await panel.evaluate((el) => el.scrollTo(0, 0));
+        }
+      };
+      // A saved journey restored in each.
+      for (const path of [
+        ["DNK", "DEU"],
+        ["DNK", "DEU", "POL"],
+        ["DNK", "DEU", "NLD"],
+      ]) {
+        await openLevel10(page, travelAt(path), locale);
+        await enlarge();
+        await expectClear(path.at(-1)!, "restored");
+      }
+      // Entered from Denmark; Undo and Restart.
+      await openLevel10(page, travelAt(["DNK"]), locale);
+      await enlarge();
+      await expectClear("DNK", "start");
+      await page.getByTestId("move-DEU").click();
+      await expectClear("DEU", "entered");
+      await page.getByTestId("move-POL").click();
+      await expectClear("POL", "entered");
+      await page.getByTestId("out-of-crossings").getByRole("button").first().click();
+      await expectClear("DEU", "Undo");
+      await page.getByTestId("move-NLD").click();
+      await expectClear("NLD", "entered");
+      await page.getByTestId("out-of-crossings").getByRole("button").first().click();
+      await page.getByTestId("travel-tools").getByRole("button").nth(2).click();
+      await expectClear("DNK", "Restart");
+      // Results, restored: the traveller in Helsinki.
+      await openLevel10(page, ALL_DONE[L10], locale);
+      await enlarge();
+      await expectClear("FIN", "Results");
+      if (placement === "panel") {
+        // Turned upright (the controls below the map) and back (in the panel again).
+        await page.setViewportSize({ width: 320, height: 568 });
+        await expect.poll(async () => (await toolbar(page)).placement, `${where}: upright`).toBe("below");
+        await page.setViewportSize({ width, height });
+        await expectClear("FIN", "Results, turned upright and back");
+      }
     }
   }
 });

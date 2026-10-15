@@ -1,5 +1,6 @@
 import type { CountryId, LonLat } from "../content/types";
 import type { BorderGraph } from "../game/graph";
+import type { NonNeighbourOption } from "../game/travel";
 import type { LocalizedText } from "../i18n/locales";
 
 export interface TravelMission {
@@ -23,10 +24,20 @@ export interface LessonDefinition {
   /** Countries that can be selected and played in this level. */
   countries: readonly CountryId[];
   /**
-   * Land borders between the active countries only (checked against the map data in tests), and the
-   * level's named fixed links between two of them (`map.borderLinks`), which are not land borders. A
-   * country with neither (Level 10's Iceland) has no neighbours: it is learned in Discover and Find, but
-   * no journey reaches it.
+   * Real neighbours outside the level's countries that Travel can also enter, so a journey never leaves
+   * the player only one way on where a neighbour could give a second (Level 10's Germany, at Denmark).
+   * They are never learned: Discover, Find, completion and stars stay with `countries`. In Travel (and its
+   * Results) the map draws them as it draws the level's countries, and they are offered as moves like them.
+   * None of them lies on a journey's shortest route, so the crossing budget and the routes that complete
+   * a journey are the level's own (checked in tests). Absent where every journey already offers a choice,
+   * or where no real neighbour can add one without a shorter route.
+   */
+  travelOnly?: readonly CountryId[];
+  /**
+   * Land borders between the active countries only, `travelOnly` included (checked against the map data in
+   * tests), and the level's named fixed links between two of them (`map.borderLinks`), which are not land
+   * borders. A country with neither (Level 10's Iceland) has no neighbours: it is learned in Discover and
+   * Find, but no journey reaches it.
    */
   borders: BorderGraph;
   travel: {
@@ -39,6 +50,14 @@ export interface LessonDefinition {
      * and Play again start a new attempt, on `mission`.
      */
     earlierMissions?: readonly TravelMission[];
+    /**
+     * Countries shown among the choices at one point of the journey although they share no border with the country
+     * there: geography distractors, styled as the moves are (Level 7's France, at the start in Portugal). They are no
+     * edges of `borders`: choosing one moves nothing and uses no crossing; Travel says the two countries don't
+     * share a border and the player chooses again (choose in src/core/game/travel.ts). Never a neighbour of that
+     * country, a country of the route, or the destination; none in other levels yet.
+     */
+    nonNeighbourOptions?: readonly NonNeighbourOption[];
     /**
      * Travel's note under the moves, in place of the usual one (only the level's countries can be
      * entered), where that would not tell the whole story: Level 10's, on the Øresund link between
@@ -149,5 +168,12 @@ export interface LessonDefinition {
      * prepared map data, which the tests check. Defaults to [1150, 900].
      */
     coverageHalf?: readonly [number, number];
+    /**
+     * In Travel and its Results, how much further north than the coverage the map may be panned, and moved to keep
+     * the traveller whole, in world units: room for a Travel-only country's capital near the coverage's north edge
+     * and the traveller's pin above it (Level 4's Budapest). The zoom limits, and the start views of Discover and
+     * Find, keep the coverage's; the level's relief overview must reach this far (scripts/generate-relief.mjs).
+     */
+    travelReachNorth?: number;
   };
 }

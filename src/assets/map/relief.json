@@ -625,10 +625,10 @@
     "along-the-adriatic": {
       "land": {
         "x": -51,
-        "y": 493,
+        "y": 333,
         "width": 2001,
-        "height": 1011,
-        "bytes": 289538
+        "height": 1171,
+        "bytes": 341186
       },
       "tone": {
         "x": 579,
