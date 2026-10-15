@@ -12,6 +12,7 @@ import kaneoChurch from "@/assets/landmarks/thumbnails/kaneo-church.webp";
 import meteora from "@/assets/landmarks/thumbnails/meteora.webp";
 import olavinlinna from "@/assets/landmarks/thumbnails/olavinlinna.webp";
 import sagradaFamilia from "@/assets/landmarks/thumbnails/sagrada-familia.webp";
+import saintBasilsCathedral from "@/assets/landmarks/thumbnails/saint-basils-cathedral.webp";
 import trakaiIslandCastle from "@/assets/landmarks/thumbnails/trakai-island-castle.webp";
 import landArt from "@/assets/map/world/land.webp";
 import waterArt from "@/assets/map/world/water.webp";
@@ -224,6 +225,7 @@ const LEVEL_ART_COUNTRY: Readonly<Record<string, string>> = {
   "heart-of-the-balkans": "MKD",
   "nordic-countries": "FIN",
   "across-the-channel": "GBR",
+  "russia-and-western-neighbours": "RUS",
 };
 
 /**
@@ -243,6 +245,7 @@ const LEVEL_THUMBNAILS: Readonly<Record<string, StaticImageData>> = {
   "kaneo-church": kaneoChurch,
   olavinlinna,
   "big-ben": bigBen,
+  "saint-basils-cathedral": saintBasilsCathedral,
 };
 
 function levelArt(level: LevelInfo) {

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { geoContains } from "d3-geo";
 import { feature, neighbors } from "topojson-client";
@@ -6,6 +7,7 @@ import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import northJson from "@/data/geo/europe-north.topo.json";
 import channelJson from "@/data/geo/europe-channel.topo.json";
+import eastJson from "@/data/geo/europe-east.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import { LESSON_VERSIONS, LESSONS, LEVELS, travelCountries, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
@@ -43,8 +45,11 @@ setNorthData(north);
 /** Level 11's Channel data (scripts/prepare-channel-geo.mjs), likewise. */
 const channel = channelJson as unknown as FramedTopology;
 setMapData("channel", channel);
-const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north, channel };
-const FRAMED: Readonly<Record<Exclude<MapDataset, "west">, FramedTopology>> = { north, channel };
+/** Level 12's eastern data (scripts/prepare-east-geo.mjs), likewise. */
+const east = eastJson as unknown as FramedTopology;
+setMapData("east", east);
+const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north, channel, east };
+const FRAMED: Readonly<Record<Exclude<MapDataset, "west">, FramedTopology>> = { north, channel, east };
 
 function shapeOf(id: string, dataset: MapDataset = "west") {
   const data = TOPOLOGIES[dataset];
@@ -126,6 +131,9 @@ describe("prepared map data", () => {
       for (const id of lesson.countries) {
         const c = COUNTRIES[id];
         expect(geoContains(shapeOf(id, dataset), [...c.label.coordinates]), `${id} label`).toBe(true);
+        // The level's own label point (`map.labels`, Level 12's Russia), where it has one.
+        const own = lesson.map.labels?.[id];
+        if (own) expect(geoContains(shapeOf(id, dataset), [...own]), `${id} level label`).toBe(true);
         expect(geoContains(shapeOf(id, dataset), [...c.capital.coordinates]), `${id} capital`).toBe(true);
         if (c.landmark?.coordinates) {
           const inside = geoContains(shapeOf(id, dataset), [...c.landmark.coordinates]);
@@ -208,6 +216,72 @@ describe("prepared map data", () => {
     // and never opened by itself; the only level that keeps it closed so (docs/DATA.md, "Level 11").
     expect(LESSONS["across-the-channel"].map.inset).toMatchObject({ country: "BEL", smallMapBeside: true, wideMapCorner: "bottom-left", autoOpen: false });
     for (const lesson of LESSON_VERSIONS) if (lesson.id !== "across-the-channel") expect(lesson.map.inset?.autoOpen, lesson.id).toBeUndefined();
+  });
+
+  it("russia-and-western-neighbours: its eastern data is in the levels' projection and on their grid, with their Estonia, Latvia and Belarus, Finland whole, Kaliningrad apart from Russia's mainland, and Russia framed by its western part only", () => {
+    // The same projection and quantization grid as the levels' (prepare-east-geo.mjs writes them), so the relief lines
+    // up, and the shapes Levels 6 and 8 draw are the same, vertex for vertex (their crossings stay vertices).
+    const lesson = LESSONS["russia-and-western-neighbours"];
+    const map = regionMapFor(lesson);
+    const west = regionMapFor(LESSONS["western-europe-1"]);
+    for (const p of [[37.6173, 55.7558], [24.7535, 59.437], [27.5586, 53.9006]] as const) expect(map.project(p)).toEqual(west.project(p));
+    expect(east.projection.rotate).toEqual([-8, -50]);
+    expect(east.transform).toEqual(topology.transform);
+    for (const id of ["EST", "LVA", "BLR"]) expect(shapeOf(id, "east").geometry, id).toEqual(shapeOf(id).geometry);
+    // Finland whole, to its north-western arm and the Teno at Utsjoki, with Åland merged into it.
+    const own = east.objects.countries.geometries;
+    expect(own.map((g) => g.id)).not.toContain("ALD");
+    for (const [name, p] of Object.entries({ Mariehamn: [19.94, 60.1], Kilpisjärvi: [20.8, 69.05], Utsjoki: [27.03, 69.91] }))
+      expect(geoContains(shapeOf("FIN", "east"), p as [number, number]), name).toBe(true);
+    // Kaliningrad is Russia's, a part of its shape apart from the mainland: the one part holding it holds no Moscow.
+    const rus = shapeOf("RUS", "east").geometry as MultiPolygon;
+    expect(rus.type).toBe("MultiPolygon");
+    const kaliningrad: [number, number] = [20.51, 54.71];
+    const withIt = rus.coordinates.filter((coordinates) => geoContains({ type: "Polygon", coordinates }, kaliningrad));
+    expect(withIt).toHaveLength(1);
+    expect(geoContains({ type: "Polygon", coordinates: withIt[0] }, [...COUNTRIES.RUS.capital.coordinates])).toBe(false);
+    // Its only neighbours, Lithuania and Poland, are not in the level: no move can enter it (the graph test above checks
+    // Russia's edges are exactly its mainland borders with the other four).
+    const index = (id: string) => own.findIndex((g) => g.id === id);
+    expect(neighbors(own)[index("RUS")].map((i) => own[i].id)).toEqual(expect.arrayContaining(["LTU", "POL", "FIN", "EST", "LVA", "BLR"]));
+    for (const id of ["LTU", "POL"]) expect(travelCountries(lesson), id).not.toContain(id);
+    // Crimea, where the data reaches it (it doesn't here), is Ukraine's, as in the levels' data.
+    for (let lon = 32.5; lon <= 36.6; lon += 0.1) for (let lat = 44.4; lat <= 46.2; lat += 0.1) expect(geoContains(shapeOf("RUS", "east"), [lon, lat])).toBe(false);
+    // The frame: the other four whole, and Russia by its part within its box only (Saint Petersburg, and Moscow with room
+    // to spare); Kaliningrad lies inside it too. Russia's whole shape runs far beyond it, east to the data's cut.
+    const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+    for (const id of ["FIN", "EST", "LVA", "BLR"]) {
+      const [[x0, y0], [x1, y1]] = map.shapes.find((s) => s.id === id)!.bounds;
+      expect(x0 >= fx0 && y0 >= fy0 && x1 <= fx1 && y1 <= fy1, id).toBe(true);
+    }
+    for (const [name, p] of Object.entries({ Moscow: COUNTRIES.RUS.capital.coordinates, "Saint Petersburg": [30.31, 59.94], Kaliningrad: kaliningrad })) {
+      const [x, y] = map.project(p as [number, number]);
+      expect(x > fx0 && x < fx1 - 50 && y > fy0 && y < fy1, name).toBe(true);
+    }
+    expect(fx1 - fx0).toBeLessThan(1000);
+    expect(fy1 - fy0).toBeLessThan(1400);
+    expect(map.shapes.find((s) => s.id === "RUS")!.bounds[1][0] - fx1).toBeGreaterThan(1000);
+    // The data was cut round this frame by the same box and coverage (scripts/prepare-east-geo.mjs), the coverage at
+    // least 20 units inside the cut: its straight edges, which would draw as coast, are never in view.
+    const script = readFileSync("scripts/prepare-east-geo.mjs", "utf8");
+    expect(script).toContain(`const FRAME_WITHIN = { RUS: ${JSON.stringify(lesson.map.frameWithin!.RUS).replaceAll(",", ", ")} };`);
+    expect(script).toContain(`const COVERAGE_HALF = [${lesson.map.coverageHalf!.join(", ")}];`);
+    const [[c0x, c0y], [c1x, c1y]] = east.frame.clip;
+    const [[x0, y0], [x1, y1]] = map.coverage;
+    expect(Math.min(x0 - c0x, y0 - c0y, c1x - x1, c1y - y1)).toBeGreaterThanOrEqual(20);
+    // Russia is named from its own point here (the Valdai Hills), inside the frame and Russia; its shared one, the Quick
+    // Challenge's, lies east of the frame, off the phone maps, and is unchanged.
+    const label = lesson.map.labels!.RUS!;
+    const [lx, ly] = map.project(label);
+    expect(lx > fx0 && lx < fx1 && ly > fy0 && ly < fy1).toBe(true);
+    expect(map.project(COUNTRIES.RUS.label.coordinates)[0]).toBeGreaterThan(fx1);
+    expect(COUNTRIES.RUS.label.coordinates).toEqual([44.0, 57.0]);
+    // Only this level frames a country by a box, or names one from a point of its own.
+    for (const other of LESSON_VERSIONS)
+      if (other.id !== lesson.id) {
+        expect(other.map.frameWithin, other.id).toBeUndefined();
+        expect(other.map.labels, other.id).toBeUndefined();
+      }
   });
 
   it("keeps the quantization grid of Levels 1–4's data, so extending the clip box moved none of their coordinates", () => {
@@ -683,6 +757,34 @@ describe("start view with markers kept whole", () => {
     }
   });
 
+  it("russia-and-western-neighbours: on the shortest phone maps (304×112 and 304×150, 200% text on a 320×568 phone), the five are whole with their padding, the pin in Tallinn and Minsk included", () => {
+    // The frame is taller than wide (Belarus to the North Cape): the coverage is wide enough, and tall enough, that these
+    // maps show the countries' own fit, not a view zoomed in to fill them.
+    expect(isMapDataLoaded("east")).toBe(true);
+    const map = regionMapFor(LESSONS["russia-and-western-neighbours"]);
+    for (const [width, height] of [
+      [304, 112],
+      [304, 150],
+    ]) {
+      const padding = paddingFor(width, height);
+      const [[fx0, fy0], [fx1, fy1]] = map.focusBounds;
+      const margins = (t: Transform) => {
+        const [[sx0, sy0], [sx1, sy1]] = [applyTransform(t, [fx0, fy0]), applyTransform(t, [fx1, fy1])];
+        return [sx0, sy0, width - sx1, height - sy1];
+      };
+      const region = viewLimits(map, width, height, padding);
+      expect(region.base).toEqual(fitTransform(map.focusBounds, width, height, padding));
+      for (const m of margins(region.base)) expect(m).toBeGreaterThanOrEqual(padding - 1e-6);
+      for (const country of ["EST", "BLR"]) {
+        const pin = pinAt(map, country);
+        const { base, translateExtent } = viewLimits(map, width, height, padding, [pin]);
+        expect(base).toEqual(region.base);
+        for (const r of room(pin, base, width, height)) expect(r).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+        expectInside(map, base, width, height, translateExtent);
+      }
+    }
+  });
+
   it("changes the start view only where the pin would be cut: every level, every capital, phones to wide desktops", () => {
     const changed: string[] = [];
     for (const lesson of LESSON_VERSIONS) {
@@ -969,6 +1071,48 @@ describe("start view with markers kept whole", () => {
           for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
           const [lx, ly] = applyTransform(base, london);
           expect(lx > 0 && lx < width && ly > 0 && ly < height, `${at}: London in view`).toBe(true);
+        }
+      }
+    });
+
+    const eastLesson = LESSONS["russia-and-western-neighbours"];
+
+    it("russia-and-western-neighbours: in every country of the level, and in Results, the traveller's pin is whole and uncovered", () => {
+      // Finland too, reached only by a wrong turn through Russia; Russia's pin is Moscow's, on its mainland.
+      const map = regionMapFor(eastLesson);
+      for (const [width, height, off] of sizes)
+        for (const country of travelCountries(eastLesson)) {
+          const pin = traveller(map, eastLesson, country, width, height, off);
+          const { base, translateExtent } = viewLimits(map, width, height, paddingFor(width, height), [pin]);
+          const at = `${country} ${width}×${height}`;
+          for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          for (const b of chrome(width, height, off)) expect(clearOf(pin, base, b), at).toBe(true);
+          expectInside(map, base, width, height, translateExtent);
+        }
+    });
+
+    it("russia-and-western-neighbours: with the controls off the map (200% text on a 320×568 phone, and in landscape), no start view zooms in, and Minsk, the destination, stays in view", () => {
+      const map = regionMapFor(eastLesson);
+      const minsk = map.project(COUNTRIES.BLR.capital.coordinates);
+      for (const [width, height] of [
+        [304, 150],
+        [304, 112],
+        [304, 156],
+        [280, 182],
+        [280, 180],
+        [280, 188],
+      ]) {
+        const padding = paddingFor(width, height);
+        const own = viewLimits(map, width, height, padding).base;
+        for (const country of travelCountries(eastLesson)) {
+          const pin = traveller(map, eastLesson, country, width, height, true);
+          const { base } = viewLimits(map, width, height, padding, [pin]);
+          const at = `${country} ${width}×${height}`;
+          expect(base.k, at).toBeLessThanOrEqual(own.k + 1e-9);
+          expect(base.k / own.k, at).toBeGreaterThan(0.9);
+          for (const r of room(pin, base, width, height)) expect(r, at).toBeGreaterThanOrEqual(MARK_EDGE_CLEARANCE - 1e-6);
+          const [mx, my] = applyTransform(base, minsk);
+          expect(mx > 0 && mx < width && my > 0 && my < height, `${at}: Minsk in view`).toBe(true);
         }
       }
     });

@@ -6,6 +6,7 @@ import type { GeometryCollection, Topology } from "topojson-specification";
 import topologyJson from "@/data/geo/europe-west.topo.json";
 import northJson from "@/data/geo/europe-north.topo.json";
 import channelJson from "@/data/geo/europe-channel.topo.json";
+import eastJson from "@/data/geo/europe-east.topo.json";
 import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import { shortestDistance, type BorderGraph } from "@/core/game/graph";
@@ -22,7 +23,10 @@ setNorthData(north);
 /** Level 11's Channel data, likewise. */
 const channel = channelJson as unknown as Topology<{ countries: GeometryCollection }>;
 setMapData("channel", channel);
-const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north, channel };
+/** Level 12's eastern data, likewise. */
+const east = eastJson as unknown as Topology<{ countries: GeometryCollection }>;
+setMapData("east", east);
+const TOPOLOGIES: Readonly<Record<MapDataset, Topology<{ countries: GeometryCollection }>>> = { west: topology, north, channel, east };
 const EARTH_KM = 6371;
 const km = (a: LonLat, b: LonLat) => geoDistance([...a], [...b]) * EARTH_KM;
 
@@ -277,6 +281,10 @@ for (const lesson of LESSON_VERSIONS) {
       // One: Sweden over the Øresund, then Finland. Through Norway runs out of crossings.
       if (lesson.id === "nordic-countries") {
         expect(paths.map((p) => p.join("→"))).toEqual(["DNK→SWE→FIN"]);
+      }
+      // Two: Latvia or Russia's mainland, then Belarus. Finland, beyond Russia, is no way to Minsk.
+      if (lesson.id === "russia-and-western-neighbours") {
+        expect(paths.map((p) => p.join("→")).sort()).toEqual(["EST→LVA→BLR", "EST→RUS→BLR"]);
       }
       // No shortest journey goes through a Travel-only country (Levels 4, 8 and 10).
       for (const path of paths) for (const id of lesson.travelOnly ?? []) expect(path, id).not.toContain(id);
@@ -549,6 +557,67 @@ describe("across-the-channel: Berlin to London through France and the Channel Tu
       for (let i = 1; i < line.length; i++)
         for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
           for (const id of ["GBR", "NLD", "CHE"]) expect(inCountry(id, p, "channel"), `${path.join("→")}: ${p} in ${id}`).toBe(false);
+        }
+    }
+  });
+});
+
+describe("russia-and-western-neighbours: two ways to Minsk, straight legs on land, Russia's on its mainland only", () => {
+  const lesson = LESSONS["russia-and-western-neighbours"];
+  const settings = routeSettings(lesson);
+  const crossings = Object.values(lesson.map.routeCrossings ?? {});
+  /** Russia's Kaliningrad, apart from its mainland: 19.6–22.9°E. Nothing drawn in this level comes near it. */
+  const KALININGRAD_EAST = 23;
+
+  it("reuses Levels 6 and 8's crossings, puts Russia's on its mainland borders, and needs no turning points or fixed links", () => {
+    expect(lesson.map.routeVia ?? {}).toEqual({});
+    expect(lesson.map.routeLinks ?? []).toEqual([]);
+    expect(lesson.map.borderLinks ?? []).toEqual([]);
+    expect(lesson.map.routeCrossings!["EST-LVA"]).toEqual(LESSONS["baltic-journey"].map.routeCrossings!["EST-LVA"]);
+    expect(lesson.map.routeCrossings!["BLR-LVA"]).toEqual(LESSONS["eastern-europe"].map.routeCrossings!["BLR-LVA"]);
+    // Rule 1's vertices (docs/DATA.md, "Level 12"): in the middle of Lake Peipus, north of Kārsava, south-west of
+    // Smolensk; Finland's at the middle of its 1,221 km border, by Level 10's on-land rule (Helsinki is on the coast).
+    expect(lesson.map.routeCrossings!["EST-RUS"]).toEqual([27.4986, 58.5347]);
+    expect(lesson.map.routeCrossings!["LVA-RUS"]).toEqual([27.7151, 56.9573]);
+    expect(lesson.map.routeCrossings!["BLR-RUS"]).toEqual([31.3246, 54.2291]);
+    expect(lesson.map.routeCrossings!["FIN-RUS"]).toEqual([30.1109, 64.7444]);
+    for (const [key, p] of Object.entries(lesson.map.routeCrossings!)) if (key.includes("RUS")) expect(p[0], key).toBeGreaterThan(KALININGRAD_EAST + 3);
+  });
+
+  for (const path of [
+    ["EST", "LVA", "BLR"],
+    ["EST", "RUS", "BLR"],
+  ]) {
+    it(`draws ${path.join(" → ")} on its own countries' land, never at sea, in Finland, Lithuania, Ukraine or the other way's country`, () => {
+      const line = routeLine(path, settings);
+      // Tallinn, a crossing, Riga or Moscow, a crossing, Minsk.
+      expect(line).toHaveLength(5);
+      const other = path.includes("LVA") ? "RUS" : "LVA";
+      for (let i = 1; i < line.length; i++) {
+        for (const p of drawnSamples(lesson, line[i - 1], line[i], 300)) {
+          expect(p[0], `${p} near Kaliningrad`).toBeGreaterThan(KALININGRAD_EAST);
+          if (crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+          expect(path.some((id) => inCountry(id, p, "east")), `${p} at sea or abroad`).toBe(true);
+          for (const id of [other, "FIN", "LTU", "UKR", "POL"]) expect(inCountry(id, p, "east"), `${p} in ${id}`).toBe(false);
+        }
+      }
+    });
+  }
+
+  it("draws the wrong turns (into Finland through Russia, and between Latvia and Russia) on land, never near Kaliningrad", () => {
+    for (const path of [
+      ["EST", "RUS", "FIN"],
+      ["EST", "LVA", "RUS"],
+      ["EST", "RUS", "LVA"],
+    ]) {
+      const line = routeLine(path, settings);
+      expect(line, path.join("→")).toHaveLength(5);
+      for (let i = 1; i < line.length; i++)
+        for (const p of drawnSamples(lesson, line[i - 1], line[i], 200)) {
+          expect(p[0], `${path.join("→")}: ${p} near Kaliningrad`).toBeGreaterThan(KALININGRAD_EAST);
+          if (crossings.some((c) => km(p, c) <= BORDER_TOLERANCE_KM)) continue;
+          expect(path.some((id) => inCountry(id, p, "east")), `${path.join("→")}: ${p} at sea or abroad`).toBe(true);
+          for (const id of ["LTU", "POL", "UKR", "NOR", "SWE"]) expect(inCountry(id, p, "east"), `${path.join("→")}: ${p} in ${id}`).toBe(false);
         }
     }
   });

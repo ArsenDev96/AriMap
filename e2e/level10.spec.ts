@@ -8,7 +8,7 @@ import { homeToEurope } from "./helpers/home";
  * a hint names the landmark), the Denmark → Finland journey (one shortest route, over the Øresund and through Sweden;
  * the wrong turn into Norway runs out of crossings, recovered by Undo or Restart; Iceland, learned in Discover and
  * Find, is on no journey, as the level's Travel note says), Level 9's Next level, its own Next level (Level 11), the
- * level selection once Level 10 is completed (Level 11 up next) and once all eleven levels are, and its map: all
+ * level selection once Level 10 is completed (Level 11 up next) and once all twelve levels are, and its map: all
  * five countries whole, Iceland tapped on the map itself, Denmark through the close-up on phones, the close-up beside
  * its toggle on smaller maps (clear of Iceland), and the names of the selected and the traveller's country at 200%
  * text.
@@ -25,6 +25,7 @@ const L8 = "eastern-europe";
 const L9 = "heart-of-the-balkans";
 const L10 = "nordic-countries";
 const L11 = "across-the-channel";
+const L12 = "russia-and-western-neighbours";
 const L10_COUNTRIES = ["DNK", "SWE", "NOR", "FIN", "ISL"];
 const NAMES: Record<string, string> = { DNK: "Denmark", SWE: "Sweden", NOR: "Norway", FIN: "Finland", ISL: "Iceland" };
 const NAMES_HY: Record<string, string> = { DNK: "Դանիա", SWE: "Շվեդիա", NOR: "Նորվեգիա", FIN: "Ֆինլանդիա", ISL: "Իսլանդիա" };
@@ -84,12 +85,16 @@ const EARLIER_RECENT = [L9, L8, L7, L6, L5, L4, L3, L2, L1];
 /** Levels 1–10 completed: Level 11 up next. */
 const TEN_DONE = { ...EARLIER, [L10]: done(L10_COUNTRIES, "dnk-to-fin", ["DNK", "SWE", "FIN"]) };
 const ALL_RECENT = [L10, ...EARLIER_RECENT];
-/** All eleven levels completed (Level 11 included, so the completion message shows). */
-const ALL_DONE = { ...TEN_DONE, [L11]: done(["GBR", "IRL", "FRA", "BEL", "DEU"], "deu-to-gbr", ["DEU", "FRA", "GBR"]) };
-const ALL_DONE_RECENT = [L11, ...ALL_RECENT];
+/** All twelve levels completed (Levels 11 and 12 included, so the completion message shows). */
+const ALL_DONE = {
+  ...TEN_DONE,
+  [L11]: done(["GBR", "IRL", "FRA", "BEL", "DEU"], "deu-to-gbr", ["DEU", "FRA", "GBR"]),
+  [L12]: done(["RUS", "FIN", "EST", "LVA", "BLR"], "est-to-blr", ["EST", "LVA", "BLR"]),
+};
+const ALL_DONE_RECENT = [L12, L11, ...ALL_RECENT];
 const COMPLETION = {
-  en: "You've completed all 11 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 11 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
+  en: "You've completed all 12 levels! Play any of them again whenever you like.",
+  hy: "Ավարտել ես բոլոր 12 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
 };
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
@@ -500,7 +505,7 @@ test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Tr
   expect(errors).toEqual([]);
 });
 
-test("Level 9's Next level opens Level 10; Level 11 up next once Level 10 is completed, and all eleven completed, in Armenian", async ({ page }) => {
+test("Level 9's Next level opens Level 10; Level 11 up next once Level 10 is completed, and all twelve completed, in Armenian", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once.");
   // Level 9 at its Results, Level 10 never started: Next level opens it at Discover.
   await saveV2(page, EARLIER, { screen: "lesson", levelId: L9, recent: EARLIER_RECENT });
@@ -520,8 +525,8 @@ test("Level 9's Next level opens Level 10; Level 11 up next once Level 10 is com
   await expect(card(page, L11)).toHaveAttribute("data-up-next", "true");
   await expect(mainAction(page)).toHaveAttribute("data-level", L11);
   await expect(page.getByTestId("all-done")).toHaveCount(0);
-  // All eleven completed, in Armenian.
-  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L11, recent: ALL_DONE_RECENT });
+  // All twelve completed, in Armenian.
+  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L12, recent: ALL_DONE_RECENT });
   await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.hy);
 });
 

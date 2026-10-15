@@ -159,8 +159,8 @@ function prefersReducedMotion() {
 
 /**
  * A level's map, once its data is there: the levels' own at once, or a level drawn from data of its own (Level 10's
- * northern data, Level 11's Channel data), whose data and landscape are loaded with it (loadMapData, loadLevelRelief).
- * Until then the map's frame shows, empty.
+ * northern data, Level 11's Channel data, Level 12's eastern data), whose data and landscape are loaded with it
+ * (loadMapData, loadLevelRelief). Until then the map's frame shows, empty.
  */
 export function RegionMap(props: Props) {
   const { t, l } = useI18n();
@@ -1706,7 +1706,7 @@ function placeOverlay(
   let area: OverlayLayout["area"] = null;
   if (view.areaHint) {
     const [[x0, y0], [x1, y1]] = shapeById(view.areaHint).bounds as Bounds;
-    const [cx, cy] = toScreen(map.project(getCountry(view.areaHint).label.coordinates));
+    const [cx, cy] = toScreen(map.project(map.labels[view.areaHint] ?? getCountry(view.areaHint).label.coordinates));
     const size = Math.sqrt((x1 - x0) * (y1 - y0)) * transform.k;
     const cap = Math.max(34, Math.min(viewport.width, viewport.height) * 0.3);
     area = { cx, cy, r: Math.min(Math.max(34, size * 0.55), cap), fit: size * 0.55, cap };
@@ -1769,7 +1769,7 @@ function placeOverlay(
       const text = name(id);
       return {
         id,
-        anchor: toScreen(map.project(c.label.coordinates)),
+        anchor: toScreen(map.project(map.labels[id] ?? c.label.coordinates)),
         text,
         textWidth: textWidth(text, labelFont, LABEL_WEIGHT),
         explored: explored.has(id),

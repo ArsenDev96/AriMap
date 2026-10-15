@@ -21,7 +21,6 @@ export const CHALLENGE_COUNTRY_NAMES: Readonly<Record<CountryId, LocalizedText>>
   SMR: { en: "San Marino", hy: "Սան Մարինո" },
   VAT: { en: "Vatican City", hy: "Վատիկան" },
   MLT: { en: "Malta", hy: "Մալթա" },
-  RUS: { en: "Russia", hy: "Ռուսաստան" },
 };
 
 /** A country's base name, for playable and upcoming levels and the Quick Challenge alike. */

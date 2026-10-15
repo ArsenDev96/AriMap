@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Level 11 (Across the Channel) from Discover to Results, its unlock from Level 10 (an existing save), its five
@@ -7,14 +8,16 @@ import { openWithSave } from "./helpers/save";
  * Germany's from Level 1), Find's spoiler-free map, the Germany → United Kingdom journey (one shortest route, through
  * France and the Channel Tunnel; the wrong turns into Belgium and Luxembourg, Travel only, run out of crossings on the
  * Continent, recovered by Undo, Retry or Restart; Ireland, learned in Discover and Find, lies beyond the journey's end),
- * Level 10's Next level, the level selection once all eleven levels are completed, and its map: the five whole,
- * Ireland tapped on the map itself, Belgium through the close-up on phones (the close-up beside its toggle, clear of
- * Ireland), the traveller's pin whole and clear of the map controls.
+ * Level 10's Next level, its own Next level (Level 12), the level selection once Level 11 is completed (Level 12 up
+ * next) and once all twelve levels are, and its map: the five whole, Ireland tapped on the map itself, Belgium through
+ * the close-up on phones (the close-up beside its toggle, clear of Ireland), the traveller's pin whole and clear of the
+ * map controls.
  */
 
 const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe", "heart-of-the-balkans", "nordic-countries"];
 const [L1, , , , , L6, , , , L10] = L;
 const L11 = "across-the-channel";
+const L12 = "russia-and-western-neighbours";
 const L11_COUNTRIES = ["GBR", "IRL", "FRA", "BEL", "DEU"];
 const NAMES: Record<string, string> = { GBR: "United Kingdom", IRL: "Ireland", FRA: "France", BEL: "Belgium", DEU: "Germany", LUX: "Luxembourg" };
 const NAMES_HY: Record<string, string> = { GBR: "Միացյալ Թագավորություն", IRL: "Իռլանդիա", FRA: "Ֆրանսիա", BEL: "Բելգիա", DEU: "Գերմանիա", LUX: "Լյուքսեմբուրգ" };
@@ -76,11 +79,15 @@ const EARLIER = {
   [L[9]]: done(["DNK", "SWE", "NOR", "FIN", "ISL"], "dnk-to-fin", ["DNK", "SWE", "FIN"], 3),
 };
 const EARLIER_RECENT = [...L].reverse();
-const ALL_DONE = { ...EARLIER, [L11]: done(L11_COUNTRIES, "deu-to-gbr", ["DEU", "FRA", "GBR"], 3) };
+/** Levels 1–11 completed: Level 12 up next. */
+const ELEVEN_DONE = { ...EARLIER, [L11]: done(L11_COUNTRIES, "deu-to-gbr", ["DEU", "FRA", "GBR"], 3) };
 const ALL_RECENT = [L11, ...EARLIER_RECENT];
+/** All twelve levels completed (Level 12 included, so the completion message shows). */
+const ALL_DONE = { ...ELEVEN_DONE, [L12]: done(["RUS", "FIN", "EST", "LVA", "BLR"], "est-to-blr", ["EST", "LVA", "BLR"], 3) };
+const ALL_DONE_RECENT = [L12, ...ALL_RECENT];
 const COMPLETION = {
-  en: "You've completed all 11 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 11 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
+  en: "You've completed all 12 levels! Play any of them again whenever you like.",
+  hy: "Ավարտել ես բոլոր 12 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
 };
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
@@ -353,7 +360,7 @@ const toolbar = (page: Page) =>
     };
   });
 
-test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find, Travel through the Channel Tunnel, Results, and all eleven levels completed", async ({ page }) => {
+test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find, Travel through the Channel Tunnel, Results, and Level 12 unlocked", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once, on the Pixel 7 project; layouts are checked at other sizes below.");
   test.setTimeout(300_000);
   const errors: string[] = [];
@@ -368,7 +375,7 @@ test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find,
   await expect(card(page, L11)).toContainText("Explore north-western Europe, from Germany to Ireland.");
   // Its card's picture: Big Ben's thumbnail (the United Kingdom is the destination).
   await expect(card(page, L11).locator('img[src*="big-ben"]')).toHaveCount(1);
-  await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-max", "33");
+  await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-max", "36");
   await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-earned", "30");
   await expect(page.getByTestId("all-done")).toHaveCount(0);
   await expect(mainAction(page)).toHaveText(/^Start\s*Level 11 · Across the Channel$/);
@@ -465,7 +472,7 @@ test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find,
   await expect(route).toHaveAttribute("data-points", "3");
   await page.getByTestId("move-GBR").click();
 
-  // --- Results: the last level; Back to levels ------------------------------------------------
+  // --- Results: Level 12 follows; Next level ------------------------------------------------
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
   for (const name of ["Germany", "France", "United Kingdom"]) await expect(page.getByTestId("result-route")).toContainText(name);
   await expect(page.getByTestId("result-crossings")).toContainText("2 of 2");
@@ -474,8 +481,9 @@ test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find,
   // it), the English portal at Folkestone, London.
   await expect(route).toHaveAttribute("data-route", "DEU,FRA,GBR");
   await expect(route).toHaveAttribute("data-points", "22");
-  await expect(page.getByTestId("next-level")).toHaveCount(0);
-  await expect(page.getByTestId("back-to-levels")).toBeVisible();
+  // Level 12 follows: Next level is the main action, naming it.
+  await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 12, Russia and its western neighbours");
+  await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
   await expect(page.getByTestId("rating-attempt")).toHaveAttribute("data-stars", "2");
 
   // Replay journey without help: the badge.
@@ -484,17 +492,20 @@ test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find,
   for (const id of ["FRA", "GBR"]) await page.getByTestId(`move-${id}`).click();
   await expect(page.getByTestId("badge")).toBeVisible();
 
-  // --- The level selection: all eleven completed --------------------------------------------
-  await page.getByTestId("back-to-levels").click();
+  // --- The level selection: Levels 1–11 completed, Level 12 unlocked and up next; no completion message yet ------
+  await homeToEurope(page);
   for (const id of [...L, L11]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L12).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(card(page, L12)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 12 · Russia and its western neighbours$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L12).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("Level 10's Next level opens Level 11; all eleven completed in Armenian", async ({ page }) => {
+test("Level 10's Next level opens Level 11; Level 12 up next once Level 11 is completed, and all twelve completed, in Armenian", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once.");
   // Level 10 at its Results, Level 11 never started: Next level opens it at Discover.
   await saveV2(page, EARLIER, { screen: "lesson", levelId: L10, recent: EARLIER_RECENT });
@@ -514,13 +525,21 @@ test("Level 10's Next level opens Level 11; all eleven completed in Armenian", a
     expect(saved[id].records.bestRating, id).toBeGreaterThanOrEqual((EARLIER as Record<string, { records: { bestRating: number } }>)[id].records.bestRating);
     expect(saved[id].records.travelDone, id).toBe(true);
   }
-  // All eleven completed, in Armenian.
-  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L11, recent: ALL_RECENT });
+  // Levels 1–11 completed, in Armenian: Level 12 ready to play and up next, no completion message; 3 stars each.
+  await saveV2(page, ELEVEN_DONE, { locale: "hy", levelId: L11, recent: ALL_RECENT });
   await expect(card(page, L11)).toContainText("Լա Մանշի այն կողմ");
   await expect(card(page, L11)).toContainText("Միացյալ Թագավորություն · Իռլանդիա · Ֆրանսիա · Բելգիա · Գերմանիա");
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.hy);
+  await expect(card(page, L12).getByTestId("level-status")).toHaveText("Պատրաստ է խաղալու");
+  await expect(card(page, L12)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveAttribute("data-level", L12);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-earned", "33");
-  await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-max", "33");
+  await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-max", "36");
+  // All twelve completed, in Armenian.
+  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L12, recent: ALL_DONE_RECENT });
+  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.hy);
+  await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-earned", "36");
+  await expect(page.getByTestId("continent-stars").first()).toHaveAttribute("data-max", "36");
 });
 
 test("Level 11 on phones and desktop: every card in both languages, Find with Ireland on the map and Belgium (through the close-up on phones), the five whole, the close-up clear of Ireland", async ({ page }) => {
@@ -628,7 +647,7 @@ test("Level 11's traveller pin whole and clear of the map controls: the Continen
       await page.getByTestId("travel-tools").getByRole("button").nth(2).click();
       await expectClear("DEU", "Restart");
       // Results, restored: the traveller in London.
-      await openLevel11(page, ALL_DONE[L11], locale);
+      await openLevel11(page, ELEVEN_DONE[L11], locale);
       await enlarge();
       await expectClear("GBR", "Results");
     }

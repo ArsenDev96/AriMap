@@ -935,6 +935,36 @@ export const COUNTRIES: Readonly<Record<CountryId, CountryContent>> = {
       illustration: "cliffs-of-moher",
     },
   },
+  // Level 12's new country (Russia and its western neighbours), with its own illustration (supplied 2026-10-15). Its
+  // name and label point are the ones the Quick Challenge used for it before it had content here, so its map is
+  // unchanged; Level 12 names it from a point of its own, inside its frame (`map.labels`). Its shape is Russia without
+  // Crimea, which every dataset draws as part of Ukraine (docs/DATA.md).
+  RUS: {
+    id: "RUS",
+    name: { en: "Russia", hy: "Ռուսաստան" },
+    nameInText: { en: "Russia", hy: "Ռուսաստանը" },
+    capital: { name: { en: "Moscow", hy: "Մոսկվա" }, coordinates: [37.6173, 55.7558] },
+    hint: {
+      en: "The world's largest country, reaching across Asia to the Pacific. Only its western part fits on this map. Kaliningrad, on the Baltic Sea between Lithuania and Poland, is a separate part of Russia.",
+      hy: "Աշխարհի ամենամեծ երկիրը, որը ձգվում է Ասիայով մինչև Խաղաղ օվկիանոս։ Այս քարտեզին տեղավորվում է միայն նրա արևմտյան մասը։ Կալինինգրադը՝ Բալթիկ ծովի ափին, Լիտվայի և Լեհաստանի միջև, Ռուսաստանի առանձին մասն է։",
+    },
+    // European Russia's middle, east of Moscow (the Quick Challenge's).
+    label: { coordinates: [44.0, 57.0] },
+    landmark: {
+      id: "saint-basils-cathedral",
+      name: { en: "Saint Basil's Cathedral", hy: "Վասիլի Երանելու տաճար" },
+      nameInText: { en: "Saint Basil's Cathedral", hy: "Վասիլի Երանելու տաճարը" },
+      fact: {
+        // A word joiner (U+2060) after the dash keeps the years on one line.
+        en: "Saint Basil's Cathedral was built in Moscow between 1555 and 1561.",
+        hy: "Վասիլի Երանելու տաճարը կառուցվել է Մոսկվայում՝ 1555–\u20601561 թվականներին։",
+      },
+      // On Red Square, 0.5 km from the capital's point: the marker rule leaves its pin out wherever the two would meet
+      // (docs/CONTENT.md).
+      coordinates: [37.6231, 55.7525],
+      illustration: "saint-basils-cathedral",
+    },
+  },
 };
 
 /** A country's hint in a level: the level's own wording for its region, or the country's. */

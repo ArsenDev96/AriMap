@@ -765,6 +765,22 @@
         "height": 1450,
         "bytes": 86968
       }
+    },
+    "russia-and-western-neighbours": {
+      "land": {
+        "x": -806,
+        "y": -1342,
+        "width": 4542,
+        "height": 1682,
+        "bytes": 361088
+      },
+      "tone": {
+        "x": 984,
+        "y": -1386,
+        "width": 2574,
+        "height": 1772,
+        "bytes": 185066
+      }
     }
   },
   "version": "a45fb07217",

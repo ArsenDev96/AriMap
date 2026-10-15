@@ -79,7 +79,7 @@ const EARLIER = {
   [L8]: done(["POL", "BLR", "UKR", "MDA", "ROU"], "pol-to-mda", ["POL", "UKR", "MDA"]),
 };
 const EARLIER_RECENT = [L8, L7, L6, L5, L4, L3, L2, L1];
-/** Levels 1–9 completed: Level 10 up next (e2e/level10.spec.ts checks all eleven completed). */
+/** Levels 1–9 completed: Level 10 up next (e2e/level10.spec.ts checks all twelve completed). */
 const NINE_DONE = { ...EARLIER, [L9]: done(L9_COUNTRIES, "mne-to-mkd", ["MNE", "KOS", "MKD"]) };
 const ALL_RECENT = [L9, ...EARLIER_RECENT];
 

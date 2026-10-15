@@ -3,7 +3,7 @@ import { openWithSave } from "./helpers/save";
 
 /*
  * The continents above the level selection, as a world map: Continents → a continent's levels →
- * Discover → Find → Travel → Results. Five categories (Europe with the eleven levels, four coming soon
+ * Discover → Find → Travel → Results. Five categories (Europe with the twelve levels, four coming soon
  * with no action) on the map's land and as names, Oceania and Antarctica as context only; Europe
  * opened from its land, its name (a button, with its levels completed under it, from the permanent
  * records) or, with nothing to continue, Explore Europe in the action area; Continue there straight
@@ -20,7 +20,7 @@ import { openWithSave } from "./helpers/save";
 
 const project = () => test.info().project.name;
 
-const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe", "heart-of-the-balkans", "nordic-countries", "across-the-channel"];
+const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe", "heart-of-the-balkans", "nordic-countries", "across-the-channel", "russia-and-western-neighbours"];
 const [L1, L2, L3] = L;
 const COUNTRIES: Record<string, string[]> = {
   "western-europe-1": ["FRA", "BEL", "NLD", "LUX", "DEU"],
@@ -34,6 +34,7 @@ const COUNTRIES: Record<string, string[]> = {
   "heart-of-the-balkans": ["MNE", "KOS", "ALB", "MKD", "GRC"],
   "nordic-countries": ["DNK", "SWE", "NOR", "FIN", "ISL"],
   "across-the-channel": ["GBR", "IRL", "FRA", "BEL", "DEU"],
+  "russia-and-western-neighbours": ["RUS", "FIN", "EST", "LVA", "BLR"],
 };
 const ROUTES: Record<string, [string, string[]]> = {
   "western-europe-1": ["fra-to-nld", ["FRA", "BEL", "NLD"]],
@@ -47,6 +48,7 @@ const ROUTES: Record<string, [string, string[]]> = {
   "heart-of-the-balkans": ["mne-to-mkd", ["MNE", "KOS", "MKD"]],
   "nordic-countries": ["dnk-to-fin", ["DNK", "SWE", "FIN"]],
   "across-the-channel": ["deu-to-gbr", ["DEU", "FRA", "GBR"]],
+  "russia-and-western-neighbours": ["est-to-blr", ["EST", "LVA", "BLR"]],
 };
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
 /** A level finished, at its Results. */
@@ -89,8 +91,8 @@ const NAMES = {
 };
 const IDS = ["europe", "asia", "africa", "north-america", "south-america"];
 const TEXT = {
-  en: { levels: "11 levels", completed: (n: number) => `${n} of 11 Europe levels completed`, short: (n: number) => `Completed: ${n}/11`, stars: (n: number) => `${n} of 33 stars earned in Europe`, starsShort: (n: number) => `${n}/33`, explore: "Explore Europe", soon: "Coming soon", back: "Back to continents", continue: "Continue", europe: "Europe" },
-  hy: { levels: "11 մակարդակ", completed: (n: number) => `Եվրոպայի 11 մակարդակից ավարտված է ${n}-ը`, short: (n: number) => `Ավարտված՝ ${n}/11`, stars: (n: number) => `Եվրոպայի 33 աստղից վաստակված է ${n}-ը`, starsShort: (n: number) => `${n}/33`, explore: "Բացահայտել Եվրոպան", soon: "Շուտով", back: "Վերադառնալ մայրցամաքներին", continue: "Շարունակել", europe: "Եվրոպա" },
+  en: { levels: "12 levels", completed: (n: number) => `${n} of 12 Europe levels completed`, short: (n: number) => `Completed: ${n}/12`, stars: (n: number) => `${n} of 36 stars earned in Europe`, starsShort: (n: number) => `${n}/36`, explore: "Explore Europe", soon: "Coming soon", back: "Back to continents", continue: "Continue", europe: "Europe" },
+  hy: { levels: "12 մակարդակ", completed: (n: number) => `Եվրոպայի 12 մակարդակից ավարտված է ${n}-ը`, short: (n: number) => `Ավարտված՝ ${n}/12`, stars: (n: number) => `Եվրոպայի 36 աստղից վաստակված է ${n}-ը`, starsShort: (n: number) => `${n}/36`, explore: "Բացահայտել Եվրոպան", soon: "Շուտով", back: "Վերադառնալ մայրցամաքներին", continue: "Շարունակել", europe: "Եվրոպա" },
 };
 
 /** Records each screen the app shows, in order, from the first paint of every document (to catch a flash of the wrong one). */
@@ -243,7 +245,7 @@ async function expectMapLayout(page: Page, where: string, { size = 100, layout }
     if (namesOnMap || IDS[i] !== "europe") expect(overlaps(progress, box), `${where}: Europe's progress and ${IDS[i]} overlap`).toBe(false);
   expect(overlaps(progress, europeButton), `${where}: Europe's progress over its button`).toBe(false);
   expect(progress.x >= -0.5 && progress.x + progress.width <= width + 0.5, `${where}: Europe's progress off screen sideways`).toBe(true);
-  // The count ("2/11") is kept on one line.
+  // The count ("2/12") is kept on one line.
   expect(await progressArea(page).locator('[class*="fraction"]').evaluate((el) => el.getClientRects().length), `${where}: the count broken`).toBe(1);
 
   // Text at its full size and never cut: every name, status and progress line as wide as its text.
@@ -303,15 +305,15 @@ async function expectNames(page: Page, locale: "en" | "hy", completed: number, s
   expect(await page.getByTestId("continent-list").locator(":scope > li").evaluateAll((els) => els.map((e) => e.getAttribute("data-continent")))).toEqual(IDS);
   await expect(europeName(page)).toHaveAccessibleName(t.europe);
   await expect(europeName(page)).toHaveAccessibleDescription(`${t.completed(completed)} ${t.stars(stars)}`);
-  // Europe's button is its name and arrow only. Its levels completed read "Completed: 2/11" and, apart from
-  // them, its stars "★ 6/33" (each in full for assistive technology), named "Europe" only under the
+  // Europe's button is its name and arrow only. Its levels completed read "Completed: 2/12" and, apart from
+  // them, its stars "★ 6/36" (each in full for assistive technology), named "Europe" only under the
   // map, where the button is not beside them.
   await expect(europeName(page)).toHaveText(t.europe);
   await expect(progressText(page)).toHaveText(t.short(completed));
   const onMap = !(await progressArea(page).evaluate((el) => !!el.closest('[data-testid="continent-europe"]')));
   await expect(progressArea(page).locator(".visually-hidden")).toHaveText([t.completed(completed), t.stars(stars)]);
   await expect(progressArea(page).locator(":scope p > [aria-hidden='true']")).toHaveText(onMap ? [t.europe, t.short(completed), t.starsShort(stars)] : [t.short(completed), t.starsShort(stars)]);
-  await expect(progressArea(page).getByTestId("continent-stars")).toHaveAttribute("data-max", "33");
+  await expect(progressArea(page).getByTestId("continent-stars")).toHaveAttribute("data-max", "36");
   await expect(label(page, "europe")).toHaveAttribute("data-status", "open");
   // The two Americas clearly apart: periwinkle blue and rose.
   const fill = (id: string) => page.getByTestId(`map-region-${id}`).evaluate((el) => getComputedStyle(el).fill.match(/\d+/g)!.map(Number));
@@ -346,7 +348,7 @@ test.describe("continents", () => {
           await open(page, s, { locale });
           await expect(page.getByTestId("continents")).toBeVisible();
           // Every level completed here was played with all five found on the first try and no help: 3 stars each.
-          await expectNames(page, locale, s === NEW ? 0 : s === LEVEL3 ? 2 : 11, s === NEW ? 0 : s === LEVEL3 ? 6 : 33);
+          await expectNames(page, locale, s === NEW ? 0 : s === LEVEL3 ? 2 : 12, s === NEW ? 0 : s === LEVEL3 ? 6 : 36);
           if (s === LEVEL3) {
             // Continue names the continent and the level, and (where there is room) its title; always all three for assistive technology.
             await expect(continueButton(page)).toHaveAttribute("data-level", L3);
@@ -370,7 +372,7 @@ test.describe("continents", () => {
         await europeName(page).click();
         await expect(page.getByTestId("continent-title")).toHaveText(TEXT[locale].europe);
         await expect(page.getByTestId("back-to-continents")).toHaveAccessibleName(TEXT[locale].back);
-        await expect(page.getByTestId("levels").locator(":scope > li")).toHaveCount(11);
+        await expect(page.getByTestId("levels").locator(":scope > li")).toHaveCount(12);
         await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveAttribute("data-level", L3);
         expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), `${width}×${height} ${locale} Europe: horizontal scroll`).toBeLessThanOrEqual(0);
         await shot(page, `${locale}-europe-levels`);
@@ -460,7 +462,7 @@ test.describe("continents", () => {
     await page.getByTestId("home").click();
     await expect(page.getByTestId("continents")).toBeVisible();
     await expect(continueButton(page)).toHaveAttribute("data-level", L3);
-    await expect(progressText(page)).toHaveText("Completed: 2/11");
+    await expect(progressText(page)).toHaveText("Completed: 2/12");
     await page.reload();
     await expect(page.getByTestId("continents")).toBeVisible();
     expect(await screensSeen(page)).toEqual(["continents"]);
@@ -495,13 +497,13 @@ test.describe("continents", () => {
     await dialog.getByRole("button", { name: "Start over" }).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeVisible();
     await page.getByTestId("home").click();
-    await expect(progressText(page)).toHaveText("Completed: 2/11");
+    await expect(progressText(page)).toHaveText("Completed: 2/12");
     await expect(continueButton(page)).toHaveAttribute("data-level", L3);
     await europeName(page).click();
     await expect(page.getByTestId(`level-${L3}`).getByTestId("level-status")).toHaveText("In progress: Discover");
     await expect(page.getByTestId("level-along-the-adriatic").getByTestId("level-status")).toHaveText(/^Locked/);
 
-    // All eleven completed, Level 2 played again: still eleven of eleven, nothing to continue, every level open.
+    // All twelve completed, Level 2 played again: still twelve of twelve, nothing to continue, every level open.
     await open(page, ALL_DONE);
     await page.getByTestId("explore-europe").click();
     await page.getByTestId(`level-${L2}`).getByTestId("level-details-toggle").click();
@@ -509,11 +511,11 @@ test.describe("continents", () => {
     await dialog.getByRole("button", { name: "Play again" }).click();
     await expect(page.getByRole("heading", { name: "Tap a country to learn about it." })).toBeVisible();
     await page.getByTestId("home").click();
-    await expect(progressText(page)).toHaveText("Completed: 11/11");
+    await expect(progressText(page)).toHaveText("Completed: 12/12");
     // The replay of Level 2 is an attempt under way: Continue resumes it.
     await expect(continueButton(page)).toHaveAttribute("data-level", L2);
     await page.reload();
-    await expect(progressText(page)).toHaveText("Completed: 11/11");
+    await expect(progressText(page)).toHaveText("Completed: 12/12");
     await europeName(page).click();
     for (const id of L) await expect(page.getByTestId(`level-${id}`).getByTestId("level-status")).toHaveText("Completed");
   });
@@ -522,7 +524,7 @@ test.describe("continents", () => {
     test.skip(project() !== "small-phone", "Runs once.");
     await page.setViewportSize({ width: 320, height: 568 });
     await open(page, NEW);
-    await expect(progressText(page)).toHaveText("Completed: 0/11");
+    await expect(progressText(page)).toHaveText("Completed: 0/12");
     await page.getByTestId("explore-europe").click();
     await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Start\s*Level 1 · France and its neighbours$/);
     await expect(page.getByTestId(`level-${L2}`).getByTestId("level-status")).toHaveText(/^Locked/);

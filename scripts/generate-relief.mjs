@@ -42,8 +42,9 @@ const PROJECTION_FIT = ["FRA", "BEL", "NLD", "LUX", "DEU"];
  * against every version of every playable level, so a level added there without
  * rerunning this script fails the tests.
  *
- * A level drawn from data of its own (`map.dataset` in src/core/lessons: Level 10's "north", Level 11's "channel") has
- * its countries' frame taken from that data (src/data/geo/europe-north.topo.json, europe-channel.topo.json), and only
+ * A level drawn from data of its own (`map.dataset` in src/core/lessons: Level 10's "north", Level 11's "channel",
+ * Level 12's "east") has its countries' frame taken from that data (src/data/geo/europe-north.topo.json,
+ * europe-channel.topo.json, europe-east.topo.json), and only
  * its overview from here, at `overviewPx` pixels per world unit (half, as the Quick Challenge's: its area is about four
  * times a usual level's). Zoomed in it draws the Quick Challenge's tiles (scripts/generate-challenge-relief.mjs;
  * loadLevelRelief in Relief.tsx), so it adds nothing to the shared tile grid, which stays where the levels' data is.
@@ -62,6 +63,16 @@ const LEVEL_AREAS = [
   { id: "heart-of-the-balkans", countries: ["MNE", "KOS", "ALB", "MKD", "GRC"], coverageHalf: [1000, 410] },
   { id: "nordic-countries", countries: ["DNK", "SWE", "NOR", "FIN", "ISL"], coverageHalf: [2095, 990], dataset: "north", overviewPx: 0.5 },
   { id: "across-the-channel", countries: ["GBR", "IRL", "FRA", "BEL", "DEU"], coverageHalf: [2390, 880], dataset: "channel", overviewPx: 0.5 },
+  // Russia counts in the frame only within its box (`map.frameWithin`), as in regionMap.ts; its tone still covers all
+  // of it the map can show.
+  {
+    id: "russia-and-western-neighbours",
+    countries: ["RUS", "FIN", "EST", "LVA", "BLR"],
+    coverageHalf: [2270, 840],
+    dataset: "east",
+    overviewPx: 0.5,
+    frameWithin: { RUS: [[26, 54], [39, 70]] },
+  },
 ];
 /**
  * Where the zoomed tile grids are anchored: the corner of Level 1's pan area,
@@ -73,7 +84,13 @@ const topology = JSON.parse(readFileSync(file("src/data/geo/europe-west.topo.jso
 const countries = feature(topology, topology.objects.countries);
 const north = JSON.parse(readFileSync(file("src/data/geo/europe-north.topo.json"), "utf8"));
 const channel = JSON.parse(readFileSync(file("src/data/geo/europe-channel.topo.json"), "utf8"));
-const datasets = { west: countries, north: feature(north, north.objects.countries), channel: feature(channel, channel.objects.countries) };
+const east = JSON.parse(readFileSync(file("src/data/geo/europe-east.topo.json"), "utf8"));
+const datasets = {
+  west: countries,
+  north: feature(north, north.objects.countries),
+  channel: feature(channel, channel.objects.countries),
+  east: feature(east, east.objects.countries),
+};
 const collection = (ids, dataset = "west") => ({
   type: "FeatureCollection",
   features: datasets[dataset].features.filter((f) => f.geometry && ids.includes(String(f.id))),
@@ -88,8 +105,8 @@ export const projection = geoAzimuthalEqualArea().rotate([-8, -50]).fitSize([100
  * further north (`travelReachNorth`, Level 4's) has both reaching that far: its
  * map can show it, and be panned to it, in Travel (travelCoverage in regionMap.ts).
  */
-function levelAreas({ id, countries: ids, coverageHalf: [hx, hy], dataset = "west", overviewPx = 1, travelReachNorth = 0 }) {
-  const [[fx0, fy0], [fx1, fy1]] = geoPath(projection).bounds(collection(ids, dataset));
+function levelAreas({ id, countries: ids, coverageHalf: [hx, hy], dataset = "west", overviewPx = 1, travelReachNorth = 0, frameWithin = {} }) {
+  const [[fx0, fy0], [fx1, fy1]] = frameBounds(collection(ids, dataset).features, frameWithin);
   const [cx, cy] = [(fx0 + fx1) / 2, (fy0 + fy1) / 2];
   const coverage = { x0: cx - hx, y0: cy - hy - travelReachNorth, x1: cx + hx, y1: cy + hy };
   const panArea = {
@@ -98,8 +115,43 @@ function levelAreas({ id, countries: ids, coverageHalf: [hx, hy], dataset = "wes
     x1: Math.min(coverage.x1, fx1 + (fx1 - fx0) * 0.25),
     y1: Math.min(coverage.y1, fy1 + (fy1 - fy0) * 0.25),
   };
-  const lessonArea = { x0: fx0 - 4, y0: fy0 - 4, x1: fx1 + 4, y1: fy1 + 4 };
+  // Every part of the countries (Level 12's Russia beyond its frame too, to the data's edge).
+  const [[lx0, ly0], [lx1, ly1]] = geoPath(projection).bounds(collection(ids, dataset));
+  const lessonArea = { x0: lx0 - 4, y0: ly0 - 4, x1: lx1 + 4, y1: ly1 + 4 };
   return { id, coverage, panArea, lessonArea, overviewPx, sharedTiles: dataset === "west" };
+}
+/**
+ * The countries' frame, as regionMap.ts's frameBounds: their bounds, but a country with a box in `frameWithin` counts
+ * only by the points of its outer rings inside the box and of the box's edges (every 0.25°) inside its shape, lon/lat
+ * taken as a plane.
+ */
+function frameBounds(features, frameWithin) {
+  const boxed = features.filter((f) => frameWithin[String(f.id)]);
+  const rest = features.filter((f) => !frameWithin[String(f.id)]);
+  let [[x0, y0], [x1, y1]] = rest.length ? geoPath(projection).bounds({ type: "FeatureCollection", features: rest }) : [[Infinity, Infinity], [-Infinity, -Infinity]];
+  const take = (p) => {
+    const q = projection(p);
+    if (q) [x0, y0, x1, y1] = [Math.min(x0, q[0]), Math.min(y0, q[1]), Math.max(x1, q[0]), Math.max(y1, q[1])];
+  };
+  for (const f of boxed) {
+    const [[w, s], [e, n]] = frameWithin[String(f.id)];
+    const polygons = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const polygon of polygons) for (const p of polygon[0]) if (p[0] >= w && p[0] <= e && p[1] >= s && p[1] <= n) take(p);
+    const edge = [];
+    for (let lon = w; lon <= e + 1e-9; lon += 0.25) edge.push([lon, s], [lon, n]);
+    for (let lat = s; lat <= n + 1e-9; lat += 0.25) edge.push([w, lat], [e, lat]);
+    for (const [x, y] of edge) {
+      let inside = false;
+      for (const polygon of polygons)
+        for (const ring of polygon)
+          for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            const [[xi, yi], [xj, yj]] = [ring[i], ring[j]];
+            if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+          }
+      if (inside) take([x, y]);
+    }
+  }
+  return [[x0, y0], [x1, y1]];
 }
 const AREAS = LEVEL_AREAS.map(levelAreas);
 /** The levels whose zoomed views draw the shared tiles: those drawn from the levels' data. */

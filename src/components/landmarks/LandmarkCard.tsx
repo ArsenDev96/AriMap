@@ -34,6 +34,7 @@ import ostrogMonastery from "@/assets/landmarks/ostrog-monastery.webp";
 import prizrenFortress from "@/assets/landmarks/prizren-fortress.webp";
 import rilaMonastery from "@/assets/landmarks/rila-monastery.webp";
 import sagradaFamilia from "@/assets/landmarks/sagrada-familia.webp";
+import saintBasilsCathedral from "@/assets/landmarks/saint-basils-cathedral.webp";
 import saintSophiaCathedral from "@/assets/landmarks/saint-sophia-cathedral.webp";
 import schonbrunnPalace from "@/assets/landmarks/schonbrunn-palace.webp";
 import sorocaFortress from "@/assets/landmarks/soroca-fortress.webp";
@@ -88,6 +89,7 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
   hallgrimskirkja,
   "big-ben": bigBen,
   "cliffs-of-moher": cliffsOfMoher,
+  "saint-basils-cathedral": saintBasilsCathedral,
 };
 
 /**
@@ -97,7 +99,7 @@ export const LANDMARK_IMAGES: Readonly<Record<string, StaticImageData>> = {
  * tile's height; in the shallow tile (about 262×62px at 320×568) it is drawn no larger than in
  * the square one until about 2:1 (Adolphe Bridge, 1.71: 100×58px square, about 106×62px wide),
  * but well beyond it (Schönbrunn Palace, 3.26: 100×30px square, about 200×62px wide). The current
- * copies are 0.71–1.89 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25, Level 7's three 0.93–1.08, Level 8's three 1.05–1.27, Level 9's three 1.00–1.70, Level 10's five 0.94–1.84, Level 11's two 0.71 (Big Ben, the tallest) and 1.89 (the Cliffs of Moher, the widest)). Desktop is unaffected.
+ * copies are 0.71–1.89 or 3.26, so 2 sits in the gap (Level 3's castles and bridge are about 1.5, Level 4's four 0.96–1.20, Level 5's five 0.90–1.24, Level 6's three 0.84–1.25, Level 7's three 0.93–1.08, Level 8's three 1.05–1.27, Level 9's three 1.00–1.70, Level 10's five 0.94–1.84, Level 11's two 0.71 (Big Ben, the tallest) and 1.89 (the Cliffs of Moher, the widest), Level 12's one 0.92). Desktop is unaffected.
  */
 export const WIDE_ART_ASPECT = 2;
 

@@ -26,6 +26,8 @@ import iberianJourneyLand from "@/assets/map/relief/iberian-journey-land.webp";
 import iberianJourneyTone from "@/assets/map/relief/iberian-journey-tone.webp";
 import nordicCountriesLand from "@/assets/map/relief/nordic-countries-land.webp";
 import nordicCountriesTone from "@/assets/map/relief/nordic-countries-tone.webp";
+import russiaAndWesternNeighboursLand from "@/assets/map/relief/russia-and-western-neighbours-land.webp";
+import russiaAndWesternNeighboursTone from "@/assets/map/relief/russia-and-western-neighbours-tone.webp";
 import towardsGreeceLand from "@/assets/map/relief/towards-greece-land.webp";
 import towardsGreeceTone from "@/assets/map/relief/towards-greece-tone.webp";
 import westernEuropeLand from "@/assets/map/relief/western-europe-1-land.webp";
@@ -50,6 +52,7 @@ const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: St
   "heart-of-the-balkans": { land: heartOfTheBalkansLand, tone: heartOfTheBalkansTone },
   "nordic-countries": { land: nordicCountriesLand, tone: nordicCountriesTone },
   "across-the-channel": { land: acrossTheChannelLand, tone: acrossTheChannelTone },
+  "russia-and-western-neighbours": { land: russiaAndWesternNeighboursLand, tone: russiaAndWesternNeighboursTone },
 };
 
 /**
@@ -128,7 +131,7 @@ let challengeTiles: Promise<typeof import("@/assets/map/challenge-relief.json")>
 
 /**
  * The landscape of a level drawn from data of its own (`map.dataset`: Level 10's northern data, Level 11's Channel
- * data), whose map reaches beyond the levels' tiles (they stop where the levels' data does, at 62°N): its own
+ * data, Level 12's eastern data), whose map reaches beyond the levels' tiles (they stop where the levels' data does, at 62°N): its own
  * overview, from relief.json as every level's, over the Quick Challenge's tiles, which cover the whole of Europe (and,
  * zoomed in deeper, the levels' level-2 tiles where they have one: see OwnRelief). Their manifest is loaded with the
  * level's map, never with the other levels.

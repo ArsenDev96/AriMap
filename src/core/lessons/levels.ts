@@ -10,6 +10,7 @@ import { easternEuropeLesson } from "./eastern-europe";
 import { heartOfTheBalkansLesson } from "./heart-of-the-balkans";
 import { iberianJourneyLesson } from "./iberian-journey";
 import { nordicCountriesLesson } from "./nordic-countries";
+import { russiaAndWesternNeighboursLesson } from "./russia-and-western-neighbours";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
@@ -202,6 +203,19 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: acrossTheChannelLesson.countries,
     lesson: acrossTheChannelLesson,
     unlockedBy: nordicCountriesLesson.id,
+  },
+  {
+    id: russiaAndWesternNeighboursLesson.id,
+    continent: "europe",
+    number: 12,
+    title: { en: "Russia and its western neighbours", hy: "Ռուսաստանը և նրա արևմտյան հարևանները" },
+    description: {
+      en: "Explore European Russia and its neighbours, from Finland to Belarus.",
+      hy: "Ուսումնասիրիր Ռուսաստանի եվրոպական մասը և նրա հարևաններին՝ Ֆինլանդիայից մինչև Բելառուս։",
+    },
+    countries: russiaAndWesternNeighboursLesson.countries,
+    lesson: russiaAndWesternNeighboursLesson,
+    unlockedBy: acrossTheChannelLesson.id,
   },
 ];
 

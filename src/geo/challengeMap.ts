@@ -59,6 +59,8 @@ function buildChallengeMap(topology: ChallengeTopology): ChallengeMapData {
   return {
     projection,
     shapes,
+    // The countries' own label points (ChallengeMap.tsx's labelPoint): no level's.
+    labels: {},
     focusBounds: topology.frame.focus,
     coverage: topology.frame.coverage,
     // No Travel here: the same area.
