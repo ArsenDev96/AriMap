@@ -150,12 +150,16 @@ export function Header({ progress, dispatch }: { progress: LessonProgress; dispa
   );
 }
 
+/** The logo's land and pin, in its 64×64 box (also drawn on the Quick Challenge's shared card, challenge/shareCard.ts). */
+export const BRAND_LAND = "M14 40c4-10 12-14 18-12s8-6 16-4c-2 8 0 14-6 20s-18 4-28-4z";
+export const BRAND_PIN = "M32 13c-6 0-10 4.5-10 10 0 7 10 17 10 17s10-10 10-17c0-5.5-4-10-10-10z";
+
 export function BrandMark({ size = 32 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
       <rect width="64" height="64" rx="16" fill="var(--sea)" />
-      <path d="M14 40c4-10 12-14 18-12s8-6 16-4c-2 8 0 14-6 20s-18 4-28-4z" fill="var(--land)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
-      <path d="M32 13c-6 0-10 4.5-10 10 0 7 10 17 10 17s10-10 10-17c0-5.5-4-10-10-10z" fill="var(--coral)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
+      <path d={BRAND_LAND} fill="var(--land)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
+      <path d={BRAND_PIN} fill="var(--coral)" stroke="var(--ink)" strokeWidth="2.5" strokeLinejoin="round" />
       <circle cx="32" cy="23" r="3.6" fill="var(--bg)" />
     </svg>
   );
