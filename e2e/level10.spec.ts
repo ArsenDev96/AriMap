@@ -1,15 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 import { openWithSave } from "./helpers/save";
+import { homeToEurope } from "./helpers/home";
 
 /*
  * Level 10 (Nordic Countries) from Discover to Results, its unlock from Level 9 (an existing save), its five
  * landmark cards (all its own artwork, supplied 2026-10-14), Find's hints and spoiler-free map (no artwork, even after
  * a hint names the landmark), the Denmark → Finland journey (one shortest route, over the Øresund and through Sweden;
  * the wrong turn into Norway runs out of crossings, recovered by Undo or Restart; Iceland, learned in Discover and
- * Find, is on no journey, as the level's Travel note says), Level 9's Next level, the level selection once all ten
- * levels are completed, and its map: all five countries whole, Iceland tapped on the map itself, Denmark through the
- * close-up on phones, the close-up beside its toggle on smaller maps (clear of Iceland), and the names of the
- * selected and the traveller's country at 200% text.
+ * Find, is on no journey, as the level's Travel note says), Level 9's Next level, its own Next level (Level 11), the
+ * level selection once Level 10 is completed (Level 11 up next) and once all twelve levels are, and its map: all
+ * five countries whole, Iceland tapped on the map itself, Denmark through the close-up on phones, the close-up beside
+ * its toggle on smaller maps (clear of Iceland), and the names of the selected and the traveller's country at 200%
+ * text.
  */
 
 const L1 = "western-europe-1";
@@ -22,6 +24,8 @@ const L7 = "iberian-journey";
 const L8 = "eastern-europe";
 const L9 = "heart-of-the-balkans";
 const L10 = "nordic-countries";
+const L11 = "across-the-channel";
+const L12 = "russia-and-western-neighbours";
 const L10_COUNTRIES = ["DNK", "SWE", "NOR", "FIN", "ISL"];
 const NAMES: Record<string, string> = { DNK: "Denmark", SWE: "Sweden", NOR: "Norway", FIN: "Finland", ISL: "Iceland" };
 const NAMES_HY: Record<string, string> = { DNK: "Դանիա", SWE: "Շվեդիա", NOR: "Նորվեգիա", FIN: "Ֆինլանդիա", ISL: "Իսլանդիա" };
@@ -78,11 +82,19 @@ const EARLIER = {
   [L9]: done(["MNE", "KOS", "ALB", "MKD", "GRC"], "mne-to-mkd", ["MNE", "KOS", "MKD"]),
 };
 const EARLIER_RECENT = [L9, L8, L7, L6, L5, L4, L3, L2, L1];
-const ALL_DONE = { ...EARLIER, [L10]: done(L10_COUNTRIES, "dnk-to-fin", ["DNK", "SWE", "FIN"]) };
+/** Levels 1–10 completed: Level 11 up next. */
+const TEN_DONE = { ...EARLIER, [L10]: done(L10_COUNTRIES, "dnk-to-fin", ["DNK", "SWE", "FIN"]) };
 const ALL_RECENT = [L10, ...EARLIER_RECENT];
+/** All twelve levels completed (Levels 11 and 12 included, so the completion message shows). */
+const ALL_DONE = {
+  ...TEN_DONE,
+  [L11]: done(["GBR", "IRL", "FRA", "BEL", "DEU"], "deu-to-gbr", ["DEU", "FRA", "GBR"]),
+  [L12]: done(["RUS", "FIN", "EST", "LVA", "BLR"], "est-to-blr", ["EST", "LVA", "BLR"]),
+};
+const ALL_DONE_RECENT = [L12, L11, ...ALL_RECENT];
 const COMPLETION = {
-  en: "You've completed all 10 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 10 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
+  en: "You've completed all 12 levels! Play any of them again whenever you like.",
+  hy: "Ավարտել ես բոլոր 12 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
 };
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
@@ -347,7 +359,7 @@ const toolbar = (page: Page) =>
     };
   });
 
-test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Travel, Results, and all ten levels completed", async ({ page }) => {
+test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Travel, Results, and Level 11 unlocked", async ({ page }) => {
   test.skip(project() !== "mobile", "Runs once, on the Pixel 7 project; layouts are checked at other sizes below.");
   test.setTimeout(300_000);
   const errors: string[] = [];
@@ -460,7 +472,7 @@ test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Tr
   await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
   for (const id of ["SWE", "FIN"]) await page.getByTestId(`move-${id}`).click();
 
-  // --- Results: the last level; Back to levels ------------------------------------------------
+  // --- Results: Level 11 follows; Next level ------------------------------------------------
   await expect(page.getByRole("heading", { name: "Journey complete!" })).toBeVisible();
   for (const name of ["Denmark", "Sweden", "Finland"]) await expect(page.getByTestId("result-route")).toContainText(name);
   await expect(page.getByTestId("result-crossings")).toContainText("2 of 2");
@@ -469,8 +481,9 @@ test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Tr
   // to Helsinki.
   await expect(route).toHaveAttribute("data-route", "DNK,SWE,FIN");
   await expect(route).toHaveAttribute("data-points", "27");
-  await expect(page.getByTestId("next-level")).toHaveCount(0);
-  await expect(page.getByTestId("back-to-levels")).toBeVisible();
+  // Level 11 follows: Next level is the main action, naming it.
+  await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 11, Across the Channel");
+  await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
   await expect(page.getByTestId("rating-attempt")).toHaveAttribute("data-stars", "2");
 
   // Replay journey without help: the badge.
@@ -479,17 +492,20 @@ test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Tr
   for (const id of ["SWE", "FIN"]) await page.getByTestId(`move-${id}`).click();
   await expect(page.getByTestId("badge")).toBeVisible();
 
-  // --- The level selection: all ten completed --------------------------------------------
-  await page.getByTestId("back-to-levels").click();
+  // --- The level selection: Levels 1–10 completed, Level 11 unlocked and up next; no completion message yet ------
+  await homeToEurope(page);
   for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9, L10]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
-  await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L11).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(card(page, L11)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveText(/^Start\s*Level 11 · Across the Channel$/);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
+  await expect(card(page, L11).getByTestId("level-status")).toHaveText("Ready to play");
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("Level 9's Next level opens Level 10; all ten completed in Armenian", async ({ page }) => {
+test("Level 9's Next level opens Level 10; Level 11 up next once Level 10 is completed, and all twelve completed, in Armenian", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once.");
   // Level 9 at its Results, Level 10 never started: Next level opens it at Discover.
   await saveV2(page, EARLIER, { screen: "lesson", levelId: L9, recent: EARLIER_RECENT });
@@ -501,10 +517,16 @@ test("Level 9's Next level opens Level 10; all ten completed in Armenian", async
   await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "ISL");
   await page.reload();
   await expect(page.getByTestId("country-card")).toHaveAttribute("data-country", "ISL");
-  // All ten completed, in Armenian.
-  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L10, recent: ALL_RECENT });
+  // Levels 1–10 completed, in Armenian: Level 11 ready to play and up next, no completion message.
+  await saveV2(page, TEN_DONE, { locale: "hy", levelId: L10, recent: ALL_RECENT });
   await expect(card(page, L10)).toContainText("Հյուսիսային երկրներ");
   await expect(card(page, L10)).toContainText("Դանիա · Շվեդիա · Նորվեգիա · Ֆինլանդիա · Իսլանդիա");
+  await expect(card(page, L11).getByTestId("level-status")).toHaveText("Պատրաստ է խաղալու");
+  await expect(card(page, L11)).toHaveAttribute("data-up-next", "true");
+  await expect(mainAction(page)).toHaveAttribute("data-level", L11);
+  await expect(page.getByTestId("all-done")).toHaveCount(0);
+  // All twelve completed, in Armenian.
+  await saveV2(page, ALL_DONE, { locale: "hy", levelId: L12, recent: ALL_DONE_RECENT });
   await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.hy);
 });
 
@@ -635,7 +657,7 @@ test("Level 10's traveller pin whole and clear of the map controls: Germany, Pol
       await page.getByTestId("travel-tools").getByRole("button").nth(2).click();
       await expectClear("DNK", "Restart");
       // Results, restored: the traveller in Helsinki.
-      await openLevel10(page, ALL_DONE[L10], locale);
+      await openLevel10(page, TEN_DONE[L10], locale);
       await enlarge();
       await expectClear("FIN", "Results");
       if (placement === "panel") {

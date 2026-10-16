@@ -4,24 +4,28 @@ import sharp from "sharp";
 import relief from "@/assets/map/relief.json";
 import challengeRelief from "@/assets/map/challenge-relief.json";
 import northJson from "@/data/geo/europe-north.topo.json";
+import channelJson from "@/data/geo/europe-channel.topo.json";
+import eastJson from "@/data/geo/europe-east.topo.json";
 import type { LonLat } from "@/core/content/types";
 import { LESSON_VERSIONS, LESSONS, versionKey } from "@/core/lessons";
 import { balticJourneyOriginalLesson } from "@/core/lessons/baltic-journey";
-import { regionMapFor, setNorthData, viewLimits, type RegionMap } from "./regionMap";
+import { regionMapFor, setMapData, setNorthData, viewLimits, type RegionMap } from "./regionMap";
 import { FORESTS, MOUNTAIN_RANGES } from "./terrain";
 
 type Overview = (typeof relief.overviews)["western-europe-1"];
 const overviews = relief.overviews as Record<string, Overview | undefined>;
 /** Every version of every level: an attempt started on an earlier version (Level 6's first) draws that version's own overview. */
 const lessons = LESSON_VERSIONS;
-/** The levels drawn from the levels' data, whose zoomed views draw the shared tiles (Level 10 draws the Quick Challenge's). */
+/** The levels drawn from the levels' data, whose zoomed views draw the shared tiles (Levels 10–12 draw the Quick Challenge's). */
 const tiled = lessons.filter((lesson) => !lesson.map.dataset);
-// Level 10's northern data, given to the map as loadMapData would.
+// Level 10's northern data, Level 11's Channel data and Level 12's eastern data, given to the map as loadMapData would.
 setNorthData(northJson);
+setMapData("channel", channelJson);
+setMapData("east", eastJson);
 
 /**
  * Strongest relief opacity (0–255) within `r` pixels of a point, in a level version's land overview (by versionKey):
- * a pixel per world unit, or half that (Level 10's).
+ * a pixel per world unit, or half that (Levels 10–12).
  */
 async function alphaSampler(key: string, map: RegionMap) {
   const { data, info } = await sharp(`src/assets/map/relief/${key}-land.webp`).raw().toBuffer({ resolveWithObject: true });
@@ -98,6 +102,17 @@ describe("painted relief", () => {
         expect(origin[1] + rows * tileWorld).toBeGreaterThanOrEqual(e1y);
         return;
       }
+      if (lesson.map.dataset === "channel" || lesson.map.dataset === "east") {
+        // Levels 11 and 12 draw the Quick Challenge's tiles too: their grid covers each whole pan area (Shetland's north
+        // to Corsica's south; the North Cape to Belarus and Moscow). Their level-2 tiles are the levels' own where those
+        // have one.
+        const { origin, cols, rows, tileWorld } = challengeRelief.tiles;
+        expect(origin[0]).toBeLessThanOrEqual(e0x);
+        expect(origin[1]).toBeLessThanOrEqual(e0y);
+        expect(origin[0] + cols * tileWorld).toBeGreaterThanOrEqual(e1x);
+        expect(origin[1] + rows * tileWorld).toBeGreaterThanOrEqual(e1y);
+        return;
+      }
       for (const level of relief.levels) {
         expect(level.origin[0]).toBeLessThanOrEqual(e0x);
         expect(level.origin[1]).toBeLessThanOrEqual(e0y);
@@ -156,6 +171,54 @@ describe("painted relief", () => {
     const forests: Record<string, LonLat> = { "Finnish Lakeland": [27.0, 62.5], Småland: [14.8, 57.0], Norrland: [16.5, 63.5] };
     for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
     expect(alphaNear([11.4, 54.75], 0), "Lolland").toBeLessThanOrEqual(10);
+  });
+
+  it("Level 11: its overview at half a pixel per unit, as Level 10's, over the Quick Challenge's tiles", async () => {
+    const { land, tone } = overviews["across-the-channel"]!;
+    for (const [family, o] of [["land", land], ["tone", tone]] as const) {
+      const meta = await sharp(`src/assets/map/relief/across-the-channel-${family}.webp`).metadata();
+      expect(meta.width, family).toBe(o.width / 2);
+      expect(meta.height, family).toBe(o.height / 2);
+    }
+  });
+
+  // Reference points: the Wikipedia articles' coordinates (checked 2026-10-15; see docs/TERRAIN.md).
+  it("Level 11: shows the Highlands, Snowdonia, the Black Forest and Corsica's mountains, forests from Kielder to the Landes; the Fens, the Beauce and Ireland's Central Plain stay bare", async () => {
+    const alphaNear = await alphaSampler("across-the-channel", regionMapFor(LESSONS["across-the-channel"]));
+    const summits: Record<string, [LonLat, number]> = {
+      "Ben Nevis": [[-5.0037, 56.7969], 120],
+      Snowdon: [[-4.0761, 53.0685], 50],
+      "Feldberg (Black Forest)": [[8.0042, 47.8742], 150],
+      "Monte Cinto (Corsica)": [[8.9456, 42.3794], 200],
+      // Ireland's highest, in a small range: faint at half a pixel per unit (about 3 km), but there.
+      Carrauntoohil: [[-9.7425, 51.9997], 15],
+    };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    const forests: Record<string, LonLat> = { Kielder: [-2.53, 55.21], Thetford: [0.65, 52.46], Ardennes: [5.6, 50.0], "Landes forest": [-0.9, 44.2] };
+    for (const [name, p] of Object.entries(forests)) expect(alphaNear(p, 2), name).toBeGreaterThanOrEqual(40);
+    const farmland: Record<string, LonLat> = { Fens: [0.1, 52.55], Beauce: [1.6, 48.3], "Central Plain (Kildare)": [-6.9, 53.15], "Magdeburger Börde": [11.4, 52.05] };
+    for (const [name, p] of Object.entries(farmland)) expect(alphaNear(p, 0), name).toBeLessThanOrEqual(10);
+  });
+
+  it("Level 12: its overview at half a pixel per unit, as Levels 10 and 11's, over the Quick Challenge's tiles; its tone over all of Russia the data holds", async () => {
+    const { land, tone } = overviews["russia-and-western-neighbours"]!;
+    for (const [family, o] of [["land", land], ["tone", tone]] as const) {
+      const meta = await sharp(`src/assets/map/relief/russia-and-western-neighbours-${family}.webp`).metadata();
+      expect(meta.width, family).toBe(o.width / 2);
+      expect(meta.height, family).toBe(o.height / 2);
+    }
+    // Russia takes a state colour wherever it is drawn, far beyond the frame its box sets (scripts/generate-relief.mjs).
+    const map = regionMapFor(LESSONS["russia-and-western-neighbours"]);
+    expect(tone.x + tone.width - map.focusBounds[1][0]).toBeGreaterThan(1000);
+  });
+
+  // Reference points: the Wikipedia articles' coordinates; Halti and the Finnish Lakeland as Level 10's (the same sources,
+  // painted at the same half a pixel per unit).
+  it("Level 12: shows Halti and the Khibiny, and the forests of the Finnish Lakeland", async () => {
+    const alphaNear = await alphaSampler("russia-and-western-neighbours", regionMapFor(LESSONS["russia-and-western-neighbours"]));
+    const summits: Record<string, [LonLat, number]> = { Halti: [[21.27, 69.31], 45], "Yudychvumchorr (Khibiny)": [[33.67, 67.73], 45] };
+    for (const [name, [p, min]] of Object.entries(summits)) expect(alphaNear(p), name).toBeGreaterThanOrEqual(min);
+    expect(alphaNear([27.0, 62.5], 2), "Finnish Lakeland").toBeGreaterThanOrEqual(40);
   });
 
   it("Level 1: shows mountains and upland ranges where they are, and leaves open lowlands flat", async () => {

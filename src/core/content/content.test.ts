@@ -52,9 +52,9 @@ describe("country content", () => {
           expect(c.hint[locale]).toBeTruthy();
         }
         const [lon, lat] = c.capital.coordinates;
-        // Europe, from Reykjavík (21.9°W, Level 10) to Kyiv (30.5°E, Level 8), and from Athens to Helsinki (60.2°N).
+        // Europe, from Reykjavík (21.9°W, Level 10) to Moscow (37.6°E, Level 12), and from Athens to Helsinki (60.2°N).
         expect(lon).toBeGreaterThan(-22);
-        expect(lon).toBeLessThan(31);
+        expect(lon).toBeLessThan(38);
         expect(lat).toBeGreaterThan(35);
         expect(lat).toBeLessThan(65);
       }
@@ -530,8 +530,141 @@ describe("country content", () => {
       for (const text of [countryHint(l10, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
     }
     expect(l10.regionName).toEqual({ en: "the Nordic countries", hy: "Հյուսիսային երկրներ" });
+  });
+
+  it("gives Level 11's new countries their capital and a localized landmark with its own illustration, and France, Belgium and Germany their shared content", () => {
+    // Country and capital names as in the English and Armenian Wikipedia article titles, and as the Quick Challenge named
+    // them before (CHALLENGE_COUNTRY_NAMES). Landmark names in Armenian: «Բիգ Բեն» is the article's title; «Մոհերի
+    // ժայռեր» is our own rendering (no article; docs/CONTENT.md flags it).
+    const expected: Record<string, [string, string, string, string, string, string, string, string, string]> = {
+      GBR: ["United Kingdom", "Միացյալ Թագավորություն", "London", "Լոնդոն", "Big Ben", "Բիգ Բեն", "Բիգ Բենը", "Big Ben", "big-ben"],
+      IRL: ["Ireland", "Իռլանդիա", "Dublin", "Դուբլին", "Cliffs of Moher", "Մոհերի ժայռեր", "Մոհերի ժայռերը", "the Cliffs of Moher", "cliffs-of-moher"],
+    };
+    const l11 = LESSONS["across-the-channel"];
+    expect(l11.countries).toEqual(["GBR", "IRL", "FRA", "BEL", "DEU"]);
+    for (const [id, [en, hy, capitalEn, capitalHy, landmarkEn, landmarkHy, landmarkInText, landmarkInTextEn, illustration]] of Object.entries(expected)) {
+      const c = COUNTRIES[id];
+      expect(c.name, id).toEqual({ en, hy });
+      expect(countryName(id), id).toEqual({ en, hy });
+      // The shared registry names them now: no duplicate challenge-only names, with the same names as before.
+      expect(CHALLENGE_COUNTRY_NAMES[id], id).toBeUndefined();
+      expect(c.capital.name, id).toEqual({ en: capitalEn, hy: capitalHy });
+      expect(c.nameInText.hy, id).toBe(`${hy}${/[աեէըիոօ]$/u.test(hy) ? "ն" : "ը"}`);
+      const landmark = c.landmark!;
+      expect(landmark.name, id).toEqual({ en: landmarkEn, hy: landmarkHy });
+      expect(landmark.nameInText, id).toEqual({ en: landmarkInTextEn, hy: landmarkInText });
+      expect(landmark.coordinates, id).toBeDefined();
+      expect(landmark.fact.en.length, id).toBeLessThanOrEqual(110);
+      for (const text of [landmark.nameInText, landmark.fact, c.hint]) for (const locale of LOCALES) expect(text[locale].trim().length, id).toBeGreaterThan(0);
+      // Its own artwork (supplied 2026-10-15), with alt text naming the landmark in each language.
+      expect(landmark.illustration, id).toBe(illustration);
+      expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en }), id).toBe(`Illustration of ${landmarkInTextEn}`);
+      expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy }), id).toBe(`Նկարազարդում՝ ${landmarkInText}`);
+      for (const text of [c.name.en, c.capital.name.en, landmark.name.en, landmark.fact.en]) expect(text, id).toMatch(/^[\u0000-ÿ–⁠]*$/u);
+    }
+    // "Big Ben" is the great bell (parliament.uk), first heard in 1859; the Cliffs of Moher's 214 m and O'Brien's
+    // Tower of 1835 (cliffsofmoher.ie): docs/CONTENT.md.
+    expect(COUNTRIES.GBR.landmark!.fact.en).toContain("bell");
+    expect(COUNTRIES.GBR.landmark!.fact.en).toContain("1859");
+    expect(COUNTRIES.IRL.landmark!.fact.en).toContain("214 metres");
+    expect(COUNTRIES.IRL.landmark!.fact.en).toContain("1835");
+    // Big Ben is in London, 0.9 km from the capital's point (its pin hidden by the capital's on the whole map); the
+    // Cliffs of Moher are on Ireland's west coast, far from Dublin.
+    const kmApart = (id: string) => {
+      const [[lon1, lat1], [lon2, lat2]] = [COUNTRIES[id].capital.coordinates, COUNTRIES[id].landmark!.coordinates!];
+      return Math.hypot((lon2 - lon1) * 111.32 * Math.cos((lat1 * Math.PI) / 180), (lat2 - lat1) * 110.57);
+    };
+    expect(kmApart("GBR")).toBeLessThan(1);
+    expect(kmApart("IRL")).toBeGreaterThan(150);
+    // The Quick Challenge's label points for them, kept: its map draws them as before.
+    expect(COUNTRIES.GBR.label.coordinates).toEqual([-1.6, 52.8]);
+    expect(COUNTRIES.IRL.label.coordinates).toEqual([-8.0, 53.2]);
+    // The hints: the United Kingdom's names Great Britain and Northern Ireland; Ireland's explains the island it shares.
+    expect(COUNTRIES.GBR.hint.en).toContain("includes Great Britain and Northern Ireland");
+    expect(COUNTRIES.IRL.hint.en).toContain("shares the island of Ireland with Northern Ireland, part of the United Kingdom");
+    // Belgium's own hint places it beside the Netherlands, not in this level: here it has the level's. France's and
+    // Germany's fit as they are (the largest, in the east), and Levels 1–10 keep theirs.
+    expect(countryHint(l11, "BEL").en).toBe("The smallest country of this region, between France and Germany, with a short North Sea coast.");
+    expect(countryHint(l11, "BEL").en).not.toContain("Netherlands");
+    expect(countryHint(LESSONS["western-europe-1"], "BEL")).toEqual(COUNTRIES.BEL.hint);
+    for (const id of ["GBR", "IRL", "FRA", "DEU"]) expect(countryHint(l11, id), id).toEqual(COUNTRIES[id].hint);
+    // One hint per country, all different, in each language; no "lesson" wording.
+    const hints = l11.countries.map((id) => countryHint(l11, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l11.countries) {
+      const c = COUNTRIES[id];
+      for (const text of [countryHint(l11, id), c.landmark!.fact, c.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    // France, Belgium and Germany keep their content: the same landmarks and artwork as in Level 1.
+    expect(["FRA", "BEL", "DEU"].map((id) => COUNTRIES[id].landmark!.illustration)).toEqual(["eiffel-tower", "atomium", "brandenburg-gate"]);
+    expect(l11.regionName).toEqual({ en: "north-western Europe", hy: "Հյուսիսարևմտյան Եվրոպա" });
+    // The Quick Challenge's own names are left only for the countries no level teaches (Russia's went with Level 12).
+    expect(Object.keys(CHALLENGE_COUNTRY_NAMES).sort()).not.toContain("GBR");
+  });
+
+  it("gives Level 12's new country, Russia, its capital and a localized landmark with its own illustration, and Finland, Estonia, Latvia and Belarus their shared content with level hints", () => {
+    // Country and capital names as in the English and Armenian Wikipedia article titles, and as the Quick Challenge named
+    // Russia before (CHALLENGE_COUNTRY_NAMES). «Վասիլի Երանելու տաճար» is the Armenian article's title.
+    const l12 = LESSONS["russia-and-western-neighbours"];
+    expect(l12.countries).toEqual(["RUS", "FIN", "EST", "LVA", "BLR"]);
+    const c = COUNTRIES.RUS;
+    expect(c.name).toEqual({ en: "Russia", hy: "Ռուսաստան" });
+    expect(countryName("RUS")).toEqual({ en: "Russia", hy: "Ռուսաստան" });
+    expect(c.nameInText).toEqual({ en: "Russia", hy: "Ռուսաստանը" });
+    // The shared registry names it now: no duplicate challenge-only name, with the same name as before.
+    expect(CHALLENGE_COUNTRY_NAMES.RUS).toBeUndefined();
+    expect(c.capital).toEqual({ name: { en: "Moscow", hy: "Մոսկվա" }, coordinates: [37.6173, 55.7558] });
+    const landmark = c.landmark!;
+    expect(landmark.name).toEqual({ en: "Saint Basil's Cathedral", hy: "Վասիլի Երանելու տաճար" });
+    expect(landmark.nameInText).toEqual({ en: "Saint Basil's Cathedral", hy: "Վասիլի Երանելու տաճարը" });
+    // Built 1555–1561 (the State Historical Museum, which keeps it: docs/LEVEL12-BRIEF.md, docs/CONTENT.md).
+    expect(landmark.fact).toEqual({
+      en: "Saint Basil's Cathedral was built in Moscow between 1555 and 1561.",
+      hy: "Վասիլի Երանելու տաճարը կառուցվել է Մոսկվայում՝ 1555–⁠1561 թվականներին։",
+    });
+    expect(landmark.fact.en.length).toBeLessThanOrEqual(110);
+    // Its own artwork (supplied 2026-10-15), with alt text naming the landmark in each language.
+    expect(landmark.illustration).toBe("saint-basils-cathedral");
+    expect(translate("en", "discover.landmarkAlt", { landmark: landmark.nameInText.en })).toBe("Illustration of Saint Basil's Cathedral");
+    expect(translate("hy", "discover.landmarkAlt", { landmark: landmark.nameInText.hy })).toBe("Նկարազարդում՝ Վասիլի Երանելու տաճարը");
+    for (const text of [c.name.en, c.capital.name.en, landmark.name.en, landmark.fact.en]) expect(text).toMatch(/^[\u0000-ÿ–⁠]*$/u);
+    // On Red Square, 0.5 km from the capital's point: its pin hidden by the capital's on the whole map.
+    const [[lon1, lat1], [lon2, lat2]] = [c.capital.coordinates, landmark.coordinates!];
+    expect(Math.hypot((lon2 - lon1) * 111.32 * Math.cos((lat1 * Math.PI) / 180), (lat2 - lat1) * 110.57)).toBeLessThan(1);
+    // The Quick Challenge's label point for it, kept: its map draws it as before. Level 12 names it from its own.
+    expect(c.label.coordinates).toEqual([44.0, 57.0]);
+    expect(l12.map.labels).toEqual({ RUS: [34.0, 58.0] });
+    // Russia's hint explains what the map shows of it, and Kaliningrad, in Discover (not in Travel's note).
+    expect(c.hint.en).toContain("Only its western part fits on this map");
+    expect(c.hint.en).toContain("Kaliningrad, on the Baltic Sea between Lithuania and Poland, is a separate part of Russia");
+    expect(c.hint.hy).toContain("Կալինինգրադը");
+    // No text names control or annexation of any area.
+    for (const text of [c.hint, landmark.fact, l12.travel.note!]) expect(`${text.en} ${text.hy}`).not.toMatch(/Crimea|annex|occup|Ղրիմ/iu);
+    // The other four's shared hints say "northernmost", "in the east", "in the north" or "between Lithuania and Estonia",
+    // which no longer fit with Russia in the region: the level has its own for each, and Levels 6, 8 and 10 keep theirs.
+    expect(Object.keys(l12.hints!).sort()).toEqual(["BLR", "EST", "FIN", "LVA"]);
+    expect(countryHint(l12, "FIN").en).toBe("A land of forests and lakes north of Estonia, across the Gulf of Finland.");
+    expect(countryHint(l12, "EST").en).toBe("The smallest country of this region, on the Gulf of Finland, with many islands.");
+    expect(countryHint(l12, "LVA").en).toBe("On the Baltic Sea around the Gulf of Riga, between Estonia and Belarus.");
+    expect(countryHint(l12, "BLR").en).toBe("A flat country with no coast, south of Latvia, with many forests, lakes and marshes.");
+    expect(countryHint(l12, "RUS")).toEqual(c.hint);
+    for (const [id, level] of [["FIN", "nordic-countries"], ["EST", "baltic-journey"], ["LVA", "baltic-journey"], ["BLR", "eastern-europe"]] as const)
+      expect(countryHint(LESSONS[level], id), id).toEqual(COUNTRIES[id].hint);
+    // Armenian sentences end with «։», never a full stop.
+    for (const id of l12.countries) expect(countryHint(l12, id).hy, id).toMatch(/։$/u);
+    for (const text of [landmark.fact, l12.travel.note!]) expect(text.hy).toMatch(/։$/u);
+    // One hint per country, all different, in each language; no "lesson" wording.
+    const hints = l12.countries.map((id) => countryHint(l12, id));
+    for (const locale of LOCALES) expect(new Set(hints.map((h) => h[locale])).size).toBe(5);
+    for (const id of l12.countries) {
+      const k = COUNTRIES[id];
+      for (const text of [countryHint(l12, id), k.landmark!.fact, k.landmark!.name]) expect(`${text.en} ${text.hy}`).not.toMatch(/lesson|դաս/iu);
+    }
+    // Finland, Estonia, Latvia and Belarus keep their content: the same landmarks and artwork as in Levels 6, 8 and 10.
+    expect(["FIN", "EST", "LVA", "BLR"].map((id) => COUNTRIES[id].landmark!.illustration)).toEqual(["olavinlinna", "tallinn-town-hall", "house-of-the-black-heads", "mir-castle"]);
+    expect(l12.regionName).toEqual({ en: "north-eastern Europe", hy: "Հյուսիսարևելյան Եվրոպա" });
     // The Quick Challenge's own names are left only for the countries no level teaches.
-    expect(Object.keys(CHALLENGE_COUNTRY_NAMES).sort()).toEqual(["GBR", "IRL", "LIE", "MCO", "MLT", "RUS", "SMR", "VAT"]);
+    expect(Object.keys(CHALLENGE_COUNTRY_NAMES).sort()).toEqual(["LIE", "MCO", "MLT", "SMR", "VAT"]);
   });
 
   it("describes Germany and Austria within each level's own region, leaving earlier levels' hints unchanged", () => {

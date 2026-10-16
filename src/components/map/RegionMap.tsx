@@ -158,9 +158,9 @@ function prefersReducedMotion() {
 }
 
 /**
- * A level's map, once its data is there: the levels' own at once, or a level drawn from the northern data (Level
- * 10), whose data and landscape are loaded with it (loadMapData, loadLevelRelief). Until then the map's frame shows,
- * empty.
+ * A level's map, once its data is there: the levels' own at once, or a level drawn from data of its own (Level 10's
+ * northern data, Level 11's Channel data, Level 12's eastern data), whose data and landscape are loaded with it
+ * (loadMapData, loadLevelRelief). Until then the map's frame shows, empty.
  */
 export function RegionMap(props: Props) {
   const { t, l } = useI18n();
@@ -173,7 +173,7 @@ export function RegionMap(props: Props) {
   );
 }
 
-/** A level's map data and, for one drawn from the northern data, its landscape (null while they load). */
+/** A level's map data and, for one drawn from data of its own, its landscape (null while they load). */
 function useLevelMapData(lesson: LessonDefinition): { own?: OwnRelief } | null {
   const dataset = lesson.map.dataset;
   const key = versionKey(lesson);
@@ -681,7 +681,8 @@ function LoadedRegionMap({ lesson, view, stage, onCountryTap, controlsSlot, own 
   // It stays open for the rest of Discover, and never reopens once the player
   // closes it. Find answers and Travel moves never open it: there the name takes
   // the best clear spot on the main map, or is left out rather than overprinted.
-  if (crowded && stage === "discover" && insetChoice === null && autoInsetStage !== stage) setAutoInsetStage(stage);
+  // A level can keep it closed in Discover too (`inset.autoOpen: false`, Level 11).
+  if (crowded && stage === "discover" && insetChoice === null && autoInsetStage !== stage && lesson.map.inset?.autoOpen !== false) setAutoInsetStage(stage);
   const insetOpen = insetChoice ?? (wideMap || autoInsetStage === stage);
   // While the close-up is open on a small map (or the main map has no room), small
   // countries' names are drawn only in the close-up, where they are large.
@@ -1705,7 +1706,7 @@ function placeOverlay(
   let area: OverlayLayout["area"] = null;
   if (view.areaHint) {
     const [[x0, y0], [x1, y1]] = shapeById(view.areaHint).bounds as Bounds;
-    const [cx, cy] = toScreen(map.project(getCountry(view.areaHint).label.coordinates));
+    const [cx, cy] = toScreen(map.project(map.labels[view.areaHint] ?? getCountry(view.areaHint).label.coordinates));
     const size = Math.sqrt((x1 - x0) * (y1 - y0)) * transform.k;
     const cap = Math.max(34, Math.min(viewport.width, viewport.height) * 0.3);
     area = { cx, cy, r: Math.min(Math.max(34, size * 0.55), cap), fit: size * 0.55, cap };
@@ -1768,7 +1769,7 @@ function placeOverlay(
       const text = name(id);
       return {
         id,
-        anchor: toScreen(map.project(c.label.coordinates)),
+        anchor: toScreen(map.project(map.labels[id] ?? c.label.coordinates)),
         text,
         textWidth: textWidth(text, labelFont, LABEL_WEIGHT),
         explored: explored.has(id),

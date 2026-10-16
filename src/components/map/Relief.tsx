@@ -6,6 +6,8 @@ import type { CountryTone } from "@/core/lesson/mapView";
 import type { RegionMap, Transform } from "@/geo/regionMap";
 import type { StaticImageData } from "next/image";
 import relief from "@/assets/map/relief.json";
+import acrossTheChannelLand from "@/assets/map/relief/across-the-channel-land.webp";
+import acrossTheChannelTone from "@/assets/map/relief/across-the-channel-tone.webp";
 import adriaticLand from "@/assets/map/relief/along-the-adriatic-land.webp";
 import adriaticTone from "@/assets/map/relief/along-the-adriatic-tone.webp";
 import alpsLand from "@/assets/map/relief/around-the-alps-land.webp";
@@ -24,6 +26,8 @@ import iberianJourneyLand from "@/assets/map/relief/iberian-journey-land.webp";
 import iberianJourneyTone from "@/assets/map/relief/iberian-journey-tone.webp";
 import nordicCountriesLand from "@/assets/map/relief/nordic-countries-land.webp";
 import nordicCountriesTone from "@/assets/map/relief/nordic-countries-tone.webp";
+import russiaAndWesternNeighboursLand from "@/assets/map/relief/russia-and-western-neighbours-land.webp";
+import russiaAndWesternNeighboursTone from "@/assets/map/relief/russia-and-western-neighbours-tone.webp";
 import towardsGreeceLand from "@/assets/map/relief/towards-greece-land.webp";
 import towardsGreeceTone from "@/assets/map/relief/towards-greece-tone.webp";
 import westernEuropeLand from "@/assets/map/relief/western-europe-1-land.webp";
@@ -47,6 +51,8 @@ const OVERVIEW_IMAGES: Readonly<Record<string, { land: StaticImageData; tone: St
   "eastern-europe": { land: easternEuropeLand, tone: easternEuropeTone },
   "heart-of-the-balkans": { land: heartOfTheBalkansLand, tone: heartOfTheBalkansTone },
   "nordic-countries": { land: nordicCountriesLand, tone: nordicCountriesTone },
+  "across-the-channel": { land: acrossTheChannelLand, tone: acrossTheChannelTone },
+  "russia-and-western-neighbours": { land: russiaAndWesternNeighboursLand, tone: russiaAndWesternNeighboursTone },
 };
 
 /**
@@ -124,11 +130,11 @@ export interface OwnRelief {
 let challengeTiles: Promise<typeof import("@/assets/map/challenge-relief.json")> | null = null;
 
 /**
- * The landscape of a level drawn from the northern data (`map.dataset`, Level 10), whose countries lie beyond the
- * levels' tiles (they stop where the levels' data does, at 62°N): its own overview, from relief.json as every
- * level's, over the Quick Challenge's tiles, which cover the whole of Europe (and, zoomed in deeper, the levels'
- * level-2 tiles where they have one: see OwnRelief). Their manifest is loaded with the level's map, never with the
- * other levels.
+ * The landscape of a level drawn from data of its own (`map.dataset`: Level 10's northern data, Level 11's Channel
+ * data, Level 12's eastern data), whose map reaches beyond the levels' tiles (they stop where the levels' data does, at 62°N): its own
+ * overview, from relief.json as every level's, over the Quick Challenge's tiles, which cover the whole of Europe (and,
+ * zoomed in deeper, the levels' level-2 tiles where they have one: see OwnRelief). Their manifest is loaded with the
+ * level's map, never with the other levels.
  */
 export function loadLevelRelief(level: string): Promise<OwnRelief> {
   const overview = (relief.overviews as Record<string, (typeof relief.overviews)["western-europe-1"] | undefined>)[level];

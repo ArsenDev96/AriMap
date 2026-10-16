@@ -1,6 +1,7 @@
 import type { CountryId } from "../content/types";
 import type { LocalizedText } from "../i18n/locales";
 import type { ContinentId } from "./continents";
+import { acrossTheChannelLesson } from "./across-the-channel";
 import { adriaticLesson } from "./adriatic";
 import { alpsLesson } from "./alps";
 import { balticJourneyLesson, balticJourneyOriginalLesson } from "./baltic-journey";
@@ -9,6 +10,7 @@ import { easternEuropeLesson } from "./eastern-europe";
 import { heartOfTheBalkansLesson } from "./heart-of-the-balkans";
 import { iberianJourneyLesson } from "./iberian-journey";
 import { nordicCountriesLesson } from "./nordic-countries";
+import { russiaAndWesternNeighboursLesson } from "./russia-and-western-neighbours";
 import { towardsGreeceLesson } from "./towards-greece";
 import type { LessonDefinition } from "./types";
 import { westernEuropeLesson } from "./western-europe";
@@ -188,6 +190,32 @@ export const LEVELS: readonly LevelInfo[] = [
     countries: nordicCountriesLesson.countries,
     lesson: nordicCountriesLesson,
     unlockedBy: heartOfTheBalkansLesson.id,
+  },
+  {
+    id: acrossTheChannelLesson.id,
+    continent: "europe",
+    number: 11,
+    title: { en: "Across the Channel", hy: "Լա Մանշի այն կողմ" },
+    description: {
+      en: "Explore north-western Europe, from Germany to Ireland.",
+      hy: "Ուսումնասիրիր Հյուսիսարևմտյան Եվրոպան՝ Գերմանիայից մինչև Իռլանդիա։",
+    },
+    countries: acrossTheChannelLesson.countries,
+    lesson: acrossTheChannelLesson,
+    unlockedBy: nordicCountriesLesson.id,
+  },
+  {
+    id: russiaAndWesternNeighboursLesson.id,
+    continent: "europe",
+    number: 12,
+    title: { en: "Russia and its western neighbours", hy: "Ռուսաստանը և նրա արևմտյան հարևանները" },
+    description: {
+      en: "Explore European Russia and its neighbours, from Finland to Belarus.",
+      hy: "Ուսումնասիրիր Ռուսաստանի եվրոպական մասը և նրա հարևաններին՝ Ֆինլանդիայից մինչև Բելառուս։",
+    },
+    countries: russiaAndWesternNeighboursLesson.countries,
+    lesson: russiaAndWesternNeighboursLesson,
+    unlockedBy: acrossTheChannelLesson.id,
   },
 ];
 

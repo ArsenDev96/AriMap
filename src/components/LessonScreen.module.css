@@ -1407,6 +1407,11 @@
   background: var(--atlas-tint);
 }
 
+/* Travel's note on a soft pale amber, so a journey's explanation stands out from the blue panel. */
+.screen .travelNote {
+  background: #fff3cd;
+}
+
 .screen .placeholder {
   border-color: var(--atlas-line);
   background: rgba(255, 255, 255, 0.7);

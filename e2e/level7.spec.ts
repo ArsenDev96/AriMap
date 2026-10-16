@@ -7,7 +7,7 @@ import { homeToEurope } from "./helpers/home";
  * landmark cards (France's and Italy's artwork shared with earlier levels; Portugal's, Spain's and Andorra's
  * own, added 2026-10-04), Andorra on small screens (the close-up, as Luxembourg has in
  * Level 1), the Portugal → Italy journey (one shortest route; Andorra offered too), the level selection once
- * Level 7 is completed (Level 8 up next) and once all ten levels are, and its map: framing, the
+ * Level 7 is completed (Level 8 up next) and once all twelve levels are, and its map: framing, the
  * traveller's pin in Lisbon and Rome, and the landscape it loads.
  */
 
@@ -21,6 +21,8 @@ const L7 = "iberian-journey";
 const L8 = "eastern-europe";
 const L9 = "heart-of-the-balkans";
 const L10 = "nordic-countries";
+const L11 = "across-the-channel";
+const L12 = "russia-and-western-neighbours";
 const L1_ORDER = ["FRA", "BEL", "NLD", "LUX", "DEU"];
 const L2_COUNTRIES = ["FRA", "CHE", "DEU", "AUT", "ITA"];
 const L3_COUNTRIES = ["DEU", "POL", "CZE", "SVK", "AUT"];
@@ -82,10 +84,12 @@ const L7_DONE = done(L7_COUNTRIES, "prt-to-ita", ["PRT", "ESP", "FRA", "ITA"]);
 const L8_DONE = done(["POL", "BLR", "UKR", "MDA", "ROU"], "pol-to-mda", ["POL", "UKR", "MDA"]);
 const L9_DONE = done(["MNE", "KOS", "ALB", "MKD", "GRC"], "mne-to-mkd", ["MNE", "KOS", "MKD"]);
 const L10_DONE = done(["DNK", "SWE", "NOR", "FIN", "ISL"], "dnk-to-fin", ["DNK", "SWE", "FIN"]);
+const L11_DONE = done(["GBR", "IRL", "FRA", "BEL", "DEU"], "deu-to-gbr", ["DEU", "FRA", "GBR"]);
+const L12_DONE = done(["RUS", "FIN", "EST", "LVA", "BLR"], "est-to-blr", ["EST", "LVA", "BLR"]);
 /** A save from before Level 7 existed: Levels 1–6 completed. */
 const EARLIER = { [L1]: L1_DONE, [L2]: L2_DONE, [L3]: L3_DONE, [L4]: L4_DONE, [L5]: L5_DONE, [L6]: L6_DONE };
 const EARLIER_RECENT = [L6, L5, L4, L3, L2, L1];
-const ALL_DONE = { ...EARLIER, [L7]: L7_DONE, [L8]: L8_DONE, [L9]: L9_DONE, [L10]: L10_DONE };
+const ALL_DONE = { ...EARLIER, [L7]: L7_DONE, [L8]: L8_DONE, [L9]: L9_DONE, [L10]: L10_DONE, [L11]: L11_DONE, [L12]: L12_DONE };
 const ALL_RECENT = [L7, ...EARLIER_RECENT];
 
 const discoverAt = (selected: string | null) => ({ started: true, stage: "discover", discover: { selected, explored: selected ? [selected] : [] }, records: records(false) });
@@ -107,8 +111,8 @@ const travellingAt = (path: string[]) => ({
 
 const project = () => test.info().project.name;
 const COMPLETION = {
-  en: "You've completed all 10 levels! Play any of them again whenever you like.",
-  hy: "Ավարտել ես բոլոր 10 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
+  en: "You've completed all 12 levels! Play any of them again whenever you like.",
+  hy: "Ավարտել ես բոլոր 12 մակարդակները։ Կարող ես ցանկացածը նորից խաղալ։",
 };
 
 /** Waits until the game has mounted and shows its screen. */
@@ -674,7 +678,7 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   expect(errors).toEqual([]);
 });
 
-test("Level 7: independent saves; Start over and Play again change only this level; all ten stay completed", async ({ page }) => {
+test("Level 7: independent saves; Start over and Play again change only this level; all twelve stay completed", async ({ page }) => {
   test.skip(project() !== "desktop", "Runs once.");
   // In progress in Level 7, with Level 6 being replayed: each keeps its own place.
   const l6Replaying = { ...L6_DONE, stage: "travel", travel: { missionId: "deu-to-est", path: ["DEU", "POL"], hintUsed: false, undoUsed: false } };
@@ -710,9 +714,9 @@ test("Level 7: independent saves; Start over and Play again change only this lev
   await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "DEU,POL");
   await homeToEurope(page);
 
-  // All ten completed: playing Level 7 again keeps it (and the others) completed, and the completion
+  // All twelve completed: playing Level 7 again keeps it (and the others) completed, and the completion
   // message stays; nothing was reset automatically.
-  await saveV2(page, ALL_DONE, { levelId: L7, recent: [L10, L9, L8, ...ALL_RECENT] });
+  await saveV2(page, ALL_DONE, { levelId: L7, recent: [L12, L11, L10, L9, L8, ...ALL_RECENT] });
   await expect(page.getByTestId("all-done")).toHaveText(COMPLETION.en);
   await card(page, L7).getByTestId("level-details-toggle").click();
   await card(page, L7).getByRole("button", { name: /^Play again/ }).click();
@@ -720,7 +724,7 @@ test("Level 7: independent saves; Start over and Play again change only this lev
   await dialog.getByRole("button", { name: "Play again" }).click();
   await expect(page.getByTestId("discover-progress")).toContainText("0/5");
   await homeToEurope(page);
-  for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9, L10]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
+  for (const id of [L1, L2, L3, L4, L5, L6, L7, L8, L9, L10, L11, L12]) await expect(card(page, id).getByTestId("level-status")).toHaveText("Completed");
   // The replay is an attempt under way: the main action continues it, in place of the completion message.
   await expect(page.getByTestId("welcome-actions").getByRole("button")).toHaveText(/^Continues*Level 7 · Iberian Journey$/);
   await expect(page.getByTestId("all-done")).toHaveCount(0);
@@ -736,8 +740,8 @@ test("Level 7: independent saves; Start over and Play again change only this lev
 });
 
 /* The level selection on arrival at phone sizes, in both languages and with enlarged text: Level 7's title and
-   status in view below the six completed levels; then all ten completed. */
-test("Level 7 on the level selection: its title and status in view on arrival; all ten completed", async ({ page }) => {
+   status in view below the six completed levels; then all twelve completed. */
+test("Level 7 on the level selection: its title and status in view on arrival; all twelve completed", async ({ page }) => {
   test.skip(!["small-phone", "desktop", "webkit-phone"].includes(project()), "Runs on small-phone, webkit-phone and desktop.");
   test.setTimeout(600_000);
   const sizes = project() === "desktop" ? [[1366, 800]] : project() === "webkit-phone" ? [[320, 568]] : [[320, 568], [390, 844]];
@@ -768,8 +772,8 @@ test("Level 7 on the level selection: its title and status in view on arrival; a
         await textSize(page, 100);
       }
 
-      // All ten completed: the completion message with the real count, nothing to start.
-      await saveV2(page, ALL_DONE, { locale, recent: [L10, L9, L8, ...ALL_RECENT], levelId: L7 });
+      // All twelve completed: the completion message with the real count, nothing to start.
+      await saveV2(page, ALL_DONE, { locale, recent: [L12, L11, L10, L9, L8, ...ALL_RECENT], levelId: L7 });
       await expect(page.getByTestId("all-done")).toHaveText(COMPLETION[locale]);
       await expect(page.getByTestId("welcome-actions")).toHaveCount(0);
       await expectWordsWhole(page.getByTestId("all-done").locator("span"), `${width}×${height} ${locale} completion message`);

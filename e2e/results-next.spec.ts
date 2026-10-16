@@ -15,8 +15,8 @@ import { openWithSave } from "./helpers/save";
  */
 
 const project = () => test.info().project.name;
-const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe", "heart-of-the-balkans", "nordic-countries"];
-const [L1, L2, L3, , , L6, L7, L8, L9, L10] = L;
+const L = ["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic", "towards-greece", "baltic-journey", "iberian-journey", "eastern-europe", "heart-of-the-balkans", "nordic-countries", "across-the-channel", "russia-and-western-neighbours"];
+const [L1, L2, L3, , , L6, L7, L8, L9, L10, L11, L12] = L;
 const COUNTRIES: Record<string, string[]> = {
   "western-europe-1": ["FRA", "BEL", "NLD", "LUX", "DEU"],
   "around-the-alps": ["FRA", "CHE", "DEU", "AUT", "ITA"],
@@ -28,6 +28,8 @@ const COUNTRIES: Record<string, string[]> = {
   "eastern-europe": ["POL", "BLR", "UKR", "MDA", "ROU"],
   "heart-of-the-balkans": ["MNE", "KOS", "ALB", "MKD", "GRC"],
   "nordic-countries": ["DNK", "SWE", "NOR", "FIN", "ISL"],
+  "across-the-channel": ["GBR", "IRL", "FRA", "BEL", "DEU"],
+  "russia-and-western-neighbours": ["RUS", "FIN", "EST", "LVA", "BLR"],
 };
 const ROUTES: Record<string, [string, string[]]> = {
   "western-europe-1": ["fra-to-nld", ["FRA", "BEL", "NLD"]],
@@ -40,6 +42,8 @@ const ROUTES: Record<string, [string, string[]]> = {
   "eastern-europe": ["pol-to-mda", ["POL", "UKR", "MDA"]],
   "heart-of-the-balkans": ["mne-to-mkd", ["MNE", "KOS", "MKD"]],
   "nordic-countries": ["dnk-to-fin", ["DNK", "SWE", "FIN"]],
+  "across-the-channel": ["deu-to-gbr", ["DEU", "FRA", "GBR"]],
+  "russia-and-western-neighbours": ["est-to-blr", ["EST", "LVA", "BLR"]],
 };
 const records = (travelDone: boolean) => ({ discoverDone: true, findDone: travelDone, travelDone, lastFindScore: null, bestFindScore: null, travelWithoutHelp: false });
 /** A level finished, at its Results. */
@@ -151,7 +155,7 @@ test.describe("Continue only for an attempt under way", () => {
   });
 
   test("everything finished: no Continue anywhere, Explore Europe stays on the home screen", async ({ page }) => {
-    await open(page, ALL_DONE, { screen: "continents", levelId: L10, recent: [...L].reverse() });
+    await open(page, ALL_DONE, { screen: "continents", levelId: L12, recent: [...L].reverse() });
     await expect(continueHome(page)).toHaveAttribute("data-testid", "explore-europe");
     await continueHome(page).click();
     for (const id of L) {
@@ -243,7 +247,7 @@ test.describe("Results: what next", () => {
     expect((await saved(page)).levels[L2]).toMatchObject({ stage: "results" });
   });
 
-  test("after the last playable level: Back to levels, never coming-soon content; Level 6 still offers Level 7, Level 7 Level 8, Level 8 Level 9, and Level 9 Level 10", async ({ page }) => {
+  test("after the last playable level: Back to levels, never coming-soon content; Level 6 still offers Level 7, Level 7 Level 8, Level 8 Level 9, Level 9 Level 10, Level 10 Level 11, and Level 11 Level 12", async ({ page }) => {
     await open(page, ALL_DONE, { levelId: L6 });
     await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 7, Iberian Journey");
     await open(page, ALL_DONE, { levelId: L7 });
@@ -259,12 +263,20 @@ test.describe("Results: what next", () => {
     await expect(page.getByTestId("next-level")).toHaveAttribute("data-level", L10);
     await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
     await open(page, ALL_DONE, { levelId: L10 });
+    await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 11, Across the Channel");
+    await expect(page.getByTestId("next-level")).toHaveAttribute("data-level", L11);
+    await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
+    await open(page, ALL_DONE, { levelId: L11 });
+    await expect(page.getByTestId("next-level")).toHaveAccessibleName("Next level: Level 12, Russia and its western neighbours");
+    await expect(page.getByTestId("next-level")).toHaveAttribute("data-level", L12);
+    await expect(page.getByTestId("back-to-levels")).toHaveCount(0);
+    await open(page, ALL_DONE, { levelId: L12 });
     await expect(journeyComplete(page)).toBeVisible();
     await expect(page.getByTestId("next-level")).toHaveCount(0);
     await page.getByTestId("back-to-levels").click();
     await expect(page.getByTestId("welcome")).toBeVisible();
     await expect(page.getByTestId("continent-title")).toHaveText("Europe");
-    expect((await saved(page)).levels[L10]).toMatchObject({ stage: "results", records: { travelDone: true } });
+    expect((await saved(page)).levels[L12]).toMatchObject({ stage: "results", records: { travelDone: true } });
   });
 
   test("Play again asks first (cancelling keeps Results, also after a refresh); Replay journey then Continue resumes it", async ({ page }) => {
@@ -309,7 +321,7 @@ test.describe("Results: what next", () => {
     await expect(next).toHaveAccessibleName("Next level: Level 2, Around the Alps");
     await expect(journeyComplete(page)).toBeVisible();
     expect((await saved(page)).levels).toEqual(before);
-    await open(page, ALL_DONE, { levelId: L10, locale: "hy" });
+    await open(page, ALL_DONE, { levelId: L12, locale: "hy" });
     await expect(page.getByTestId("back-to-levels")).toHaveText("Վերադառնալ ցանկին");
     await expect(page.getByTestId("back-to-levels")).toHaveAccessibleName("Վերադառնալ ցանկին՝ Եվրոպայի մակարդակներին");
     await page.getByRole("button", { name: "English", exact: true }).first().click();
@@ -381,7 +393,7 @@ test("Results actions and rows: full-size text, whole words, each action reachab
       for (const last of [false, true])
         for (const size of [100, 200]) {
           await page.setViewportSize({ width, height });
-          await open(page, last ? ALL_DONE : { [L1]: done(L1) }, { levelId: last ? L10 : L1, locale });
+          await open(page, last ? ALL_DONE : { [L1]: done(L1) }, { levelId: last ? L12 : L1, locale });
           await textSize(page, size);
           const where = `${width}×${height} ${locale} ${last ? "last level" : "Level 1"} ${size}%`;
           const rem = (16 * size) / 100;

@@ -55,7 +55,7 @@ export interface LessonDefinition {
      * there: geography distractors, styled as the moves are (Level 7's France, at the start in Portugal). They are no
      * edges of `borders`: choosing one moves nothing and uses no crossing; Travel says the two countries don't
      * share a border and the player chooses again (choose in src/core/game/travel.ts). Never a neighbour of that
-     * country, a country of the route, or the destination; none in other levels yet.
+     * country, a country of the route, or the destination. Level 12's Finland, at the start in Estonia, is the other.
      */
     nonNeighbourOptions?: readonly NonNeighbourOption[];
     /**
@@ -93,6 +93,13 @@ export interface LessonDefinition {
        * phone and in a 740×360 landscape. Without it, only maps too short for the panel there.
        */
       smallMapBeside?: boolean;
+      /**
+       * Whether the close-up opens by itself in Discover when a name finds no clear nearby spot at the whole-map view
+       * (so a small country's name, Level 1's Luxembourg or Level 7's Andorra, is drawn inside it). Level 11 sets it
+       * false: on its shortest maps (200% text on a phone) the names that ran out of room were the United Kingdom's and
+       * France's, which the close-up doesn't show, and open it covered Ireland. The toggle still opens it.
+       */
+      autoOpen?: boolean;
     };
     /**
      * Countries too small for an in-place name at the whole-map view: their
@@ -157,11 +164,25 @@ export interface LessonDefinition {
      */
     borderLinks?: readonly { between: readonly [CountryId, CountryId]; name: string; points: readonly LonLat[] }[];
     /**
-     * The map data the level is drawn from (src/geo/regionMap.ts): the levels' own by default, or
-     * "north" (Level 10), loaded only with it, whose relief is its own overview and the Quick
-     * Challenge's tiles (the levels' tiles stop where their data does, at 62°N).
+     * The map data the level is drawn from (src/geo/regionMap.ts): the levels' own by default, or a file
+     * of its own, loaded only with it: "north" (Level 10), "channel" (Level 11, whose map reaches past
+     * Shetland) or "east" (Level 12, whose map reaches past the North Cape and Moscow). Such a level's relief
+     * is its own overview and the Quick Challenge's tiles (the levels' tiles stop where their data does, at
+     * 62°N).
      */
-    dataset?: "north";
+    dataset?: "north" | "channel" | "east";
+    /**
+     * Countries that count in the map's frame (the area its start view fits, and the coverage's centre) only by
+     * their part within a lon/lat box, [[west, south], [east, north]]: Level 12's Russia, whose whole extent would
+     * make the level's countries a speck. The country is still drawn, played and answered whole.
+     */
+    frameWithin?: Partial<Readonly<Record<CountryId, readonly [LonLat, LonLat]>>>;
+    /**
+     * Label points for this level in place of the countries' own (src/core/content), where the shared one lies
+     * outside the level's frame: Level 12's Russia, whose own (the Quick Challenge's, east of Moscow) is off its
+     * phone maps. The name, the Find hint's circle and the callouts start from it.
+     */
+    labels?: Partial<Readonly<Record<CountryId, LonLat>>>;
     /**
      * Half-size, in world units, of the area around the level's countries that
      * the map may ever show (see src/geo/regionMap.ts). It must lie inside the

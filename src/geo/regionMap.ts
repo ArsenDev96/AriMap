@@ -40,6 +40,8 @@ export interface RegionMap {
    * limits, and so every start view without the traveller near that edge, stay `coverage`'s.
    */
   travelCoverage: Bounds;
+  /** The level's own label points (`map.labels`), in place of the countries' (Level 12's Russia); empty elsewhere. */
+  labels: Partial<Readonly<Record<CountryId, LonLat>>>;
   project(point: LonLat): Point;
 }
 
@@ -49,11 +51,16 @@ const topology = topologyJson as unknown as CountryTopology;
 
 /**
  * The data a level's map is drawn from: the levels' own (src/data/geo/europe-west.topo.json, bundled with the
- * levels), or the northern data (src/data/geo/europe-north.topo.json: Level 10's Nordic countries, which reach far
- * beyond the levels' 62°N), a file of its own loaded only with a level that names it (`map.dataset`). Both are drawn
- * in the same projection (see PROJECTION_FIT), so the painted relief lines up with either.
+ * levels), or a file of its own loaded only with a level that names it (`map.dataset`): the northern data
+ * (src/data/geo/europe-north.topo.json: Level 10's Nordic countries, which reach far beyond the levels' 62°N), or the
+ * Channel's (src/data/geo/europe-channel.topo.json: Level 11's, from Corsica to Shetland and the Faroes, on maps as
+ * short as 112 px), or the eastern data (src/data/geo/europe-east.topo.json: Level 12's, Finland whole and western
+ * Russia to beyond Moscow). All are drawn in the same projection (see PROJECTION_FIT), so the painted relief lines up
+ * with each.
  */
-export type MapDataset = "west" | "north";
+export type MapDataset = "west" | "north" | "channel" | "east";
+/** The datasets loaded only with a level that names them. */
+export type LoadedDataset = Exclude<MapDataset, "west">;
 
 // Fixed world size for the projection; screen fitting is done by the zoom transform.
 const WORLD = 1000;
@@ -109,34 +116,46 @@ function featuresOf(data: CountryTopology): Feature<Polygon | MultiPolygon, Coun
   return collection.features.filter((f) => f.geometry);
 }
 
-/** The northern data, once loaded (loadMapData), projected as the levels' data is. */
-let north: ProjectedData | null = null;
-let northLoading: Promise<void> | null = null;
+/** Each dataset loaded with its levels (loadMapData), once loaded, projected as the levels' data is. */
+const loadedData: Partial<Record<LoadedDataset, ProjectedData>> = {};
+const loading: Partial<Record<LoadedDataset, Promise<void>>> = {};
+/** Their files: each a download of its own, fetched with the first level that names it, never with the others. */
+const DATA_FILES: Readonly<Record<LoadedDataset, () => Promise<{ default: unknown }>>> = {
+  north: () => import("@/data/geo/europe-north.topo.json"),
+  channel: () => import("@/data/geo/europe-channel.topo.json"),
+  east: () => import("@/data/geo/europe-east.topo.json"),
+};
 
-/** Projects the northern data (loadMapData does this once it has loaded; tests may pass the file's contents directly). */
+/** Projects a dataset's data (loadMapData does this once it has loaded; tests may pass the file's contents directly). */
+export function setMapData(dataset: LoadedDataset, data: unknown) {
+  if (loadedData[dataset]) return;
+  const loadedTopology = data as CountryTopology;
+  loadedData[dataset] = { features: featuresOf(loadedTopology), coasts: coastPaths(loadedTopology, geoPath(sharedProjection().projection)) };
+}
+
+/** Projects the northern data (Level 10's): setMapData("north", …). */
 export function setNorthData(data: unknown) {
-  if (north) return;
-  const northTopology = data as CountryTopology;
-  north = { features: featuresOf(northTopology), coasts: coastPaths(northTopology, geoPath(sharedProjection().projection)) };
+  setMapData("north", data);
 }
 
-/** Whether a dataset's map can be drawn now: the levels' always, the northern one once loaded. */
+/** Whether a dataset's map can be drawn now: the levels' always, the others once loaded. */
 export function isMapDataLoaded(dataset: MapDataset = "west"): boolean {
-  return dataset === "west" || north !== null;
+  return dataset === "west" || loadedData[dataset] !== undefined;
 }
 
-/** Loads a dataset (once per page): the northern data with the first level that needs it; the levels' data is bundled. */
+/** Loads a dataset (once per page) with the first level that needs it; the levels' data is bundled. */
 export function loadMapData(dataset: MapDataset = "west"): Promise<void> {
-  if (isMapDataLoaded(dataset)) return Promise.resolve();
-  northLoading ??= import("@/data/geo/europe-north.topo.json").then((module) => setNorthData(module.default));
-  return northLoading;
+  if (dataset === "west" || isMapDataLoaded(dataset)) return Promise.resolve();
+  loading[dataset] ??= DATA_FILES[dataset]().then((module) => setMapData(dataset, module.default));
+  return loading[dataset];
 }
 
 function projectedData(dataset: MapDataset): ProjectedData {
   const { west } = sharedProjection();
   if (dataset === "west") return west;
-  if (!north) throw new Error("The northern map data is not loaded yet (loadMapData)");
-  return north;
+  const data = loadedData[dataset];
+  if (!data) throw new Error(`The ${dataset} map data is not loaded yet (loadMapData)`);
+  return data;
 }
 
 /**
@@ -163,16 +182,19 @@ function coastPaths(data: CountryTopology, path: ReturnType<typeof geoPath>): Ma
  * Projects the prepared Natural Earth data for a level. The projection is
  * shared by every level (see PROJECTION_FIT) and by shapes, labels, markers
  * and routes; the level's countries set the focus area and, with
- * `coverageHalf`, the area the map may ever show. A level drawn from the northern data (`dataset`) must have
- * loaded it first (loadMapData).
+ * `coverageHalf`, the area the map may ever show. A country with a box in `frameWithin` counts in the focus area only
+ * by its part within it (Level 12's Russia: see frameBounds). A level drawn from data of its own (`dataset`: the
+ * northern data, the Channel's or the eastern) must have loaded it first (loadMapData).
  */
 export function getRegionMap(
   activeIds: readonly CountryId[],
   coverageHalf: readonly [number, number] = DEFAULT_COVERAGE_HALF,
   dataset: MapDataset = "west",
   travelReachNorth = 0,
+  frameWithin: FrameWithin = {},
+  labels: Partial<Readonly<Record<CountryId, LonLat>>> = {},
 ): RegionMap {
-  const key = `${dataset}|${activeIds.join(",")}|${coverageHalf.join(",")}|${travelReachNorth}`;
+  const key = `${dataset}|${activeIds.join(",")}|${coverageHalf.join(",")}|${travelReachNorth}|${JSON.stringify(frameWithin)}|${JSON.stringify(labels)}`;
   const cached = cache.get(key);
   if (cached) return cached;
 
@@ -194,7 +216,7 @@ export function getRegionMap(
     bounds: path.bounds(f) as unknown as Bounds,
   }));
 
-  const focusBounds = path.bounds(active) as unknown as Bounds;
+  const focusBounds = frameBounds(active.features as Feature<Polygon | MultiPolygon, CountryProps>[], path, projection, frameWithin);
   const [cx, cy] = centerOf(focusBounds);
   const map: RegionMap = {
     projection,
@@ -208,6 +230,7 @@ export function getRegionMap(
       [cx - coverageHalf[0], cy - coverageHalf[1] - travelReachNorth],
       [cx + coverageHalf[0], cy + coverageHalf[1]],
     ],
+    labels,
     project: (point) => (projection([point[0], point[1]]) ?? [0, 0]) as Point,
   };
   cache.set(key, map);
@@ -216,7 +239,65 @@ export function getRegionMap(
 
 /** The map of a level: its countries, its coverage (and Travel's: `travelReachNorth`) and its data. */
 export function regionMapFor(lesson: Pick<LessonDefinition, "countries" | "map">): RegionMap {
-  return getRegionMap(lesson.countries, lesson.map.coverageHalf, lesson.map.dataset, lesson.map.travelReachNorth);
+  return getRegionMap(lesson.countries, lesson.map.coverageHalf, lesson.map.dataset, lesson.map.travelReachNorth, lesson.map.frameWithin, lesson.map.labels);
+}
+
+/** Countries' parts in a level's frame (`map.frameWithin`): each a lon/lat box, [[west, south], [east, north]]. */
+export type FrameWithin = Partial<Readonly<Record<CountryId, readonly [LonLat, LonLat]>>>;
+
+/** Sampling step (degrees) along a `frameWithin` box's edges (as scripts/prepare-east-geo.mjs). */
+const FRAME_STEP = 0.25;
+
+/**
+ * The projected frame of a level's countries: their bounds, but a country with a box in `frameWithin` counts only by
+ * its part within it, the points of its outer rings inside the box and of the box's edges inside its shape (every
+ * FRAME_STEP degrees), as scripts/prepare-east-geo.mjs takes it to cut the data. Lon/lat is taken as a plane for
+ * "inside": the data never crosses the antimeridian, and d3's spherical test misreads Russia's clipped shape.
+ */
+function frameBounds(
+  features: Feature<Polygon | MultiPolygon, CountryProps>[],
+  path: ReturnType<typeof geoPath>,
+  projection: GeoProjection,
+  frameWithin: FrameWithin,
+): Bounds {
+  const boxed = features.filter((f) => frameWithin[String(f.id)]);
+  if (boxed.length === 0) return path.bounds({ type: "FeatureCollection", features }) as unknown as Bounds;
+  const rest = features.filter((f) => !frameWithin[String(f.id)]);
+  let [[x0, y0], [x1, y1]] = rest.length
+    ? (path.bounds({ type: "FeatureCollection", features: rest }) as unknown as Bounds)
+    : [
+        [Infinity, Infinity],
+        [-Infinity, -Infinity],
+      ];
+  const take = (p: Position) => {
+    const q = projection([p[0], p[1]]);
+    if (q) [x0, y0, x1, y1] = [Math.min(x0, q[0]), Math.min(y0, q[1]), Math.max(x1, q[0]), Math.max(y1, q[1])];
+  };
+  for (const f of boxed) {
+    const [[w, s], [e, n]] = frameWithin[String(f.id)]!;
+    const polygons = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const polygon of polygons) for (const p of polygon[0]) if (p[0] >= w && p[0] <= e && p[1] >= s && p[1] <= n) take(p);
+    const edge: Position[] = [];
+    for (let lon = w; lon <= e + 1e-9; lon += FRAME_STEP) edge.push([lon, s], [lon, n]);
+    for (let lat = s; lat <= n + 1e-9; lat += FRAME_STEP) edge.push([w, lat], [e, lat]);
+    for (const p of edge) if (insideLonLat(polygons, p)) take(p);
+  }
+  return [
+    [x0, y0],
+    [x1, y1],
+  ];
+}
+
+/** Whether a lon/lat point lies inside polygons (even–odd rule, lon/lat taken as a plane). */
+function insideLonLat(polygons: Position[][][], [x, y]: Position): boolean {
+  let inside = false;
+  for (const polygon of polygons)
+    for (const ring of polygon)
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [[xi, yi], [xj, yj]] = [ring[i], ring[j]];
+        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+  return inside;
 }
 
 export interface Transform {

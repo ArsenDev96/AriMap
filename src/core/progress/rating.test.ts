@@ -295,21 +295,21 @@ describe("continent stars: each level's best rating summed, out of 3 per playabl
       }),
     );
 
-  it("the maximum comes from the level registry: 3 for each playable level (Europe: 30), none for a continent coming soon", () => {
+  it("the maximum comes from the level registry: 3 for each playable level (Europe: 36), none for a continent coming soon", () => {
     expect(continentStars(createInitialState(), "europe")).toEqual({ earned: 0, max: 3 * playable.length });
-    expect(playable.length).toBe(10);
-    expect(continentStars(createInitialState(), "europe").max).toBe(30);
+    expect(playable.length).toBe(12);
+    expect(continentStars(createInitialState(), "europe").max).toBe(36);
     for (const continent of CONTINENTS) if (!hasPlayableLevels(continent.id)) expect(continentStars(createInitialState(), continent.id), continent.id).toEqual({ earned: 0, max: 0 });
   });
 
   it("sums the best ratings; a level not rated adds none: one not completed, or completed before ratings with only its record", () => {
     const [a, b, c, d, e] = playable;
     const mixed = records({ [a]: 3, [b]: 2, [c]: 1, [d]: 3, [e]: null });
-    expect(continentStars(mixed, "europe")).toEqual({ earned: 9, max: 30 });
+    expect(continentStars(mixed, "europe")).toEqual({ earned: 9, max: 36 });
     // Completion is counted apart: five completed, whatever their stars.
-    expect(continentProgress(mixed, "europe")).toEqual({ total: 10, completed: 5 });
-    expect(continentStars(records({ [a]: null, [b]: null, [c]: null }), "europe")).toEqual({ earned: 0, max: 30 });
-    expect(continentStars(records(Object.fromEntries(playable.map((id) => [id, 3]))), "europe")).toEqual({ earned: 30, max: 30 });
+    expect(continentProgress(mixed, "europe")).toEqual({ total: 12, completed: 5 });
+    expect(continentStars(records({ [a]: null, [b]: null, [c]: null }), "europe")).toEqual({ earned: 0, max: 36 });
+    expect(continentStars(records(Object.fromEntries(playable.map((id) => [id, 3]))), "europe")).toEqual({ earned: 36, max: 36 });
     // A level only started adds nothing.
     expect(continentStars(run(createInitialState(), open(L1), play({ type: "startFinding", order: [...LESSONS[L1].countries] })), "europe").earned).toBe(0);
   });
@@ -335,6 +335,6 @@ describe("continent stars: each level's best rating summed, out of 3 per playabl
     // Start over during a journey replay, and a refresh.
     s = run(s, play({ type: "replayTravel" }), restart(L2));
     expect(earned(s)).toBe(5);
-    expect(continentStars(refresh(s), "europe")).toEqual({ earned: 5, max: 30 });
+    expect(continentStars(refresh(s), "europe")).toEqual({ earned: 5, max: 36 });
   });
 });
