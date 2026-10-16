@@ -29,7 +29,7 @@ Written 2026-10-16, at the end of the implementation pass, for the owner's local
 
 ## Decisions taken in implementation
 
-- **Crossings:** rule 1 of Levels 6, 8 and 9 for Estonia–, Latvia– and Belarus–Russia (it also reproduces Levels 6 and 8's Estonia–Latvia and Belarus–Latvia points in the new data, which are reused). Estonia–Russia's lies in the middle of Lake Peipus (lakes are not in the map data). **Finland–Russia** has no rule-1 vertex: Helsinki is on the coast, so its legs pass 5.7–7 km from it just beyond the exempt 10 km. As Level 10 did for Helsinki, its legs only stay on their own land: the border's middle vertex, straight legs (6.2 km clear in Finland, 9.4 km in Russia). Drawn only on the wrong turn into Finland.
+- **Crossings:** rule 1 of Levels 6, 8 and 9 for Latvia– and Belarus–Russia (it also reproduces Levels 6 and 8's Estonia–Latvia and Belarus–Latvia points in the new data, which are reused). Estonia–Russia's is an approximate crossing near Koidula, about 5 km from the Koidula–Kunichina Gora checkpoint (follow-up below). **Finland–Russia** has no rule-1 vertex: Helsinki is on the coast, so its legs pass 5.7–7 km from it just beyond the exempt 10 km. As Level 10 did for Helsinki, its legs only stay on their own land: the border's middle vertex, straight legs (6.2 km clear in Finland, 9.4 km in Russia). Drawn only on the wrong turn into Finland.
 - **Russia's frame** is computed with a planar point-in-polygon test: d3's spherical test misread Russia's clipped source shape.
 - **Relief tone** covers all of Russia the data holds (not only the frame), since Russia takes a state colour wherever it is drawn.
 
@@ -55,7 +55,7 @@ WebKit; 200% text; phones in landscape; 320×568; the unit tests and e2e specs t
 1. **No suite or spec has been run.** Containment tests on Russia's shape use d3's spherical test (as every other level's do) on the processed data; that is expected to hold there, but is unverified.
 2. **Armenian wording needs native review:** the title, description, region, Russia's hint, the four level hints, the fact and the Travel note.
 3. **Kaliningrad is small** on phones (about 10 px across at 390×844); it answers Russia, but Russia is meant to be found by its mainland.
-4. **Estonia–Russia's crossing is drawn in Lake Peipus**, shown as land (lakes are not in the map data).
+4. **Lakes are not in the map data**, so they are drawn as land. Estonia–Russia's crossing no longer lies in one (follow-up below); the other legs were not checked against lakes.
 5. **Deep zoom** draws the Quick Challenge's tiles; no new tiles.
 6. **The illustration's brief and generation prompt** are not recorded.
 7. **`e2e/level10.spec.ts`** still checks the close-up's caption for "Denmark" (see `docs/LEVEL11-CHECKPOINT.md`), expected to fail when run.
@@ -63,3 +63,16 @@ WebKit; 200% text; phones in landscape; 320×568; the unit tests and e2e specs t
 ## Preview
 
 Built into `.next-l12/` (locally excluded from git; `tsconfig.json` reverted after each build) and served from that same folder on **http://localhost:3400**. Rebuild with `NEXT_DIST_DIR=.next-l12 npx next build`, then restart `next start -p 3400` with the same `NEXT_DIST_DIR`: a running server keeps serving the build it started with. The Level 11 preview (`.next-l11/`, port 3300) is still running, untouched.
+
+## Follow-up (2026-10-16): Estonia–Russia's crossing off Lake Peipus
+
+The Estonia–Russia crossing was rule 1's vertex in the middle of Lake Peipus (27.4986, 58.5347), so Tallinn → Russia crossed the lake as land. It is now **27.5536, 57.7949**, an **approximate crossing near Koidula**, on land south of Lake Pskov, about 5 km south-west of the real Koidula–Kunichina Gora checkpoint (road 63 Karisilla–Pechory and the Tartu–Pechory railway, just north-west of Pechory; the road meets the border at about 57.833, 27.598, from OpenStreetMap). It is the vertex of the data's simplified border nearest that road crossing whose straight legs keep rule 1's clearances (10.9 km in Estonia, 10.0 km in Russia), not the checkpoint itself. The real crossing is on land: no bridge or link, no turning points; a move is still 3 points and a two-move route 5. Mission, both winning routes, wrong turns and graph unchanged; no other crossing, level, data or relief file touched.
+
+- Changed: `src/core/lessons/russia-and-western-neighbours.ts` (the point and its comment), `src/geo/route.test.ts` (the expected point; new assertions: within 6 km of the checkpoint's road crossing, south of 57.83°N, and Moscow's leg south of 57.8°N west of 28.6°E), `docs/DATA.md` ("Level 12" under "Travel route line").
+- Chosen by a scratch selection script (the vertex and its clearances, on the eastern data in the shared projection), not a test. **No unit test or e2e spec was run.**
+- Checks: `npx tsc --noEmit` and `npx eslint .` (ignoring `.next-*/`): clean. One focused Chromium run (a scratch Playwright script, not the specs) of Estonia → Russia → Belarus on the rebuilt preview, 390×844 and 1366×800, English: 3 then 5 route points, the traveller in Moscow, Journey complete!; the drawn crossing 0.00 px from the new point (the old one would be 13.9 px away on the phone, 26.0 px on desktop), with only Estonia and Russia within 3 px of it; no page errors, no horizontal overflow. Nothing else was checked (Latvia's route, wrong turns, Armenian, other levels).
+- Preview: rebuilt into `.next-l12/` (build `f_qFbm7FHb4FP6iSlES5D`; `tsconfig.json` reverted after the build) and served from it on http://localhost:3400, its page carrying that build id.
+
+## Owner's review (2026-10-16)
+
+The owner reviewed the preview on http://localhost:3400 (build `f_qFbm7FHb4FP6iSlES5D`) and **approved visually** Level 12's route, with Estonia–Russia's approximate crossing near Koidula, and Saint Basil's Cathedral's illustration. This is a visual approval; the tests and specs listed above have still not been run.

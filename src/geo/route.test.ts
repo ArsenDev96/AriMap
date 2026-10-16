@@ -575,9 +575,17 @@ describe("russia-and-western-neighbours: two ways to Minsk, straight legs on lan
     expect(lesson.map.borderLinks ?? []).toEqual([]);
     expect(lesson.map.routeCrossings!["EST-LVA"]).toEqual(LESSONS["baltic-journey"].map.routeCrossings!["EST-LVA"]);
     expect(lesson.map.routeCrossings!["BLR-LVA"]).toEqual(LESSONS["eastern-europe"].map.routeCrossings!["BLR-LVA"]);
-    // Rule 1's vertices (docs/DATA.md, "Level 12"): in the middle of Lake Peipus, north of Kārsava, south-west of
-    // Smolensk; Finland's at the middle of its 1,221 km border, by Level 10's on-land rule (Helsinki is on the coast).
-    expect(lesson.map.routeCrossings!["EST-RUS"]).toEqual([27.4986, 58.5347]);
+    // Estonia's an approximate crossing near Koidula, on land south of Lake Pskov, about 5 km from the checkpoint
+    // (docs/DATA.md, "Level 12"; the middle of the border is in Lake Peipus, drawn as land). Rule 1's vertices: north of
+    // Kārsava, south-west of Smolensk; Finland's at the middle of its 1,221 km border, by Level 10's on-land rule
+    // (Helsinki is on the coast).
+    expect(lesson.map.routeCrossings!["EST-RUS"]).toEqual([27.5536, 57.7949]);
+    // Not in Lake Peipus or Lake Pskov: the crossing is south of both, about 5 km from the checkpoint, and Moscow's leg
+    // runs south-east from it, south of Pskov.
+    const estRus = lesson.map.routeCrossings!["EST-RUS"];
+    expect(km(estRus, [27.5975, 57.833]), "from the road crossing").toBeLessThan(6);
+    expect(estRus[1]).toBeLessThan(57.83);
+    for (const p of drawnSamples(lesson, estRus, COUNTRIES.RUS.capital.coordinates, 300)) if (p[0] < 28.6) expect(p[1], `${p}`).toBeLessThan(57.8);
     expect(lesson.map.routeCrossings!["LVA-RUS"]).toEqual([27.7151, 56.9573]);
     expect(lesson.map.routeCrossings!["BLR-RUS"]).toEqual([31.3246, 54.2291]);
     expect(lesson.map.routeCrossings!["FIN-RUS"]).toEqual([30.1109, 64.7444]);

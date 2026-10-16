@@ -84,10 +84,13 @@ export const russiaAndWesternNeighboursLesson: LessonDefinition = {
     calloutDotsClearControls: true,
     // Levels 6 and 8's crossings (vertices of the same borders here: the eastern data keeps their shapes), and new ones
     // on Russia's borders by the same rule (docs/DATA.md, "Travel route line", "Level 12"): all on its mainland.
+    // Estonia–Russia's is not by the rule: an approximate crossing near Koidula, on land south of Lake Pskov, about 5 km
+    // from the Koidula–Kunichina Gora checkpoint (most of that border runs through Lakes Peipus and Pskov, which the map
+    // data draws as land).
     routeCrossings: {
       "EST-LVA": balticJourneyLesson.map.routeCrossings!["EST-LVA"],
       "BLR-LVA": easternEuropeLesson.map.routeCrossings!["BLR-LVA"],
-      "EST-RUS": [27.4986, 58.5347],
+      "EST-RUS": [27.5536, 57.7949],
       "LVA-RUS": [27.7151, 56.9573],
       "BLR-RUS": [31.3246, 54.2291],
       "FIN-RUS": [30.1109, 64.7444],
