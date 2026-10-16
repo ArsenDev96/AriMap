@@ -440,3 +440,61 @@
 .chip[aria-pressed="true"] {
   border-color: var(--ink);
 }
+
+/* Share result (ShareResult.tsx): a button after the results' three actions, and a dialog with the card's preview. */
+.shareButton svg {
+  flex: none;
+}
+
+/* Room for the preview and four actions on a phone; the dialog scrolls if the text is enlarged. */
+.shareDialog {
+  overflow-y: auto;
+}
+
+/* The card is 4:5. Its box keeps that shape while it is made, so nothing jumps when it appears. */
+.sharePreview {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: min(100%, calc(min(44dvh, 420px) * 0.8));
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--surface-warm);
+  box-shadow: 0 0 0 1.5px var(--line);
+}
+
+.sharePreview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.sharePreview p {
+  padding: 12px;
+  text-align: center;
+}
+
+.shareNote {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* What the last action did (empty until then): its words say what happened, the colour only adds to them. */
+.shareNotice {
+  min-height: 1.4em;
+  color: var(--ink);
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.shareNotice[data-kind="ok"] {
+  color: var(--teal-dark);
+}
+
+.shareNotice[data-kind="error"] {
+  color: var(--coral-strong);
+}

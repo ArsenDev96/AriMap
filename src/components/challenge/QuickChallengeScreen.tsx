@@ -20,7 +20,9 @@ import type { CountryId } from "@/core/content/types";
 import type { AppAction } from "@/core/progress/appState";
 import { LanguageToggle } from "../Header";
 import { useI18n } from "../i18n";
+import { roundSeconds } from "@/core/challenge/share";
 import { ChallengeMap, type ChallengeTone } from "./ChallengeMap";
+import { ShareResultDialog } from "./ShareResult";
 import dialogStyles from "../WelcomeScreen.module.css";
 import styles from "./QuickChallengeScreen.module.css";
 
@@ -313,6 +315,7 @@ function Results({
     });
     return () => cancelAnimationFrame(frame);
   }, []);
+  const [sharing, setSharing] = useState(false);
   const counts = [
     { key: "correct", label: t("challengeResults.correct"), value: result.correct },
     { key: "incorrect", label: t("challengeResults.incorrect"), value: result.incorrect },
@@ -329,7 +332,7 @@ function Results({
         <span>/ {result.total}</span>
       </p>
       {result.endReason === "completed" && (
-        <p className={styles.text}>{t("challengeResults.time", { time: tp("challenge.seconds", Math.max(1, Math.round(result.elapsedMs / 1000))) })}</p>
+        <p className={styles.text}>{t("challengeResults.time", { time: tp("challenge.seconds", roundSeconds(result.elapsedMs)) })}</p>
       )}
       <dl className={styles.counts}>
         {counts.map((c) => (
@@ -350,6 +353,11 @@ function Results({
         </button>
         <button type="button" className="btn btn-secondary" onClick={onLessons} data-testid="challenge-lessons">
           {t("challengeResults.lessons")}
+        </button>
+        {/* After the three: sharing never moves them. */}
+        <button type="button" className={`btn btn-secondary ${styles.shareButton}`} onClick={() => setSharing(true)} aria-haspopup="dialog" data-testid="challenge-share">
+          <ShareIcon />
+          {t("challengeShare.button")}
         </button>
       </div>
 
@@ -372,6 +380,8 @@ function Results({
           {t("challengeResults.home")}
         </button>
       </div>
+
+      <ShareResultDialog result={result} open={sharing} onClose={() => setSharing(false)} />
     </div>
   );
 }
@@ -484,6 +494,14 @@ function BoltIcon() {
   return (
     <svg className={styles.bolt} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M13.5 2 4.5 13.5h6L9.5 22l9-11.5h-6z" fill="currentColor" stroke="#c07d05" strokeWidth="1.2" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 15V3.5m0 0L7.5 8M12 3.5 16.5 8M5 12v7a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-7" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
