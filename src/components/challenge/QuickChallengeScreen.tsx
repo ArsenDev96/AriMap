@@ -343,8 +343,13 @@ function Results({
         ))}
       </dl>
 
-      {/* What to do next, before the list: within reach on a phone however long the list is. */}
+      {/* What to do next, before the list: within reach on a phone however long the list is. Sharing first, in gold,
+          right under the score it shares; then Play again, Review and Explore lessons. */}
       <div className={styles.actions}>
+        <button type="button" className={`btn ${styles.shareButton}`} onClick={() => setSharing(true)} aria-haspopup="dialog" data-testid="challenge-share">
+          <ShareIcon />
+          {t("challengeShare.button")}
+        </button>
         <button type="button" className="btn btn-primary" onClick={onPlayAgain} data-testid="challenge-play-again">
           {t("welcome.playAgain")}
         </button>
@@ -353,11 +358,6 @@ function Results({
         </button>
         <button type="button" className="btn btn-secondary" onClick={onLessons} data-testid="challenge-lessons">
           {t("challengeResults.lessons")}
-        </button>
-        {/* After the three: sharing never moves them. */}
-        <button type="button" className={`btn btn-secondary ${styles.shareButton}`} onClick={() => setSharing(true)} aria-haspopup="dialog" data-testid="challenge-share">
-          <ShareIcon />
-          {t("challengeShare.button")}
         </button>
       </div>
 

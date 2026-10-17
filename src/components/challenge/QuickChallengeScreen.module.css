@@ -441,7 +441,28 @@
   border-color: var(--ink);
 }
 
-/* Share result (ShareResult.tsx): a button after the results' three actions, and a dialog with the card's preview. */
+/* Share result (ShareResult.tsx): the results' first action, right under the score, and a dialog with the card's
+   preview. A gold pill with navy words (about 7.5:1) and a raised gold edge, as Play again has its coral one; a deeper
+   gold on hover; the navy focus ring a little further out, clear of the gold. */
+.shareButton {
+  background: var(--amber);
+  color: var(--ink);
+  box-shadow: 0 3px 0 var(--amber-dark);
+}
+
+.shareButton:hover:not(:disabled) {
+  background: #f5a623;
+}
+
+.shareButton:active:not(:disabled) {
+  box-shadow: 0 1px 0 var(--amber-dark);
+}
+
+.shareButton:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
 .shareButton svg {
   flex: none;
 }

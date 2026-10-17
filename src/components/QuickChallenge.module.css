@@ -1,8 +1,9 @@
 /* The home screen's timed challenge: a white card above the lessons, its question in bold navy, a coral
-   button, and an illustrated Europe. On a narrow card (a phone held upright) Europe is a band across its
-   top that fades into the white above the words; on a wider one it fills the card's right side, fading
-   into the white beside the words. Either way the art has its own area and never lies under the text.
-   Sizes are in rem where they follow the text, so enlarged text keeps its room. */
+   button, and an illustrated Europe (the painted banner, QuickChallenge.tsx). On a narrow card (a phone held
+   upright) Europe is a band across its top, the whole banner at its own proportions, its white foot running
+   into the white above the words; on a wider one it fills the card's right side, fading into the white beside
+   the words. Either way the art has its own area and never lies under the text. Sizes are in rem where they
+   follow the text, so enlarged text keeps its room. */
 
 .challenge {
   container: challenge / inline-size;
@@ -21,66 +22,21 @@
   grid-template-areas: "art" "body";
 }
 
-/* Europe: a low band across the card's top, its lower edge fading into the white card. */
+/* Europe: the whole banner across the card's top, at its own proportions (1983 × 793); its own white foot
+   fades into the card. */
 .art {
   position: relative;
   grid-area: art;
-  height: clamp(100px, 32cqw, 168px);
-  background: #2cbbe9;
+  aspect-ratio: 1983 / 793;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(180deg, #000 66%, transparent);
-  mask-image: linear-gradient(180deg, #000 66%, transparent);
 }
 
-/* The map fills the art's area, cropped to it (QuickChallenge.tsx): the area's size comes from the card,
-   never from the map's own proportions. */
-.artMap {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-/* The map's faint grid, as on the world map. */
-.artGrid {
-  fill: none;
-  stroke: #fff;
-  stroke-opacity: 0.28;
-  stroke-width: 0.6px;
-  vector-effect: non-scaling-stroke;
-}
-
-/* The neighbouring land: a quiet pale green with a light coast, so Europe leads. */
-.artLand {
-  fill: #d3ecd5;
-  stroke: #fff;
-  stroke-opacity: 0.8;
-  stroke-width: 1px;
-  stroke-linejoin: round;
-  paint-order: stroke;
-  vector-effect: non-scaling-stroke;
-}
-
-/* Europe: its green (until the painted land over it loads) and a light coast on the water. */
-.artEurope {
-  fill: #44c95b;
-  stroke: #fff;
-  stroke-width: 1.5px;
-  stroke-linejoin: round;
-  paint-order: stroke;
-  vector-effect: non-scaling-stroke;
-}
-
-/* The countries' borders: thin, light lines on the painted land, quieter than its coast. */
-.artBorders {
-  fill: none;
-  stroke: #fff;
-  stroke-opacity: 0.7;
-  stroke-width: 1px;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
+/* The banner fills the art's area: on a phone exactly; beside the words, cropped to it (never stretched),
+   its whole height kept (the white foot included) and its sides cropped mostly from the east, so Iceland stays
+   clear of the fade on the left and Europe whole, as far as the Black Sea at least. */
+.artImage {
+  object-fit: cover;
+  object-position: 10% 100%;
 }
 
 .body {
@@ -218,10 +174,10 @@
     grid-template-areas: "body art";
   }
   .art {
-    height: auto;
+    aspect-ratio: auto;
     min-height: 12rem;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 24%);
-    mask-image: linear-gradient(90deg, transparent, #000 24%);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%);
+    mask-image: linear-gradient(90deg, transparent, #000 16%);
   }
   .body {
     justify-content: center;

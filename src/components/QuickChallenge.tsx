@@ -1,11 +1,7 @@
 "use client";
 
-import { useId } from "react";
+import Image from "next/image";
 import { CHALLENGE_RULES } from "@/core/challenge/quickChallenge";
-import landArt from "@/assets/map/world/land.webp";
-import waterArt from "@/assets/map/world/water.webp";
-import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS } from "@/data/geo/world-map";
-import { EUROPE_BORDERS } from "@/data/geo/europe-borders";
 import { useI18n } from "./i18n";
 import styles from "./QuickChallenge.module.css";
 
@@ -13,16 +9,10 @@ import styles from "./QuickChallenge.module.css";
 const CHALLENGE = { countries: CHALLENGE_RULES.questions, seconds: CHALLENGE_RULES.durationMs / 1000 } as const;
 
 /**
- * The art's frame in the home screen's world map units (src/data/geo/world-map.ts): western, central and
- * northern Europe, from 20°W to 40°E and 35°N to 73°N, centred on Denmark and the North Sea, so European
- * Russia stays at its eastern edge. It fills the art's area and is cropped to it, never stretched: a wide
- * band (a phone's) shows all of its width and the latitudes around 54°N, a taller area all of its height
- * and the longitudes around 10°E.
+ * Europe, illustrated: a painted banner (1983 × 793) that fades to white at its foot. Served resized by the image
+ * service, at the card's width on a phone and about half of it beside the words on a wider card.
  */
-const EUROPE_VIEW = "414 47 167 106";
-
-/** A latitude's height on the world map (equirectangular: 90°N at the top, the equator in the middle). */
-const latitudeY = (latitude: number) => WORLD_MAP_HEIGHT / 2 - (latitude * WORLD_MAP_WIDTH) / 360;
+const BANNER = "/images/challenge/europe-home-banner.png";
 
 /**
  * The home screen's timed challenge, above the lessons: an illustrated Europe beside (or, on a narrow
@@ -75,44 +65,15 @@ export function QuickChallenge({ onPlay }: { onPlay: () => void }) {
 }
 
 /**
- * Europe as a small illustrated map: the world map's painted water and Europe's painted land, clipped to its
- * coast, with its countries' borders as faint light lines, the neighbouring land a quiet pale green and the
- * map's faint grid (the same images the world map below already loads). The borders' data stops at 62°N
- * (src/data/geo/europe-borders.ts), so they fade out from 61°N rather than ending in Scandinavia.
- * Decorative and static: hidden from assistive technology and never a tap's target.
+ * The banner: whole and at its own proportions across a narrow card's top, its white foot running into the card;
+ * on a wider card, filling the card's right side, cropped round Europe (never stretched) and fading into the white
+ * beside the words (QuickChallenge.module.css). Decorative and static: hidden from assistive technology and never a
+ * tap's target.
  */
 function ChallengeArt() {
-  const id = useId();
-  const [clip, fade, fadeMask] = [`${id}clip`, `${id}fade`, `${id}fadeMask`];
   return (
     <div className={styles.art} aria-hidden="true">
-      <svg className={styles.artMap} viewBox={EUROPE_VIEW} preserveAspectRatio="xMidYMid slice" focusable="false">
-        <defs>
-          <clipPath id={clip}>
-            <path d={WORLD_REGIONS.europe} />
-          </clipPath>
-          <linearGradient id={fade} gradientUnits="userSpaceOnUse" x1="0" y1={latitudeY(64)} x2="0" y2={latitudeY(61)}>
-            <stop offset="0" stopColor="#fff" stopOpacity="0" />
-            <stop offset="1" stopColor="#fff" />
-          </linearGradient>
-          <mask id={fadeMask} maskUnits="userSpaceOnUse" x="0" y="0" width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT}>
-            <rect width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} fill={`url(#${fade})`} />
-          </mask>
-        </defs>
-        <image href={waterArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" />
-        <path className={styles.artGrid} d={WORLD_GRATICULE} />
-        {(Object.keys(WORLD_REGIONS) as (keyof typeof WORLD_REGIONS)[])
-          .filter((region) => region !== "europe")
-          .map((region) => (
-            <path key={region} className={styles.artLand} d={WORLD_REGIONS[region]} />
-          ))}
-        <path className={styles.artEurope} d={WORLD_REGIONS.europe} />
-        <image href={landArt.src} width={WORLD_MAP_WIDTH} height={WORLD_MAP_HEIGHT} preserveAspectRatio="none" clipPath={`url(#${clip})`} />
-        {/* Clipped to the painted coast, so a border never runs out into the sea. */}
-        <g clipPath={`url(#${clip})`} mask={`url(#${fadeMask})`}>
-          <path className={styles.artBorders} d={EUROPE_BORDERS} />
-        </g>
-      </svg>
+      <Image src={BANNER} alt="" fill sizes="(min-width: 900px) 50vw, 100vw" loading="eager" className={styles.artImage} />
     </div>
   );
 }
