@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   description: "AriMap — Discover the world. · ԱրիՄապ — Բացահայտիր աշխարհը",
   applicationName: "AriMap",
   appleWebApp: { title: "AriMap", capable: true, statusBarStyle: "default" },
+  // Google AdSense site-ownership verification only: no ad script is loaded.
+  other: { "google-adsense-account": "ca-pub-2410519694761753" },
 };
 
 export const viewport: Viewport = {
