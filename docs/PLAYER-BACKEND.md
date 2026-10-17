@@ -183,7 +183,7 @@ Apply it to the dev project before running this build against it:
    Three rows, each `true`.
 3. Rebuild the preview (`NEXT_PUBLIC_` values and the new routes are built in).
 
-### T### Timing
+### Timing
 
 One clock decides: **the database's**. Every time that counts (a round's start and deadline, each answer's receipt, a
 round's end) is the database's, and the times the device places the deadline by are on it too. The app's server never
@@ -252,7 +252,7 @@ new function signatures, and the old build can not call the replaced ones):
    `ms_before_now(integer,integer)`; no `bounded_time`.
 3. Rebuild the preview.
 
-nown limits
+### Known limits
 
 - **Not cheat-proof.** The server's clock, its own questions and its receipts stop forged scores, extra time, answers
   out of order and spending twice. They do not stop a script that reads the map and taps within the rhythm, or help
