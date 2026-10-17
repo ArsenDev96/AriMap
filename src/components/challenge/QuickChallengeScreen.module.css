@@ -519,3 +519,139 @@
 .shareNotice[data-kind="error"] {
   color: var(--coral-strong);
 }
+
+/* Server rounds (roundSession.ts): attempts, notices, the optional name, and whether a result is confirmed. */
+
+/* "2 attempts left": under the rules, and on Results under the actions. */
+.attempts {
+  color: var(--ink);
+  font-weight: 900;
+  line-height: 1.3;
+}
+
+/* Good news (the all-stars reward, a saved name): words first, the teal only adds to them. */
+.notice {
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  font-weight: 800;
+  line-height: 1.4;
+}
+
+/* Something to put right (no connection, a name refused). */
+.error {
+  color: var(--coral-strong);
+  font-weight: 800;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* While playing: "Reconnecting…" under Skip, its room kept so nothing moves when it appears. */
+.connection {
+  min-height: 1.4em;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.noAttempts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* The optional name: a white card with its label, the field and its actions. */
+.nameForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: var(--card-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.nameTitle {
+  color: var(--ink);
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.nameLabel {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.nameInput {
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border: 2px solid #c9d6e3;
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+}
+
+.nameInput:focus-visible {
+  border-color: var(--ink);
+  outline: 3px solid rgba(31, 58, 95, 0.25);
+  outline-offset: 1px;
+}
+
+.nameInput[aria-invalid="true"] {
+  border-color: var(--coral-strong);
+}
+
+.nameActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Confirming, confirmed (a teal tick) or failed (coral, with Try again), right under the result's title. */
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.confirm p {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.confirm[data-state="confirming"] {
+  color: var(--ink-soft);
+}
+
+.confirm[data-state="confirmed"] {
+  color: var(--teal-dark);
+}
+
+.confirm[data-state="failed"] {
+  color: var(--coral-strong);
+}
+
+/* A provisional score is the device's own: shown, but quieter until the server confirms it. */
+.resultScore[data-provisional] {
+  opacity: 0.6;
+}
+
+/* Why Share waits: under the actions while the result is not confirmed. */
+.shareLater {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+}

@@ -6,6 +6,7 @@ import { translate } from "@/core/i18n/translate";
 import { activeLesson, activeProgress, appReducer, nextLevel } from "@/core/progress/appState";
 import { loadAppState, saveAppState, type KeyValueStorage } from "@/core/progress/storage";
 import { QuickChallengeScreen } from "./challenge/QuickChallengeScreen";
+import { readStoredChallenge } from "./challenge/roundSession";
 import { ContinentScreen } from "./ContinentScreen";
 import { diagnostics } from "./diagnostics";
 import { DiagnosticsHud } from "./DiagnosticsHud";
@@ -23,10 +24,11 @@ function browserStorage(): KeyValueStorage | null {
 
 export default function Game() {
   const [state, dispatch] = useReducer(appReducer, null, () => loadAppState(browserStorage()));
-  // The Quick Challenge, opened from the home screen. Kept here, not in the saved state: a round lives in
-  // memory only (a refresh goes back home), and it never changes lesson progress. It stays mounted while
-  // the language changes, so its timer runs on.
-  const [challenge, setChallenge] = useState(false);
+  // The Quick Challenge, opened from the home screen. Kept here, not in the saved state: rounds are the server's,
+  // and the challenge never changes lesson progress. After a refresh it opens again when a round was kept (one
+  // under way, or a result still to confirm: roundSession.ts), so the round resumes, or its result shows. It stays
+  // mounted while the language changes, so its timer runs on.
+  const [challenge, setChallenge] = useState(() => readStoredChallenge() !== null);
 
   useEffect(() => {
     // TEMPORARY phone-lag diagnostics (see diagnostics.ts): ?freeze=1 never writes the save.
@@ -46,7 +48,7 @@ export default function Game() {
       <title>{`${translate(state.locale, "app.name")} — ${translate(state.locale, "app.tagline")}`}</title>
       {/* The screen comes from the save on the first render (the game renders on the client only), so no other screen shows first. */}
       {challenge ? (
-        <QuickChallengeScreen dispatch={dispatch} onClose={() => setChallenge(false)} />
+        <QuickChallengeScreen dispatch={dispatch} progress={state} onClose={() => setChallenge(false)} />
       ) : state.screen === "continents" ? (
         <ContinentScreen state={state} dispatch={dispatch} onPlayChallenge={() => setChallenge(true)} />
       ) : state.screen === "levels" ? (
