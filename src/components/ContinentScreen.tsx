@@ -26,6 +26,9 @@ interface Props {
   onRestored: () => void;
 }
 
+/** Contact & feedback: the player's own mail app, addressed and with a subject; nothing is sent from the site. */
+const CONTACT_URL = "mailto:arsmanukyandev@gmail.com?subject=AriMap%20feedback";
+
 /** Drawn under the categories: geographic context, never selectable. */
 const CONTEXT_REGIONS = ["oceania", "antarctica"] as const;
 type Region = keyof typeof WORLD_REGIONS;
@@ -69,7 +72,7 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * completed ("Completed: 2/10") are shown once, on its card, never on the map. The main action, right
  * under the cards, resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
  * the level's title too in its accessible name), or else opens Europe (Explore Europe); it scrolls with
- * the content. The page's frame (header, scrolling content) is the level selection's
+ * the content. Under it, a small "Contact & feedback" mail link. The page's frame (header, scrolling content) is the level selection's
  * (WelcomeScreen.module.css), in this screen's sky colours.
  */
 export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboard, restore, onRestored }: Props) {
@@ -215,6 +218,13 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboar
                 )
               )}
             </div>
+
+            {/* After the lessons, quietly: a way to write to us. */}
+            <footer className={styles.footer}>
+              <a className={styles.contact} href={CONTACT_URL} data-testid="home-contact">
+                {t("continents.contact")}
+              </a>
+            </footer>
           </section>
         </div>
       </div>

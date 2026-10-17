@@ -38,6 +38,7 @@ export const en = {
   "continents.comingSoon": "Coming soon",
   "continents.continueLabel": "{action}: {continent}, {level}, {title}",
   "continents.back": "Back to continents",
+  "continents.contact": "Contact & feedback",
 
   "challenge.label": "Quick Challenge",
   "challenge.title": "Find {count} countries on the map of Europe",
@@ -137,6 +138,7 @@ export const en = {
   "challengeShare.beat": "Can you beat my score?",
   "challengeShare.message": "{found}. {beat} {url}",
   "challengeShare.alt": "Your result card: {found}. Can you beat my score?",
+  "challengeShare.altNamed": "Result card for {name}: {found}. Can you beat my score?",
   "challengeShare.preparing": "Preparing your image…",
   "challengeShare.prepareFailed": "The image couldn't be prepared.",
   "challengeShare.retry": "Try again",

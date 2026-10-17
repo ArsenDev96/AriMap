@@ -862,7 +862,7 @@ function Results({
         </button>
       </div>
 
-      {confirmed && <ShareResultDialog result={confirmed} open={sharing} onClose={() => setSharing(false)} />}
+      {confirmed && <ShareResultDialog result={confirmed} displayName={player?.displayName ?? null} open={sharing} onClose={() => setSharing(false)} />}
     </div>
   );
 }

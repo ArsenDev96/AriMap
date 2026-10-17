@@ -23,12 +23,24 @@ type Notice = { kind: "ok" | "info" | "error"; text: string };
 /**
  * The Quick Challenge's "Share result": a dialog that prepares the result's card (shareCard.ts) and shows it, with
  * Share image (the system's share sheet, where the browser can share files), Download image and Copy link (the
- * public home page). The card is made from the result and language it opens with, and made again if either
- * changes while it is open; a card being made for an earlier result or language is dropped, never shown. The share
+ * public home page). The card is made from the result, language and display name it opens with (the confirmed
+ * result; the player's saved name, or none), and made again if any of them changes; a card being made for an earlier
+ * one is dropped, never shown, so a name saved or changed on Results is on the next card. The share
  * sheet is opened straight from the button's click, with the card already made, so the browser's user activation
  * holds. See docs/QUICK-CHALLENGE-SHARING.md.
  */
-export function ShareResultDialog({ result, open, onClose }: { result: ChallengeResult; open: boolean; onClose: () => void }) {
+export function ShareResultDialog({
+  result,
+  displayName,
+  open,
+  onClose,
+}: {
+  result: ChallengeResult;
+  /** The player's saved display name (the leaderboard's), or null: the card then has no name. */
+  displayName: string | null;
+  open: boolean;
+  onClose: () => void;
+}) {
   const { locale } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   const [attempt, setAttempt] = useState(0);
@@ -54,23 +66,31 @@ export function ShareResultDialog({ result, open, onClose }: { result: Challenge
         if (e.target === e.currentTarget) e.currentTarget.close();
       }}
     >
-      {/* Made afresh for each opening, language and retry: a new body starts with no card. */}
-      {open && <ShareBody key={`${locale}:${attempt}`} result={result} onRetry={() => setAttempt((n) => n + 1)} onClose={() => ref.current?.close()} />}
+      {/* Made afresh for each opening, language, name and retry: a new body starts with no card. */}
+      {open && (
+        <ShareBody
+          key={`${locale}:${displayName ?? ""}:${attempt}`}
+          result={result}
+          displayName={displayName}
+          onRetry={() => setAttempt((n) => n + 1)}
+          onClose={() => ref.current?.close()}
+        />
+      )}
     </dialog>
   );
 }
 
-function ShareBody({ result, onRetry, onClose }: { result: ChallengeResult; onRetry: () => void; onClose: () => void }) {
+function ShareBody({ result, displayName, onRetry, onClose }: { result: ChallengeResult; displayName: string | null; onRetry: () => void; onClose: () => void }) {
   const { t, locale } = useI18n();
   const [card, setCard] = useState<PreparedCard | null>(null);
   const [failed, setFailed] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
-  // Made for this result and language; a card finished after either changed, or after closing, is dropped.
+  // Made for this result, language and name; a card finished after any changed, or after closing, is dropped.
   useEffect(() => {
     let current = true;
     let made: PreparedCard | null = null;
-    const text = shareText(shareSummary(result), locale);
+    const text = shareText(shareSummary(result, displayName), locale);
     renderShareCard(text).then(
       ({ blob }) => {
         if (!current) return;
@@ -86,7 +106,7 @@ function ShareBody({ result, onRetry, onClose }: { result: ChallengeResult; onRe
       current = false;
       if (made) URL.revokeObjectURL(made.url);
     };
-  }, [result, locale]);
+  }, [result, locale, displayName]);
 
   // Directly in the click: no await before navigator.share, so the click's activation is still there.
   const shareImage = () => {

@@ -40,6 +40,7 @@ export const hy: Record<keyof typeof en, string> = {
   "continents.comingSoon": "Շուտով",
   "continents.continueLabel": "{action}՝ {continent}, {level}, {title}",
   "continents.back": "Վերադառնալ մայրցամաքներին",
+  "continents.contact": "Կապ և առաջարկներ",
 
   "challenge.label": "Արագ մարտահրավեր",
   "challenge.title": "Գտիր {count} երկիր Եվրոպայի քարտեզի վրա",
@@ -139,6 +140,7 @@ export const hy: Record<keyof typeof en, string> = {
   "challengeShare.beat": "Կարո՞ղ ես գերազանցել իմ արդյունքը։",
   "challengeShare.message": "{found}։ {beat} {url}",
   "challengeShare.alt": "Քո արդյունքի քարտը՝ {found}։ Կարո՞ղ ես գերազանցել իմ արդյունքը։",
+  "challengeShare.altNamed": "Արդյունքի քարտ ({name})՝ {found}։ Կարո՞ղ ես գերազանցել իմ արդյունքը։",
   "challengeShare.preparing": "Նկարը պատրաստվում է…",
   "challengeShare.prepareFailed": "Չհաջողվեց պատրաստել նկարը։",
   "challengeShare.retry": "Կրկին փորձել",
