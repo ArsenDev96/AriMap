@@ -36,16 +36,32 @@ export function shareSummary(result: ChallengeResult): ShareSummary {
   return { endReason: result.endReason, correct: result.correct, total: result.total, seconds: roundSeconds(result.elapsedMs) };
 }
 
+/** Per language: whether the card's title and caption are set in spaced capitals (ShareText's `capitals`). */
+const SPACED_CAPITALS: Readonly<Record<Locale, boolean>> = { en: true, hy: false };
+
 /** The card's words in one language. */
 export interface ShareText {
   appName: string;
   label: string;
   /** "12/15". */
   score: string;
-  /** "12/15 countries · 60 seconds". */
+  /** "12/15 countries · 60 seconds" (the share message and the image's description). */
   found: string;
-  /** "Can you beat my score?" */
+  /** The card's title: "Europe Quick Challenge". */
+  title: string;
+  /** The card's caption by the score, which states the score already: "Countries found". */
+  caption: string;
+  /** The round's time, by the caption: "60 seconds". */
+  time: string;
+  /**
+   * Whether the card sets its title and caption in spaced capitals ("EUROPE QUICK CHALLENGE"): English does; Armenian
+   * keeps its own case, as long Armenian words in capitals read slowly (and its title then fits one line).
+   */
+  capitals: boolean;
+  /** "Can you beat my score?" (the share message). */
   beat: string;
+  /** The card's invitation, beside its QR code: "Your turn!" */
+  turn: string;
   /** The address printed on the card. */
   host: string;
   /** The link shared or copied: the public home page. */
@@ -60,17 +76,20 @@ export interface ShareText {
 
 export function shareText(summary: ShareSummary, locale: Locale): ShareText {
   const score = `${summary.correct}/${summary.total}`;
-  const found = translate(locale, "challengeShare.found", {
-    score,
-    time: translatePlural(locale, "challenge.seconds", summary.seconds),
-  });
+  const time = translatePlural(locale, "challenge.seconds", summary.seconds);
+  const found = translate(locale, "challengeShare.found", { score, time });
   const beat = translate(locale, "challengeShare.beat");
   return {
     appName: translate(locale, "app.name"),
     label: translate(locale, "challenge.label"),
     score,
     found,
+    title: translate(locale, "challengeShare.cardTitle"),
+    caption: translate(locale, "challengeShare.caption"),
+    time,
+    capitals: SPACED_CAPITALS[locale],
     beat,
+    turn: translate(locale, "challengeShare.turn"),
     host: SITE_HOST,
     url: SITE_URL,
     message: translate(locale, "challengeShare.message", { found, beat, url: SITE_URL }),
