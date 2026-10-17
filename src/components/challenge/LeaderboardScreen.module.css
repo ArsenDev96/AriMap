@@ -1,0 +1,33 @@
+/* The leaderboard's own screen (LeaderboardScreen.tsx), under the Quick Challenge's header: the board on a white
+   card, centred and as wide as reads comfortably, scrolling on its own between the header and the screen's foot. */
+
+/* Focused by script as the screen opens (for a screen reader), never by Tab: no ring. */
+.title:focus {
+  outline: none;
+}
+
+.main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 12px calc(20px + env(safe-area-inset-bottom, 0px));
+}
+
+.card {
+  max-width: 640px;
+  margin-inline: auto;
+  padding: 18px 16px 20px;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(31, 90, 140, 0.14);
+}
+
+@media (min-width: 600px) {
+  .main {
+    padding: 8px 24px 32px;
+  }
+  .card {
+    padding: 26px 32px 28px;
+  }
+}

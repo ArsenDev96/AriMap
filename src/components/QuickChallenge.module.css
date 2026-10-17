@@ -159,6 +159,21 @@
   height: 1.1em;
 }
 
+/* The leaderboard, under Play: the secondary outline, smaller text and as wide as its words (the app's tap height
+   kept), so Play stays the card's main action; its trophy in the challenge's amber. */
+.leaderboard {
+  padding: 6px 16px 6px 12px;
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.trophy {
+  flex: none;
+  width: 1.2em;
+  height: 1.2em;
+  color: #c07d05;
+}
+
 /* Narrow for its text (enlarged text on a phone): the words alone, so none breaks for the arrow. */
 @container challenge (max-width: 16rem) {
   .play .arrow {

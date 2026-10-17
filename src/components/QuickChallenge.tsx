@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { CHALLENGE_RULES } from "@/core/challenge/quickChallenge";
+import { BACKEND_CONFIGURED } from "@/web/backend";
 import { useI18n } from "./i18n";
 import styles from "./QuickChallenge.module.css";
 
@@ -14,12 +15,16 @@ const CHALLENGE = { countries: CHALLENGE_RULES.questions, seconds: CHALLENGE_RUL
  */
 const BANNER = "/images/challenge/europe-home-banner.png";
 
+/** The home screen's Leaderboard button: focused again on returning from the leaderboard (ContinentScreen). */
+export const HOME_LEADERBOARD_ID = "home-leaderboard";
+
 /**
  * The home screen's timed challenge, above the lessons: an illustrated Europe beside (or, on a narrow
  * card, above) the question, its two rules as small tiles, and its button, which opens the challenge
- * (QuickChallengeScreen).
+ * (QuickChallengeScreen). Under it, smaller, the leaderboard (when this build has a backend), which opens its own
+ * screen (LeaderboardScreen): it starts nothing, and returning puts focus back on this button (HOME_LEADERBOARD_ID).
  */
-export function QuickChallenge({ onPlay }: { onPlay: () => void }) {
+export function QuickChallenge({ onPlay, onLeaderboard }: { onPlay: () => void; onLeaderboard: () => void }) {
   const { t, tp } = useI18n();
   // "You have just {time}.": the time is set apart in coral, the sentence's words around it as they are.
   const [before, after = ""] = t("challenge.time").split("{time}");
@@ -58,6 +63,12 @@ export function QuickChallenge({ onPlay }: { onPlay: () => void }) {
             {t("challenge.play")}
             <ArrowIcon />
           </button>
+          {BACKEND_CONFIGURED && (
+            <button id={HOME_LEADERBOARD_ID} type="button" className={`btn btn-secondary ${styles.leaderboard}`} onClick={onLeaderboard} data-testid="home-leaderboard">
+              <TrophyIcon />
+              {t("challenge.leaderboard")}
+            </button>
+          )}
         </div>
       </div>
     </section>
@@ -99,6 +110,21 @@ function ClockIcon() {
     <svg className={styles.factIcon} width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="2.2" />
       <path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
+    <svg className={styles.trophy} width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        d="M7.5 4h9v4.5a4.5 4.5 0 0 1-9 0zM7.5 6H5a2.5 2.5 0 0 0 2.9 3.4M16.5 6H19a2.5 2.5 0 0 1-2.9 3.4M12 13v4M8.5 20.5h7M9.5 17h5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

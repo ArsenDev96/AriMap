@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { ChallengeService, FinishRoundResult, StartRoundResult, SubmitAnswersResult } from "@/core/challenge/api";
+import { parseLeaderboard, type Leaderboard } from "@/core/challenge/leaderboard";
 import {
   isServerTime,
   parseReceipt,
@@ -38,6 +39,12 @@ import type { EuropeStarsSnapshot } from "@/core/progress/europeStars";
 export const AUTH_STORAGE_KEY = "arimap:auth";
 
 export type Backend = PlayerService & ChallengeService;
+
+/**
+ * Whether this build has a backend (its public URL and key, built in): the same on the server and in the browser,
+ * so a control that needs one can be shown, or not, without a mismatch between the two.
+ */
+export const BACKEND_CONFIGURED = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
 
 let backend: Backend | null | undefined;
 
@@ -110,6 +117,15 @@ class WebBackend implements Backend {
     if (res.status === 200 && isServerTime(body?.serverTime)) return { ok: true, round: readRound(body.round), serverTime: body.serverTime };
     if (res.status === 404 && body?.problem === "notFound") return { ok: false, problem: "notFound" };
     throw failureOf(res.status, body);
+  }
+
+  async leaderboard(): Promise<Leaderboard> {
+    const res = await this.request("GET", "/api/challenge/leaderboard");
+    const body: unknown = await res.json().catch(() => null);
+    if (res.status !== 200) throw failureOf(res.status, body);
+    const board = parseLeaderboard(body);
+    if (!board) throw new PlayerServiceError("server", "Unexpected leaderboard");
+    return board;
   }
 
   /**
