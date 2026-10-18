@@ -37,6 +37,53 @@
   color: var(--ink-soft);
 }
 
+/* "Learn more": a small text toggle, as the home screen's footer links; the full explanation under it. */
+.details {
+  display: grid;
+  gap: 6px;
+}
+
+.more {
+  justify-self: start;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.more:hover {
+  text-decoration-thickness: 2px;
+}
+
+/* Its own small triangle (the browser's is hidden by the flex display), turned down while open. */
+.more::-webkit-details-marker {
+  display: none;
+}
+
+.more::before {
+  content: "";
+  border-block: 4px solid transparent;
+  border-left: 6px solid currentColor;
+  transition: transform 0.15s;
+}
+
+.details[open] > .more::before {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .more::before {
+    transition: none;
+  }
+}
+
 .current {
   margin: 0;
   font-size: 0.9rem;

@@ -11,9 +11,9 @@ export function useAnalyticsConsent(): AnalyticsConsent | null {
 }
 
 /**
- * Privacy & analytics, at the foot of the home screen: what Google Analytics would receive, and Reject and Accept,
- * alike in look and place. Shown until the player chooses (nothing is sent before), and again from the home
- * screen's "Privacy & analytics" link, with the choice in force. Below the page's content, never over it: the
+ * Privacy & analytics, at the foot of the home screen: a short request, what Google Analytics would receive under
+ * "Learn more" (collapsed), and Reject and Accept, alike in look and place. Shown until the player chooses (nothing
+ * is sent before), and again from the home screen's "Privacy & analytics" link, with the choice in force. Below the page's content, never over it: the
  * content scrolls in the room above. The game works the same whatever is chosen.
  */
 export function ConsentPanel({ reopened, onClose }: { reopened: boolean; onClose: () => void }) {
@@ -34,11 +34,16 @@ export function ConsentPanel({ reopened, onClose }: { reopened: boolean; onClose
     <section className={styles.panel} aria-labelledby="consent-title" data-testid="consent">
       <div className={styles.inner}>
         <h2 id="consent-title" className={styles.title} ref={titleRef} tabIndex={-1}>
-          {t("consent.title")}
+          {t("consent.heading")}
         </h2>
-        <p className={styles.text}>
-          {t("consent.text")} {t("consent.change")}
-        </p>
+        <p className={styles.text}>{t("consent.summary")}</p>
+        {/* The full explanation, one tap away (and open to read before choosing). */}
+        <details className={styles.details} data-testid="consent-details">
+          <summary className={styles.more}>{t("consent.more")}</summary>
+          <p className={styles.text}>
+            {t("consent.text")} {t("consent.change")}
+          </p>
+        </details>
         {consent && (
           <p className={styles.current} data-testid="consent-current">
             {t(consent === "granted" ? "consent.granted" : "consent.denied")}
