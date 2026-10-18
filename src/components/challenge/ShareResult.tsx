@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChallengeResult } from "@/core/challenge/quickChallenge";
 import { shareSummary, shareText, type ShareText } from "@/core/challenge/share";
+import { track } from "@/web/analytics";
 import { useI18n } from "../i18n";
 import { renderShareCard } from "./shareCard";
 import dialogStyles from "../WelcomeScreen.module.css";
@@ -113,7 +114,10 @@ function ShareBody({ result, displayName, onRetry, onClose }: { result: Challeng
     if (!card?.shareData) return;
     setNotice(null);
     navigator.share(card.shareData).then(
-      () => setNotice({ kind: "ok", text: t("challengeShare.shared") }),
+      () => {
+        track({ name: "share_result", method: "native_share" }, locale);
+        setNotice({ kind: "ok", text: t("challengeShare.shared") });
+      },
       (error: unknown) => {
         // Closing the share sheet is not a failure.
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -130,6 +134,7 @@ function ShareBody({ result, displayName, onRetry, onClose }: { result: Challeng
     document.body.append(link);
     link.click();
     link.remove();
+    track({ name: "share_result", method: "download" }, locale);
     setNotice({ kind: "info", text: t("challengeShare.downloaded") });
   };
 
@@ -137,6 +142,7 @@ function ShareBody({ result, displayName, onRetry, onClose }: { result: Challeng
     if (!card) return;
     const url = card.text.url;
     const copied = await copyText(url);
+    if (copied) track({ name: "share_result", method: "copy_link" }, locale);
     setNotice(copied ? { kind: "ok", text: t("challengeShare.copied") } : { kind: "error", text: t("challengeShare.copyFailed", { url }) });
   };
 

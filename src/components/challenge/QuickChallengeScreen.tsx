@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type FormEvent } from "react";
+import type { LeaderboardSource } from "@/core/analytics/events";
 import {
   answer,
   challengeResult,
@@ -24,6 +25,7 @@ import { hasGrant } from "@/core/player/attempts";
 import { checkDisplayName, type DisplayNameProblem } from "@/core/player/displayName";
 import type { AppAction, AppState } from "@/core/progress/appState";
 import { europeStarCount, europeStarsSnapshot, hasAllEuropeStars } from "@/core/progress/europeStars";
+import { track, trackOnce } from "@/web/analytics";
 import { webBackend, type Backend } from "@/web/backend";
 import { LanguageToggle } from "../Header";
 import { useI18n } from "../i18n";
@@ -83,7 +85,7 @@ type LoadState = "loading" | "loaded" | "failed" | "unavailable";
  * timer runs on.
  */
 export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
-  const { t, tp, name } = useI18n();
+  const { t, tp, name, locale } = useI18n();
   const [clock] = useState(createClock);
   const [backend] = useState(webBackend);
   // The stars are read once: they can not change while the challenge is open.
@@ -126,7 +128,8 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
   // control that opened it. Only reads: it never starts a round or spends an attempt.
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const leaderboardOpenerRef = useRef<HTMLElement | null>(null);
-  const openLeaderboard = () => {
+  const openLeaderboard = (source: LeaderboardSource) => {
+    track({ name: "leaderboard_open", source }, locale);
     leaderboardOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setLeaderboardOpen(true);
   };
@@ -285,7 +288,11 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
       requestIdRef.current = null;
       if (!aliveRef.current) return;
       setPlayer(res.state);
-      if (res.ok) beginRound(res.round, offset);
+      if (res.ok) {
+        // Once per round on this device: a retried press, a double press or another tab's round is the same one.
+        trackOnce(`challenge_start:${res.round.id}`, { name: "challenge_start" }, locale);
+        beginRound(res.round, offset);
+      }
     } catch {
       if (aliveRef.current) setStartFailed(true);
     } finally {
@@ -323,6 +330,14 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
   const provisional = useMemo(() => (round ? challengeResult(round) : null), [round]);
   const confirmed = useMemo(() => (confirmation === "confirmed" && server ? serverResult(server) : null), [confirmation, server]);
   const result = confirmed ?? provisional;
+  // The confirmed result, once per round on this device: not again when its Results are shown again (a refresh,
+  // the language, Review and back).
+  const confirmedRound = confirmed ? (server?.id ?? null) : null;
+  useEffect(() => {
+    if (confirmed && confirmedRound) {
+      trackOnce(`challenge_complete:${confirmedRound}`, { name: "challenge_complete", correct: confirmed.score, elapsedMs: confirmed.elapsedMs }, locale);
+    }
+  }, [confirmed, confirmedRound, locale]);
   const uncounted = confirmed && round && server ? uncountedAnswers(round, server) : 0;
   const names = useMemo(() => (result ? roundNames(result) : undefined), [result]);
   const feedback = round ? feedbackOf(round) : null;
@@ -430,7 +445,13 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
                   )}
                 </>
               )}
-              <button type="button" className={`btn btn-secondary ${styles.wide}`} onClick={openLeaderboard} disabled={starting} data-testid="challenge-leaderboard-open">
+              <button
+                type="button"
+                className={`btn btn-secondary ${styles.wide}`}
+                onClick={() => openLeaderboard("challenge_ready")}
+                disabled={starting}
+                data-testid="challenge-leaderboard-open"
+              >
                 {t("challengeLeaderboard.open")}
               </button>
             </div>
@@ -464,7 +485,7 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
               onPlayAgain={playAgain}
               onHome={close}
               onLessons={openLessons}
-              onLeaderboard={openLeaderboard}
+              onLeaderboard={() => openLeaderboard("challenge_results")}
               hidden={showLeaderboard}
             />
           )}

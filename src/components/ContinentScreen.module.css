@@ -188,15 +188,21 @@
 .footer {
   grid-area: footer;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  gap: 8px;
 }
 
+/* The mail link, and Privacy & analytics (a button that opens the choice), alike. */
 .contact {
   display: inline-flex;
   align-items: center;
   min-height: 44px;
   padding: 4px 16px;
+  border: 0;
   border-radius: 999px;
+  font-family: inherit;
+  cursor: pointer;
   background: rgba(255, 255, 255, 0.7);
   color: var(--ink-soft);
   font-size: 0.9rem;

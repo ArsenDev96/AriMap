@@ -39,6 +39,15 @@ export const en = {
   "continents.continueLabel": "{action}: {continent}, {level}, {title}",
   "continents.back": "Back to continents",
   "continents.contact": "Contact & feedback",
+  "consent.title": "Privacy & analytics",
+  "consent.text":
+    "With your permission, AriMap uses Google Analytics to learn how the game is used: screens opened, lessons and Quick Challenges started and finished (with scores and times), the leaderboard opened and results shared. Google also receives your IP address and device and browser details, and sets cookies that recognise this browser. Your name, email and answers are never sent. Nothing is sent unless you accept, and the game works the same either way.",
+  "consent.change": "You can change your choice at any time with “Privacy & analytics” at the foot of the home screen.",
+  "consent.granted": "Analytics is on.",
+  "consent.denied": "Analytics is off.",
+  "consent.accept": "Accept",
+  "consent.reject": "Reject",
+  "consent.close": "Close",
 
   "challenge.label": "Quick Challenge",
   "challenge.title": "Find {count} countries on the map of Europe",

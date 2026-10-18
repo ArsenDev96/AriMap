@@ -1,12 +1,13 @@
 "use client";
 
-import { useLayoutEffect, useRef, type CSSProperties, type Dispatch } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import landArt from "@/assets/map/world/land.webp";
 import scenery from "@/assets/map/world/scenery.webp";
 import waterArt from "@/assets/map/world/water.webp";
 import { CONTINENTS, getContinent, hasPlayableLevels, type ContinentId, type ContinentInfo } from "@/core/lessons";
 import { continentProgress, continentStars, levelToContinue, type AppAction, type AppState } from "@/core/progress/appState";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS, WORLD_SPHERE } from "@/data/geo/world-map";
+import { ConsentPanel } from "./ConsentPanel";
 import { BrandMark, LanguageToggle } from "./Header";
 import { useI18n } from "./i18n";
 import { HOME_LEADERBOARD_ID, QuickChallenge } from "./QuickChallenge";
@@ -72,8 +73,10 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * completed ("Completed: 2/10") are shown once, on its card, never on the map. The main action, right
  * under the cards, resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
  * the level's title too in its accessible name), or else opens Europe (Explore Europe); it scrolls with
- * the content. Under it, a small "Contact & feedback" mail link. The page's frame (header, scrolling content) is the level selection's
- * (WelcomeScreen.module.css), in this screen's sky colours.
+ * the content. Under it, a small "Contact & feedback" mail link and "Privacy & analytics", which opens the
+ * analytics choice (ConsentPanel, also shown at the screen's foot until the player has chosen). The page's
+ * frame (header, scrolling content) is the level selection's (WelcomeScreen.module.css), in this screen's sky
+ * colours.
  */
 export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboard, restore, onRestored }: Props) {
   const { t, l } = useI18n();
@@ -85,6 +88,14 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboar
     document.getElementById(HOME_LEADERBOARD_ID)?.focus({ preventScroll: true });
     onRestored();
   }, [restore, onRestored]);
+  // Privacy & analytics, opened again from its link: closed, back to the link.
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const privacyRef = useRef<HTMLButtonElement>(null);
+  const closePrivacy = () => {
+    if (!privacyOpen) return;
+    setPrivacyOpen(false);
+    requestAnimationFrame(() => privacyRef.current?.focus({ preventScroll: true }));
+  };
   const resume = levelToContinue(state);
   const playable = CONTINENTS.filter((c) => hasPlayableLevels(c.id));
   const open = (continent: ContinentId) => dispatch({ type: "openContinent", continent });
@@ -219,15 +230,26 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboar
               )}
             </div>
 
-            {/* After the lessons, quietly: a way to write to us. */}
+            {/* After the lessons, quietly: a way to write to us, and the analytics choice to change. */}
             <footer className={styles.footer}>
               <a className={styles.contact} href={CONTACT_URL} data-testid="home-contact">
                 {t("continents.contact")}
               </a>
+              <button
+                type="button"
+                ref={privacyRef}
+                className={styles.contact}
+                onClick={() => setPrivacyOpen(true)}
+                aria-expanded={privacyOpen}
+                data-testid="home-privacy"
+              >
+                {t("consent.title")}
+              </button>
             </footer>
           </section>
         </div>
       </div>
+      <ConsentPanel reopened={privacyOpen} onClose={closePrivacy} />
     </main>
   );
 }

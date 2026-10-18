@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { progressEvents, screenPath, type ScreenView } from "@/core/analytics/events";
 import { LOCALE_META } from "@/core/i18n/locales";
 import { translate } from "@/core/i18n/translate";
-import { activeLesson, activeProgress, appReducer, nextLevel } from "@/core/progress/appState";
+import { activeLesson, activeProgress, appReducer, nextLevel, type AppAction } from "@/core/progress/appState";
 import { loadAppState, saveAppState, type KeyValueStorage } from "@/core/progress/storage";
+import { track, trackScreen } from "@/web/analytics";
 import { LeaderboardScreen } from "./challenge/LeaderboardScreen";
 import { QuickChallengeScreen } from "./challenge/QuickChallengeScreen";
 import { readStoredChallenge } from "./challenge/roundSession";
@@ -31,7 +33,19 @@ const LEADERBOARD_ENTRY = { arimap: "leaderboard" } as const;
 const isLeaderboardEntry = (state: unknown) => typeof state === "object" && state !== null && (state as { arimap?: unknown }).arimap === LEADERBOARD_ENTRY.arimap;
 
 export default function Game() {
-  const [state, dispatch] = useReducer(appReducer, null, () => loadAppState(browserStorage()));
+  const [state, reactDispatch] = useReducer(appReducer, null, () => loadAppState(browserStorage()));
+  // Every action goes through here once (a press, never a render), with the state it acts on and the one it makes
+  // (the same pure reducer React then runs, on the same actions in the same order, so this state is always React's
+  // next one): the lesson events it causes are sent then (src/core/analytics). A save as it loads is no action, so
+  // it sends nothing.
+  const stateRef = useRef(state);
+  const dispatch = useCallback((action: AppAction) => {
+    const before = stateRef.current;
+    const after = appReducer(before, action);
+    stateRef.current = after;
+    reactDispatch(action);
+    for (const event of progressEvents(before, action, after)) track(event, after.locale);
+  }, []);
   // The Quick Challenge, opened from the home screen. Kept here, not in the saved state: rounds are the server's,
   // and the challenge never changes lesson progress. After a refresh it opens again when a round was kept (one
   // under way, or a result still to confirm: roundSession.ts), so the round resumes, or its result shows. It stays
@@ -59,6 +73,7 @@ export default function Game() {
   }, []);
 
   const openLeaderboard = (scrollTop: number) => {
+    track({ name: "leaderboard_open", source: "home" }, state.locale);
     homeScroll.current = scrollTop;
     window.history.pushState(LEADERBOARD_ENTRY, "");
     setLeaderboard(true);
@@ -82,6 +97,23 @@ export default function Game() {
 
   const lesson = activeLesson(state);
   const progress = activeProgress(state);
+
+  // One page view as each screen opens (and each lesson): the address stays the same, so none is automatic.
+  const view: ScreenView = challenge
+    ? { screen: "challenge" }
+    : leaderboard
+      ? { screen: "leaderboard" }
+      : state.screen === "continents"
+        ? { screen: "home" }
+        : state.screen === "levels"
+          ? { screen: "levels" }
+          : { screen: "lesson", lessonId: lesson.id };
+  const viewPath = screenPath(view);
+  useEffect(() => {
+    trackScreen(view, state.locale);
+    // The path names the screen and lesson; a new object for the same one is not a new screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewPath, state.locale]);
 
   return (
     <I18nProvider locale={state.locale}>
