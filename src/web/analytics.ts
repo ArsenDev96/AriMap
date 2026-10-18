@@ -1,5 +1,6 @@
 import { eventParams, screenPath, type AnalyticsEvent, type ScreenView } from "@/core/analytics/events";
 import type { Locale } from "@/core/i18n/locales";
+import { SITE_URL } from "@/core/site";
 
 /**
  * Google Analytics 4 in the browser, with the player's consent (src/core/analytics/events.ts says what is sent;
@@ -10,8 +11,11 @@ import type { Locale } from "@/core/i18n/locales";
  */
 
 const MEASUREMENT_ID = "G-ZNRVQKQXKJ";
-/** The only host that sends: the production site. */
-const PRODUCTION_HOST = "ari-map.vercel.app";
+/**
+ * The only host that sends: the canonical site, exactly (src/core/site.ts). Not localhost, Vercel Previews, the
+ * earlier ari-map.vercel.app or a www. form.
+ */
+const PRODUCTION_HOST = new URL(SITE_URL).hostname;
 
 export type AnalyticsConsent = "granted" | "denied";
 

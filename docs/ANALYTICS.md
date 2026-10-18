@@ -28,9 +28,10 @@ The home screen's "Privacy & analytics" panel says the following, and the code d
 - **Reject after Accept:**
   - Sending stops at once (consent mode `analytics_storage: denied`, and the `ga-disable-G-ZNRVQKQXKJ` flag).
   - The `_ga` cookies are removed.
-- **Production only:** events are sent only on `ari-map.vercel.app`. Localhost and Vercel Previews never send, whatever is chosen there.
+- **Production only:** events are sent only on the canonical host, exactly `arimap.world` (`src/core/site.ts`; until 2026-10-18 it was `ari-map.vercel.app`). Localhost, Vercel Previews, a `www.` form and the earlier `ari-map.vercel.app` never send, whatever is chosen there.
+- **Consent is per site:** the choice is stored per origin, so a player who chose on `ari-map.vercel.app` is asked again on `arimap.world`.
 - **Failures:** if the script is blocked or fails to load, nothing is sent and the game goes on.
-- **AdSense:** the AdSense ownership-verification meta tag is separate from analytics, and this work doesn't touch it. It's in `src/app/layout.tsx` on `main` (PR #29) and live on production. No advertising script is loaded.
+- **AdSense:** the AdSense ownership-verification meta tag is separate from analytics, and this work doesn't touch it. It's in `src/app/layout.tsx` on `main` (PR #29) and live on production. A branch made before PR #29 (such as `login`) doesn't need `main` merged into it first. When such a branch is merged into `main`, check that the merged `layout.tsx` still has the tag. A trial merge of `login`'s layout (2026-10-19) kept both the tag and the canonical link. No advertising script is loaded.
 
 ## Events
 

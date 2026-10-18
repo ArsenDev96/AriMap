@@ -48,8 +48,8 @@ describe("Quick Challenge sharing", () => {
   });
 
   it("links to the public home page only, and shares nothing about the answers", () => {
-    expect(SITE_URL).toBe("https://ari-map.vercel.app");
-    expect(SITE_HOST).toBe("ari-map.vercel.app");
+    expect(SITE_URL).toBe("https://arimap.world");
+    expect(SITE_HOST).toBe("arimap.world");
     const result = challengeResult(play([1000], ["wrong"], 60_000))!;
     for (const locale of ["en", "hy"] as const) {
       const text = shareText(shareSummary(result), locale);

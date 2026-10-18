@@ -1,5 +1,6 @@
 import type { Locale } from "../i18n/locales";
 import { translate, translatePlural } from "../i18n/translate";
+import { SITE_HOST, SITE_URL } from "../site";
 import type { ChallengeResult, EndReason } from "./quickChallenge";
 
 /**
@@ -11,11 +12,8 @@ import type { ChallengeResult, EndReason } from "./quickChallenge";
  * leaderboard shows) are shared: never progress, answers or anything else about the player.
  */
 
-/** AriMap's public home page (the owner's, 2026-10-16): the shared link and the address on the card. */
-export const SITE_URL = "https://ari-map.vercel.app";
-
-/** The address as printed on the card: no scheme, no trailing slash. */
-export const SITE_HOST = SITE_URL.replace(/^https?:\/\//, "").replace(/\/$/, "");
+/** AriMap's public home page (../site.ts): the shared link, and the address and QR code on the card. */
+export { SITE_HOST, SITE_URL };
 
 /**
  * A round's time in whole seconds, as the Results show it and the card states it: rounded to the nearest second

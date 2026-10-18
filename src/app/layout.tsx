@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Armenian, Nunito } from "next/font/google";
 import { STORAGE_KEY } from "@/core/progress/storage";
+import { CANONICAL_URL } from "@/core/site";
 import "./globals.css";
 
 // Nunito is rounded but has no Armenian glyphs; the browser falls back to
@@ -11,6 +12,8 @@ const notoArmenian = Noto_Sans_Armenian({ variable: "--font-armenian", subsets: 
 
 // The document <title> is rendered by the app (localized); see ClientGame and Game.
 export const metadata: Metadata = {
+  // Every deployment (Previews, the earlier ari-map.vercel.app) names the canonical site, never itself.
+  alternates: { canonical: CANONICAL_URL },
   description: "AriMap — Discover the world. · ԱրիՄապ — Բացահայտիր աշխարհը",
   applicationName: "AriMap",
   appleWebApp: { title: "AriMap", capable: true, statusBarStyle: "default" },

@@ -108,6 +108,10 @@ The dashboard's names may move; these are as of October 2026.
 8. **Vercel (when wanted).** *Project → Settings → Environment Variables*: add the three for **Preview**
    with the dev values, marking `SUPABASE_SECRET_KEY` sensitive. Production gets a separate production
    project later, set up the same way.
+9. **Site URL.** *Authentication → URL Configuration*: set the **Site URL** to the canonical site,
+   `https://arimap.world` (since 2026-10-18; `src/core/site.ts`). Anonymous sign-in sends no email and
+   follows no redirect, so it needs no **Redirect URLs** entries. Add them only if email or social sign-in
+   is built.
 
 Optional smoke check, after step 7 with `next dev` running (`$URL` and `$KEY` being the project URL and
 publishable key):
