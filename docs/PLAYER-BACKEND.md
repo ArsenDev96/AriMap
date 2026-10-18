@@ -2,15 +2,16 @@
 
 Anonymous player identity, an optional display name, the Quick Challenge attempt ledger (foundation, 17
 October 2026, applied to the dev project), and server-managed Quick Challenge rounds (18 October 2026,
-applied; their timing: see "Timing"). Nothing is deployed.
+applied; their timing: see "Timing"), and the all-time leaderboard (21 October 2026, **prepared, not applied**:
+see "Leaderboard"). Nothing is in production; `login` has a Preview.
 
 ## What is built
 
 | Part | Where |
 | --- | --- |
 | Rules, framework-independent (no React, DOM, storage or network) | `src/core/player/attempts.ts`, `src/core/player/displayName.ts`, `src/core/progress/europeStars.ts`, `src/core/challenge/serverRound.ts`, and the service contracts `src/core/player/api.ts`, `src/core/challenge/api.ts` |
-| Database: tables, constraints, functions | `supabase/migrations/20261017120000_player_foundation.sql` and `20261018120000_challenge_rounds.sql`, `20261019120000_server_receipt_times.sql` (applied), `20261020120000_database_clock.sql` (not yet) |
-| Server routes | `GET /api/player`, `PUT /api/player/display-name`, `POST /api/player/europe-stars` (`src/app/api/player`); `POST /api/challenge/rounds`, `POST /api/challenge/rounds/:id/answers`, `POST /api/challenge/rounds/:id/finish` (`src/app/api/challenge`); helpers in `src/server` |
+| Database: tables, constraints, functions | `supabase/migrations/20261017120000_player_foundation.sql` and `20261018120000_challenge_rounds.sql`, `20261019120000_server_receipt_times.sql`, `20261020120000_database_clock.sql` (applied), `20261021120000_challenge_leaderboard.sql` (not yet) |
+| Server routes | `GET /api/player`, `PUT /api/player/display-name`, `POST /api/player/europe-stars` (`src/app/api/player`); `POST /api/challenge/rounds`, `POST /api/challenge/rounds/:id/answers`, `POST /api/challenge/rounds/:id/finish`, `GET /api/challenge/leaderboard` (`src/app/api/challenge`); helpers in `src/server` |
 | Web client | `src/web/backend.ts` (`webBackend`), the round's driver `src/components/challenge/roundSession.ts`, the screen `src/components/challenge/QuickChallengeScreen.tsx` |
 | Configuration | `.env.example` (placeholders only) |
 
@@ -161,8 +162,9 @@ decides: the server.
 - **Abandoned rounds** end at their deadline (plus allowance) the next time the player asks for anything, scored from
   the answers that arrived. The attempt stays spent. There is no automatic refund, for a slow start or a server failure.
 - **Best result** (`challenge_best`): the most correct answers, then the shortest time (the whole 60 seconds when the
-  time ran out). It is kept for every player and stays private until a name is saved; nothing shows it publicly yet.
-- **Name**: before the first round, Save and start / Skip and start (one line says leaderboard names are public).
+  time ran out). It is kept for every player and stays private until a name is saved; the leaderboard shows it then.
+- **Name**: before the first round, Save and start / Skip and start (one line says the nickname will appear on the
+  leaderboard).
   Skipped: offered again on Results. Once a name is saved it is not asked for again.
 - **All 36 stars**: when the challenge opens, a device whose saved lessons hold all 36 stars claims the one-time +2
   attempts (once; the server refuses a second). With no attempts left, the challenge shows that path: the stars still
@@ -219,8 +221,15 @@ own `now()` (when its transaction began). From `20261020120000_database_clock.sq
   much (in the player's favour), and an answer's later by that much (against it, within the 1-second allowance). The
   server's `serverTime` is placed on the database's clock with an error of half the difference between the call's
   way there and its way back. `Server-Timing` shows the call (`db`: its round trip from the server; `dbproc`: its time
-  in the database), so each way is about half of `db` less `dbproc`. In one region that is a few milliseconds; on
-  this preview (this machine to Supabase) it is far more (see the measured results).
+  in the database), so each way is about half of `db` less `dbproc`.
+- **Measured in Seoul** (17 October 2026; a Preview with its functions in `icn1`, the database in
+  `ap-northeast-2`): a warm database call takes 65–78 ms, 4–5 ms of it in the database, so about **30–37 ms each
+  way**. The first call from a new function instance took 370 ms, the extra on the way there (opening a connection,
+  most likely): about **180 ms** each way. So a start comes out 30–37 ms after its token check (about 180 ms on a
+  new instance, in the player's favour), a receipt as much after the request's arrival (against it), and the
+  device's offset agreed with the database's clock within about 14 ms, but was about 0.2 s short after a new
+  instance's first start (the countdown shows that much less; the stored deadline is unchanged). From a machine far
+  from Seoul (the local preview to Supabase) each way was about 186 ms warm and up to about 600 ms.
 - **Verification.** Tokens are verified locally with the project's asymmetric signing key (ES256, from its published
   JWKS, cached for 10 minutes): signature and expiry by supabase-js (`auth.getClaims`), and in `playerRoute.ts`
   the role and audience `authenticated`, this project's issuer and a user id. A token signed with a key the JWKS does
@@ -258,13 +267,91 @@ new function signatures, and the old build can not call the replaced ones):
   out of order and spending twice. They do not stop a script that reads the map and taps within the rhythm, or help
   from someone else; and clearing storage makes a new anonymous player with a new attempt.
 - **Slow connections.** The start reply's time on the network comes off the round, and a last answer that reaches
-  the server more than 1 second after the deadline does not count. The allowance and "no automatic refund" are proposed defaults to
+  the server more than 1 second after the deadline does not count.
+- **Answers at the cutoff.** An answer is in time if its arrival plus the hop to the database is by the deadline
+  and its 1-second allowance: one that reaches the app's server within about 30–50 ms of that cutoff (about 180 ms
+  on a new function instance's first call) is late. Measured: arrived 19 ms before it, hop about 50 ms: late;
+  arrived 107 ms before it: counted. The hop is not estimated and taken off; doing so is possible, not done. The allowance and "no automatic refund" are proposed defaults to
   review in practice, not proven fairness guarantees.
 - **Bursts.** Within the rhythm's bound (question *n* not before *n* × 400 ms), answers arriving together are all
   taken: a script can bank time and send several at once.
 - **Two tabs** play one round. Whichever tab's answer to a question reaches the server first counts; the other tab
   is told, and plays on from the server's round. A tab's own undecided answers are only lost if it is closed before
   they are sent and no page of the round is opened again before the deadline.
+
+## Leaderboard
+
+One all-time Quick Challenge leaderboard (`supabase/migrations/20261021120000_challenge_leaderboard.sql`, rules and
+types in `src/core/challenge/leaderboard.ts`, `GET /api/challenge/leaderboard`, the view in
+`src/components/challenge/Leaderboard.tsx`).
+
+- **What it ranks:** each player's best confirmed round, as already kept in `challenge_best` (the server's finished
+  rounds only), by the rule that keeps it: most correct answers, then the shortest time (the whole 60 seconds when
+  the time ran out). Equal scores and times share a rank (1, 1, 3); rows with the same rank are shown earliest
+  achieved first, then by player id, so the order is the same between reads.
+- **Who appears:** only players with a display name who are not hidden by moderation. Without a name (never saved,
+  or cleared) a player's best stays private; the board says so to that player, with nothing shown to anyone else.
+  Hidden players and results ("Hiding an entry") are left out before ranks are counted, so everyone below moves up,
+  and a hidden player's own place is not shown to them either.
+- **What it shows:** the top 50: rank, name, score out of 15 and time (seconds to three decimals, from the stored milliseconds: "24.357 s"). Below
+  them, the player's own place when it is further down. Their row is marked from their verified session (the server
+  compares player ids and returns only "this row is yours"), never by name, which need not be unique.
+- **What it sends:** rank, display name, score, its total, time, and that mark. No player ids, sessions, answers or
+  other player data. The tables stay private; only the server reads them, through `challenge_leaderboard`
+  (`service_role` only), for a player id taken from the verified session.
+- **Spending:** none. Opening the board only reads: it starts no round, spends no attempt and creates no player.
+- **Where:** on the home screen, a smaller button under Play in the Quick Challenge card, which opens the board
+  as a screen of its own (`LeaderboardScreen.tsx`; the browser's Back closes it, and the home screen comes back
+  scrolled as it was, focus on that button). In the challenge, a secondary "Leaderboard" button on the ready screen
+  (below Start), and on Results once the result is confirmed (after Share, Play again, Review and Explore lessons):
+  it opens over that screen, which stays as it was; Back returns to it. Loading, empty and retryable error states;
+  English and Armenian.
+
+### Applying the leaderboard migration
+
+Apply it **before** rebuilding the preview with this code (the board's route calls the new function):
+
+1. *SQL Editor → New query*: paste the whole of `supabase/migrations/20261021120000_challenge_leaderboard.sql` and *Run*.
+   It adds the moderation flags `players.leaderboard_hidden` and `challenge_rounds.leaderboard_hidden` (both `false`,
+   visible), one index on `challenge_best` and the function `challenge_leaderboard`.
+2. Check it:
+   ```sql
+   select p.oid::regprocedure, has_function_privilege('anon', p.oid, 'execute') as anon_can_call
+   from pg_proc p where p.proname = 'challenge_leaderboard';
+   ```
+   One row, `challenge_leaderboard(uuid,integer)`, with `anon_can_call` false.
+3. Rebuild the preview.
+
+### Hiding an entry
+
+Moderation is done in the Supabase dashboard only: there is no moderation screen or route in the app. The flags are
+columns of private tables (row level security, no policies, no privileges for anon or authenticated) and no
+function sets them, so no browser can change them. Hiding deletes nothing, and a change shows the next time the board
+is read.
+
+- **Hide a player** (their name, and every result of theirs, now and later): *Table Editor → `players`*, filter
+  `display_name` (names need not be unique: check the row's `id`), and set `leaderboard_hidden` to `true`. Or, in
+  the *SQL Editor*:
+  ```sql
+  select id, display_name from public.players where display_name ilike '%name%';
+  update public.players set leaderboard_hidden = true where id = '<player id>';
+  ```
+- **Hide one result** (a round, while it is the player's best; if they later do better, that round shows):
+  ```sql
+  select b.round_id, b.score, b.elapsed_ms, p.display_name
+  from public.challenge_best b join public.players p on p.id = b.player_id
+  where p.display_name ilike '%name%';
+  update public.challenge_rounds set leaderboard_hidden = true where id = '<round id>';
+  ```
+  The player is then off the board until they beat that result: their next-best round is not kept, so it is not
+  shown instead.
+- **Restore:** set the same column back to `false` (`update … set leaderboard_hidden = false where id = '…'`).
+  The entry comes back with its rank as the rules give it.
+- **See what is hidden:**
+  ```sql
+  select id, display_name from public.players where leaderboard_hidden;
+  select r.id, r.player_id, r.score, r.elapsed_ms from public.challenge_rounds r where r.leaderboard_hidden;
+  ```
 
 ## Corrections recorded for the rounds phase (now implemented, see "Rounds")
 

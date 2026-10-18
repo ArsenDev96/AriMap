@@ -28,7 +28,7 @@ describe("Quick Challenge sharing", () => {
     const round = play([1000, 3000, 5000], ["right", "wrong", "right"], 60_000);
     const result = challengeResult(round)!;
     expect(result.endReason).toBe("timeUp");
-    expect(shareSummary(result)).toEqual({ endReason: "timeUp", correct: 2, total: 15, seconds: 60 });
+    expect(shareSummary(result)).toEqual({ endReason: "timeUp", correct: 2, total: 15, seconds: 60, displayName: null });
     expect(shareText(shareSummary(result), "en").found).toBe("2/15 countries · 60 seconds");
   });
 
@@ -37,7 +37,7 @@ describe("Quick Challenge sharing", () => {
     const outcomes = times.map((_, i): "right" | "wrong" | "skip" => (i % 5 === 0 ? "wrong" : i === 7 ? "skip" : "right"));
     const result = challengeResult(play(times, outcomes))!;
     expect(result.endReason).toBe("completed");
-    expect(shareSummary(result)).toEqual({ endReason: "completed", correct: 11, total: 15, seconds: 40 });
+    expect(shareSummary(result)).toEqual({ endReason: "completed", correct: 11, total: 15, seconds: 40, displayName: null });
     const en = shareText(shareSummary(result), "en");
     expect(en.found).toBe("11/15 countries · 40 seconds");
     expect(en.beat).toBe("Can you beat my score?");

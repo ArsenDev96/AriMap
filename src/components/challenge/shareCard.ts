@@ -3,9 +3,10 @@ import { qrCode } from "./qrCode";
 
 /**
  * The Quick Challenge's shared result card, drawn as a PNG in the browser on a canvas over the postcard template
- * (public/images/share/quick-challenge-postcard-template.png: the illustrated map, the logo's icon, the scenery, the
- * ticket, its gold underline and stopwatch, and the gold pill, all painted in it). Over it, only words and the QR code:
- * the name and title in the top cream; the score, "Countries found" and the round's time on the ticket; the card's
+ * (public/images/share/quick-challenge-postcard-template-v2.png: the illustrated map, the logo's icon, the scenery, the
+ * ticket, taller at the top for the player's name, its postmark, gold underline and stopwatch, and the gold pill, all
+ * painted in it). Over it, only words and the QR code: the name and title in the top cream; on the ticket, the player's
+ * display name (if they saved one) in its upper part, then the score, "Countries found" and the round's time; the card's
  * invitation ("Your turn!") and a QR code to the site in the cream at the bottom right; the site's address in the pill. Its words
  * come from src/core/challenge/share.ts, in the language they were made in. No library: the canvas, the page's own
  * fonts, the template and qrCode.ts. See docs/QUICK-CHALLENGE-SHARING.md.
@@ -15,7 +16,7 @@ import { qrCode } from "./qrCode";
 export const CARD_WIDTH = 1080;
 export const CARD_HEIGHT = 1350;
 
-const TEMPLATE = "/images/share/quick-challenge-postcard-template.png";
+const TEMPLATE = "/images/share/quick-challenge-postcard-template-v2.png";
 
 /**
  * Where the words go, in the template's own pixels (1122 × 1402), measured from it: each blank area's edges, and the
@@ -36,6 +37,15 @@ const SPOTS = {
   underline: { from: [110, 1168], to: [575, 1153] },
   /** The score on the underline, clear of the postmark (505–615 × 925–1015). */
   score: { x: 118, right: 488, above: 22, big: 215, small: 108, gap: 8 },
+  /**
+   * The player's display name, in the ticket's upper part: left-aligned with the score and as wide as it may be (left
+   * of the postmark, 508–612 × 839–929), centred in the band from `top` to `bottom` above the underline (in the
+   * ticket's frame; its top edge is about 324 above it, the full-size score's digits reach about 174). One line up to
+   * `size`, kept while it fits at `oneLine` or more; a longer name on two lines (`step` of the size apart) up to
+   * `twoLines`, broken at a space, or between letters where it has none (or a space would leave it much smaller).
+   * Twenty characters on two lines fit at about 36 even in the widest letters: a name is never cut, and never tiny.
+   */
+  player: { top: 295, bottom: 198, size: 60, oneLine: 44, twoLines: 46, step: 1.05 },
   /** Under the underline, across the ticket. */
   caption: { x: 120, right: 585, baseline: 1220, size: 34 },
   /** Beside the stopwatch (124–192 × 1248–1329), level with its dial's centre. */
@@ -82,7 +92,7 @@ export async function renderShareCard(text: ShareText): Promise<ShareCard> {
   // English's title and caption in spaced capitals; Armenian's in its own case, lightly spaced (ShareText's `capitals`).
   const title = text.capitals ? text.title.toUpperCase() : text.title;
   const caption = text.capitals ? text.caption.toUpperCase() : text.caption;
-  const words = [text.appName, title, text.score, caption, text.time, text.turn, text.host].join(" ");
+  const words = [text.appName, title, text.score, text.player ?? "", caption, text.time, text.turn, text.host].join(" ");
   await within(FONT_WAIT_MS, Promise.all([900, 800].map((weight) => document.fonts.load(`${weight} 48px ${family}`, words))).then(() => document.fonts.ready));
   const template = await loadImage(TEMPLATE);
 
@@ -150,6 +160,28 @@ export async function renderShareCard(text: ShareText): Promise<ShareCard> {
   }
   const [scoreX] = onTicket(sc.x, uy0);
   const scoreBaseline = -sc.above * s;
+
+  // The player's name in the ticket's upper part, if they saved one; without, that part stays blank.
+  if (text.player) {
+    const pl = SPOTS.player;
+    const block = nameBlock(ctx, text.player, family, scoreRoom, pl.size * s, pl.oneLine * s, pl.twoLines * s);
+    /** The block's ink: its first line's ascent, and its height from that to its last line's descent. */
+    const ink = () => {
+      ctx.font = font(900, block.size);
+      const [first, last] = [ctx.measureText(block.lines[0]), ctx.measureText(block.lines[block.lines.length - 1])];
+      const height = first.actualBoundingBoxAscent + block.size * pl.step * (block.lines.length - 1) + last.actualBoundingBoxDescent;
+      return { ascent: first.actualBoundingBoxAscent, height };
+    };
+    const room = (pl.top - pl.bottom) * s;
+    let box = ink();
+    if (box.height > room) {
+      block.size *= room / box.height;
+      box = ink();
+    }
+    const firstBaseline = -((pl.top + pl.bottom) / 2) * s - box.height / 2 + box.ascent;
+    ctx.fillStyle = C.ink;
+    block.lines.forEach((line, i) => ctx.fillText(line, scoreX, firstBaseline + block.size * pl.step * i));
+  }
   ctx.fillStyle = C.ink;
   ctx.font = font(900, big);
   ctx.fillText(correct, scoreX, scoreBaseline);
@@ -244,6 +276,41 @@ function fit(ctx: CanvasRenderingContext2D, text: string, weight: number, size: 
   }
   ctx.letterSpacing = "0px";
   return found;
+}
+
+/**
+ * The player's name for the ticket: on one line at the largest size up to `size` that fits `maxWidth`, if that is
+ * `oneLine` or more; otherwise on two lines, as large as fits up to `twoLines` (one line, if that is larger still).
+ * Two lines break at a space (which is dropped), or between two letters, never inside one (a letter keeps its
+ * combining marks), where the name has no space or a space would leave it under 80% of that size. The name's own
+ * characters only: no hyphen added.
+ */
+function nameBlock(ctx: CanvasRenderingContext2D, name: string, family: string, maxWidth: number, size: number, oneLine: number, twoLines: number) {
+  const single = fitWithin(ctx, name, 900, size, maxWidth, family);
+  if (single >= oneLine) return { lines: [name], size: single };
+  const letters = name.match(/\P{M}\p{M}*/gu) ?? [name];
+  let atSpace: { lines: string[]; size: number } | null = null;
+  let anywhere: { lines: string[]; size: number } | null = null;
+  for (let i = 1; i < letters.length; i++) {
+    const lines = [letters.slice(0, i).join("").trimEnd(), letters.slice(i).join("").trimStart()];
+    if (!lines[0] || !lines[1]) continue;
+    const candidate = { lines, size: Math.min(...lines.map((line) => fitWithin(ctx, line, 900, twoLines, maxWidth, family))) };
+    if (!anywhere || candidate.size > anywhere.size) anywhere = candidate;
+    if (letters[i] === " " && (!atSpace || candidate.size > atSpace.size)) atSpace = candidate;
+  }
+  const two = atSpace && (!anywhere || atSpace.size >= anywhere.size * 0.8) ? atSpace : anywhere;
+  return two && two.size > single ? two : { lines: [name], size: single };
+}
+
+/** The largest size up to `size` at which `text` fits `maxWidth`, however small that is: for words that must never be cut. */
+function fitWithin(ctx: CanvasRenderingContext2D, text: string, weight: number, size: number, maxWidth: number, family: string): number {
+  ctx.font = `${weight} ${size}px ${family}`;
+  let f = Math.min(size, (size * maxWidth) / Math.max(1, ctx.measureText(text).width));
+  for (;;) {
+    ctx.font = `${weight} ${f}px ${family}`;
+    if (ctx.measureText(text).width <= maxWidth || f <= 1) return f;
+    f -= 0.5;
+  }
 }
 
 /**

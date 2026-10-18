@@ -7,7 +7,8 @@ import type { ChallengeResult, EndReason } from "./quickChallenge";
  * Framework-independent (no React, DOM or canvas), so a native app can share the same summary and text; the web
  * draws it as an image in src/components/challenge/shareCard.ts. See docs/QUICK-CHALLENGE-SHARING.md.
  *
- * Only the score, the round's size and its time are shared: never progress, answers or anything about the player.
+ * Only the score, the round's size, its time and, if the player saved one, their display name (the same public name the
+ * leaderboard shows) are shared: never progress, answers or anything else about the player.
  */
 
 /** AriMap's public home page (the owner's, 2026-10-16): the shared link and the address on the card. */
@@ -30,10 +31,12 @@ export interface ShareSummary {
   correct: number;
   total: number;
   seconds: number;
+  /** The player's saved display name (the leaderboard's), or null: the card then has no name. */
+  displayName: string | null;
 }
 
-export function shareSummary(result: ChallengeResult): ShareSummary {
-  return { endReason: result.endReason, correct: result.correct, total: result.total, seconds: roundSeconds(result.elapsedMs) };
+export function shareSummary(result: ChallengeResult, displayName: string | null = null): ShareSummary {
+  return { endReason: result.endReason, correct: result.correct, total: result.total, seconds: roundSeconds(result.elapsedMs), displayName };
 }
 
 /** Per language: whether the card's title and caption are set in spaced capitals (ShareText's `capitals`). */
@@ -45,6 +48,8 @@ export interface ShareText {
   label: string;
   /** "12/15". */
   score: string;
+  /** The player's display name, by the score; null when they have none. */
+  player: string | null;
   /** "12/15 countries · 60 seconds" (the share message and the image's description). */
   found: string;
   /** The card's title: "Europe Quick Challenge". */
@@ -83,6 +88,7 @@ export function shareText(summary: ShareSummary, locale: Locale): ShareText {
     appName: translate(locale, "app.name"),
     label: translate(locale, "challenge.label"),
     score,
+    player: summary.displayName,
     found,
     title: translate(locale, "challengeShare.cardTitle"),
     caption: translate(locale, "challengeShare.caption"),
@@ -93,7 +99,7 @@ export function shareText(summary: ShareSummary, locale: Locale): ShareText {
     host: SITE_HOST,
     url: SITE_URL,
     message: translate(locale, "challengeShare.message", { found, beat, url: SITE_URL }),
-    alt: translate(locale, "challengeShare.alt", { found }),
+    alt: summary.displayName === null ? translate(locale, "challengeShare.alt", { found }) : translate(locale, "challengeShare.altNamed", { found, name: summary.displayName }),
     fileName: `arimap-quick-challenge-${summary.correct}-of-${summary.total}.png`,
   };
 }

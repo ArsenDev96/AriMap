@@ -1,15 +1,16 @@
 "use client";
 
-import type { CSSProperties, Dispatch } from "react";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type Dispatch } from "react";
 import landArt from "@/assets/map/world/land.webp";
 import scenery from "@/assets/map/world/scenery.webp";
 import waterArt from "@/assets/map/world/water.webp";
 import { CONTINENTS, getContinent, hasPlayableLevels, type ContinentId, type ContinentInfo } from "@/core/lessons";
 import { continentProgress, continentStars, levelToContinue, type AppAction, type AppState } from "@/core/progress/appState";
 import { WORLD_GRATICULE, WORLD_MAP_HEIGHT, WORLD_MAP_WIDTH, WORLD_REGIONS, WORLD_SPHERE } from "@/data/geo/world-map";
+import { ConsentPanel } from "./ConsentPanel";
 import { BrandMark, LanguageToggle } from "./Header";
 import { useI18n } from "./i18n";
-import { QuickChallenge } from "./QuickChallenge";
+import { HOME_LEADERBOARD_ID, QuickChallenge } from "./QuickChallenge";
 import { StarTotal } from "./Stars";
 import page from "./WelcomeScreen.module.css";
 import styles from "./ContinentScreen.module.css";
@@ -19,7 +20,15 @@ interface Props {
   dispatch: Dispatch<AppAction>;
   /** Opens the Quick Challenge (Game.tsx). */
   onPlayChallenge: () => void;
+  /** Opens the leaderboard's screen (Game.tsx), with this page's scroll to come back to. */
+  onLeaderboard: (scrollTop: number) => void;
+  /** Back from the leaderboard: the scroll to restore (and focus back on its button); null otherwise. */
+  restore: { scrollTop: number } | null;
+  onRestored: () => void;
 }
+
+/** Contact & feedback: the player's own mail app, addressed and with a subject; nothing is sent from the site. */
+const CONTACT_URL = "mailto:arsmanukyandev@gmail.com?subject=AriMap%20feedback";
 
 /** Drawn under the categories: geographic context, never selectable. */
 const CONTEXT_REGIONS = ["oceania", "antarctica"] as const;
@@ -64,11 +73,29 @@ const SILHOUETTE_VIEW: Record<ContinentId, string> = {
  * completed ("Completed: 2/10") are shown once, on its card, never on the map. The main action, right
  * under the cards, resumes the most recently active unfinished level (Continue: "Europe · Level 3", with
  * the level's title too in its accessible name), or else opens Europe (Explore Europe); it scrolls with
- * the content. The page's frame (header, scrolling content) is the level selection's
- * (WelcomeScreen.module.css), in this screen's sky colours.
+ * the content. Under it, a small "Contact & feedback" mail link and "Privacy & analytics", which opens the
+ * analytics choice (ConsentPanel, also shown at the screen's foot until the player has chosen). The page's
+ * frame (header, scrolling content) is the level selection's (WelcomeScreen.module.css), in this screen's sky
+ * colours.
  */
-export function ContinentScreen({ state, dispatch, onPlayChallenge }: Props) {
+export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboard, restore, onRestored }: Props) {
   const { t, l } = useI18n();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Back from the leaderboard: where the page was, and the button that opened it, before the first paint.
+  useLayoutEffect(() => {
+    if (!restore) return;
+    if (scrollRef.current) scrollRef.current.scrollTop = restore.scrollTop;
+    document.getElementById(HOME_LEADERBOARD_ID)?.focus({ preventScroll: true });
+    onRestored();
+  }, [restore, onRestored]);
+  // Privacy & analytics, opened again from its link: closed, back to the link.
+  const [privacyOpen, setPrivacyOpen] = useState(false);
+  const privacyRef = useRef<HTMLButtonElement>(null);
+  const closePrivacy = () => {
+    if (!privacyOpen) return;
+    setPrivacyOpen(false);
+    requestAnimationFrame(() => privacyRef.current?.focus({ preventScroll: true }));
+  };
   const resume = levelToContinue(state);
   const playable = CONTINENTS.filter((c) => hasPlayableLevels(c.id));
   const open = (continent: ContinentId) => dispatch({ type: "openContinent", continent });
@@ -90,9 +117,9 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge }: Props) {
         </div>
       </header>
 
-      <div className={`${page.scroll} ${styles.scroll}`} data-testid="continents-scroll">
+      <div ref={scrollRef} className={`${page.scroll} ${styles.scroll}`} data-testid="continents-scroll">
         <div className={`${page.content} ${styles.content}`}>
-          <QuickChallenge onPlay={onPlayChallenge} />
+          <QuickChallenge onPlay={onPlayChallenge} onLeaderboard={() => onLeaderboard(scrollRef.current?.scrollTop ?? 0)} />
 
           <section aria-labelledby="continents-title" aria-describedby="continents-subtitle" className={styles.layout}>
             {/* The lessons, apart from the timed challenge above: a book, the heading and what to do. */}
@@ -202,9 +229,27 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge }: Props) {
                 )
               )}
             </div>
+
+            {/* After the lessons, quietly: a way to write to us, and the analytics choice to change. */}
+            <footer className={styles.footer}>
+              <a className={styles.contact} href={CONTACT_URL} data-testid="home-contact">
+                {t("continents.contact")}
+              </a>
+              <button
+                type="button"
+                ref={privacyRef}
+                className={styles.contact}
+                onClick={() => setPrivacyOpen(true)}
+                aria-expanded={privacyOpen}
+                data-testid="home-privacy"
+              >
+                {t("consent.title")}
+              </button>
+            </footer>
           </section>
         </div>
       </div>
+      <ConsentPanel reopened={privacyOpen} onClose={closePrivacy} />
     </main>
   );
 }

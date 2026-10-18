@@ -1,0 +1,56 @@
+/* Privacy & analytics (ConsentPanel.tsx): the last part of the home screen's column, under its scrolling content,
+   so it covers nothing; at most a little over half the screen, scrolling on its own if its words need more. */
+.panel {
+  flex: none;
+  max-height: 55dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -8px 24px rgba(31, 90, 140, 0.12);
+}
+
+.inner {
+  max-width: 640px;
+  margin-inline: auto;
+  display: grid;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--ink);
+}
+
+/* Focused by script as it opens from the link (for a screen reader), never by Tab: no ring. */
+.title:focus {
+  outline: none;
+}
+
+.text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.current {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+/* Reject and Accept: the same button, the same size, side by side. */
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.close {
+  justify-self: center;
+}

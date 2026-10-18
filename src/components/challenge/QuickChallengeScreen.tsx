@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type Dispatch, type FormEvent } from "react";
+import type { LeaderboardSource } from "@/core/analytics/events";
 import {
   answer,
   challengeResult,
@@ -24,11 +25,13 @@ import { hasGrant } from "@/core/player/attempts";
 import { checkDisplayName, type DisplayNameProblem } from "@/core/player/displayName";
 import type { AppAction, AppState } from "@/core/progress/appState";
 import { europeStarCount, europeStarsSnapshot, hasAllEuropeStars } from "@/core/progress/europeStars";
+import { track, trackOnce } from "@/web/analytics";
 import { webBackend, type Backend } from "@/web/backend";
 import { LanguageToggle } from "../Header";
 import { useI18n } from "../i18n";
 import { roundSeconds } from "@/core/challenge/share";
 import { ChallengeMap, type ChallengeTone } from "./ChallengeMap";
+import { Leaderboard } from "./Leaderboard";
 import { clearStoredChallenge, readStoredChallenge, RoundSession, storeRound, type Confirmation, type Connection } from "./roundSession";
 import { ShareResultDialog } from "./ShareResult";
 import dialogStyles from "../WelcomeScreen.module.css";
@@ -82,7 +85,7 @@ type LoadState = "loading" | "loaded" | "failed" | "unavailable";
  * timer runs on.
  */
 export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
-  const { t, tp, name } = useI18n();
+  const { t, tp, name, locale } = useI18n();
   const [clock] = useState(createClock);
   const [backend] = useState(webBackend);
   // The stars are read once: they can not change while the challenge is open.
@@ -121,6 +124,20 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
   const [startFailed, setStartFailed] = useState(false);
   // One press of Start, until the server has answered it: a retry sends the same id, so it never spends twice.
   const requestIdRef = useRef<string | null>(null);
+  // The leaderboard, over the ready screen or the results (both kept as they were, hidden): Back returns to the
+  // control that opened it. Only reads: it never starts a round or spends an attempt.
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const leaderboardOpenerRef = useRef<HTMLElement | null>(null);
+  const openLeaderboard = (source: LeaderboardSource) => {
+    track({ name: "leaderboard_open", source }, locale);
+    leaderboardOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setLeaderboardOpen(true);
+  };
+  const closeLeaderboard = () => {
+    setLeaderboardOpen(false);
+    const opener = leaderboardOpenerRef.current;
+    requestAnimationFrame(() => opener?.focus());
+  };
 
   useEffect(() => {
     aliveRef.current = true;
@@ -138,6 +155,7 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
       sessionRef.current?.dispose();
       sessionRef.current = null;
       setReviewing(false);
+      setLeaderboardOpen(false);
       setServer(s);
       setConnection("ok");
       if (s.status === "finished") {
@@ -270,7 +288,11 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
       requestIdRef.current = null;
       if (!aliveRef.current) return;
       setPlayer(res.state);
-      if (res.ok) beginRound(res.round, offset);
+      if (res.ok) {
+        // Once per round on this device: a retried press, a double press or another tab's round is the same one.
+        trackOnce(`challenge_start:${res.round.id}`, { name: "challenge_start" }, locale);
+        beginRound(res.round, offset);
+      }
     } catch {
       if (aliveRef.current) setStartFailed(true);
     } finally {
@@ -292,6 +314,7 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
     sessionRef.current = null;
     if (server) clearStoredChallenge(server.id);
     setReviewing(false);
+    setLeaderboardOpen(false);
     setRound(null);
     setServer(null);
     setConfirmation("playing");
@@ -307,11 +330,20 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
   const provisional = useMemo(() => (round ? challengeResult(round) : null), [round]);
   const confirmed = useMemo(() => (confirmation === "confirmed" && server ? serverResult(server) : null), [confirmation, server]);
   const result = confirmed ?? provisional;
+  // The confirmed result, once per round on this device: not again when its Results are shown again (a refresh,
+  // the language, Review and back).
+  const confirmedRound = confirmed ? (server?.id ?? null) : null;
+  useEffect(() => {
+    if (confirmed && confirmedRound) {
+      trackOnce(`challenge_complete:${confirmedRound}`, { name: "challenge_complete", correct: confirmed.score, elapsedMs: confirmed.elapsedMs }, locale);
+    }
+  }, [confirmed, confirmedRound, locale]);
   const uncounted = confirmed && round && server ? uncountedAnswers(round, server) : 0;
   const names = useMemo(() => (result ? roundNames(result) : undefined), [result]);
   const feedback = round ? feedbackOf(round) : null;
   const question = round ? currentQuestion(round) : null;
   const phase = loadState !== "loaded" ? loadState : !round ? "ready" : result ? (reviewing ? "review" : "results") : "playing";
+  const showLeaderboard = leaderboardOpen && (phase === "ready" || phase === "results");
 
   const [selected, setSelected] = useState<CountryId | null>(null);
   const tones = useMemo(() => mapTones(round, result, feedback), [round, result, feedback]);
@@ -319,7 +351,7 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
   const intro = t("challengeGame.intro", { time: tp("challenge.seconds", CHALLENGE_RULES.durationMs / 1000) });
 
   return (
-    <div className={styles.screen} data-phase={phase === "loading" || phase === "failed" || phase === "unavailable" ? "ready" : phase} data-testid="challenge-screen">
+    <div className={styles.screen} data-phase={showLeaderboard ? "leaderboard" : phase === "loading" || phase === "failed" || phase === "unavailable" ? "ready" : phase} data-testid="challenge-screen">
       <header className={styles.header}>
         <button type="button" className={styles.home} onClick={goHome} aria-label={t("challengeGame.backLabel")} aria-haspopup={playing ? "dialog" : undefined}>
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
@@ -383,7 +415,7 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
           )}
 
           {phase === "ready" && player && backend && (
-            <div className={styles.intro}>
+            <div className={styles.intro} hidden={showLeaderboard}>
               <p className={styles.lead}>{lead}</p>
               <p className={styles.text}>{intro}</p>
               {starsGranted && (
@@ -413,6 +445,15 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
                   )}
                 </>
               )}
+              <button
+                type="button"
+                className={`btn btn-secondary ${styles.wide}`}
+                onClick={() => openLeaderboard("challenge_ready")}
+                disabled={starting}
+                data-testid="challenge-leaderboard-open"
+              >
+                {t("challengeLeaderboard.open")}
+              </button>
             </div>
           )}
 
@@ -444,8 +485,12 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
               onPlayAgain={playAgain}
               onHome={close}
               onLessons={openLessons}
+              onLeaderboard={() => openLeaderboard("challenge_results")}
+              hidden={showLeaderboard}
             />
           )}
+
+          {showLeaderboard && backend && <Leaderboard backend={backend} onBack={closeLeaderboard} />}
 
           {phase === "review" && result && (
             <Review result={result} selected={selected} onSelect={setSelected} onBack={() => setReviewing(false)} name={name} />
@@ -672,6 +717,8 @@ function Results({
   onPlayAgain,
   onHome,
   onLessons,
+  onLeaderboard,
+  hidden,
 }: {
   /** The result shown: the confirmed one once there is one, until then the device's provisional one. */
   result: ChallengeResult;
@@ -687,6 +734,10 @@ function Results({
   onPlayAgain: () => void;
   onHome: () => void;
   onLessons: () => void;
+  /** Opens the leaderboard: offered once the result is confirmed. */
+  onLeaderboard: () => void;
+  /** Kept as it is while the leaderboard shows over it. */
+  hidden: boolean;
 }) {
   const { t, tp, name } = useI18n();
   // Focus lost as the round ended (the control that had it is gone, or hidden with the map on a phone, "About the
@@ -710,7 +761,7 @@ function Results({
     { key: "unanswered", label: t("challengeResults.unanswered"), value: result.unanswered },
   ];
   return (
-    <div className={styles.results} data-testid="challenge-results" data-end={result.endReason} data-confirmation={confirmation}>
+    <div className={styles.results} hidden={hidden} data-testid="challenge-results" data-end={result.endReason} data-confirmation={confirmation}>
       <h2 className={styles.resultTitle} ref={titleRef} tabIndex={-1}>
         {t(result.endReason === "timeUp" ? "challengeResults.timeUp" : "challengeResults.complete")}
       </h2>
@@ -754,7 +805,8 @@ function Results({
       </dl>
 
       {/* What to do next, before the list: within reach on a phone however long the list is. Sharing first, in gold,
-          right under the score it shares (once the server has confirmed it); then Play again, Review and Explore lessons. */}
+          right under the score it shares (once the server has confirmed it); then Play again, Review, Explore lessons,
+          and the leaderboard once the result is confirmed. */}
       <div className={styles.actions}>
         <button
           type="button"
@@ -777,6 +829,11 @@ function Results({
         <button type="button" className="btn btn-secondary" onClick={onLessons} data-testid="challenge-lessons">
           {t("challengeResults.lessons")}
         </button>
+        {confirmed && (
+          <button type="button" className="btn btn-secondary" onClick={onLeaderboard} data-testid="challenge-leaderboard-open">
+            {t("challengeLeaderboard.open")}
+          </button>
+        )}
       </div>
       {!confirmed && (
         <p id={shareHintId} className={styles.shareLater}>
@@ -826,7 +883,7 @@ function Results({
         </button>
       </div>
 
-      {confirmed && <ShareResultDialog result={confirmed} open={sharing} onClose={() => setSharing(false)} />}
+      {confirmed && <ShareResultDialog result={confirmed} displayName={player?.displayName ?? null} open={sharing} onClose={() => setSharing(false)} />}
     </div>
   );
 }

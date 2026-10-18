@@ -1,4 +1,5 @@
 import type { PlayerState } from "../player/api";
+import type { Leaderboard } from "./leaderboard";
 import type { AnswerReceipt, QueuedAnswer, RequestTiming, ServerRound, ServerTime } from "./serverRound";
 
 /**
@@ -33,4 +34,6 @@ export interface ChallengeService {
   submitAnswers(roundId: string, answers: readonly QueuedAnswer[]): Promise<SubmitAnswersResult>;
   /** The round, ended first if its time has run out: its confirmed result once finished. Safe to repeat. */
   finishRound(roundId: string): Promise<FinishRoundResult>;
+  /** The all-time leaderboard (leaderboard.ts), with the asking player's own row. Only reads: spends nothing. */
+  leaderboard(): Promise<Leaderboard>;
 }
