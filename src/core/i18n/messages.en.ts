@@ -40,6 +40,9 @@ export const en = {
   "continents.back": "Back to continents",
   "continents.contact": "Contact & feedback",
   "consent.title": "Privacy & analytics",
+  "consent.heading": "Help improve AriMap",
+  "consent.summary": "Allow Google Analytics cookies to help us understand how the game is used. Analytics stays off until you accept. Your choice won’t affect gameplay.",
+  "consent.more": "Learn more",
   "consent.text":
     "With your permission, AriMap uses Google Analytics to learn how the game is used: screens opened, lessons and Quick Challenges started and finished (with scores and times), the leaderboard opened and results shared. Google also receives your IP address and device and browser details, and sets cookies that recognise this browser. Your name, email and answers are never sent. Nothing is sent unless you accept, and the game works the same either way.",
   "consent.change": "You can change your choice at any time with “Privacy & analytics” at the foot of the home screen.",

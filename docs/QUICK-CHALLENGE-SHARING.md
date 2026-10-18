@@ -2,7 +2,7 @@
 
 Given 2026-10-16 by the owner. Sharing for **Quick Challenge Results only**: a small first version.
 
-AriMap's public website address (given by the owner, 2026-10-16): **https://ari-map.vercel.app**
+AriMap's public website address: **https://arimap.world** (the canonical domain since 2026-10-18, in `src/core/site.ts`). It's in the share message, Copy link, the card's printed address and its QR code. The address the owner first gave (2026-10-16) was https://ari-map.vercel.app; cards and links shared before the change still point there.
 
 ## Shared result card
 
