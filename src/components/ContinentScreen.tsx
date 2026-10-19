@@ -248,8 +248,9 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboar
             </footer>
           </section>
         </div>
+        {/* In the scrolling content, under it: its height never takes the room the map's size follows from. */}
+        <ConsentPanel reopened={privacyOpen} onClose={closePrivacy} />
       </div>
-      <ConsentPanel reopened={privacyOpen} onClose={closePrivacy} />
     </main>
   );
 }

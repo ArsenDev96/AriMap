@@ -1,10 +1,8 @@
-/* Privacy & analytics (ConsentPanel.tsx): the last part of the home screen's column, under its scrolling content,
-   so it covers nothing; at most a little over half the screen, scrolling on its own if its words need more. */
+/* Privacy & analytics (ConsentPanel.tsx): the last part of the home screen's scrolling content, under the rest of
+   it, so it covers nothing and never takes the room the map's size follows from; at the foot of the screen when
+   there is room, else scrolled to with the page. */
 .panel {
   flex: none;
-  max-height: 55dvh;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
   background: var(--surface);
   border-top: 1px solid var(--line);
