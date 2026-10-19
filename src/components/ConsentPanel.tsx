@@ -13,8 +13,8 @@ export function useAnalyticsConsent(): AnalyticsConsent | null {
 /**
  * Privacy & analytics, at the foot of the home screen: a short request, what Google Analytics would receive under
  * "Learn more" (collapsed), and Reject and Accept, alike in look and place. Shown until the player chooses (nothing
- * is sent before), and again from the home screen's "Privacy & analytics" link, with the choice in force. Below the page's content, never over it: the
- * content scrolls in the room above. The game works the same whatever is chosen.
+ * is sent before), and again from the home screen's "Privacy & analytics" link, with the choice in force. Below the page's content, never over it,
+ * in the same scrolling: it never shrinks the content's room. The game works the same whatever is chosen.
  */
 export function ConsentPanel({ reopened, onClose }: { reopened: boolean; onClose: () => void }) {
   const { t } = useI18n();
