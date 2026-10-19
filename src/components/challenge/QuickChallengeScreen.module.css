@@ -524,11 +524,16 @@
 
 /* Server rounds (roundSession.ts): attempts, notices, the optional name, and whether a result is confirmed. */
 
-/* "2 attempts left": under the rules, and on Results under the actions. */
+/* Today's free attempt, then the saved bonus attempts on a line of their own: under the rules, and on Results under
+   the actions. */
 .attempts {
   color: var(--ink);
   font-weight: 900;
   line-height: 1.3;
+}
+
+.attempts > span {
+  display: block;
 }
 
 /* Good news (the all-stars reward, a saved name): words first, the teal only adds to them. */
