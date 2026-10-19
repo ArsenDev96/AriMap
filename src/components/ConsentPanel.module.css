@@ -1,19 +1,50 @@
-/* Privacy & analytics (ConsentPanel.tsx): the last part of the home screen's scrolling content, under the rest of
-   it, so it covers nothing and never takes the room the map's size follows from; at the foot of the screen when
-   there is room, else scrolled to with the page. */
+/* Privacy & analytics (ConsentPanel.tsx): a banner fixed to the foot of the home screen, over its content (above
+   it in the page's own stacking context), out of its layout, so it never takes the room the map's size follows
+   from. At most a little over half the screen: past that its words scroll on their own, and the choice under them
+   stays in view. On a short screen, never so short that its words show less than two lines: then taller than that
+   cap (--controls, the choice's height, set by ConsentPanel.tsx; until then, the cap alone). */
 .panel {
-  flex: none;
-  padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+  position: fixed;
+  inset: auto 0 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 55dvh;
+  /* Its top border and padding, two lines of .text, the gap and the choice. */
+  min-height: min(
+    100dvh,
+    1px + 28px + env(safe-area-inset-bottom, 0px) + 2 * 0.9rem * 1.45 + 10px + var(--controls, 0px)
+  );
+  padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px))
+    max(16px, env(safe-area-inset-left, 0px));
   background: var(--surface);
   border-top: 1px solid var(--line);
   box-shadow: 0 -8px 24px rgba(31, 90, 140, 0.12);
 }
 
 .inner {
+  width: 100%;
   max-width: 640px;
   margin-inline: auto;
   display: grid;
   gap: 10px;
+}
+
+.body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Room within its clipped edges for a focus ring (3px, 2px off), at no cost to its words' place or width. */
+  width: auto;
+  max-width: none;
+  margin: -5px max(-5px, (100% - 650px) / 2);
+  padding: 5px;
+}
+
+.controls {
+  flex: none;
 }
 
 .title {

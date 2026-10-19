@@ -111,6 +111,14 @@
   container: continents / size;
   display: flex;
   flex-direction: column;
+  /* A control scrolled to (by Tab) stops above the consent banner, if it is shown (ConsentPanel.module.css). */
+  scroll-padding-bottom: var(--consent-room, 0px);
+}
+
+/* The consent banner's height, after the content: room to scroll its foot out from under the banner. */
+.consentRoom {
+  flex: none;
+  height: var(--consent-room, 0px);
 }
 
 .content {
