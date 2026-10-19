@@ -96,12 +96,18 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboar
     setPrivacyOpen(false);
     requestAnimationFrame(() => privacyRef.current?.focus({ preventScroll: true }));
   };
+  // The consent banner's height, while it is shown: room to scroll the content's foot out from under it.
+  const [consentRoom, setConsentRoom] = useState(0);
   const resume = levelToContinue(state);
   const playable = CONTINENTS.filter((c) => hasPlayableLevels(c.id));
   const open = (continent: ContinentId) => dispatch({ type: "openContinent", continent });
 
   return (
-    <main className={`${page.page} ${styles.screen}`} style={ART_VARS} data-testid="continents">
+    <main
+      className={`${page.page} ${styles.screen}`}
+      style={{ ...ART_VARS, "--consent-room": `${consentRoom}px` } as CSSProperties}
+      data-testid="continents"
+    >
       {/* Decoration only, behind everything: the sea and foliage at the foot of the page. */}
       <div className={styles.scenery} aria-hidden="true" />
       <header className={`${page.compactHeader} ${styles.header}`} data-testid="welcome-hero">
@@ -248,9 +254,12 @@ export function ContinentScreen({ state, dispatch, onPlayChallenge, onLeaderboar
             </footer>
           </section>
         </div>
-        {/* In the scrolling content, under it: its height never takes the room the map's size follows from. */}
-        <ConsentPanel reopened={privacyOpen} onClose={closePrivacy} />
+        {/* Under the banner: more to scroll, so the content's foot can come out from under it. Its height never
+            takes the room the map's size follows from (the scrolling content's own size). */}
+        <div className={styles.consentRoom} aria-hidden="true" />
       </div>
+      {/* Fixed over the page's foot, out of its layout; last, so it comes after the page in reading order. */}
+      <ConsentPanel reopened={privacyOpen} onClose={closePrivacy} onHeight={setConsentRoom} />
     </main>
   );
 }
