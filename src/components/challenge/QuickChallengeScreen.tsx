@@ -19,9 +19,9 @@ import {
 import { localRoundOf, replayQueued, requestTiming, serverResult, timedClockOffset, uncountedAnswers, type ServerRound } from "@/core/challenge/serverRound";
 import type { CountryId } from "@/core/content/types";
 import { LOCALE_META, type Locale } from "@/core/i18n/locales";
-import type { MessageKey } from "@/core/i18n/translate";
+import type { MessageKey, MessageParams } from "@/core/i18n/translate";
 import { PlayerServiceError, type PlayerState } from "@/core/player/api";
-import { hasGrant } from "@/core/player/attempts";
+import { canStartRound, hasGrant } from "@/core/player/attempts";
 import { checkDisplayName, type DisplayNameProblem } from "@/core/player/displayName";
 import type { AppAction, AppState } from "@/core/progress/appState";
 import { europeStarCount, europeStarsSnapshot, hasAllEuropeStars } from "@/core/progress/europeStars";
@@ -232,6 +232,30 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
     };
   }, [backend, clock, stars, beginRound, loadAttempt]);
 
+  // Today's free attempt comes back at the server's reset (00:00 UTC): the player is read again then, so Start shows
+  // without reopening the challenge. Timed on the database's clock (the reset less the reply's own time), not the
+  // device's; read again a minute later if the server's day has not turned yet.
+  useEffect(() => {
+    if (!backend || !player || player.daily.available) return;
+    const until = Date.parse(player.daily.resetsAt) - player.serverTime.respondedAt;
+    let cancelled = false;
+    const timer = window.setTimeout(
+      () => {
+        backend.load().then(
+          (state) => {
+            if (!cancelled) setPlayer(state);
+          },
+          () => {},
+        );
+      },
+      until > 0 ? until + 1000 : 60_000,
+    );
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [backend, player]);
+
   const playing = round?.status === "playing";
   useEffect(() => {
     if (!playing) return;
@@ -423,13 +447,11 @@ export function QuickChallengeScreen({ dispatch, progress, onClose }: Props) {
                   {t("challengeGame.starsReward")}
                 </p>
               )}
-              {player.attemptsLeft === 0 ? (
+              {!canStartRound(player) ? (
                 <NoAttempts player={player} stars={europeStarCount(stars)} onLessons={openLessons} />
               ) : (
                 <>
-                  <p className={styles.attempts} data-testid="challenge-attempts">
-                    {tp("challengeGame.attemptsLeft", player.attemptsLeft)}
-                  </p>
+                  <Attempts player={player} />
                   {startFailed && (
                     <p className={styles.error} role="alert">
                       {t("challengeGame.startFailed")}
@@ -590,14 +612,37 @@ function Playing({
   );
 }
 
-/** No attempts left: the lessons' reward, if it is still to be earned. No ads, and no practice rounds. */
+/**
+ * Today's free attempt (ready, or used and when the next comes), and the saved bonus attempts when there are any:
+ * under the rules, and on Results under the actions.
+ */
+function Attempts({ player }: { player: PlayerState }) {
+  const { t, locale } = useI18n();
+  return (
+    <p className={styles.attempts} data-testid="challenge-attempts">
+      <span data-testid="challenge-daily" data-available={player.daily.available}>
+        {player.daily.available
+          ? t("challengeAttempts.dailyReady")
+          : t("challengeAttempts.dailyUsed", { when: nextDailyText(player.daily.resetsAt, locale, t) })}
+      </span>
+      {player.bonusAttemptsLeft > 0 && (
+        <span data-testid="challenge-bonus">{t("challengeAttempts.bonusLeft", { count: player.bonusAttemptsLeft })}</span>
+      )}
+    </p>
+  );
+}
+
+/** No attempts left: when the next free one comes, and the lessons' reward if it is still to be earned. No ads, and no practice rounds. */
 function NoAttempts({ player, stars, onLessons }: { player: PlayerState; stars: number; onLessons: () => void }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const rewardLeft = !hasGrant(player.grants, "allEuropeStars");
   return (
     <div className={styles.noAttempts} data-testid="challenge-no-attempts">
       <p className={styles.lead}>{t("challengeAttempts.noneTitle")}</p>
-      <p className={styles.text}>{rewardLeft ? t("challengeAttempts.earnStars", { stars }) : t("challengeAttempts.usedAll")}</p>
+      <p className={styles.text} data-testid="challenge-next-daily">
+        {t("challengeAttempts.nextDaily", { when: nextDailyText(player.daily.resetsAt, locale, t) })}
+      </p>
+      {rewardLeft && <p className={styles.text}>{t("challengeAttempts.earnStars", { stars })}</p>}
       {rewardLeft && (
         <button type="button" className={`btn btn-primary ${styles.wide}`} onClick={onLessons} data-testid="challenge-no-attempts-lessons">
           {t("challengeResults.lessons")}
@@ -617,8 +662,23 @@ const NAME_PROBLEMS: Readonly<Record<DisplayNameProblem, MessageKey>> = {
   blocked: "challengeName.blocked",
 };
 
+// Armenian uses the 24-hour clock; said outright, since some browsers' locale data (Chromium's) has no Armenian times
+// and falls back to "04:00 AM".
 function formatTime(iso: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(LOCALE_META[locale].htmlLang, { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  return new Intl.DateTimeFormat(LOCALE_META[locale].htmlLang, { hour: "2-digit", minute: "2-digit", ...(locale === "hy" ? { hourCycle: "h23" as const } : {}) }).format(
+    new Date(iso),
+  );
+}
+
+/**
+ * When the next free attempt comes (the server's reset, 00:00 UTC), in the player's own time: today or tomorrow, as
+ * the device's calendar has it (the reset is never more than a day away), and the hour.
+ */
+function nextDailyText(resetsAt: string, locale: Locale, t: (key: MessageKey, params?: MessageParams) => string): string {
+  const at = new Date(resetsAt);
+  const today = new Date();
+  const sameDay = at.getFullYear() === today.getFullYear() && at.getMonth() === today.getMonth() && at.getDate() === today.getDate();
+  return t(sameDay ? "challengeAttempts.today" : "challengeAttempts.tomorrow", { time: formatTime(resetsAt, locale) });
 }
 
 /**
@@ -840,11 +900,7 @@ function Results({
           {t("challengeConfirm.shareLater")}
         </p>
       )}
-      {player && (
-        <p className={styles.attempts} data-testid="challenge-attempts">
-          {tp("challengeGame.attemptsLeft", player.attemptsLeft)}
-        </p>
-      )}
+      {player && <Attempts player={player} />}
 
       {/* The name, if it was skipped: the best result stays private until one is saved. */}
       {player && backend && player.displayName === null && (

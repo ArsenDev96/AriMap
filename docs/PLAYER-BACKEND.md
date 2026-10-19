@@ -3,14 +3,15 @@
 Anonymous player identity, an optional display name, the Quick Challenge attempt ledger (foundation, 17
 October 2026, applied to the dev project), and server-managed Quick Challenge rounds (18 October 2026,
 applied; their timing: see "Timing"), and the all-time leaderboard (21 October 2026, **prepared, not applied**:
-see "Leaderboard"). Nothing is in production; `login` has a Preview.
+see "Leaderboard"), and one free attempt per UTC day (22 October 2026, applied to the dev project: see "Attempt
+ledger"). Nothing is in production; `login` has a Preview.
 
 ## What is built
 
 | Part | Where |
 | --- | --- |
 | Rules, framework-independent (no React, DOM, storage or network) | `src/core/player/attempts.ts`, `src/core/player/displayName.ts`, `src/core/progress/europeStars.ts`, `src/core/challenge/serverRound.ts`, and the service contracts `src/core/player/api.ts`, `src/core/challenge/api.ts` |
-| Database: tables, constraints, functions | `supabase/migrations/20261017120000_player_foundation.sql` and `20261018120000_challenge_rounds.sql`, `20261019120000_server_receipt_times.sql`, `20261020120000_database_clock.sql` (applied), `20261021120000_challenge_leaderboard.sql` (not yet) |
+| Database: tables, constraints, functions | `supabase/migrations/20261017120000_player_foundation.sql` and `20261018120000_challenge_rounds.sql`, `20261019120000_server_receipt_times.sql`, `20261020120000_database_clock.sql`, `20261022120000_daily_attempts.sql` (applied), `20261021120000_challenge_leaderboard.sql` (not yet) |
 | Server routes | `GET /api/player`, `PUT /api/player/display-name`, `POST /api/player/europe-stars` (`src/app/api/player`); `POST /api/challenge/rounds`, `POST /api/challenge/rounds/:id/answers`, `POST /api/challenge/rounds/:id/finish`, `GET /api/challenge/leaderboard` (`src/app/api/challenge`); helpers in `src/server` |
 | Web client | `src/web/backend.ts` (`webBackend`), the round's driver `src/components/challenge/roundSession.ts`, the screen `src/components/challenge/QuickChallengeScreen.tsx` |
 | Configuration | `.env.example` (placeholders only) |
@@ -29,14 +30,68 @@ see "Leaderboard"). Nothing is in production; `login` has a Preview.
 
 ### Attempt ledger
 
-- `attempt_grants` rows add attempts: `initial` (1), `all_europe_stars` (2), `rewarded_ad` (1 each).
-- The initial attempt and the all-stars reward are unique per player (a partial unique index), so repeated,
-  retried or simultaneous requests never grant twice. The initial attempt is created on the player's first
-  request, for existing and new players alike; it never resets.
+Two sources of attempts, kept apart (rules: `src/core/player/attempts.ts`; database:
+`20261022120000_daily_attempts.sql`):
+
+- **Today's free attempt.** One per UTC calendar day, for every player, from **00:00 UTC on the database's clock**
+  (`utc_day()`: `(now() at time zone 'UTC')::date`, whatever the session's time zone). An unused one is not kept: they
+  never add up. It is not a grant: a round that uses it records the day (`challenge_rounds.daily_attempt_on`), and a
+  partial unique index on `(player_id, daily_attempt_on)` allows one per player per day.
+- **Saved (bonus) attempts**: the `attempt_grants` rows, less the rounds that spent one (`daily_attempt_on` null).
+  They never expire. Kinds: `all_europe_stars` (2), `rewarded_ad` (1 each), and `initial` (1), the one-time attempt
+  granted before the daily attempt existed.
+- **Start spends today's free attempt first**, and a saved attempt only once that is used (`start_round`, under the
+  player's row lock, after the reuse checks below: a round returned again spends nothing).
+- **Players from before the daily attempt** keep every grant and every round as they were: all their earlier rounds
+  spent saved attempts, so their saved balance is unchanged (an unspent `initial` attempt stays a saved attempt), and
+  they have today's free attempt as well. **New players** get today's free attempt only: `ensure_player` no longer
+  grants `initial`.
+- The service reports it in the player's state (`PlayerState`): `daily` (`available`, and `resetsAt`, the next
+  00:00 UTC, from the database), `bonusAttemptsLeft` (recomputed on the device from the grants and
+  `bonusRoundsStarted`, never read), and `roundsStarted` (every round).
+- The one-time grants (`initial`, the all-stars reward) are unique per player (a partial unique index), so repeated,
+  retried or simultaneous requests never grant twice.
 - Rewarded ads (later): any number per player, each unique per `(provider, provider_transaction_id)`.
   `grant_rewarded_ad` exists for that; nothing calls it, and no ad is offered or simulated.
 - Each kind's amount is fixed by a check constraint, mirroring `GRANT_ATTEMPTS`.
-- Each round started spends one attempt: the balance is the grants less the rounds (`challenge_rounds`).
+- **On the screen**: "Your free daily attempt is ready" or, once used, when the next comes in the player's own time
+  ("today/tomorrow at 04:00", from the server's `resetsAt`), and "Saved bonus attempts: N" when there are any. Start
+  shows whenever either is left. With neither: when the next free attempt comes, and the lessons' reward path while
+  it is still to be earned. At the reset the screen reads the player again (timed from the reply's own time on the
+  database's clock), so Start comes back without reopening the challenge.
+- **The day's edge.** The day is that of the start's transaction (`now()`, when it began), the same moment
+  `player_state` reports from. A round's recorded start can be up to the settle window earlier ("Timing"), so a start
+  pressed a few milliseconds before 00:00 UTC whose transaction begins after it uses the new day's attempt. A round
+  under way across midnight keeps the day it used; the new day's attempt is available once it has ended.
+
+### Applying the daily attempts migration
+
+Needs `20261020120000_database_clock.sql` (applied); independent of the leaderboard migration. Apply it **before**
+rebuilding the preview with this code (the new code reads the new state fields, and fails without them). It only adds:
+one nullable column (every existing round stays a saved attempt's, so no balance changes), one partial unique index,
+two helpers, and replaces `player_state`, `ensure_player` and `start_round` (same signature). Grants, rounds, answers,
+best results and names are not touched.
+
+**A build from before it is not compatible with it; rebuild the preview straight after.** Its server calls still
+succeed (the signatures are unchanged, and the server spends attempts by the new rules), but its screen still counts
+every round against the grants and knows nothing of the daily attempt, so until the rebuild:
+
+- it shows a wrong balance: too low by every daily round played, and without today's free attempt;
+- it can block Start: a new player (no grants any more) and a player whose saved attempts are spent are shown "No
+  attempts left" although today's free attempt is unused;
+- a round it starts spends today's free attempt first, while it shows a saved attempt as spent.
+
+1. *SQL Editor → New query*: paste the whole of `supabase/migrations/20261022120000_daily_attempts.sql` and *Run*.
+2. Check it:
+   ```sql
+   select p.oid::regprocedure, has_function_privilege('anon', p.oid, 'execute') as anon_can_call
+   from pg_proc p where p.proname in ('utc_day', 'next_utc_day_at', 'start_round');
+   select indexdef from pg_indexes where indexname = 'challenge_rounds_one_daily';
+   select public.utc_day(), public.next_utc_day_at();
+   ```
+   Three functions (`start_round` ending in `integer`), each with `anon_can_call` false; the index on
+   `(player_id, daily_attempt_on) WHERE (daily_attempt_on IS NOT NULL)`; today's UTC date and the next 00:00 UTC.
+3. Rebuild the preview.
 
 ### All 36 Europe stars
 
@@ -121,8 +176,8 @@ TOKEN=$(curl -s -X POST "$URL/auth/v1/signup" -H "apikey: $KEY" -H "Content-Type
 curl -s http://localhost:3000/api/player -H "Authorization: Bearer $TOKEN"
 ```
 
-The answer shows the new player with one `initial` grant and `attemptsLeft: 1`; asking again shows the
-same grant, never a second.
+The answer shows the new player with no grants, `bonusAttemptsLeft: 0` and `daily.available: true` (and, before
+`20261022120000_daily_attempts.sql`, one `initial` grant); asking again shows the same, never a grant.
 
 ## Rounds
 
@@ -132,7 +187,8 @@ decides: the server.
 - **Start** (`start_round`) spends exactly one attempt, in one transaction under a lock on the player's row. First it
   ends the player's rounds whose time has run out. Then the same press retried (its `request_id`), a double press,
   or another tab gets **the round already under way**, spending nothing (a unique index allows one round under way per
-  player). With no attempts left it refuses. The server draws the questions with a cryptographic random source.
+  player). Otherwise it spends today's free attempt if it is unused, or else a saved one (see "Attempt ledger"); with
+  neither left it refuses. The server draws the questions with a cryptographic random source.
 - **One deadline**: the round's start plus 60 seconds, on the database's clock (see "Timing"). The device places it
   on its own clock from the start request (`clockOffset`), so a slow connection costs the player about the reply's
   time on the network. Nothing is given back on a refresh.
@@ -171,8 +227,9 @@ decides: the server.
   leaderboard).
   Skipped: offered again on Results. Once a name is saved it is not asked for again.
 - **All 36 stars**: when the challenge opens, a device whose saved lessons hold all 36 stars claims the one-time +2
-  attempts (once; the server refuses a second). With no attempts left, the challenge shows that path: the stars still
-  missing and Explore Europe lessons. There are no ads and no practice rounds.
+  bonus attempts (once; the server refuses a second). With no attempts left (today's free one used, no saved ones),
+  the challenge shows when the next free attempt comes and, while the reward is still to be earned, that path: the
+  stars still missing and Explore Europe lessons. There are no ads and no practice rounds.
 
 ### Applying the rounds migration
 
@@ -269,7 +326,8 @@ new function signatures, and the old build can not call the replaced ones):
 
 - **Not cheat-proof.** The server's clock, its own questions and its receipts stop forged scores, extra time, answers
   out of order and spending twice. They do not stop a script that reads the map and taps within the rhythm, or help
-  from someone else; and clearing storage makes a new anonymous player with a new attempt.
+  from someone else; and clearing storage (or a private window) makes a new anonymous player with that day's free
+  attempt, as often as it is done (bounded by the anonymous sign-in rate limit).
 - **Slow connections.** The start reply's time on the network comes off the round, and a last answer that reaches
   the server more than 1 second after the deadline does not count.
 - **Answers at the cutoff.** An answer is in time if its arrival plus the hop to the database is by the deadline

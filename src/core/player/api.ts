@@ -1,5 +1,5 @@
 import { isServerTime, parseServerRound, type RequestTiming, type ServerRound, type ServerTime } from "../challenge/serverRound";
-import { attemptsLeft, isAttemptGrantKind, type AttemptGrant } from "./attempts";
+import { bonusAttemptsLeft, isAttemptGrantKind, type AttemptGrant, type DailyAttempt } from "./attempts";
 import type { DisplayNameProblem } from "./displayName";
 import type { EuropeStarsSnapshot } from "../progress/europeStars";
 
@@ -19,9 +19,14 @@ export interface PlayerState {
   /** Null until the player saves one: their results stay private until then. */
   displayName: string | null;
   grants: readonly AttemptGrant[];
-  /** Rounds started: each spent one attempt. */
+  /** Rounds started: each spent one attempt, a day's free one or a saved one. */
   roundsStarted: number;
-  attemptsLeft: number;
+  /** The rounds of those that spent a saved (bonus) attempt. */
+  bonusRoundsStarted: number;
+  /** Saved (bonus) attempts left: the grants less the rounds that spent one. They never expire. */
+  bonusAttemptsLeft: number;
+  /** Today's free attempt (attempts.ts): whether it is unused, and when the next comes, by the database's UTC day. */
+  daily: DailyAttempt;
   /** The Quick Challenge round under way, if any (it resumes after a refresh, or in another tab). */
   activeRound: ServerRound | null;
   /** The best finished round: most correct answers, then the shortest time. Private until a name is saved. */
@@ -72,7 +77,7 @@ export class PlayerServiceError extends Error {
 
 export interface PlayerService {
   /**
-   * The player, signed in anonymously first if there is no session yet (with the one initial attempt). `timing`, if
+   * The player, signed in anonymously first if there is no session yet (with today's free attempt). `timing`, if
    * given, is filled in with the device's times for the request answered.
    */
   load(timing?: RequestTiming): Promise<PlayerState>;
@@ -94,6 +99,10 @@ export function parsePlayerState(v: unknown): PlayerState | null {
   if (!isObj(v) || typeof v.playerId !== "string" || !Array.isArray(v.grants)) return null;
   if (!(v.displayName === null || typeof v.displayName === "string")) return null;
   if (!Number.isInteger(v.roundsStarted) || (v.roundsStarted as number) < 0) return null;
+  const bonusRounds = v.bonusRoundsStarted;
+  if (!Number.isInteger(bonusRounds) || (bonusRounds as number) < 0 || (bonusRounds as number) > (v.roundsStarted as number)) return null;
+  const daily = v.daily;
+  if (!isObj(daily) || typeof daily.available !== "boolean" || !isDate(daily.resetsAt)) return null;
   if (!isOptionalDate(v.europeStarsClaimedAt) || !isOptionalDate(v.nameChangeBlockedUntil)) return null;
   const grants: AttemptGrant[] = [];
   for (const g of v.grants) {
@@ -111,7 +120,9 @@ export function parsePlayerState(v: unknown): PlayerState | null {
     displayName: v.displayName,
     grants,
     roundsStarted,
-    attemptsLeft: attemptsLeft(grants, roundsStarted),
+    bonusRoundsStarted: bonusRounds as number,
+    bonusAttemptsLeft: bonusAttemptsLeft(grants, bonusRounds as number),
+    daily: { available: daily.available, resetsAt: daily.resetsAt },
     activeRound,
     best: best === null ? null : { score: best.score as number, elapsedMs: best.elapsedMs as number },
     serverTime: { receivedAt: v.serverTime.receivedAt, respondedAt: v.serverTime.respondedAt },

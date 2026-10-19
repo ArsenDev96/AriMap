@@ -1,6 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { attemptsLeft, type AttemptGrant, type AttemptGrantKind } from "@/core/player/attempts";
+import { bonusAttemptsLeft, type AttemptGrant, type AttemptGrantKind } from "@/core/player/attempts";
 import type { PlayerState } from "@/core/player/api";
 import type { EuropeStarsSnapshot } from "@/core/progress/europeStars";
 import type { DbClockRow, RequestClock } from "./requestClock";
@@ -29,6 +29,11 @@ export interface StateRow {
   best?: { score: number; elapsed_ms: number } | null;
   // From 20261020120000_database_clock.sql.
   clock: DbClockRow;
+  // From 20261022120000_daily_attempts.sql: the rounds that spent a saved attempt, and today's free attempt by the
+  // database's UTC day.
+  bonus_rounds_started: number;
+  daily_available: boolean;
+  daily_resets_at: string;
 }
 
 const iso = (t: string) => new Date(t).toISOString();
@@ -41,15 +46,18 @@ export function toState(row: StateRow, clock: RequestClock): PlayerState {
     if (!kind) throw new Error(`Unknown attempt grant kind: ${g.kind}`);
     return { kind, attempts: g.attempts, grantedAt: iso(g.granted_at) };
   });
-  // Each round started spent one attempt.
+  // Each round started spent one attempt: the day's free one, or a saved one (bonus).
   const roundsStarted = Number(row.rounds_started ?? 0);
+  const bonusRoundsStarted = Number(row.bonus_rounds_started);
   const blockedUntil = isoOrNull(row.name_change_blocked_until);
   return {
     playerId: row.player_id,
     displayName: row.display_name,
     grants,
     roundsStarted,
-    attemptsLeft: attemptsLeft(grants, roundsStarted),
+    bonusRoundsStarted,
+    bonusAttemptsLeft: bonusAttemptsLeft(grants, bonusRoundsStarted),
+    daily: { available: row.daily_available, resetsAt: iso(row.daily_resets_at) },
     activeRound: row.active_round ? toRound(row.active_round) : null,
     best: row.best ? { score: row.best.score, elapsedMs: row.best.elapsed_ms } : null,
     serverTime: clock.serverTime(),
@@ -76,7 +84,7 @@ export async function call<T>(db: SupabaseClient, fn: string, args: Record<strin
   );
 }
 
-/** The player, created on first use with the one initial attempt. */
+/** The player, created on first use (with today's free attempt only). */
 export async function ensurePlayer(db: SupabaseClient, playerId: string, clock: RequestClock): Promise<PlayerState> {
   return toState(await call<StateRow>(db, "ensure_player", { p_player: playerId }, clock), clock);
 }
