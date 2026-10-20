@@ -66,6 +66,8 @@ npm run test:e2e     # Playwright: full flow on Pixel 7, 320px phone and desktop
 
 To open the dev server from another device (e.g. `http://192.168.x.x:3000` on a phone), add that address to `allowedDevOrigins` in `next.config.ts`. Next.js 16 blocks cross-origin access to development resources by default, and the app then stays on its loading screen. `npm run start` has no such restriction.
 
+**Known `npm audit` finding.** `npm audit` reports one unresolved high-severity advisory, [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm): `braces` (all versions through 3.0.3, the latest) can exhaust the call stack on deeply nested brace patterns. It reaches AriMap only through ESLint (`eslint-config-next` → `@next/eslint-plugin-next` → `fast-glob` → `micromatch` → `braces`), a development dependency that expands the project's own lint globs; it isn't in the production bundle and `npm audit --omit=dev` doesn't report it. No fixed version exists yet. The fix npm offers (`npm audit fix --force`) installs `eslint-config-next@14`, a downgrade, so don't apply it; update `eslint-config-next` together with `next` once a patched `braces` or `fast-glob` is released.
+
 ## Structure
 
 Lesson content, translations, game rules and progress logic are plain TypeScript with no React or DOM dependency, so a future native app can reuse them.
