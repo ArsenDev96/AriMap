@@ -40,7 +40,10 @@
     "ios": "expo run:ios",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "doctor": "npx expo-doctor"
+    "doctor": "npx expo-doctor",
+    "check:archive": "node scripts/check-eas-archive.mjs",
+    "build:android:preview": "npm run check:archive && npx eas-cli@latest build --platform android --profile preview",
+    "build:android:development": "npm run check:archive && npx eas-cli@latest build --platform android --profile development"
   },
   "private": true
 }

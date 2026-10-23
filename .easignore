@@ -1,0 +1,72 @@
+# What EAS Build uploads for the mobile app (apps/mobile). See docs/MOBILE.md, "What EAS uploads".
+#
+# EAS CLI clones the current commit (apps/mobile/eas.json: requireCommit) and then deletes from that clone every
+# file these rules match. An allowlist: everything is excluded, then only what the app builds from comes back in.
+# The website, its build output and caches, and Git history never leave the machine.
+#
+# It must stay at the repository root, and it replaces .gitignore for EAS: keep the deny list below complete.
+# Check what would be uploaded, without uploading: `npm run check:archive` in apps/mobile.
+
+# --- Allowlist ------------------------------------------------------------------------------------------------
+/*
+!/.easignore
+
+# The app itself.
+!/apps/
+/apps/*
+!/apps/mobile/
+
+# The website's framework-independent code the app imports (metro.config.js: "@/" → src/).
+!/src/
+/src/*
+!/src/core/
+!/src/geo/
+!/src/data/
+
+# --- Never uploaded, wherever they are ------------------------------------------------------------------------
+# Git history (the clone's .git).
+.git
+
+# Environment files and credentials.
+.env
+.env.*
+*.env
+credentials.json
+google-services.json
+GoogleService-Info.plist
+*service-account*.json
+*.keystore
+*.jks
+*.p8
+*.p12
+*.pem
+*.key
+*.mobileprovision
+*.cer
+
+# Installed packages, generated native projects and build output.
+node_modules/
+android/
+ios/
+.expo/
+dist/
+web-build/
+.kotlin/
+.next*/
+.vercel/
+.turbo/
+coverage/
+*.tsbuildinfo
+.metro-health-check*
+
+# Logs and temporary files.
+*.log
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tmp
+*.orig.*
+.DS_Store
+
+# Tests of the shared code: run by the website (Vitest), never by the app's build.
+*.test.ts

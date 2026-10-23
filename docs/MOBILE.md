@@ -50,16 +50,13 @@ The app is the EAS project `@arsmanukyan/arimap` (`app.json`: `owner`, `extra.ea
 
 ```bash
 cd apps/mobile
-npx eas-cli@latest build --platform android --profile preview      # or development
+npm run build:android:preview        # or build:android:development: checks the archive first, then builds
 adb install -r <downloaded .apk>
 ```
 
-- **Only committed code is built.** `eas.json` sets `requireCommit`: EAS uploads a clone of the current commit, so
-  commit first. Without it, EAS copies the working tree, skipping what `.gitignore` files ignore but not what
-  `.git/info/exclude` does: on 2026-10-23 that sent local Next.js build folders (`.next-preview`, `.next-l11`,
-  `.next-l12`), whose Turbopack cache held `.env.local` values, with a build. The upload is the whole repository,
-  history included (about 300 MB), since the app needs `src/` from the root; `.easignore` can't trim it while
-  `requireCommit` is on.
+Start builds with these scripts rather than `eas build` directly: they stop before anything is uploaded if the
+archive check fails (below).
+
 - **Install.** EAS runs `npm ci` in `apps/mobile` only (never at the root), on Node 22.22 (`eas.json`), then Metro
   bundles `src/core`, `src/geo` and `src/data` from the uploaded repository through `metro.config.js`, as locally.
 - **Signing.** The Android keystore is EAS-managed (`credentialsSource: remote`), created by EAS on the first build and
@@ -68,6 +65,60 @@ adb install -r <downloaded .apk>
   Play upload key (Play App Signing keeps the app signing key itself).
 - **Size.** The preview APK is about 100 MB: one APK for all four CPU types (arm64-v8a, armeabi-v7a, x86, x86_64). The
   production AAB lets Google Play deliver each device only its own.
+
+### What EAS uploads
+
+Every cloud build uploads a project archive to Expo. Two rules decide what is in it, read from EAS CLI 25.3's own code
+(`makeShallowCopyAsync`), which differs from Expo's archive page:
+
+1. **Only committed files** (`apps/mobile/eas.json`: `cli.requireCommit`). EAS CLI refuses to build while `git
+   status` shows any change, untracked files included, then makes the archive from `git clone --depth 1` of the
+   commit. The working tree is never copied, so ignored or excluded local files (env files, Next.js build folders and
+   caches, keystores) can't be included.
+2. **Only what the app builds from** (`.easignore`, at the repository root, where EAS CLI reads it). From the clone it
+   deletes every file matching its rules: an allowlist keeping `apps/mobile` and `src/core`, `src/geo` and `src/data`
+   only, then a deny list (Git data, env files, credentials and keys, installed packages, generated native projects,
+   build output and caches, logs, temporary files, the shared code's tests). It also removes the clone's `.git`, so no
+   history is uploaded. With `requireCommit` off, `.easignore` would replace every `.gitignore` for the working-tree
+   copy, which is why its deny list repeats them.
+
+The website (`public/`, `e2e/`, `supabase/`, `scripts/`, `docs/`, its configs) never leaves the machine with a build.
+
+**Check before every build.** `npm run check:archive` (`apps/mobile/scripts/check-eas-archive.mjs`) runs `eas
+build:inspect --stage archive`, which makes the archive exactly as a build does (the same code) in a local folder and
+uploads nothing, then fails if:
+
+- a file is outside `apps/mobile`, `src/core`, `src/geo` or `src/data`;
+- a file is forbidden anywhere (Git data, env files, credentials, keys and certificates, website build output or
+  caches, installed packages, the generated `android/` or `ios/`, Expo or Metro caches, logs, temporary files, tests);
+- a file the build needs is missing (`package.json`, the lockfile, `app.json`, `eas.json`, the Metro config, the
+  entry, and the shared code's storage, translations, levels, projection and all four map datasets);
+- a text file holds a secret-shaped string (a Supabase secret key, a private key block, a JSON Web Token, an AWS key,
+  an assignment to a `…SECRET…`, `…SERVICE_ROLE…`, `…PRIVATE_KEY…`, `…PASSWORD…` or `…TOKEN…` name);
+- any value (12+ characters) from a local `.env` file (repository root or `apps/mobile`, not `.env.example`) appears
+  in any file, binary ones included.
+
+It reports only rule names, variable names and paths, never a value. `npm run build:android:preview` and
+`build:android:development` run it first. To look at an archive yourself:
+
+```bash
+cd apps/mobile        # commit first
+npx eas-cli@latest build:inspect --platform android --profile preview --stage archive --output <empty folder>
+node scripts/check-eas-archive.mjs --dir <that folder>
+```
+
+**Why (2026-10-23).** The first cloud build ran without `requireCommit`. EAS CLI then copies the working tree,
+honouring `.gitignore` files but not `.git/info/exclude`, where the local Next.js build folders (`.next-preview`,
+`.next-l11`, `.next-l12`) were excluded. They were uploaded, and `.next-preview`'s Turbopack cache held the values of
+`.env.local`, including `SUPABASE_SECRET_KEY` and `VERCEL_AUTOMATION_BYPASS_SECRET`. The build was cancelled and
+deleted, and the credentials are being rotated. The root `.gitignore` now ignores every `.next-*` folder too.
+
+**The app holds no secret.** It has no backend, no Supabase client and no environment variables (`process.env`,
+`EXPO_PUBLIC_…`): the bundle contains only the app's code and the shared game code, and the release APK's bundle was
+checked for every local env value and for secret-shaped strings (none). A Supabase secret key (`sb_secret_…`, or the
+legacy `service_role` key) must never be given to the app in any form: anything in an app can be read out of it. When
+the app talks to the backend (Quick Challenge, later), it uses the publishable key and the player's own session, as the
+website does.
 
 ## Checks
 

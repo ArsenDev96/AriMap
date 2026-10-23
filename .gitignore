@@ -16,6 +16,8 @@
 # next.js
 /.next/
 /.next-e2e/
+# Any other build folder (NEXT_DIST_DIR), e.g. a preview build's: build output and caches can hold env values.
+/.next-*/
 /out/
 
 # production
