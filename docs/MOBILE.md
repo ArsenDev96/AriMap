@@ -33,7 +33,41 @@ the build fails with `ninja: error: Stat(...): Filename longer than 260 characte
 save enough. The fix is long paths turned on in Windows (`LongPathsEnabled` = 1 under
 `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`, administrator, then sign in again), and probably also a newer
 CMake from Android Studio's SDK Manager: the default 3.22.1 bundles ninja 1.10.2, which predates ninja's long-path
-support (not yet tried here). Building on macOS, Linux or WSL avoids it.
+support (not yet tried here). Building on macOS, Linux or WSL avoids it, and so does EAS Build (below), which builds
+in the cloud on Linux.
+
+## EAS Build (cloud builds)
+
+The app is the EAS project `@arsmanukyan/arimap` (`app.json`: `owner`, `extra.eas.projectId`), built with the profiles in
+`apps/mobile/eas.json`. Run EAS CLI from `apps/mobile`, signed in to an Expo account with access to the project
+(`npx eas-cli@latest login`):
+
+| Profile | Artifact | Use |
+| --- | --- | --- |
+| `development` | APK, debuggable, with the dev client (`expo-dev-client`) | Install once; then `npx expo start --dev-client` and the app loads JavaScript from Metro. Needed for native debugging, and for reading the app's data (`adb shell run-as world.arimap.app`) |
+| `preview` | APK, release, the JavaScript bundled in | Install and run on its own, no Metro or Expo Go: what testers get |
+| `production` | AAB (Android App Bundle) for Google Play | Configured for later; nothing has been built or submitted with it |
+
+```bash
+cd apps/mobile
+npx eas-cli@latest build --platform android --profile preview      # or development
+adb install -r <downloaded .apk>
+```
+
+- **Only committed code is built.** `eas.json` sets `requireCommit`: EAS uploads a clone of the current commit, so
+  commit first. Without it, EAS copies the working tree, skipping what `.gitignore` files ignore but not what
+  `.git/info/exclude` does: on 2026-10-23 that sent local Next.js build folders (`.next-preview`, `.next-l11`,
+  `.next-l12`), whose Turbopack cache held `.env.local` values, with a build. The upload is the whole repository,
+  history included (about 300 MB), since the app needs `src/` from the root; `.easignore` can't trim it while
+  `requireCommit` is on.
+- **Install.** EAS runs `npm ci` in `apps/mobile` only (never at the root), on Node 22.22 (`eas.json`), then Metro
+  bundles `src/core`, `src/geo` and `src/data` from the uploaded repository through `metro.config.js`, as locally.
+- **Signing.** The Android keystore is EAS-managed (`credentialsSource: remote`), created by EAS on the first build and
+  kept on Expo's servers (`npx eas-cli@latest credentials`). Development and preview builds are signed with it, so one
+  installs over the other with the app's data kept. The same key would sign a production build: it would become the
+  Play upload key (Play App Signing keeps the app signing key itself).
+- **Size.** The preview APK is about 100 MB: one APK for all four CPU types (arm64-v8a, armeabi-v7a, x86, x86_64). The
+  production AAB lets Google Play deliver each device only its own.
 
 ## Checks
 
@@ -95,6 +129,15 @@ The saved screen and continent follow the screens (Home: `goHome`; a level selec
 always opens on Home; the system's Back goes back one screen. Opening a level's preview starts nothing and changes no
 progress.
 
+### Navigation
+
+Screens navigate with `useRouter()` from `expo-router`, never its global `router` (ESLint rejects importing it). A
+system font size or display size change recreates Android's activity (they are not in its `configChanges`; rotation,
+resizing and language are), and React mounts the app again: Expo Router binds its global `router` as the new tree
+mounts, and the old tree's unmount then resets it, so every later `router.push` threw ("The imperative router is
+unavailable before the first render has finished") and closed the app. `useRouter()` is bound to its own tree. Such a
+change still reopens the app on Home (the navigation stack is the activity's); the save is unaffected.
+
 ### Language
 
 English and Eastern Armenian, from `src/core/i18n`. A first launch takes the device's language when it is one of
@@ -122,5 +165,24 @@ route, taps, pan and zoom, the painted relief) builds on this in the next phase.
 ## Google Play
 
 SDK 58 targets Android API 36 (`targetSdk` 36, `compileSdk` 37, `minSdk` 24), which meets Google Play's current
-target API requirement. The app id is `world.arimap.app` (`app.json`). Nothing is signed, built for release or
-uploaded yet.
+target API requirement. The app id is `world.arimap.app` (`app.json`). Development and preview APKs are built with
+EAS (above); no production build has been made and nothing has been uploaded to Google Play.
+
+## Dependency audit
+
+`npm audit` in `apps/mobile` reports 4 high-severity findings (checked 2026-10-23). They are one advisory,
+[GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv) in `node-forge` (RSA PKCS#1 v1.5 signature
+verification accepts forged signatures with crafted DigestAlgorithm bytes and low-exponent keys; all versions up to
+1.4.0, the latest, with no patched release), counted again for each package that leads to it: `node-forge` ←
+`@expo/code-signing-certificates` ← `@expo/cli` ← `expo`.
+
+- **Where it runs.** Only in Expo's command-line tools on the developer's machine (`@expo/cli`: signing development
+  update manifests, and reading iOS signing certificates for `expo run:ios`). It is never bundled into the app: the
+  APK's JavaScript is the app's own code and its runtime packages.
+- **Exploitability for AriMap.** Low: it would take someone feeding a forged signature to the local CLI's
+  verification. The app doesn't use EAS Update code signing, where the CLI checks such signatures.
+- **No safe upgrade exists.** npm's suggested fix (`expo@44.0.6`) is a downgrade of 14 SDK versions; don't run
+  `npm audit fix --force`. When `node-forge` publishes a fixed version, an Expo patch release (`npx expo install
+  --fix`), or an `overrides` entry for `node-forge` in `apps/mobile/package.json`, picks it up.
+
+The website's own `npm audit` is unaffected (its packages are separate).
