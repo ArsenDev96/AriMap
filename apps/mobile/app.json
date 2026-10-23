@@ -32,6 +32,12 @@
     "experiments": {
       "typedRoutes": true,
       "tsconfigPaths": false
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "921a9a7c-2af7-4738-acc6-7ec24f7a30a3"
+      }
+    },
+    "owner": "arsmanukyan"
   }
 }
