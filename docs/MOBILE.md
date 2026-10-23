@@ -83,6 +83,9 @@ Every cloud build uploads a project archive to Expo. Two rules decide what is in
    copy, which is why its deny list repeats them.
 
 The website (`public/`, `e2e/`, `supabase/`, `scripts/`, `docs/`, its configs) never leaves the machine with a build.
+Measured with `eas build:inspect` (2026-10-24): 92 files, 2.9 MB, against 1,647 files and 314 MB (153 MB of it `.git`)
+before. A clean `npm ci` and an Android bundle made inside that archive alone bundle the same 1,471 modules as a cloud
+build; the website's folders remain only as empty directories.
 
 **Check before every build.** `npm run check:archive` (`apps/mobile/scripts/check-eas-archive.mjs`) runs `eas
 build:inspect --stage archive`, which makes the archive exactly as a build does (the same code) in a local folder and
