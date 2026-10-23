@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors, space, TAP, type } from "../theme/tokens";
@@ -15,6 +15,7 @@ interface Props {
  * switch. It wraps onto two rows with large text rather than shrinking anything.
  */
 export function ScreenHeader({ children, back }: Props) {
+  const router = useRouter();
   return (
     <View style={styles.header}>
       <View style={styles.start}>

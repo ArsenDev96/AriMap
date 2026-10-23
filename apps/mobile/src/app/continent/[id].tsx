@@ -1,4 +1,4 @@
-import { Redirect, router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { getContinent, hasPlayableLevels, isContinentId, levelsOf, type LevelInfo } from "@/core/lessons";
@@ -13,8 +13,6 @@ import { STEPS, stepOf } from "../../game/steps";
 import { useI18n } from "../../i18n/i18n";
 import { colors, radius, space, type } from "../../theme/tokens";
 
-const openLevel = (level: LevelInfo) => router.push({ pathname: "/level/[id]", params: { id: level.id } });
-
 /**
  * A continent's level selection (the website's WelcomeScreen): its levels in order, each with its status in words,
  * and the main action (continue the attempt under way, or start the next level) in its own area below.
@@ -23,6 +21,7 @@ export default function ContinentLevels() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state, dispatch } = useGame();
   const { t, l } = useI18n();
+  const openLevel = useOpenLevel();
   const continentId = isContinentId(id) && hasPlayableLevels(id) ? id : null;
 
   // The saved screen and continent follow what shows (the website's "openContinent").
@@ -68,7 +67,18 @@ export default function ContinentLevels() {
   );
 }
 
+/**
+ * Opens a level. Navigation goes through useRouter(), bound to this screen's own navigator, never Expo Router's
+ * global `router`: when Android recreates the activity (a font size change), the old tree's unmount resets that
+ * global after the new tree has bound it, and every later router.push would throw.
+ */
+function useOpenLevel() {
+  const router = useRouter();
+  return (level: LevelInfo) => router.push({ pathname: "/level/[id]", params: { id: level.id } });
+}
+
 function LevelCard({ level, status, upNext }: { level: LevelInfo; status: LevelStatus; upNext: boolean }) {
+  const openLevel = useOpenLevel();
   const { state } = useGame();
   const { t, l, name } = useI18n();
   const playable = status.kind !== "comingSoon" && status.kind !== "locked";

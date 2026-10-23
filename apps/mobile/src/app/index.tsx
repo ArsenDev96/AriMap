@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { CONTINENTS, getContinent, hasPlayableLevels, type ContinentInfo } from "@/core/lessons";
@@ -17,6 +17,7 @@ import { colors, radius, space, TAP, type, worldColors } from "../theme/tokens";
  * do nothing. The main action continues the attempt under way, or explores Europe.
  */
 export default function Home() {
+  const router = useRouter();
   const { state, dispatch } = useGame();
   const { t, l } = useI18n();
   const resume = levelToContinue(state);
