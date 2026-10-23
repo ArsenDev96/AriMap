@@ -1,0 +1,17 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    // For type checking only: Metro resolves imports itself (metro.config.js; app.json turns off tsconfigPaths).
+    "paths": {
+      // The website's framework-independent code (src/core, src/geo, src/data), imported as the website imports it.
+      "@/*": ["../../src/*"],
+      // Types for the packages that shared code imports, from this app's node_modules, as Metro bundles them.
+      "d3-geo": ["./node_modules/@types/d3-geo"],
+      "geojson": ["./node_modules/@types/geojson"],
+      "topojson-client": ["./node_modules/@types/topojson-client"],
+      "topojson-specification": ["./node_modules/@types/topojson-specification"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
+}

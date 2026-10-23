@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "AriMap",
+    "slug": "arimap",
+    "scheme": "arimap",
+    "version": "0.1.0",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#fffaf0",
+    "ios": {
+      "bundleIdentifier": "world.arimap.app",
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "world.arimap.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      "expo-status-bar",
+      "expo-sqlite",
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": false
+    }
+  }
+}

@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // The native app (Expo) has its own ESLint config and runs it itself (apps/mobile, `npm run lint`).
+    "apps/**",
   ]),
 ]);
 
