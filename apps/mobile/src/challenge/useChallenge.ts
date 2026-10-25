@@ -5,7 +5,7 @@ import type { CountryId } from "@/core/content/types";
 import type { RandomSource } from "@/core/game/random";
 import type { KeyValueStorage } from "@/core/progress/storage";
 import { roundClock, systemClock, type ClockSources, type RoundClock } from "./clock";
-import { loadSession, newSession, saveSession, startSession, type PracticeSession } from "./session";
+import { loadSession, newSession, saveSession, secondsLeft, startSession, type PracticeSession } from "./session";
 
 /** How often a round under way is brought up to date (its countdown, the end of an answer's feedback, its deadline). */
 export const TICK_MS = 100;
@@ -38,23 +38,25 @@ export interface ChallengeDeps {
  */
 export function useChallenge({ storage, random, newId, sources = systemClock }: ChallengeDeps) {
   const [session, setSession] = useState<PracticeSession>(() => loadSession(storage) ?? newSession(random, newId()));
-  const [now, setNow] = useState(0);
   const clock = clockFor(session, sources);
+  // A round opened under way shows its time left from its first frame.
+  const [now, setNow] = useState(() => clock?.now() ?? 0);
   const status = session.round.status;
+  const deadline = session.round.deadline;
 
   // Saved as it changes: its answers, its end, and its clock's anchor (below).
   useEffect(() => saveSession(storage, session), [storage, session]);
 
   // While it plays: brought up to date every tick, and at once when the app comes back to the foreground; its
   // clock's anchor is saved when the app goes to the background (where Android may close it). The screen draws
-  // again only when the round changes or the second shown does (the round starts at 0 and lasts whole seconds), not
-  // every tick.
+  // again only when the round changes or the second shown does (counted down to its deadline), not every tick.
   useEffect(() => {
-    if (status !== "playing" || !clock) return;
+    if (status !== "playing" || !clock || deadline === null) return;
     const id = session.id;
+    const shownSecond = (at: number) => Math.ceil((deadline - at) / 1000);
     const step = (keepAnchor = false) => {
       const t = clock.now();
-      setNow((shown) => (Math.floor(shown / 1000) === Math.floor(t / 1000) ? shown : t));
+      setNow((shown) => (shownSecond(shown) === shownSecond(t) ? shown : t));
       setSession((s) => {
         if (s.id !== id) return s;
         const next = tick(s.round, t);
@@ -68,7 +70,7 @@ export function useChallenge({ storage, random, newId, sources = systemClock }: 
       clearInterval(timer);
       subscription.remove();
     };
-  }, [status, clock, session.id]);
+  }, [status, clock, deadline, session.id]);
 
   const round = session.round;
   const at = clock ? Math.max(now, 0) : 0;
@@ -80,14 +82,17 @@ export function useChallenge({ storage, random, newId, sources = systemClock }: 
     feedback: feedbackOf(round),
     /** Time left, at the last tick (the whole round before Start). */
     remainingMs: remainingMs(round, at),
+    /** The countdown: whole seconds left at the last tick. */
+    secondsLeft: secondsLeft(round, at),
     result: challengeResult(round),
     /** Starts the timer: only from "ready", once the map is drawn (the caller's `ready`). */
     start(ready: boolean) {
       if (!ready || round.status !== "ready") return;
       const c = roundClock(sources);
       live = { id: session.id, clock: c };
-      setNow(0);
-      setSession(startSession(session, c));
+      const started = startSession(session, c);
+      setNow(started.round.startedAt ?? 0);
+      setSession(started);
     },
     /** Answers the question asked with `country`, or skips it (null), now. Ignored when no question is asked. */
     choose(country: CountryId | null) {
@@ -107,8 +112,9 @@ export function useChallenge({ storage, random, newId, sources = systemClock }: 
       const s = newSession(random, newId());
       const c = roundClock(sources);
       live = { id: s.id, clock: c };
-      setNow(0);
-      setSession(startSession(s, c));
+      const started = startSession(s, c);
+      setNow(started.round.startedAt ?? 0);
+      setSession(started);
     },
     /** Leaving a round that has ended: the next opening draws a new one. */
     discard() {

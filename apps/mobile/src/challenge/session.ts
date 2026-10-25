@@ -1,5 +1,5 @@
 import { CHALLENGE_POOL } from "@/core/challenge/europe";
-import { createChallenge, startChallenge, type ChallengeRound } from "@/core/challenge/quickChallenge";
+import { createChallenge, remainingMs, startChallenge, type ChallengeRound } from "@/core/challenge/quickChallenge";
 import type { RandomSource } from "@/core/game/random";
 import type { KeyValueStorage } from "@/core/progress/storage";
 import { isClockAnchor, type ClockAnchor, type RoundClock } from "./clock";
@@ -25,6 +25,14 @@ export const PRACTICE_KEY = "arimap:practice";
 /** A new round, drawn and waiting for Start: 15 different countries of the shared pool, in random order. */
 export function newSession(random: RandomSource, id: string): PracticeSession {
   return { id, round: createChallenge(random), clock: null };
+}
+
+/**
+ * The countdown's whole seconds left at `now`, to the round's own deadline: 60 at its start (the clock's first reading,
+ * which may be a fraction past 0), 0 once it has ended.
+ */
+export function secondsLeft(round: ChallengeRound, now: number): number {
+  return Math.ceil(remainingMs(round, now) / 1000);
 }
 
 /** Starts the round's timer on `clock` (its time 0, the round's start). Only from "ready". */

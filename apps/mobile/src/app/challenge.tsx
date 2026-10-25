@@ -146,7 +146,7 @@ export default function ChallengeScreen() {
           />
         </View>
         <View style={styles.panel}>
-          {status === "playing" && <RoundStatus round={round} remainingMs={game.remainingMs} />}
+          {status === "playing" && <RoundStatus round={round} remainingMs={game.remainingMs} seconds={game.secondsLeft} />}
           {/* Each stage starts at the top of the panel. */}
           <ScrollView key={`${round.questions.join()}:${status}:${reviewing}`} contentContainerStyle={styles.panelContent}>
             {panel}
@@ -188,9 +188,8 @@ function Playing({
 }
 
 /** The round's question, score and time left, with its time bar: kept in view above the panel while it plays. */
-function RoundStatus({ round, remainingMs }: { round: ChallengeRound; remainingMs: number }) {
+function RoundStatus({ round, remainingMs, seconds }: { round: ChallengeRound; remainingMs: number; seconds: number }) {
   const { t } = useI18n();
-  const seconds = Math.ceil(remainingMs / 1000);
   const score = round.answers.filter((a) => a.outcome === "correct").length;
   const low = seconds <= 10;
   return (

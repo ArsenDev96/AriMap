@@ -5,7 +5,7 @@ import type { CountryId } from "@/core/content/types";
 import { seededRandom } from "@/core/game/random";
 import type { KeyValueStorage } from "@/core/progress/storage";
 import { roundClock, type ClockSources } from "./clock";
-import { loadSession, newSession, PRACTICE_KEY, saveSession, startSession, type PracticeSession } from "./session";
+import { loadSession, newSession, PRACTICE_KEY, saveSession, secondsLeft, startSession, type PracticeSession } from "./session";
 
 /*
  * The app's practice rounds on the shared Quick Challenge rules, timed by the app's clock (clock.ts) and saved as the
@@ -92,6 +92,20 @@ describe("a practice round", () => {
     expect(s.round).toMatchObject({ status: "playing", startedAt: 0, deadline: DURATION });
     // Start again changes nothing.
     expect(startSession(s, roundClock(c.sources))).toBe(s);
+  });
+
+  it("counts down from 60, not 61, when the clock's first reading is a fraction past 0", () => {
+    // performance.now moves on between the clock's making and the round's start, by a fraction of a millisecond.
+    let mono = 0;
+    const clock = roundClock({ mono: () => (mono += 0.25), wall: () => 1_700_000_000_000 });
+    const { round } = startSession(newSession(seededRandom(1), "r"), clock);
+    expect(round.startedAt).toBeGreaterThan(0);
+    const start = round.startedAt!;
+    expect(secondsLeft(round, start)).toBe(60);
+    expect(secondsLeft(round, start + 999)).toBe(60);
+    expect(secondsLeft(round, start + 1_000)).toBe(59);
+    expect(secondsLeft(round, start + DURATION - 1)).toBe(1);
+    expect(secondsLeft(round, start + DURATION)).toBe(0);
   });
 
   it("a correct answer counts once; a wrong one counts as wrong with the country chosen; a second tap during feedback is no answer", () => {
