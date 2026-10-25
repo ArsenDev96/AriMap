@@ -289,7 +289,10 @@ async function expectFindSpoilerFree(page: Page, target: string) {
   }, L11_COUNTRIES);
   for (const id of L11_COUNTRIES) expect(styling[id], `${id} styled differently from the target ${target}`).toBe(styling[target]);
   // The close-up names no country while Find asks: its caption is "Close-up", its accessible name "of the marked area".
-  await expect(page.getByTestId("inset-title")).not.toContainText(/Belgium|Բելգիա/);
+  // Open (wide maps) or closed (phones: it opens by itself only in Discover, RegionMap's rule since 2c03b7f); until
+  // 2026-10-26 this assumed it open, and failed on phones.
+  await expect(page.getByTestId("inset-title").filter({ hasText: /Belgium|Բելգիա/ })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: /Belgium|Բելգիա/ })).toHaveCount(0);
   for (const label of await page.locator(INSET).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""))) expect(label).not.toMatch(/Belgium|Բելգիա/);
 }
 

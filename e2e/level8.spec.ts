@@ -403,7 +403,12 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
       await expectNoLandmarkArt(page);
     }
     await tapCountry(page, target);
-    await expect(page.getByTestId("find-feedback")).toContainText(`Correct! That's ${NAMES[target]}.`);
+    // Found after the hints, the first is found with help: "Found it!" and the note, not "Correct!" (the game's wording
+    // for an assisted answer since 2c03b7f; expected "Correct!" for every answer until 2026-10-26).
+    if (i === 0) {
+      await expect(page.getByTestId("find-feedback")).toContainText(`Found it! That's ${NAMES[target]}.`);
+      await expect(page.getByTestId("find-feedback")).toContainText("Found with help. Next time, try it without hints.");
+    } else await expect(page.getByTestId("find-feedback")).toContainText(`Correct! That's ${NAMES[target]}.`);
     await page.getByRole("button", { name: i < 4 ? "Next" : "Continue to Travel" }).click();
   }
   expect([...asked].sort()).toEqual([...L8_COUNTRIES].sort());

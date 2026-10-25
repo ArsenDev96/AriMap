@@ -165,7 +165,7 @@ const welcomeLayout = (page: Page) =>
   });
 
 test.describe("level selection", () => {
-  test("Back to continents and the language switch stay in view above the scrolling list; the current level is in view; every card and action reachable", async ({ page }) => {
+  test("Back to continents stays in view above the scrolling list, with no language switch beside it; the current level is in view; every card and action reachable", async ({ page }) => {
     test.setTimeout(600_000);
     const sizes = project() === "desktop" ? [[1366, 800]] : project() === "small-phone" ? [[320, 568], [390, 844]] : project() === "webkit-phone" ? [[320, 568], [390, 664]] : [];
     test.skip(sizes.length === 0, "Runs on the small-phone, webkit-phone and desktop projects.");
@@ -185,9 +185,11 @@ test.describe("level selection", () => {
             expect.soft(await page.evaluate(() => document.documentElement.style.fontSize), `${where}: text size`).toBe(size === 100 ? "" : `${size}%`);
             await shot(page, `welcome-${s.name}-${locale}-text${size}`);
 
-            // Back to the continents and the language switch: outside the scrolling list, whole and on screen.
+            // Back to the continents: outside the scrolling list, whole and on screen. The header has no language switch
+            // (8992211: the language is chosen on the continents and in a level; checked here for one until 2026-10-26).
             expect.soft(at.heroInScroll, `${where}: header inside the scrolling list`).toBe(false);
-            for (const [what, b] of [["Back to continents", at.brand], ["language switch", at.toggle]] as const) {
+            expect.soft(at.toggle, `${where}: a language switch in the header`).toBeNull();
+            for (const [what, b] of [["Back to continents", at.brand]] as const) {
               expect.soft(b, `${where}: ${what}`).not.toBeNull();
               if (!b) continue;
               expect.soft(b.top, `${where}: ${what} above the screen`).toBeGreaterThanOrEqual(-0.5);
@@ -229,7 +231,9 @@ test.describe("level selection", () => {
     }
   });
 
-  test("a scroll position the player chose is kept across re-renders and a language change", async ({ page }) => {
+  // A language change was the second case until 2026-10-26: the levels page has had no language switch since 8992211
+  // (the language is chosen on the continents and in a level), so the player can't change it here.
+  test("a scroll position the player chose is kept across re-renders", async ({ page }) => {
     test.skip(project() !== "small-phone" && project() !== "webkit-phone", "Phones.");
     await page.setViewportSize({ width: 320, height: 568 });
     for (const size of [100, 200]) {
@@ -242,7 +246,7 @@ test.describe("level selection", () => {
       await list.evaluate((el) => el.scrollTo(0, 30));
       const stacked = () => page.locator("[data-level-head][data-stacked]").count();
       const before = await stacked();
-      // A re-render (a card opened and closed) and a language change keep it.
+      // A re-render (a card opened and closed) keeps it.
       // Clicked in the page, so the test itself doesn't scroll the toggle into view.
       const toggle = page.getByTestId("level-western-europe-1").getByTestId("level-details-toggle");
       await toggle.evaluate((el: HTMLElement) => el.click());
@@ -251,14 +255,9 @@ test.describe("level selection", () => {
       await expect(toggle).toHaveAttribute("aria-expanded", "false");
       expect(await list.evaluate((el) => el.scrollTop), where).toBe(30);
       expect(await stacked(), `${where}: a re-render changed the cards' layout`).toBe(before);
-      await page.getByRole("button", { name: "Հայերեն", exact: true }).first().evaluate((el: HTMLElement) => el.click());
-      await expect(page.getByTestId("level-status").first()).toHaveText("Ավարտված է");
-      await fontsSettled(page);
-      expect(await list.evaluate((el) => el.scrollTop), where).toBe(30);
       expect(await page.evaluate(() => document.scrollingElement!.scrollTop), `${where}: the page scrolled`).toBe(0);
-      await page.getByRole("button", { name: "English", exact: true }).first().evaluate((el: HTMLElement) => el.click());
-      await fontsSettled(page);
-      expect(await list.evaluate((el) => el.scrollTop), where).toBe(30);
+      // No language switch on this page to change it with.
+      await expect(page.getByRole("button", { name: "Հայերեն", exact: true })).toHaveCount(0);
       await textSize(page, 100);
     }
   });
@@ -267,12 +266,20 @@ test.describe("level selection", () => {
     test.skip(project() !== "small-phone" && project() !== "webkit-phone", "Phones.");
     await page.setViewportSize({ width: 320, height: 568 });
     // On the continents (the home screen): the world map scrolls with the continents' names, under the
-    // header with the name, tagline and language, and starts at the top, wholly in view.
+    // header with the name, tagline and language. The page starts at the top with the Quick Challenge first, above the
+    // world map (9e865b4; until 2026-10-26 this expected the map wholly in view on arrival), and the map is whole in
+    // view once scrolled to, the header still on screen.
     await save(page, {}, { screen: "continents" });
     expect(await page.evaluate(() => document.querySelector('[data-testid="continents-scroll"]')!.contains(document.querySelector('[data-testid="world-map"]')))).toBe(true);
-    await expect(page.getByTestId("world-map")).toBeInViewport({ ratio: 1 });
     expect(await page.getByTestId("continents-scroll").evaluate((el) => el.scrollTop)).toBe(0);
+    await expect(page.getByTestId("quick-challenge")).toBeInViewport();
+    const [challenge, map] = [(await page.getByTestId("quick-challenge").boundingBox())!, (await page.getByTestId("world-map").boundingBox())!];
+    expect(challenge.y + challenge.height, "the Quick Challenge above the world map").toBeLessThanOrEqual(map.y + 0.5);
     await shot(page, "welcome-new-en-text100");
+    await page.getByTestId("world-map").evaluate((el) => el.scrollIntoView({ block: "nearest" }));
+    await expect(page.getByTestId("world-map")).toBeInViewport({ ratio: 1 });
+    await expect(page.getByTestId("welcome-hero")).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.scrollingElement!.scrollTop), "the page itself scrolled").toBe(0);
   });
 });
 
@@ -453,12 +460,16 @@ async function cardsUnreachable(page: Page) {
   });
 }
 
-/** The header (brand and language) and the main action on screen around the list; the page itself not scrolled. */
+/**
+ * The header (Back to continents; no language switch since 8992211, checked for one until 2026-10-26) and the main
+ * action on screen around the list; the page itself not scrolled.
+ */
 async function expectFrame(page: Page, where: string) {
   const at = await welcomeLayout(page);
   expect.soft(at.pageScroll, `${where}: the page scrolled`).toBe(0);
   expect.soft(await page.evaluate(() => document.scrollingElement!.scrollHeight - window.innerHeight), `${where}: the page itself can scroll`).toBeLessThanOrEqual(0);
-  for (const [what, b] of [["brand", at.brand], ["language switch", at.toggle]] as const) {
+  expect.soft(at.toggle, `${where}: a language switch in the header`).toBeNull();
+  for (const [what, b] of [["brand", at.brand]] as const) {
     expect.soft(!!b && b.top >= -0.5 && b.bottom <= at.scroll.top + 0.5, `${where}: ${what} not whole above the list`).toBe(true);
   }
   if (at.action) {
@@ -641,7 +652,8 @@ test.describe("fonts", () => {
         await shot(page, `cards-no-fonts-${locale}-text${size}`);
         await openTravel(page, L1, ["FRA", "BEL"], locale);
         await textSize(page, size);
-        await expectNeighboursClear(page, `${where}, Travel in Belgium`, ["FRA", "NLD", "LUX", "DEU"]);
+        // France, the start, is not offered again (1ae32c7: no country is entered twice; expected until 2026-10-26).
+        await expectNeighboursClear(page, `${where}, Travel in Belgium`, ["NLD", "LUX", "DEU"]);
         await expectTravelReachable(page, `${where}, Travel in Belgium`);
         await page.locator('[aria-labelledby="neighbors-heading"]').evaluate((el) => el.scrollIntoView({ block: "center" }));
         await shot(page, `travel-belgium-no-fonts-${locale}-text${size}`);

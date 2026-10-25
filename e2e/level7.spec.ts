@@ -984,7 +984,10 @@ test("Level 7 at phone and desktop sizes: every card, unanswered Find, Travel an
       const tools = (await page.getByTestId("travel-tools").boundingBox())!;
       const p = (await panel.boundingBox())!;
       expect(tools.y + tools.height, `${width}×${height} ${locale} Travel 200%: tools under the panel`).toBeLessThanOrEqual(Math.min(p.y + p.height, height) + 0.5);
-      for (const id of ["AND", "FRA", "PRT"]) await expect(page.getByTestId(`move-${id}`)).toBeAttached();
+      // Andorra and France; Portugal, the start, is never offered again (1ae32c7: no country is entered twice), so it
+      // has no card (expected one until 2026-10-26).
+      for (const id of ["AND", "FRA"]) await expect(page.getByTestId(`move-${id}`)).toBeAttached();
+      await expect(page.getByTestId("move-PRT")).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await shot(page, `${locale}-travel-text200`);
       await textSize(page, 100);

@@ -287,8 +287,10 @@ async function expectFindSpoilerFree(page: Page, target: string) {
     return byCountry;
   }, L10_COUNTRIES);
   for (const id of L10_COUNTRIES) expect(styling[id], `${id} styled differently from the target ${target}`).toBe(styling[target]);
-  // The close-up names no country while Find asks.
-  await expect(page.getByTestId("inset-title")).not.toContainText(/Denmark|Դանիա/);
+  // The close-up names no country while Find asks, open (wide maps) or closed (phones: it opens by itself only in
+  // Discover, RegionMap's rule since 2c03b7f). Until 2026-10-26 this assumed it open, and failed on phones.
+  await expect(page.getByTestId("inset-title").filter({ hasText: /Denmark|Դանիա/ })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: /Denmark|Դանիա/ })).toHaveCount(0);
 }
 
 /** The country shapes against the map's edges, and whether the painted overview covers the whole map. */
@@ -695,7 +697,10 @@ test("Level 10 at 320×568 with 200% text: the five whole; the selected and the 
     await openLevel10(page, discoverAt("DNK"), locale);
     await expect(page.getByTestId("inset-toggle")).toHaveAttribute("aria-expanded", "false");
     await openCloseUp(page);
-    await expect(page.getByTestId("inset-title")).toContainText(locale === "en" ? "Denmark" : "Դանիա");
+    // Its caption is "Close-up" (map.insetCaption, unchanged since 2c03b7f); Denmark is named in the close-up's
+    // accessible name. Until 2026-10-26 this expected the caption to name Denmark.
+    await expect(page.getByTestId("inset-title")).toHaveText(locale === "en" ? "Close-up" : "Խոշորացում");
+    await expect(page.getByTestId("map-inset")).toHaveAttribute("aria-label", locale === "en" ? "Close-up: Denmark and surroundings" : "Մոտիկից՝ Դանիան և շրջակայքը");
     // Travel: the traveller's country named, in Sweden and (after the wrong turn) in Norway.
     for (const path of [
       ["DNK", "SWE"],

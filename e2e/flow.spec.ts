@@ -103,20 +103,26 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(0);
 }
 
-/** Luxembourg's callout stays inside the map and never covers the zoom buttons or marker names. */
+/**
+ * Every callout stays inside the map and never covers the zoom buttons or marker names. Luxembourg's was the only
+ * one until names that don't fit inside their country moved to callouts too (6a9223a: Belgium's and the
+ * Netherlands' on phones); until 2026-10-26 this checked a single callout, and failed with more than one.
+ */
 async function expectCalloutClear(page: Page) {
-  const callout = page.locator('[data-testid="map-main"] [data-callout] rect');
-  if ((await callout.count()) === 0) return;
-  const box = (await callout.boundingBox())!;
   const map = (await page.getByTestId("map-main").boundingBox())!;
-  expect(box.x).toBeGreaterThanOrEqual(map.x);
-  expect(box.x + box.width).toBeLessThanOrEqual(map.x + map.width);
-  const overlaps = (b: { x: number; y: number; width: number; height: number }) =>
-    box.x < b.x + b.width && b.x < box.x + box.width && box.y < b.y + b.height && b.y < box.y + box.height;
-  expect(overlaps((await page.getByTestId("map-controls").boundingBox())!), "callout covers the zoom controls").toBe(false);
-  // Nor capital/landmark names such as Paris.
-  for (const text of await page.locator('[data-testid="map-main"] [data-marker-text]').all()) {
-    expect(overlaps((await text.boundingBox())!), `callout covers "${await text.textContent()}"`).toBe(false);
+  const controls = (await page.getByTestId("map-controls").boundingBox())!;
+  for (const callout of await page.locator('[data-testid="map-main"] [data-callout]').all()) {
+    const id = await callout.getAttribute("data-callout");
+    const box = (await callout.locator("rect").boundingBox())!;
+    expect(box.x, `${id}'s callout`).toBeGreaterThanOrEqual(map.x);
+    expect(box.x + box.width, `${id}'s callout`).toBeLessThanOrEqual(map.x + map.width);
+    const overlaps = (b: { x: number; y: number; width: number; height: number }) =>
+      box.x < b.x + b.width && b.x < box.x + box.width && box.y < b.y + b.height && b.y < box.y + box.height;
+    expect(overlaps(controls), `${id}'s callout covers the zoom controls`).toBe(false);
+    // Nor capital/landmark names such as Paris.
+    for (const text of await page.locator('[data-testid="map-main"] [data-marker-text]').all()) {
+      expect(overlaps((await text.boundingBox())!), `${id}'s callout covers "${await text.textContent()}"`).toBe(false);
+    }
   }
 }
 
@@ -167,14 +173,15 @@ test("complete lesson flow", async ({ page }) => {
   await page.reload();
 
   // --- Welcome -----------------------------------------------------------
-  await expect(page.getByRole("heading", { name: "AriMap" })).toBeVisible();
+  // Exact since 2026-10-26: the analytics consent panel's heading, "Help improve AriMap" (3f2dba0), contains it too.
+  await expect(page.getByRole("heading", { name: "AriMap", exact: true })).toBeVisible();
   await expect(page.getByText("Discover the world.")).toBeVisible();
   await expect(page).toHaveTitle("AriMap — Discover the world.");
   await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
   await shot(page, "welcome-en");
   await setLanguage(page, "Հայերեն");
-  await expect(page.getByRole("heading", { name: "ԱրիՄապ" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "ԱրիՄապ", exact: true })).toBeVisible();
   await expect(page.getByText("Բացահայտիր աշխարհը")).toBeVisible();
   await expect(page).toHaveTitle("ԱրիՄապ — Բացահայտիր աշխարհը");
   await shot(page, "welcome-hy");
@@ -659,8 +666,15 @@ test("Luxembourg's name stays close to Luxembourg on a 320px map", async ({ page
       await expectMapTextClear(page);
     }
   }
-  // A close-up the player closed stays closed while they keep exploring.
+  // A close-up the player closed stays closed while they keep exploring. With Belgium selected it no longer opens by
+  // itself: RegionMap opens it in Discover only when a name has no clear spot (its rule since 2c03b7f), and Luxembourg's
+  // callout now finds one on the main map at 320×568 with every selection (the label layout has changed since; this
+  // expected it open until 2026-10-26). The player opens it, then closes it.
   await writeSave(page, lesson("BEL"));
+  await expect(page.locator('[data-testid="map-main"] path[data-country="FRA"]')).toBeVisible();
+  await expect(page.getByTestId("map-inset")).toHaveCount(0);
+  expect((await luxLabel()).main, "Luxembourg named on the main map").toBe(true);
+  await page.getByTestId("inset-toggle").click();
   await expect(page.getByTestId("map-inset")).toHaveCount(1);
   await page.getByTestId("inset-toggle").click();
   await expect(page.getByTestId("map-inset")).toHaveCount(0);
@@ -839,6 +853,7 @@ test("malformed saved data falls back safely", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "hy");
   await expect(page.getByRole("heading", { name: "Հպիր երկրին՝ դրա մասին իմանալու համար։" })).toBeVisible();
   await writeSave(page, "garbage{");
-  await expect(page.getByRole("heading", { name: "AriMap" })).toBeVisible();
+  // Exact since 2026-10-26: the consent panel's "Help improve AriMap" (3f2dba0) contains the name too.
+  await expect(page.getByRole("heading", { name: "AriMap", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
