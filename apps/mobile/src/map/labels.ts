@@ -95,7 +95,17 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
       const dx = b.x0 < 2 ? 2 - b.x0 : b.x1 > vw - 2 ? vw - 2 - b.x1 : 0;
       return { x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0, y1: b.y1 };
     });
-    const box = shifted.find((b) => !taken.some((t) => overlaps(b, t))) ?? shifted[0];
+    // Then, where every height is blocked (the map's buttons are taller than the names' moves), slid sideways just
+    // clear of what is in the way, by at most half the name, so it stays over its country.
+    const slid = shifted.flatMap((b) =>
+      taken
+        .filter((t) => overlaps(b, t))
+        .flatMap((t) => [t.x0 - 2 - b.x1, t.x1 + 2 - b.x0])
+        .filter((dx) => Math.abs(dx) <= textW / 2)
+        .map((dx) => ({ x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0, y1: b.y1 }))
+        .filter((s) => inside(s, vw, vh)),
+    );
+    const box = [...shifted, ...slid].find((b) => !taken.some((t) => overlaps(b, t))) ?? shifted[0];
     taken.push(box);
     placed.push({ id: r.id, at: [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2], box, callout: null });
   }

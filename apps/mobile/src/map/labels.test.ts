@@ -19,6 +19,14 @@ describe("country names on the lesson map", () => {
     expect(overlap(labels[0].box, labels[1].box)).toBe(false);
   });
 
+  it("slide sideways off the map's buttons where moving up or down cannot clear them", () => {
+    const buttons = { x0: 250, y0: 10, x1: 296, y1: 190 };
+    const [label] = placeLabels([request("Գերմանիա", [230, 100])], [buttons], viewport, 17);
+    expect(overlap(label.box, buttons)).toBe(false);
+    expect(label.at[1]).toBe(100);
+    expect(Math.abs(label.at[0] - 230)).toBeLessThanOrEqual(textWidth("Գերմանիա", 17) / 2);
+  });
+
   it("stay on the map near its edge", () => {
     const [label] = placeLabels([request("Netherlands", [3, 100])], [], viewport);
     expect(label.box.x0).toBeGreaterThanOrEqual(0);
