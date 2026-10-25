@@ -6,7 +6,8 @@ import type { CountryId } from "../content/types";
  *
  * Fair by construction: every ring country (europe.ts, RING_COUNTRIES) has a ring whenever it is drawn smaller
  * than one, in every round and whatever is asked, so a ring never points to the answer; and a ring is visible,
- * so no country is silently enlarged. See docs/DATA.md, "Small-country rings".
+ * so no country is silently enlarged. A ring that would cover an asked neighbour is drawn beside its country, with
+ * a leader (RING_OFFSETS). See docs/DATA.md, "Small-country rings".
  */
 
 /** A ring's radius on screen, in CSS pixels: 24 px across, the smallest target WCAG 2.2 asks for (2.5.8). */
@@ -25,6 +26,22 @@ export interface Ring {
   /** The ring's centre, in screen pixels. */
   x: number;
   y: number;
+  /** The country's point, where the ring is drawn beside it (RING_OFFSETS in europe.ts): a leader joins the two. */
+  from?: { x: number; y: number };
+}
+
+/** Country `id`'s ring, for its point at (x, y) on screen: on the point, or `offset` pixels off it (RING_OFFSETS). */
+export function placeRing(id: CountryId, x: number, y: number, offset?: readonly [number, number]): Ring {
+  return offset ? { id, x: x + offset[0], y: y + offset[1], from: { x, y } } : { id, x, y };
+}
+
+/** A ring's leader, from its country's point to the ring's edge, or null for a ring on its point. */
+export function ringLeader(ring: Ring, radius = RING_RADIUS): { x1: number; y1: number; x2: number; y2: number } | null {
+  if (!ring.from) return null;
+  const [dx, dy] = [ring.x - ring.from.x, ring.y - ring.from.y];
+  const length = Math.hypot(dx, dy);
+  if (length <= radius) return null;
+  return { x1: ring.from.x, y1: ring.from.y, x2: ring.x - (dx / length) * radius, y2: ring.y - (dy / length) * radius };
 }
 
 /**

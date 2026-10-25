@@ -4,8 +4,8 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "rea
 import { select } from "d3-selection";
 import "d3-transition";
 import { zoom as d3zoom, zoomIdentity, type ZoomBehavior } from "d3-zoom";
-import { RING_COUNTRIES } from "@/core/challenge/europe";
-import { RING_RADIUS, ringAt, ringShown, type Ring } from "@/core/challenge/smallCountries";
+import { RING_COUNTRIES, RING_OFFSETS } from "@/core/challenge/europe";
+import { placeRing, RING_RADIUS, ringAt, ringLeader, ringShown, type Ring } from "@/core/challenge/smallCountries";
 import { COUNTRIES } from "@/core/content/countries";
 import type { CountryId, LonLat } from "@/core/content/types";
 import type { CountryTone } from "@/core/lesson/mapView";
@@ -130,12 +130,12 @@ function countryAtPoint(layer: SVGSVGElement | null, rings: readonly Ring[], sha
   return found;
 }
 
-/** The small-country rings of a view: every ring country of the pool drawn smaller than a ring, at its point, in RING_COUNTRIES' order. */
+/** The small-country rings of a view: every ring country of the pool drawn smaller than a ring, at its point (or beside it: RING_OFFSETS), in RING_COUNTRIES' order. */
 function ringsFor(map: ChallengeMapData, pool: readonly CountryId[], view: Transform): Ring[] {
   return Object.entries(RING_COUNTRIES).flatMap(([id, point]) => {
     if (!pool.includes(id) || !ringShown((map.areas.get(id) ?? 0) * view.k * view.k)) return [];
     const [x, y] = applyTransform(view, map.project(point));
-    return [{ id, x, y }];
+    return [placeRing(id, x, y, RING_OFFSETS[id])];
   });
 }
 
@@ -483,18 +483,33 @@ function LoadedMap({ pool, tones, names, focus, onTap, onReady, viewKey, aboutKe
   );
 }
 
-/** The small-country rings: a dashed ring on a white halo each, in its feedback or review colour once it has one. */
+/**
+ * The small-country rings: a dashed ring on a white halo each, in its feedback or review colour once it has one; a ring
+ * beside its country (RING_OFFSETS) has a leader to it, as a name's.
+ */
 function RingMarks({ rings, tones }: { rings: readonly Ring[]; tones?: Readonly<Partial<Record<CountryId, ChallengeTone>>> }) {
   return (
     <>
       {rings.map((ring) => (
         <g key={ring.id}>
+          <RingLeader ring={ring} />
           <circle cx={ring.x} cy={ring.y} r={RING_RADIUS} className={styles.ringHalo} />
           {/* pathLength: the dashes (.ring's stroke-dasharray, in its units) go evenly round the circle. */}
           <circle cx={ring.x} cy={ring.y} r={RING_RADIUS} pathLength={RING_DASHES} className={styles.ring} data-ring={ring.id} data-tone={tones?.[ring.id]} />
         </g>
       ))}
     </>
+  );
+}
+
+function RingLeader({ ring }: { ring: Ring }) {
+  const leader = ringLeader(ring);
+  if (!leader) return null;
+  return (
+    <g className={styles.leader}>
+      <line {...leader} className={styles.leaderHalo} />
+      <line {...leader} />
+    </g>
   );
 }
 

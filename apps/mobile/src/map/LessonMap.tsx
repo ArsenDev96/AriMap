@@ -16,6 +16,7 @@ import { isBase, mapPadding, toScreen, toWorld, zoomTo, type CameraLimits } from
 import { BADGE_SIZE, LABEL_FONT, placeLabels, textWidth, type Box, type LabelRequest } from "./labels";
 import { controlsBox, MapControls } from "./MapControls";
 import { countryAt, ringsFor } from "./pick";
+import { RingMark } from "./RingMark";
 import { useMapGesture } from "./useMapGesture";
 
 interface Props {
@@ -48,8 +49,6 @@ const MARK_BOX = { x0: -7, y0: -7, x1: 7, y1: 7 };
 const FLASH_MS = 900;
 /** Room each side of a callout's name within its pill, past its box. */
 const PILL_PAD = 4;
-/** A ring's dashes and gaps, evenly round it (the Quick Challenge's twelve). */
-const RING_DASH = (2 * Math.PI * RING_RADIUS) / 24;
 
 /**
  * A level's map in play: the website's shapes (src/geo/regionMap.ts) drawn with react-native-svg, marked as the game
@@ -214,21 +213,7 @@ function MapDrawing({ lesson, map, view, active, camera, size, rings, keepClear,
       </G>
       {rings.map((ring) => {
         const tone = view.tones[ring.id];
-        return (
-          <G key={`ring-${ring.id}`}>
-            <Circle cx={ring.x} cy={ring.y} r={RING_RADIUS} fill="none" stroke={mapColors.ringHalo} strokeWidth={3.5} />
-            <Circle
-              cx={ring.x}
-              cy={ring.y}
-              r={RING_RADIUS}
-              fill={tone && tone !== "default" ? TONE_FILL[tone] : mapColors.ringFill}
-              fillOpacity={tone && tone !== "default" ? 0.6 : 1}
-              stroke={colors.ink}
-              strokeWidth={1.25}
-              strokeDasharray={`${RING_DASH} ${RING_DASH}`}
-            />
-          </G>
-        );
+        return <RingMark key={`ring-${ring.id}`} ring={ring} fill={tone && tone !== "default" ? TONE_FILL[tone] : undefined} />;
       })}
       {area && <Circle cx={area.cx} cy={area.cy} r={area.r} fill={mapColors.hintFill} stroke={mapColors.amberDark} strokeWidth={2.5} strokeDasharray="8 6" />}
       {route.length > 1 && (

@@ -51,3 +51,16 @@ export const RING_COUNTRIES: Readonly<Record<CountryId, LonLat>> = {
   LUX: [6.1, 49.78],
   AND: [1.56, 42.54],
 };
+
+/**
+ * Rings drawn beside their country rather than on it (screen pixels from its point, with a leader back to it), where a
+ * ring on the point would cover a neighbour that is asked too: Luxembourg's, on its point, covered most of Belgium at
+ * the start view (a phone left Belgium about 60 px² to tap, a sliver 5 px wide; 2026-10-25). East of it, a press in
+ * the ring falls on Germany, France or Luxembourg itself, never Belgium or another asked country, on phones and
+ * desktops at every zoom it shows at (smallCountries.test.ts; its white halo just touches Belgium's, Czechia's and
+ * Switzerland's edges on the smallest phones, where a press answers the country under it). Andorra's stays on its
+ * point, between Spain and France.
+ */
+export const RING_OFFSETS: Readonly<Record<CountryId, readonly [number, number]>> = {
+  LUX: [13, 1],
+};

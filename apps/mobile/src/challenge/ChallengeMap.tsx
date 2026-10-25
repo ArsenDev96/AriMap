@@ -14,6 +14,7 @@ import { toScreen, toWorld, type CameraLimits } from "../map/camera";
 import { LABEL_FONT, placeLabels, type Box, type LabelRequest } from "../map/labels";
 import { controlsBox, MapControls } from "../map/MapControls";
 import { countryAt, ringsFor } from "../map/pick";
+import { RingMark } from "../map/RingMark";
 import { useMapGesture } from "../map/useMapGesture";
 import { colors, mapColors, radius, space, type } from "../theme/tokens";
 
@@ -28,8 +29,6 @@ const TONE_FILL: Record<ChallengeTone, string> = {
 
 /** As far in as the website's challenge map zooms, relative to the start view. */
 const MAX_ZOOM = 6;
-/** A ring's dashes and gaps, evenly round it (the website's twelve). */
-const RING_DASH = (2 * Math.PI * RING_RADIUS) / 24;
 
 interface Props {
   map: ChallengeMapData | null;
@@ -182,21 +181,7 @@ function Drawing({ map, pool, tones, names, focus, camera, size, rings, keepClea
       </G>
       {rings.map((ring) => {
         const tone = tones[ring.id];
-        return (
-          <G key={`ring-${ring.id}`}>
-            <Circle cx={ring.x} cy={ring.y} r={RING_RADIUS} fill="none" stroke={mapColors.ringHalo} strokeWidth={3.5} />
-            <Circle
-              cx={ring.x}
-              cy={ring.y}
-              r={RING_RADIUS}
-              fill={tone ? TONE_FILL[tone] : mapColors.ringFill}
-              fillOpacity={tone ? 0.6 : 1}
-              stroke={colors.ink}
-              strokeWidth={ring.id === focus ? 2.5 : 1.25}
-              strokeDasharray={`${RING_DASH} ${RING_DASH}`}
-            />
-          </G>
-        );
+        return <RingMark key={`ring-${ring.id}`} ring={ring} fill={tone && TONE_FILL[tone]} strong={ring.id === focus} />;
       })}
       {labels.map((label) => {
         const text = name(label.id);
