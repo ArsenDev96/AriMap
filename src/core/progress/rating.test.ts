@@ -196,7 +196,7 @@ describe("star ratings: one rule for every level", () => {
     expect([at(s, L1).records.bestRating, at(s, L2).records.bestRating]).toEqual([3, 1]);
     s = attempt(run(s, restart(L2)), { firstTry: 4 });
     expect([at(s, L1).records.bestRating, at(s, L2).records.bestRating, s.newBest]).toEqual([3, 2, L2]);
-    expect(continentProgress(s, "europe")).toEqual({ total: 10, completed: 2 });
+    expect(continentProgress(s, "europe")).toEqual({ total: 12, completed: 2 });
     expect(levelStatus(s, getLevel("central-europe")!).kind).toBe("ready");
   });
 });

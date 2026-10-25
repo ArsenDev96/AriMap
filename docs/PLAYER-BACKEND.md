@@ -229,7 +229,7 @@ decides: the server.
 - **All 36 stars**: when the challenge opens, a device whose saved lessons hold all 36 stars claims the one-time +2
   bonus attempts (once; the server refuses a second). With no attempts left (today's free one used, no saved ones),
   the challenge shows when the next free attempt comes and, while the reward is still to be earned, that path: the
-  stars still missing and Explore Europe lessons. There are no ads and no practice rounds.
+  stars still missing and Explore Europe levels. There are no ads and no practice rounds.
 
 ### Applying the rounds migration
 

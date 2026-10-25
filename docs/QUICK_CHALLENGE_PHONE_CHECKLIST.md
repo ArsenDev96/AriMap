@@ -41,7 +41,7 @@ After zooming in:
 ## 4. The 60-second deadline
 
 - [ ] The timer starts at 60 and turns red for the last 10 seconds. When it runs out mid-question, "Time's up!" shows, with the questions not reached counted as Unanswered.
-- [ ] Open **About the map** (the **i** on the map) during a round: it opens at its top, its title first, and the time keeps running behind it. **Leave it open past the deadline**: it closes by itself, the results show, and Play again, Review on the map, Explore Europe lessons and Home all respond.
+- [ ] Open **About the map** (the **i** on the map) during a round: it opens at its top, its title first, and the time keeps running behind it. **Leave it open past the deadline**: it closes by itself, the results show, and Play again, Review on the map, Explore Europe levels and Home all respond.
 - [ ] During a round, close About the map with Close, a tap outside it, and (Android) the back gesture: back to the same question, the time still running.
 - [ ] Lock the phone or switch apps for about 20 s mid-round: on return the timer has counted that time (no time is gained).
 - [ ] **Home** during a round asks "Leave the challenge?", its seconds still counting; staying returns to the round.

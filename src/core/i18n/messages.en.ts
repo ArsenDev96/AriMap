@@ -44,7 +44,7 @@ export const en = {
   "consent.summary": "Allow Google Analytics cookies to help us understand how the game is used. Analytics stays off until you accept. Your choice won’t affect gameplay.",
   "consent.more": "Learn more",
   "consent.text":
-    "With your permission, AriMap uses Google Analytics to learn how the game is used: screens opened, lessons and Quick Challenges started and finished (with scores and times), the leaderboard opened and results shared. Google also receives your IP address and device and browser details, and sets cookies that recognise this browser. Your name, email and answers are never sent. Nothing is sent unless you accept, and the game works the same either way.",
+    "With your permission, AriMap uses Google Analytics to learn how the game is used: screens opened, levels and Quick Challenges started and finished (with scores and times), the leaderboard opened and results shared. Google also receives your IP address and device and browser details, and sets cookies that recognise this browser. Your name, email and answers are never sent. Nothing is sent unless you accept, and the game works the same either way.",
   "consent.change": "You can change your choice at any time with “Privacy & analytics” at the foot of the home screen.",
   "consent.granted": "Analytics is on.",
   "consent.denied": "Analytics is off.",
@@ -83,7 +83,7 @@ export const en = {
   "challengeGame.starting": "Starting…",
   "challengeGame.startFailed": "The round couldn't start. Check your connection and try again.",
   "challengeGame.reconnecting": "Reconnecting… Your answers count if they reach us before the time runs out.",
-  "challengeGame.starsReward": "You collected all 36 stars in the Europe lessons: +2 bonus attempts!",
+  "challengeGame.starsReward": "You collected all 36 stars in the Europe levels: +2 bonus attempts!",
 
   "challengeAttempts.dailyReady": "Your free daily attempt is ready.",
   "challengeAttempts.dailyUsed": "Your free daily attempt is used. The next one comes {when}.",
@@ -92,7 +92,7 @@ export const en = {
   "challengeAttempts.tomorrow": "tomorrow at {time}",
   "challengeAttempts.noneTitle": "No attempts left",
   "challengeAttempts.nextDaily": "Your next free attempt comes {when}.",
-  "challengeAttempts.earnStars": "Collect all 36 stars in the 12 Europe lessons to get 2 bonus attempts. You have {stars} of 36.",
+  "challengeAttempts.earnStars": "Collect all 36 stars in the 12 Europe levels to get 2 bonus attempts. You have {stars} of 36.",
 
   "challengeName.title": "Your name for the leaderboard",
   "challengeName.text": "Your nickname will appear on the leaderboard.",
@@ -141,7 +141,7 @@ export const en = {
   "challengeResults.wasSkipped": "Skipped",
   "challengeResults.notReached": "Not reached in time",
   "challengeResults.review": "Review on the map",
-  "challengeResults.lessons": "Explore Europe lessons",
+  "challengeResults.lessons": "Explore Europe levels",
   "challengeResults.home": "Back to home",
 
   "challengeShare.button": "Share result",

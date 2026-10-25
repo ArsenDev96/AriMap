@@ -377,7 +377,7 @@ setting it forward only costs the player.
 challenge, its rules, the practice note and Start, under the map. The round: the question, score and seconds left
 (kept in view), the country to find, the last answer's feedback in words with an icon (Correct, Incorrect, Skipped:
 ✓ ✗ ↷), and Skip. Results: time's up or complete, the score of 15, the time used (a completed round), the counts,
-Share result, Play again, Review on the map, Explore Europe lessons, then the countries to practise, each with what was
+Share result, Play again, Review on the map, Explore Europe levels, then the countries to practise, each with what was
 chosen (or skipped, or not reached) and a link to the first level that teaches it (every country the challenge asks
 has one), and Back to home. The review: each of the round's countries, found or missed, zoomed to and outlined on the
 map. Back during a round asks first ("Keep playing", the default, or "Leave"); leaving an ended round clears it.

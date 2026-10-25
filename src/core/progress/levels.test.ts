@@ -331,8 +331,8 @@ describe("continents", () => {
         else expect(levels.slice(0, i).map((l) => l.id), level.id).toContain(level.unlockedBy);
       });
     }
-    // Each level follows the one before it: Level 10 follows Level 9.
-    expect(levelsOf("europe").map((l) => l.unlockedBy ?? null)).toEqual([null, L1, L2, L3, L4, L5, L6, L7, L8, L9]);
+    // Each level follows the one before it: Level 12 follows Level 11 (Levels 11 and 12 were added after this check).
+    expect(levelsOf("europe").map((l) => l.unlockedBy ?? null)).toEqual([null, L1, L2, L3, L4, L5, L6, L7, L8, L9, L10, L11]);
   });
 
   it("navigates continents → a continent's levels → a level, and Home and Back return to the continents", () => {
@@ -2066,9 +2066,12 @@ describe("Level 11: Across the Channel", () => {
     expect(availableMoves(s.levels[L11].travel!, channel.borders)).toEqual([]);
     // Undo is help: the third star is missed.
     expect(s.levels[L11].records.bestRating).toBe(2);
-    // Replayed without help: three stars, the best kept.
+    // Replayed without help: the journey is without help, but a journey replay is never rated (rating.ts, "Replay journey
+    // never changes the rating" in rating.test.ts), so the best stays at 2; a whole attempt without help gives 3.
     s = run(s, play({ type: "replayTravel" }), play({ type: "travelMove", country: "FRA" }), play({ type: "travelMove", country: "GBR" }));
     expect(s.levels[L11].lastTravelResult).toMatchObject({ route: ["DEU", "FRA", "GBR"], independent: true });
+    expect(refresh(s).levels[L11].records.bestRating).toBe(2);
+    s = complete(run(s, restart(L11)), ["DEU", "FRA", "GBR"]);
     expect(refresh(s).levels[L11].records.bestRating).toBe(3);
     // No dead end: from every country of a route within the crossings, a move is left until they run out.
     for (const route of [["DEU"], ["DEU", "FRA"], ["DEU", "BEL"], ["DEU", "LUX"]]) {
@@ -2256,9 +2259,12 @@ describe("Level 12: Russia and its western neighbours", () => {
     expect(s.levels[L12].travel).toMatchObject({ status: "arrived" });
     // Undo is help: the third star is missed.
     expect(s.levels[L12].records.bestRating).toBe(2);
-    // Replayed without help, through Russia: three stars, the best kept.
+    // Replayed without help, through Russia: the journey is without help, but a journey replay is never rated (rating.ts),
+    // so the best stays at 2; a whole attempt without help gives 3.
     s = run(s, play({ type: "replayTravel" }), play({ type: "travelMove", country: "RUS" }), play({ type: "travelMove", country: "BLR" }));
     expect(s.levels[L12].lastTravelResult).toMatchObject({ route: ["EST", "RUS", "BLR"], independent: true });
+    expect(refresh(s).levels[L12].records.bestRating).toBe(2);
+    s = complete(run(s, restart(L12)), ["EST", "RUS", "BLR"]);
     expect(refresh(s).levels[L12].records.bestRating).toBe(3);
     // No dead end: from every country of a route within the crossings, a move is left until they run out.
     for (const route of [["EST"], ["EST", "LVA"], ["EST", "RUS"]]) {
