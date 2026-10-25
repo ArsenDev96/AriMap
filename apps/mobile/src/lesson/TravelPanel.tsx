@@ -1,8 +1,10 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { crossingsLeft, currentCountry, isAssisted, isDeadEnd, travelChoices } from "@/core/game/travel";
 import { Button } from "../components/Button";
 import { useI18n } from "../i18n/i18n";
+import { longestWordWidth } from "../theme/textWidth";
 import { colors, mapColors, radius, space, TAP, type } from "../theme/tokens";
 import { Panel, type PanelProps } from "./Panel";
 
@@ -13,12 +15,19 @@ import { Panel, type PanelProps } from "./Panel";
  */
 export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: PanelProps & { hintVisible: boolean; onHint: () => void }) {
   const { t, tp, l, name, countryParams } = useI18n();
+  const { fontScale } = useWindowDimensions();
+  const [cardsWidth, setCardsWidth] = useState(0);
   const attempt = progress.travel;
   if (!attempt) return null;
 
   const left = crossingsLeft(attempt);
   const here = currentCountry(attempt);
   const moves = travelChoices(attempt, lesson.borders, lesson.travel.nonNeighbourOptions).map((c) => c.country);
+  // Two cards a row, unless a name's longest word wouldn't fit one (large text, a narrow phone, Armenian): then one,
+  // so no word is broken.
+  const longestWord = longestWordWidth(moves.map(name), type.bodyStrong.fontSize * fontScale);
+  const halfText = (cardsWidth - space.sm) / 2 - 2 * space.lg - 2 * CARD_BORDER - ARROW - space.sm;
+  const oneColumn = cardsWidth > 0 && longestWord > halfText;
   const notice = progress.travelNotice;
   const deadEnd = isDeadEnd(attempt, lesson.borders);
   const stuck = attempt.status === "outOfCrossings" || deadEnd;
@@ -75,17 +84,17 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Pane
           <Text style={styles.chooseLabel} accessibilityRole="header">
             {t("travel.choose")}
           </Text>
-          <View style={styles.neighbors}>
+          <View style={[styles.neighbors, oneColumn && styles.neighborsColumn]} onLayout={(e: LayoutChangeEvent) => setCardsWidth(e.nativeEvent.layout.width)}>
             {moves.map((id) => (
               <Pressable
                 key={id}
                 accessibilityRole="button"
                 accessibilityLabel={name(id)}
                 onPress={() => act({ type: "travelMove", country: id })}
-                style={({ pressed }) => [styles.neighbor, pressed && styles.neighborPressed]}
+                style={({ pressed }) => [styles.neighbor, oneColumn && styles.neighborWide, pressed && styles.neighborPressed]}
               >
                 <Text style={styles.neighborLabel}>{name(id)}</Text>
-                <Svg width={20} height={20} viewBox="0 0 24 24">
+                <Svg width={ARROW} height={ARROW} viewBox="0 0 24 24">
                   <Path d="M5 12h13M13 6.5 18.5 12 13 17.5" fill="none" stroke={colors.ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
                 </Svg>
               </Pressable>
@@ -105,6 +114,9 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Pane
     </Panel>
   );
 }
+
+const CARD_BORDER = 2;
+const ARROW = 20;
 
 const styles = StyleSheet.create({
   heading: { gap: space.xs },
@@ -142,10 +154,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.lg,
     paddingVertical: space.sm,
     borderRadius: radius.sm,
-    borderWidth: 2,
+    borderWidth: CARD_BORDER,
     borderColor: colors.ink,
     backgroundColor: mapColors.land,
   },
+  neighborsColumn: { flexDirection: "column" },
+  neighborWide: { flexBasis: "auto" },
   neighborPressed: { backgroundColor: colors.mintSoft },
   neighborLabel: { ...type.bodyStrong, color: colors.ink, flexShrink: 1 },
   helpUsed: { ...type.small, fontWeight: "700", color: colors.findInk },

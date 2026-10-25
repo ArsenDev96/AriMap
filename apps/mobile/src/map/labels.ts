@@ -1,5 +1,6 @@
 import type { CountryId } from "@/core/content/types";
 import type { Point } from "@/geo/regionMap";
+import { textWidth } from "../theme/textWidth";
 
 /**
  * Where the lesson map's country names go, on screen. A simpler cousin of the website's label layout
@@ -48,13 +49,7 @@ export const BADGE_SIZE = 12;
 const CALLOUT_PAD = 8;
 const CALLOUT_REACH = 30;
 
-/**
- * A name's width on screen, from its length, a little generous: bold letters of Android's system font average
- * about 0.5 em in Latin and 0.66 em in Armenian (measured on the lesson map).
- */
-export function textWidth(text: string, fontSize: number): number {
-  return text.length * fontSize * (/[԰-֏]/.test(text) ? 0.7 : 0.56);
-}
+export { textWidth };
 
 const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 const inside = (b: Box, w: number, h: number) => b.x0 >= 0 && b.y0 >= 0 && b.x1 <= w && b.y1 <= h;
