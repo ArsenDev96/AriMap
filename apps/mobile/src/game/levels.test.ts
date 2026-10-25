@@ -217,6 +217,56 @@ describe("every European level in the app", () => {
     s = appReducer(s, { type: "openLevel", levelId: level.id });
     expect(activeProgress(s)).toMatchObject({ stage: "find", find: { index: 0, question: { target: first, wrongGuesses: [second], solved: false } } });
   });
+
+  it("Level 7: Andorra answered through its ring; France, shown at the start, moves nothing and says so", () => {
+    let s = createInitialState();
+    for (const level of PLAYABLE.slice(0, 6)) s = play(s, level.id);
+    const lesson = getLevel("iberian-journey")!.lesson!;
+    s = appReducer(s, { type: "openLevel", levelId: lesson.id });
+    s = step(s, { type: "startFinding", order: ["AND", "PRT", "ESP", "FRA", "ITA"] });
+    // The smallest map: Andorra is a few pixels across, its ring 24.
+    const [w, h] = SIZES[2];
+    const map = mapOf(lesson);
+    const camera = viewLimits(map, w, h, mapPadding(w, h)).base;
+    const [ring] = ringsFor(map.shapes, lesson.countries, camera, map.project);
+    expect(ring.id).toBe("AND");
+    // Near the ring's edge, over Spain or France: still Andorra.
+    s = tap(s, countryAt(map.shapes, lesson.countries, camera, [ring.x + 10, ring.y + 5], [ring]));
+    expect(activeProgress(s).find!.question).toMatchObject({ target: "AND", solved: true, wrongGuesses: [] });
+    for (const [i, target] of (["PRT", "ESP", "FRA", "ITA"] as const).entries()) {
+      s = step(s, { type: "findNext" });
+      s = tap(s, tapAt(lesson, SIZES[2], target));
+      if (i === 3) s = step(s, { type: "findToTravel" });
+    }
+    const cards = travelChoices(activeProgress(s).travel!, lesson.borders, lesson.travel.nonNeighbourOptions);
+    expect(cards).toEqual([
+      { country: "ESP", neighbour: true },
+      { country: "FRA", neighbour: false },
+    ]);
+    const after = step(s, { type: "travelMove", country: "FRA" });
+    expect(activeProgress(after).travel!.path).toEqual(["PRT"]);
+    expect(activeProgress(after).travelNotice).toMatchObject({ kind: "notNeighbour", country: "FRA" });
+    // A non-neighbour chosen is no help used: the journey on, three stars.
+    const done = (["ESP", "FRA", "ITA"] as const).reduce((acc, country) => step(acc, { type: "travelMove", country }), after);
+    expect(attemptRating(activeProgress(done))).toBe(3);
+  });
+
+  it("Levels 4 and 8: the travel-only neighbours are offered as moves, and never learned", () => {
+    for (const [levelId, extra] of [
+      ["along-the-adriatic", ["HUN", "SRB"]],
+      ["eastern-europe", ["LVA"]],
+    ] as const) {
+      const lesson = getLevel(levelId)!.lesson!;
+      expect(lesson.travelOnly).toEqual(extra);
+      for (const id of extra) expect(lesson.countries).not.toContain(id);
+    }
+    // Level 4, from Montenegro: Croatia, Bosnia and Herzegovina, and Serbia (travel-only).
+    let s = createInitialState();
+    for (const level of PLAYABLE.slice(0, 3)) s = play(s, level.id);
+    s = toTravel(s, "along-the-adriatic");
+    const lesson = activeLesson(s);
+    expect(travelChoices(activeProgress(s).travel!, lesson.borders).map((c) => c.country)).toContain("SRB");
+  });
 });
 
 describe("Travel states with a single choice (the shared rules, audited)", () => {
