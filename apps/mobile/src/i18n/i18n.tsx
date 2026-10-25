@@ -27,6 +27,52 @@ const APP_TEXT = {
     en: "Share as text",
     hy: "Կիսվել տեքստով",
   },
+  // The neighbours round (src/core/challenge/neighbours.ts): the challenge without the map, for screen readers. The
+  // Armenian awaits a native speaker's review (docs/MOBILE.md, "Armenian").
+  neighboursLabel: {
+    en: "Neighbours round",
+    hy: "Հարևանների խաղ",
+  },
+  neighboursStart: {
+    en: "Neighbours round (no map)",
+    hy: "Հարևանների խաղ (առանց քարտեզի)",
+  },
+  neighboursIntro: {
+    en: "Made for screen readers: no map to see. For each country, choose which of four countries borders it. 15 countries, 10 minutes.",
+    hy: "Ստեղծված է էկրանի ընթերցիչի համար․ քարտեզ տեսնել պետք չէ։ Յուրաքանչյուր երկրի համար ընտրիր չորս երկրներից այն մեկը, որը սահմանակից է նրան։ 15 երկիր, 10 րոպե։",
+  },
+  screenReaderNote: {
+    en: "A screen reader is on. The map round needs sight: its map can't be read aloud without giving the answers away. The neighbours round, below, asks about the same countries without the map.",
+    hy: "Էկրանի ընթերցիչը միացված է։ Քարտեզով խաղը տեսողություն է պահանջում․ քարտեզը հնարավոր չէ բարձրաձայն կարդալ՝ առանց պատասխանները բացահայտելու։ Ներքևի Հարևանների խաղը հարցնում է նույն երկրների մասին՝ առանց քարտեզի։",
+  },
+  neighboursQuestion: {
+    en: "Which of these borders {name}?",
+    hy: "{name}․ այս երկրներից ո՞րն է նրա հարևանը։",
+  },
+  neighbourYes: {
+    en: "{option} borders it.",
+    hy: "{option}՝ հարևան է։",
+  },
+  neighbourNo: {
+    en: "{option} doesn't border it.",
+    hy: "{option}՝ հարևան չէ։",
+  },
+  neighboursChose: {
+    en: "You chose {option}, which doesn't border it.",
+    hy: "Քո ընտրությունը՝ {option}, որը հարևան չէ։",
+  },
+  neighboursList: {
+    en: "Its neighbours in this challenge: {list}.",
+    hy: "Նրա հարևաններն այս խաղում՝ {list}։",
+  },
+  neighboursShare: {
+    en: "{score}/{total} in AriMap's neighbours round, without the map. Can you beat my score? {url}",
+    hy: "{score}/{total}՝ ԱրիՄապի Հարևանների խաղում, առանց քարտեզի։ Կարո՞ղ ես գերազանցել իմ արդյունքը։ {url}",
+  },
+  neighboursShareNote: {
+    en: "A neighbours round is shared as text: the result card shows map rounds.",
+    hy: "Հարևանների խաղով կիսվում ես տեքստով․ արդյունքի քարտը քարտեզով խաղերի համար է։",
+  },
 } as const satisfies Record<string, LocalizedText>;
 
 export type AppTextKey = keyof typeof APP_TEXT;
@@ -40,7 +86,9 @@ export function useI18n() {
       t: (key: MessageKey, params?: MessageParams) => translate(locale, key, params),
       tp: (key: PluralKey, count: number, params?: MessageParams) => translatePlural(locale, key, count, params),
       l: (text: LocalizedText) => localize(text, locale),
-      app: (key: AppTextKey) => localize(APP_TEXT[key], locale),
+      /** One of the app's own texts, its {placeholders} filled from `params`. */
+      app: (key: AppTextKey, params?: Record<string, string | number>) =>
+        localize(APP_TEXT[key], locale).replace(/\{(\w+)\}/g, (all, name: string) => (params && name in params ? String(params[name]) : all)),
       /** Base country name. */
       name: (id: CountryId) => localize(countryName(id), locale),
       /** Params for messages mentioning a country: {country} in-sentence form, {name} base form. */

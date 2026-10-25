@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { AppState } from "react-native";
+import type { Neighbours } from "@/core/challenge/neighbours";
 import { answer, challengeResult, currentQuestion, feedbackOf, remainingMs, tick } from "@/core/challenge/quickChallenge";
 import type { CountryId } from "@/core/content/types";
 import type { RandomSource } from "@/core/game/random";
 import type { KeyValueStorage } from "@/core/progress/storage";
 import { roundClock, systemClock, type ClockSources, type RoundClock } from "./clock";
-import { loadSession, newSession, saveSession, secondsLeft, startSession, type PracticeSession } from "./session";
+import { loadSession, newNeighboursSession, newSession, saveSession, secondsLeft, startSession, type PracticeSession } from "./session";
 
 /** How often a round under way is brought up to date (its countdown, the end of an answer's feedback, its deadline). */
 export const TICK_MS = 100;
@@ -75,8 +76,21 @@ export function useChallenge({ storage, random, newId, sources = systemClock }: 
   const round = session.round;
   const at = clock ? Math.max(now, 0) : 0;
 
+  /** Starts `s` (waiting for Start) on a new clock. */
+  const begin = (s: PracticeSession) => {
+    const c = roundClock(sources);
+    live = { id: s.id, clock: c };
+    const started = startSession(s, c);
+    setNow(started.round.startedAt ?? 0);
+    setSession(started);
+  };
+
   return {
     round,
+    /** "neighbours" for the neighbours round (no map), else the map round. */
+    mode: session.mode ?? ("map" as const),
+    /** The neighbours round's options, by question (null for the map round). */
+    options: session.options ?? null,
     /** The question waiting for an answer, or null (before Start, during feedback, after the end). */
     question: currentQuestion(round),
     feedback: feedbackOf(round),
@@ -88,18 +102,22 @@ export function useChallenge({ storage, random, newId, sources = systemClock }: 
     /** Starts the timer: only from "ready", once the map is drawn (the caller's `ready`). */
     start(ready: boolean) {
       if (!ready || round.status !== "ready") return;
-      const c = roundClock(sources);
-      live = { id: session.id, clock: c };
-      const started = startSession(session, c);
-      setNow(started.round.startedAt ?? 0);
-      setSession(started);
+      begin(session);
     },
-    /** Answers the question asked with `country`, or skips it (null), now. Ignored when no question is asked. */
-    choose(country: CountryId | null) {
+    /** Draws a neighbours round in place of the map round waiting for Start, and starts it. */
+    startNeighbours(neighbours: Neighbours) {
+      if (round.status !== "ready") return;
+      begin(newNeighboursSession(neighbours, random, newId()));
+    },
+    /**
+     * Answers the question asked with `country`, or skips it (null), now. Ignored when no question is asked, or when
+     * `forIndex` is given and another question is asked by then.
+     */
+    choose(country: CountryId | null, forIndex?: number) {
       if (!clock) return;
       const t = clock.now();
       const q = currentQuestion(tick(round, t));
-      if (!q) return;
+      if (!q || (forIndex !== undefined && q.index !== forIndex)) return;
       setNow(t);
       setSession((s) => {
         if (s.id !== session.id) return s;
@@ -107,14 +125,9 @@ export function useChallenge({ storage, random, newId, sources = systemClock }: 
         return next === s.round ? s : { ...s, round: next, clock: clock.anchor() };
       });
     },
-    /** Try again: a new round, started at once (the map is already drawn). */
-    retry() {
-      const s = newSession(random, newId());
-      const c = roundClock(sources);
-      live = { id: s.id, clock: c };
-      const started = startSession(s, c);
-      setNow(started.round.startedAt ?? 0);
-      setSession(started);
+    /** Try again: a new round of the same kind, started at once (the map is already drawn). */
+    retry(neighbours: Neighbours | null) {
+      begin(session.mode === "neighbours" && neighbours ? newNeighboursSession(neighbours, random, newId()) : newSession(random, newId()));
     },
     /** Leaving a round that has ended: the next opening draws a new one. */
     discard() {

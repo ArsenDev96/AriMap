@@ -1,8 +1,9 @@
 import { usePreventRemove, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { useCallback, useEffect, useRef, useState, type ComponentRef } from "react";
+import { AccessibilityInfo, Alert, findNodeHandle, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CHALLENGE_POOL } from "@/core/challenge/europe";
+import { borders, neighbourAnswer, poolNeighbours, type Neighbours } from "@/core/challenge/neighbours";
 import type { AnswerRecord, ChallengeResult, ChallengeRound, MissedQuestion } from "@/core/challenge/quickChallenge";
 import { roundSeconds } from "@/core/challenge/share";
 import type { CountryId } from "@/core/content/types";
@@ -19,7 +20,7 @@ import { useGame } from "../game/GameProvider";
 import { useI18n } from "../i18n/i18n";
 import { nativeStorage } from "../storage/nativeStorage";
 import { longestWordWidth } from "../theme/textWidth";
-import { colors, radius, space, type } from "../theme/tokens";
+import { colors, radius, space, TAP, type } from "../theme/tokens";
 
 const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
@@ -28,6 +29,10 @@ const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).sli
  * map of Europe against one timer, by the shared rules (src/core/challenge/quickChallenge.ts: its pool, 15 questions,
  * 60 seconds, its scoring and results). The ready screen, the round, Results and the review on the map share one map.
  * A round under way carries on whatever happens to the screen (useChallenge); Back during one asks first.
+ *
+ * The neighbours round (src/core/challenge/neighbours.ts) is the same screen without answering on the map: for each
+ * country, four others to choose its neighbour from, for players who can't see the map. Its Results say which round it
+ * was, and it is shared as text alone.
  */
 export default function ChallengeScreen() {
   const router = useRouter();
@@ -43,7 +48,9 @@ export default function ChallengeScreen() {
   const [reviewing, setReviewing] = useState(false);
   const [selected, setSelected] = useState<CountryId | null>(null);
   const [sharing, setSharing] = useState(false);
+  const screenReader = useScreenReader();
   const status = round.status;
+  const neighboursMode = game.mode === "neighbours";
 
   // Leaving (Back, or "Back to home"): during a round, asked first (the timer keeps running either way, and the round
   // carries on when the challenge opens again); an ended round is cleared, so the next opening draws a new one.
@@ -94,9 +101,29 @@ export default function ChallengeScreen() {
         </Text>
         <Text style={styles.body}>{t("challenge.time", { time })}</Text>
         <Text style={styles.body}>{t("challengeGame.intro", { time })}</Text>
+        {screenReader && <Text style={styles.notice}>{app("screenReaderNote")}</Text>}
         <Text style={styles.note}>{app("practiceNote")}</Text>
         <Button variant="primary" label={mapReady ? t("welcome.start") : t("challengeGame.loading")} onPress={() => game.start(mapReady)} disabled={!mapReady} testID="challenge-start" />
+        <View style={styles.neighboursBlock}>
+          <Text accessibilityRole="header" style={styles.subtitle}>
+            {app("neighboursLabel")}
+          </Text>
+          <Text style={styles.body}>{app("neighboursIntro")}</Text>
+          <Button label={map ? app("neighboursStart") : t("challengeGame.loading")} onPress={() => map && game.startNeighbours(map.neighbours)} disabled={!map} testID="challenge-neighbours-start" />
+        </View>
       </>
+    );
+  } else if (status === "playing" && neighboursMode && map && game.options) {
+    panel = (
+      <NeighboursPlaying
+        round={round}
+        target={question?.target ?? null}
+        feedback={feedback}
+        options={game.options}
+        neighbours={map.neighbours}
+        onChoose={(option, index) => question && game.choose(neighbourAnswer(map.neighbours, question.target, option), index)}
+        onSkip={() => game.choose(null)}
+      />
     );
   } else if (status === "playing") {
     panel = <Playing target={question?.target ?? null} feedback={feedback} onSkip={() => game.choose(null)} />;
@@ -116,10 +143,11 @@ export default function ChallengeScreen() {
     panel = (
       <Results
         result={result}
+        neighbours={neighboursMode ? (map?.neighbours ?? null) : undefined}
         onShare={() => setSharing(true)}
         onRetry={() => {
           setSelected(null);
-          game.retry();
+          game.retry(map?.neighbours ?? null);
         }}
         onReview={() => setReviewing(true)}
         onLessons={lessons}
@@ -133,14 +161,21 @@ export default function ChallengeScreen() {
     <SafeAreaView style={styles.screen} edges={["top", "left", "right"]}>
       <ScreenHeader back={{ label: t("challengeGame.backLabel"), onPress: home }} />
       <View style={[styles.body0, wide && styles.bodyWide]}>
-        <View style={wide ? styles.mapWide : [styles.map, { height: mapHeight }]}>
+        {/* No map while a neighbours round asks (it isn't answered on the map): its options have the room. */}
+        <View style={neighboursMode && status === "playing" ? styles.mapHidden : wide ? styles.mapWide : [styles.map, { height: mapHeight }]}>
           <ChallengeMap
             map={map}
             pool={round.pool ?? CHALLENGE_POOL}
             tones={tones}
             names={names}
             focus={reviewing ? selected : null}
-            onTap={status === "playing" && question ? (country) => game.choose(country) : reviewing && result ? (country) => result.questions.some((q) => q.target === country) && setSelected(country) : undefined}
+            onTap={
+              status === "playing" && question && !neighboursMode
+                ? (country) => game.choose(country)
+                : reviewing && result
+                  ? (country) => result.questions.some((q) => q.target === country) && setSelected(country)
+                  : undefined
+            }
             viewKey={round.questions.join()}
             onReady={onReady}
           />
@@ -153,12 +188,109 @@ export default function ChallengeScreen() {
           </ScrollView>
         </View>
       </View>
-      {result && <ShareResult result={result} open={sharing} onClose={() => setSharing(false)} />}
+      {result && <ShareResult result={result} neighbours={neighboursMode} open={sharing} onClose={() => setSharing(false)} />}
     </SafeAreaView>
   );
 }
 
 const FEEDBACK_ICON: Record<AnswerRecord["outcome"], string> = { correct: "✓", wrong: "✗", skipped: "↷" };
+
+/** Whether a screen reader (TalkBack) is on, kept up to date. */
+function useScreenReader(): boolean {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    let current = true;
+    AccessibilityInfo.isScreenReaderEnabled().then((enabled) => current && setOn(enabled));
+    const subscription = AccessibilityInfo.addEventListener("screenReaderChanged", setOn);
+    return () => {
+      current = false;
+      subscription.remove();
+    };
+  }, []);
+  return on;
+}
+
+/**
+ * A neighbours round's question: the country, and four countries to choose its neighbour from. While an answer's
+ * feedback shows, the options say which borders it (✓) and which was chosen wrongly (✗). For a screen reader each
+ * answer's feedback is announced, and each new question takes its focus, so it is read out and the options follow it
+ * (a live region alone wasn't spoken on TalkBack, and the focus stayed on an option holding another country).
+ */
+function NeighboursPlaying({
+  round,
+  target,
+  feedback,
+  options,
+  neighbours,
+  onChoose,
+  onSkip,
+}: {
+  round: ChallengeRound;
+  target: CountryId | null;
+  feedback: AnswerRecord | null;
+  options: readonly (readonly CountryId[])[];
+  neighbours: Neighbours;
+  onChoose: (option: CountryId, index: number) => void;
+  onSkip: () => void;
+}) {
+  const { t, name, app } = useI18n();
+  const questionRef = useRef<ComponentRef<typeof Text>>(null);
+  const asked = target ?? feedback?.target ?? null;
+  const index = target ? round.index : (feedback?.index ?? round.index);
+  const shown = options[index] ?? [];
+  const position = t("find.question", { current: index + 1, total: round.questions.length });
+  const said = feedback
+    ? `${FEEDBACK_ICON[feedback.outcome]} ${t(feedback.outcome === "correct" ? "challengeGame.correct" : feedback.outcome === "wrong" ? "challengeGame.wrong" : "challengeGame.skipped")}${
+        feedback.outcome === "wrong" ? `. ${app("neighbourNo", { option: name(feedback.chosen!) })}` : ""
+      }`
+    : "";
+
+  // A new question takes the screen reader's focus (read out); an answer's feedback is announced.
+  useEffect(() => {
+    if (!target) return;
+    const timer = setTimeout(() => {
+      const node = findNodeHandle(questionRef.current);
+      if (node) AccessibilityInfo.setAccessibilityFocus(node);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [target, index]);
+  useEffect(() => {
+    if (said) AccessibilityInfo.announceForAccessibility(said);
+  }, [said]);
+
+  return (
+    <>
+      <View>
+        <Text style={styles.find}>{app("neighboursLabel")}</Text>
+        <Text ref={questionRef} accessible style={styles.question} testID="challenge-target" accessibilityLabel={asked ? `${position}. ${app("neighboursQuestion", { name: name(asked) })}` : undefined}>
+          {asked ? app("neighboursQuestion", { name: name(asked) }) : ""}
+        </Text>
+        <Text style={[styles.feedback, feedback && styles[`feedback_${feedback.outcome}`]]}>{said}</Text>
+      </View>
+      <View style={styles.options}>
+        {shown.map((option) => {
+          const mark = feedback && asked ? (borders(neighbours, asked, option) ? "✓" : option === feedback.chosen ? "✗" : "") : "";
+          const label = mark === "✓" ? app("neighbourYes", { option: name(option) }) : mark === "✗" ? app("neighbourNo", { option: name(option) }) : name(option);
+          return (
+            <Pressable
+              key={option}
+              accessibilityRole="button"
+              accessibilityLabel={label}
+              accessibilityState={{ disabled: !target }}
+              disabled={!target}
+              onPress={() => onChoose(option, index)}
+              testID={`neighbour-${option}`}
+              style={({ pressed }) => [styles.option, pressed && styles.optionPressed, mark === "✓" && styles.optionYes, mark === "✗" && styles.optionNo]}
+            >
+              <Text style={styles.optionText}>{mark ? `${mark} ${name(option)}` : name(option)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Button label={t("challengeGame.skip")} onPress={onSkip} disabled={!target} testID="challenge-skip" />
+    </>
+  );
+}
 
 function Playing({
   target,
@@ -198,7 +330,8 @@ function RoundStatus({ round, remainingMs, seconds }: { round: ChallengeRound; r
         <Text style={styles.statusText}>{t("find.question", { current: Math.min(round.index + 1, round.questions.length), total: round.questions.length })}</Text>
         <Text style={styles.statusText}>{t("challengeGame.score", { score })}</Text>
         <Text accessibilityRole="timer" accessibilityLabel={t("challengeGame.timeLeft", { seconds })} style={[styles.clock, low && styles.clockLow]}>
-          {`⏱ ${seconds}`}
+          {/* Seconds, or minutes and seconds past a minute (the neighbours round's ten minutes). */}
+          {`⏱ ${seconds > 60 ? `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}` : seconds}`}
         </Text>
       </View>
       <View style={styles.bar} importantForAccessibility="no-hide-descendants">
@@ -208,13 +341,15 @@ function RoundStatus({ round, remainingMs, seconds }: { round: ChallengeRound; r
   );
 }
 
-function missedDetail(q: MissedQuestion, t: ReturnType<typeof useI18n>["t"], name: (id: CountryId) => string): string {
-  if (q.outcome === "wrong") return t("challengeResults.chose", { name: name(q.chosen!) });
+function missedDetail(q: MissedQuestion, i18n: ReturnType<typeof useI18n>, neighboursRound = false): string {
+  const { t, app, name } = i18n;
+  if (q.outcome === "wrong") return neighboursRound ? app("neighboursChose", { option: name(q.chosen!) }) : t("challengeResults.chose", { name: name(q.chosen!) });
   return t(q.outcome === "skipped" ? "challengeResults.wasSkipped" : "challengeResults.notReached");
 }
 
 function Results({
   result,
+  neighbours,
   onShare,
   onRetry,
   onReview,
@@ -223,6 +358,8 @@ function Results({
   onHome,
 }: {
   result: ChallengeResult;
+  /** A neighbours round's: its neighbours, to name them (null until the map's data is read); undefined for a map round. */
+  neighbours?: Neighbours | null;
   onShare: () => void;
   onRetry: () => void;
   onReview: () => void;
@@ -230,8 +367,10 @@ function Results({
   onLevel: (level: LevelInfo) => void;
   onHome: () => void;
 }) {
-  const { t, tp, name, l, app } = useI18n();
+  const i18n = useI18n();
+  const { t, tp, name, l, app } = i18n;
   const { fontScale } = useWindowDimensions();
+  const neighboursRound = neighbours !== undefined;
   const counts = [
     { key: "correct", label: t("challengeResults.correct"), value: result.correct, icon: "✓" },
     { key: "incorrect", label: t("challengeResults.incorrect"), value: result.incorrect, icon: "✗" },
@@ -242,6 +381,7 @@ function Results({
   const tileWidth = longestWordWidth(counts.map((c) => c.label), type.small.fontSize * fontScale) + 2 * space.md + 4;
   return (
     <>
+      {neighboursRound && <Text style={styles.eyebrow}>{app("neighboursLabel")}</Text>}
       <Text accessibilityRole="header" style={styles.title}>
         {t(result.endReason === "timeUp" ? "challengeResults.timeUp" : "challengeResults.complete")}
       </Text>
@@ -275,7 +415,8 @@ function Results({
           return (
             <View key={q.index} style={styles.missed} testID="challenge-missed">
               <Text style={styles.missedName}>{name(q.target)}</Text>
-              <Text style={styles.missedDetail}>{missedDetail(q, t, name)}</Text>
+              <Text style={styles.missedDetail}>{missedDetail(q, i18n, neighboursRound)}</Text>
+              {neighbours && <Text style={styles.missedDetail}>{app("neighboursList", { list: poolNeighbours(neighbours, q.target).map(name).join(", ") })}</Text>}
               {level && (
                 <Pressable accessibilityRole="link" onPress={() => onLevel(level)} style={({ pressed }) => [styles.levelLink, pressed && styles.levelLinkPressed]}>
                   <Text style={styles.levelLinkText}>{`${t("level.number", { number: level.number })} · ${l(level.title)} →`}</Text>
@@ -291,7 +432,8 @@ function Results({
 }
 
 function Review({ result, selected, onSelect, onBack }: { result: ChallengeResult; selected: CountryId | null; onSelect: (id: CountryId) => void; onBack: () => void }) {
-  const { t, name } = useI18n();
+  const i18n = useI18n();
+  const { t, name } = i18n;
   const current = result.questions.find((q) => q.target === selected);
   return (
     <>
@@ -322,7 +464,7 @@ function Review({ result, selected, onSelect, onBack }: { result: ChallengeResul
           );
         })}
       </View>
-      {current && current.outcome !== "correct" && <Text style={styles.body}>{missedDetail(current as MissedQuestion, t, name)}</Text>}
+      {current && current.outcome !== "correct" && <Text style={styles.body}>{missedDetail(current as MissedQuestion, i18n)}</Text>}
       <Button variant="primary" label={t("challengeReview.back")} onPress={onBack} />
     </>
   );
@@ -334,6 +476,8 @@ const styles = StyleSheet.create({
   bodyWide: { flexDirection: "row" },
   map: { paddingHorizontal: space.lg },
   mapWide: { flex: 1.2, paddingLeft: space.lg, paddingBottom: space.lg },
+  // Kept mounted (the round's Results show it again at once), out of sight and of the screen reader's reach.
+  mapHidden: { display: "none" },
   panel: { flex: 1 },
   panelContent: { padding: space.lg, gap: space.md },
   eyebrow: { ...type.small, fontWeight: "800", color: colors.coralStrong, textTransform: "uppercase" },
@@ -341,6 +485,15 @@ const styles = StyleSheet.create({
   subtitle: { ...type.heading, color: colors.ink, marginTop: space.sm },
   body: { ...type.body, color: colors.ink },
   note: { ...type.small, color: colors.inkSoft },
+  notice: { ...type.bodyStrong, color: colors.ink, padding: space.md, borderRadius: radius.sm, backgroundColor: colors.findSoft, overflow: "hidden" },
+  neighboursBlock: { gap: space.sm, marginTop: space.md, paddingTop: space.md, borderTopWidth: 1, borderTopColor: colors.line },
+  question: { ...type.heading, color: colors.ink, minHeight: type.heading.lineHeight },
+  options: { gap: space.sm },
+  option: { minHeight: 48, justifyContent: "center", paddingHorizontal: space.lg, paddingVertical: space.sm, borderRadius: radius.sm, borderWidth: 2, borderColor: colors.ink, backgroundColor: colors.surface },
+  optionPressed: { backgroundColor: colors.mintSoft },
+  optionYes: { backgroundColor: colors.mintSoft, borderColor: colors.discoverInk },
+  optionNo: { backgroundColor: colors.coralSoft, borderColor: colors.coralStrong },
+  optionText: { ...type.bodyStrong, color: colors.ink },
   statusBlock: { gap: space.sm, paddingHorizontal: space.lg, paddingTop: space.md },
   status: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", columnGap: space.md, rowGap: space.xs },
   statusText: { ...type.bodyStrong, color: colors.inkSoft },
@@ -364,7 +517,7 @@ const styles = StyleSheet.create({
   missed: { gap: space.xs, padding: space.md, borderRadius: radius.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   missedName: { ...type.bodyStrong, color: colors.ink },
   missedDetail: { ...type.body, color: colors.inkSoft },
-  levelLink: { alignSelf: "flex-start", minHeight: 44, justifyContent: "center", paddingVertical: space.xs },
+  levelLink: { alignSelf: "flex-start", minHeight: TAP, justifyContent: "center", paddingVertical: space.xs },
   levelLinkPressed: { opacity: 0.6 },
   levelLinkText: { ...type.bodyStrong, color: colors.travelInk, textDecorationLine: "underline" },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
@@ -373,7 +526,7 @@ const styles = StyleSheet.create({
   legendMissed: { backgroundColor: colors.findSoft, color: colors.ink },
   legendChosen: { backgroundColor: colors.coralSoft, color: colors.coralStrong },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  chip: { minHeight: 44, justifyContent: "center", paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 2 },
+  chip: { minHeight: TAP, justifyContent: "center", paddingHorizontal: space.md, borderRadius: radius.pill, borderWidth: 2 },
   chipFound: { backgroundColor: colors.mintSoft, borderColor: colors.mintSoft },
   chipMissed: { backgroundColor: colors.findSoft, borderColor: colors.findSoft },
   chipOn: { borderColor: colors.ink },

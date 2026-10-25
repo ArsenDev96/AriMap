@@ -4,7 +4,7 @@ import { Modal, ScrollView, Share, StyleSheet, Text, useWindowDimensions, View }
 import { captureRef } from "react-native-view-shot";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { ChallengeResult } from "@/core/challenge/quickChallenge";
-import { shareSummary, shareText } from "@/core/challenge/share";
+import { shareSummary, shareText, SITE_URL } from "@/core/challenge/share";
 import { CARD_HEIGHT, CARD_WIDTH } from "@/core/challenge/shareCardLayout";
 import { Button } from "../components/Button";
 import { useI18n } from "../i18n/i18n";
@@ -18,8 +18,11 @@ type Status = { kind: "idle" } | { kind: "preparing" } | { kind: "failed"; key: 
  * then Android's share sheet with it as a PNG (expo-sharing), or the share message alone, as text (the system's
  * Share). Closing the share sheet is no failure and shows nothing, as on the website; Android doesn't say whether
  * something was shared, so nothing claims it was.
+ *
+ * A neighbours round is shared as text alone, saying so: the card is the map round's, and would pass its score off
+ * as one.
  */
-export function ShareResult({ result, open, onClose }: { result: ChallengeResult; open: boolean; onClose: () => void }) {
+export function ShareResult({ result, neighbours = false, open, onClose }: { result: ChallengeResult; neighbours?: boolean; open: boolean; onClose: () => void }) {
   const { t, app, locale } = useI18n();
   const { width } = useWindowDimensions();
   const text = shareText(shareSummary(result), locale);
@@ -45,9 +48,10 @@ export function ShareResult({ result, open, onClose }: { result: ChallengeResult
     }
   };
 
+  const message = neighbours ? app("neighboursShare", { score: result.score, total: result.total, url: SITE_URL }) : text.message;
   const shareMessage = async () => {
     try {
-      await Share.share({ message: text.message }, { dialogTitle: t("challengeShare.title") });
+      await Share.share({ message }, { dialogTitle: t("challengeShare.title") });
     } catch {
       // The share sheet couldn't open: nothing was shared, and nothing else is affected.
     }
@@ -60,18 +64,28 @@ export function ShareResult({ result, open, onClose }: { result: ChallengeResult
           <Text accessibilityRole="header" style={styles.title}>
             {t("challengeShare.title")}
           </Text>
-          <View style={styles.preview}>
-            <ShareCard ref={card} text={text} width={preview} />
-          </View>
-          <Text style={styles.found}>{text.found}</Text>
-          {status.kind === "preparing" && <Text style={styles.note}>{t("challengeShare.preparing")}</Text>}
-          {status.kind === "failed" && (
-            <Text accessibilityLiveRegion="polite" style={styles.error}>
-              {t(status.key)}
-            </Text>
+          {neighbours ? (
+            <>
+              <Text style={styles.found}>{message}</Text>
+              <Text style={styles.note}>{app("neighboursShareNote")}</Text>
+              <Button variant="primary" label={app("shareMessage")} onPress={shareMessage} />
+            </>
+          ) : (
+            <>
+              <View style={styles.preview}>
+                <ShareCard ref={card} text={text} width={preview} />
+              </View>
+              <Text style={styles.found}>{text.found}</Text>
+              {status.kind === "preparing" && <Text style={styles.note}>{t("challengeShare.preparing")}</Text>}
+              {status.kind === "failed" && (
+                <Text accessibilityLiveRegion="polite" style={styles.error}>
+                  {t(status.key)}
+                </Text>
+              )}
+              <Button variant="primary" label={t("challengeShare.shareImage")} onPress={shareImage} disabled={status.kind === "preparing"} />
+              <Button label={app("shareMessage")} onPress={shareMessage} />
+            </>
           )}
-          <Button variant="primary" label={t("challengeShare.shareImage")} onPress={shareImage} disabled={status.kind === "preparing"} />
-          <Button label={app("shareMessage")} onPress={shareMessage} />
           <Button label={t("challengeShare.close")} onPress={onClose} />
         </ScrollView>
       </SafeAreaView>

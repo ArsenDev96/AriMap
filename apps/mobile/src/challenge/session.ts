@@ -1,5 +1,7 @@
 import { CHALLENGE_POOL } from "@/core/challenge/europe";
+import { createNeighboursRound, NEIGHBOUR_OPTIONS, type Neighbours } from "@/core/challenge/neighbours";
 import { createChallenge, remainingMs, startChallenge, type ChallengeRound } from "@/core/challenge/quickChallenge";
+import type { CountryId } from "@/core/content/types";
 import type { RandomSource } from "@/core/game/random";
 import type { KeyValueStorage } from "@/core/progress/storage";
 import { isClockAnchor, type ClockAnchor, type RoundClock } from "./clock";
@@ -10,6 +12,9 @@ import { isClockAnchor, type ClockAnchor, type RoundClock } from "./clock";
  * as it changes so that leaving the screen, Android recreating the app or closing it never stops or resets the timer:
  * the round carries on, against the same deadline, when it opens again. Nothing is sent anywhere, and it is never
  * ranked. Pure, apart from the storage passed in.
+ *
+ * A round is the map round, or the neighbours round (src/core/challenge/neighbours.ts: the same countries without the
+ * map, for screen readers), saved with each question's options.
  */
 export interface PracticeSession {
   /** A new id for every round (its clock is kept by it while the app runs). */
@@ -17,6 +22,10 @@ export interface PracticeSession {
   round: ChallengeRound;
   /** The round's clock, from Start (null before). */
   clock: ClockAnchor | null;
+  /** "neighbours" for the neighbours round; absent for the map round (and in every round saved before it existed). */
+  mode?: "neighbours";
+  /** The neighbours round's options, question by question, in the order shown. */
+  options?: CountryId[][];
 }
 
 /** Where the round under way is saved, apart from the lessons' progress ("arimap:state"). */
@@ -25,6 +34,12 @@ export const PRACTICE_KEY = "arimap:practice";
 /** A new round, drawn and waiting for Start: 15 different countries of the shared pool, in random order. */
 export function newSession(random: RandomSource, id: string): PracticeSession {
   return { id, round: createChallenge(random), clock: null };
+}
+
+/** A new neighbours round, drawn and waiting for Start: its 15 countries and each one's four options. */
+export function newNeighboursSession(neighbours: Neighbours, random: RandomSource, id: string): PracticeSession {
+  const { round, options } = createNeighboursRound(neighbours, random);
+  return { id, round, clock: null, mode: "neighbours", options };
 }
 
 /**
@@ -79,6 +94,12 @@ function isSession(s: PracticeSession | null): s is PracticeSession {
     Number.isInteger(r.index) &&
     Array.isArray(r.answers) &&
     // A round under way or ended has its clock and its start; one waiting for Start has neither.
-    (r.status === "ready" ? s.clock === null && r.startedAt === null : s.clock !== null && r.startedAt !== null && r.deadline !== null)
+    (r.status === "ready" ? s.clock === null && r.startedAt === null : s.clock !== null && r.startedAt !== null && r.deadline !== null) &&
+    // A neighbours round has four options of its pool for each question; a map round, none.
+    (s.mode === "neighbours"
+      ? Array.isArray(s.options) &&
+        s.options.length === r.questions.length &&
+        s.options.every((o) => Array.isArray(o) && o.length === NEIGHBOUR_OPTIONS && o.every((id) => r.pool.includes(id)))
+      : s.mode === undefined && s.options === undefined)
   );
 }

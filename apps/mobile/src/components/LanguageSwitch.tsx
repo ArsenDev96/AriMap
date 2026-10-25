@@ -43,7 +43,7 @@ const styles = StyleSheet.create({
   },
   option: {
     minWidth: TAP,
-    minHeight: TAP - 4,
+    minHeight: TAP,
     paddingHorizontal: space.md,
     borderRadius: radius.pill,
     alignItems: "center",

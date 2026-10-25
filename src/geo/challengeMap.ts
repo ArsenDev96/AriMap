@@ -1,5 +1,5 @@
 import { geoAzimuthalEqualArea, geoPath, type GeoProjection } from "d3-geo";
-import { feature, mesh } from "topojson-client";
+import { feature, mesh, neighbors } from "topojson-client";
 import type { Feature, FeatureCollection, MultiPolygon, Polygon, Position } from "geojson";
 import type { GeometryCollection, Topology } from "topojson-specification";
 import type { CountryId } from "@/core/content/types";
@@ -32,6 +32,11 @@ export interface ChallengeMapData extends RegionMap {
    * has none (all but Russia and Greenland).
    */
   outlines: ReadonlyMap<CountryId, string>;
+  /**
+   * Each country's land neighbours: the countries it shares a border with in the data (TopoJSON's shared arcs, so a
+   * border is never lost to simplification and a sea never counts). The app's neighbours round asks them.
+   */
+  neighbours: ReadonlyMap<CountryId, readonly CountryId[]>;
 }
 
 let loading: Promise<ChallengeMapData> | null = null;
@@ -72,6 +77,7 @@ export function challengeMapFrom(data: unknown): ChallengeMapData {
     travelCoverage: topology.frame.coverage,
     project: (point) => (projection([point[0], point[1]]) ?? [0, 0]) as [number, number],
     areas: new Map(features.map((f) => [String(f.id), path.area(f)])),
+    neighbours: neighboursOf(topology.objects.countries.geometries),
     outlines: new Map(
       shapes.map((s, i) => {
         const g = features[i].geometry;
@@ -80,6 +86,13 @@ export function challengeMapFrom(data: unknown): ChallengeMapData {
       }),
     ),
   };
+}
+
+/** The countries each geometry shares an arc with: its land neighbours. */
+function neighboursOf(geometries: GeometryCollection["geometries"]): Map<CountryId, CountryId[]> {
+  const ids = geometries.map((g) => String(g.id));
+  const shared = neighbors(geometries);
+  return new Map(ids.map((id, i) => [id, shared[i].map((j) => ids[j])]));
 }
 
 /**

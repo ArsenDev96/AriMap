@@ -2,12 +2,12 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { Transform } from "@/geo/regionMap";
 import { useI18n } from "../i18n/i18n";
-import { colors, mapColors, space } from "../theme/tokens";
+import { colors, mapColors, space, TAP } from "../theme/tokens";
 import { isBase, maxScale, zoomTo, ZOOM_STEP, type CameraLimits } from "./camera";
 import type { Box } from "./labels";
 
-/** A zoom button's size (dp): a 44dp target, with 2dp of hit slop round it. */
-export const CONTROL = 44;
+/** A zoom button's size (dp): a 48 dp target (TAP), with 2 dp of hit slop round it. */
+export const CONTROL = TAP;
 
 /**
  * Where the zoom buttons sit on a map of `size`: top right, in a column, or in a row on a map too short for one.

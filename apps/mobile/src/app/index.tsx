@@ -76,7 +76,13 @@ export default function Home() {
           hasPlayableLevels(continent.id) ? (
             <OpenContinent key={continent.id} continent={continent} onPress={() => openContinent(continent)} />
           ) : (
-            <View key={continent.id} accessible style={[styles.card, styles.soon, { borderStartColor: worldColors[continent.id] }]}>
+            // Read as its name and "Coming soon": the hourglass is decoration, which a screen reader would name aloud.
+            <View
+              key={continent.id}
+              accessible
+              accessibilityLabel={`${l(continent.name)}, ${t("continents.comingSoon")}`}
+              style={[styles.card, styles.soon, { borderStartColor: worldColors[continent.id] }]}
+            >
               <Text style={styles.cardName}>{l(continent.name)}</Text>
               <Text style={styles.soonLabel}>{`⌛ ${t("continents.comingSoon")}`}</Text>
             </View>

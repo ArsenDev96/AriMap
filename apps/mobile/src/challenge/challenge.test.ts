@@ -1,11 +1,16 @@
+/// <reference types="node" />
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { CHALLENGE_POOL, EUROPE, NOT_ASKED } from "@/core/challenge/europe";
+import { borders, neighbourAnswer, NEIGHBOURS_RULES } from "@/core/challenge/neighbours";
 import { answer, CHALLENGE_RULES, challengeResult, currentQuestion, remainingMs, tick, type ChallengeRound } from "@/core/challenge/quickChallenge";
 import type { CountryId } from "@/core/content/types";
 import { seededRandom } from "@/core/game/random";
 import type { KeyValueStorage } from "@/core/progress/storage";
+import { challengeMapFrom } from "@/geo/challengeMap";
 import { roundClock, type ClockSources } from "./clock";
-import { loadSession, newSession, PRACTICE_KEY, saveSession, secondsLeft, startSession, type PracticeSession } from "./session";
+import { loadSession, newNeighboursSession, newSession, PRACTICE_KEY, saveSession, secondsLeft, startSession, type PracticeSession } from "./session";
 
 /*
  * The app's practice rounds on the shared Quick Challenge rules, timed by the app's clock (clock.ts) and saved as the
@@ -277,5 +282,42 @@ describe("a practice round", () => {
     };
     expect(() => saveSession(broken, s)).not.toThrow();
     expect(loadSession(broken)).toBeNull();
+  });
+});
+
+describe("a neighbours round (no map)", () => {
+  const map = challengeMapFrom(JSON.parse(readFileSync(path.resolve(__dirname, "../../../../src/data/geo/europe-challenge.topo.json"), "utf8")));
+
+  it("is saved with its options, carried on as it was, and timed by its own ten minutes", () => {
+    const storage = memoryStorage();
+    const c = testClock();
+    const clock = roundClock(c.sources);
+    const s = startSession(newNeighboursSession(map.neighbours, seededRandom(3), "n"), clock);
+    expect(s).toMatchObject({ mode: "neighbours", round: { rules: NEIGHBOURS_RULES, status: "playing" } });
+    expect(s.options).toHaveLength(15);
+    saveSession(storage, s);
+    const back = loadSession(storage)!;
+    expect(back).toEqual(s);
+    // A wrong option is a wrong answer, recorded with it; its feedback lasts long enough to be read aloud.
+    const q = currentQuestion(back.round)!;
+    const wrong = back.options![0].find((o) => !borders(map.neighbours, q.target, o))!;
+    c.pass(3_000);
+    const r = answer(back.round, q.index, neighbourAnswer(map.neighbours, q.target, wrong), clock.now()).round;
+    expect(r.answers[0]).toMatchObject({ outcome: "wrong", chosen: wrong });
+    expect(r.feedback!.until - clock.now()).toBe(NEIGHBOURS_RULES.feedbackMs.wrong);
+    expect(remainingMs(r, clock.now())).toBe(600_000 - 3_000);
+  });
+
+  it("a map round saved before the neighbours round existed still loads; a neighbours round without its options doesn't", () => {
+    const storage = memoryStorage();
+    const old = newSession(seededRandom(1), "old");
+    expect(old.mode).toBeUndefined();
+    saveSession(storage, old);
+    expect(loadSession(storage)?.id).toBe("old");
+    const n = newNeighboursSession(map.neighbours, seededRandom(2), "n");
+    for (const broken of [{ ...n, options: undefined }, { ...n, options: n.options!.slice(1) }, { ...n, options: n.options!.map((o) => o.slice(1)) }, { ...old, options: n.options }]) {
+      saveSession(storage, broken);
+      expect(loadSession(storage)).toBeNull();
+    }
   });
 });
