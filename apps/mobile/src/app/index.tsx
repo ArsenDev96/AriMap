@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { CHALLENGE_RULES } from "@/core/challenge/quickChallenge";
 import { CONTINENTS, getContinent, hasPlayableLevels, type ContinentInfo } from "@/core/lessons";
 import { continentProgress, continentStars, levelToContinue } from "@/core/progress/appState";
 import { Button } from "../components/Button";
@@ -13,8 +14,8 @@ import { WorldMap } from "../map/WorldMap";
 import { colors, radius, space, TAP, type, worldColors } from "../theme/tokens";
 
 /**
- * Home: the continents, as on the website's home screen. Europe opens its levels; the others say "Coming soon" and
- * do nothing. The main action continues the attempt under way, or explores Europe.
+ * Home: the Quick Challenge and the continents, as on the website's home screen. Europe opens its levels; the others
+ * say "Coming soon" and do nothing. The main action continues the attempt under way, or explores Europe.
  */
 export default function Home() {
   const router = useRouter();
@@ -59,6 +60,8 @@ export default function Home() {
         )
       }
     >
+      <QuickChallengeCard onPlay={() => router.push("/challenge")} />
+
       <View style={styles.intro}>
         <Text accessibilityRole="header" style={styles.title}>
           {t("continents.title")}
@@ -81,6 +84,21 @@ export default function Home() {
         )}
       </View>
     </Screen>
+  );
+}
+
+/** The Quick Challenge (the website's home card): its rules, from the shared ones, and Play. */
+function QuickChallengeCard({ onPlay }: { onPlay: () => void }) {
+  const { t, tp } = useI18n();
+  return (
+    <View style={styles.challenge}>
+      <Text style={styles.challengeLabel}>{`⚡ ${t("challenge.label")}`}</Text>
+      <Text accessibilityRole="header" style={styles.challengeTitle}>
+        {t("challenge.title", { count: CHALLENGE_RULES.questions })}
+      </Text>
+      <Text style={styles.subtitle}>{t("challenge.time", { time: tp("challenge.seconds", CHALLENGE_RULES.durationMs / 1000) })}</Text>
+      <Button variant="primary" label={t("challenge.play")} onPress={onPlay} testID="home-challenge" />
+    </View>
   );
 }
 
@@ -113,6 +131,16 @@ const styles = StyleSheet.create({
   brand: { ...type.heading, color: colors.ink },
   tagline: { ...type.small, color: colors.inkSoft },
   intro: { gap: space.xs },
+  challenge: {
+    gap: space.sm,
+    padding: space.lg,
+    borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: colors.ink,
+    backgroundColor: colors.peach,
+  },
+  challengeLabel: { ...type.small, fontWeight: "800", color: colors.coralStrong, textTransform: "uppercase" },
+  challengeTitle: { ...type.heading, color: colors.ink },
   title: { ...type.title, color: colors.ink },
   subtitle: { ...type.body, color: colors.inkSoft },
   list: { gap: space.md },

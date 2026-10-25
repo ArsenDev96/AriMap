@@ -31,6 +31,16 @@
 /src/assets/landmarks/*
 !/src/assets/landmarks/*.webp
 
+# The Quick Challenge's share card template (apps/mobile/src/challenge/ShareCard.tsx), the website's own: that one file
+# of public/, nothing else of it.
+!/public/
+/public/*
+!/public/images/
+/public/images/*
+!/public/images/share/
+/public/images/share/*
+!/public/images/share/quick-challenge-postcard-template-v2.png
+
 # --- Never uploaded, wherever they are ------------------------------------------------------------------------
 # Git history (the clone's .git).
 .git

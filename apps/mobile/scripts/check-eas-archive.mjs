@@ -25,8 +25,21 @@ const LANDMARK_IMAGES = [
   ...readFileSync(path.join(appDir, "src/components/landmarkImages.ts"), "utf8").matchAll(/require\("@\/(assets\/landmarks\/[a-z0-9-]+\.webp)"\)/g),
 ].map((m) => `src/${m[1]}`);
 
-/** Where the archive may have files: the app, the shared code it imports, and its landmark pictures. */
-const ALLOWED = [/^\.easignore$/, /^apps\/mobile\//, /^src\/(core|geo|data)\//, ...LANDMARK_IMAGES.map((file) => new RegExp(`^${file.replace(/[.]/g, "\\.")}$`))];
+/**
+ * The website's public pictures the app bundles (required as "@/../public/…": the Quick Challenge's share card
+ * template, src/challenge/ShareCard.tsx): each must be uploaded (/.easignore names it), and no other public file may be.
+ */
+const PUBLIC_IMAGES = [...readFileSync(path.join(appDir, "src/challenge/ShareCard.tsx"), "utf8").matchAll(/require\("@\/\.\.\/(public\/[a-z0-9/-]+\.png)"\)/g)].map(
+  (m) => m[1],
+);
+
+/** Where the archive may have files: the app, the shared code it imports, and the pictures it bundles. */
+const ALLOWED = [
+  /^\.easignore$/,
+  /^apps\/mobile\//,
+  /^src\/(core|geo|data)\//,
+  ...[...LANDMARK_IMAGES, ...PUBLIC_IMAGES].map((file) => new RegExp(`^${file.replace(/[.]/g, "\\.")}$`)),
+];
 
 /** Never in the archive, wherever they are. */
 const FORBIDDEN = [
@@ -60,7 +73,9 @@ const REQUIRED = [
   "src/data/geo/europe-north.topo.json",
   "src/data/geo/europe-channel.topo.json",
   "src/data/geo/europe-east.topo.json",
+  "src/data/geo/europe-challenge.topo.json",
   ...LANDMARK_IMAGES,
+  ...PUBLIC_IMAGES,
 ];
 
 /** Secret-shaped strings in text files. */
