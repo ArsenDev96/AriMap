@@ -225,6 +225,25 @@ English and Eastern Armenian, from `src/core/i18n`. A first launch takes the dev
 these (otherwise English); after that it is the player's choice in the header, saved with the game. Text is drawn in
 the system font (Android has Armenian in Noto Sans Armenian); the website's Nunito is not bundled yet.
 
+### Armenian added since Phase 3 (for a native speaker's review)
+
+Read through for grammar, punctuation (։ at a sentence's end, ՝ before an apposition, the question mark on the
+questioned word), wrapping (no word broken at 200% on a 360 dp phone) and the game's own terms (սահմանահատում,
+նպատակակետ, մակարդակ, մարտահրավեր, Հետարկել). No approved translation was replaced. Each needs a native speaker's
+review before Google Play; the uncertain ones first:
+- **Uncertain**: «Մարզական խաղ» for "practice round" (`practiceNote`; «մարզական» also reads "sports"; «փորձ» is taken,
+  meaning a ranked attempt); «էկրանի ընթերցիչ» for "screen reader"; «{name}․ այս երկրներից ո՞րն է նրա հարևանը։»
+  (`neighboursQuestion`, the name kept in its base form, as the game's other messages do, rather than declined);
+  «{score} երկիր {time}ում» (the share line's locative, «60 վայրկյանում», joined to a plural phrase).
+- **Read through, no doubt found**: `leaveText`, `shareMessage`, `neighboursLabel`, `neighboursStart`,
+  `neighboursIntro`, `screenReaderNote`, `neighbourYes`, `neighbourNo`, `neighboursChose`, `neighboursList`,
+  `neighboursShare`, `neighboursShareNote` (`apps/mobile/src/i18n/i18n.tsx`); `travel.offCourse`; and «մակարդակ» for
+  "level" in place of «դաս» ("lesson") in the consent text, the all-stars bonus and Results' link (the game's rule:
+  no "lesson" wording).
+- **Capitals**: uppercasing turns the ligature և into ԵՒ; modern Eastern Armenian writes ԵՎ. The app's uppercase
+  labels that can hold it go through `caps` (եվ before uppercasing: «ՀԱՐԵՎԱՆՆԵՐԻ ԽԱՂ»); the website's CSS capitals
+  would show ԵՒ for such a word (none at present).
+
 ### Accessibility
 
 - Text follows the system font size: no text has scaling turned off, and layouts wrap and grow rather than clip. With large text the header puts the language switch on a row of its own
@@ -232,11 +251,38 @@ the system font (Android has Armenian in Noto Sans Armenian); the website's Nuni
   cards go one a row, and buttons sharing a row wrap, where a word wouldn't fit (Armenian at 200% on a 360dp phone).
 - Reduced motion (Android "Remove animations") turns off screen transitions (`useReducedMotion`) and the fade of
   Find's answer outline; anything animated later must check it too.
-- Touch targets are at least 48dp; buttons named by their visible label first ("Start: Around the Alps").
+- Touch targets are at least 48dp (the map's zoom buttons, the language switch, Results' level links and the review's chips raised from 44 on 2026-10-25); buttons named by their visible label first ("Start: Around the Alps").
 - The home map is decorative for screen readers: what it shows is in text beside it. The lesson map's countries are
   targets of their own ("Playing a level").
 - Edge to edge (required from Android 15): the header stays below the status bar and the action area above the
   navigation bar (`Screen`).
+
+**TalkBack, tested on the emulator (Android 14, TalkBack 14.2, 2026-10-25).** TalkBack can't be driven by
+`adb shell input` (injected events bypass it); the emulator console's touch events reach it, so gestures (swipe to
+the next item, double tap to activate, touch to explore) were sent through it, and TalkBack's "Display speech output"
+showed what it said. What was checked, with what it read:
+- Home: the challenge card (its heading, the rules, "Play Europe Challenge. Button"), "Explore the world. Heading", the
+  continents ("Europe. Button", "12 of 12 Europe levels completed", "36 of 36 stars earned in Europe", "Asia, Coming
+  soon": the hourglass is now left out of what is read), Continue last, then back to the top.
+- A continent's levels: each level's number, title (a heading), description, countries, best stars and steps ("Best: 3
+  of 3 stars. Completed", "Discover: done"), then "Continue: France and its neighbours. Button" and "Play again: …".
+  Play again's confirmation (Android's own dialog) reads its question and both buttons.
+- Discover: the steps ("Discover (current step)"), the zoom buttons, then each country as a named button; the panel's
+  heading and words. Find: the question, then the countries as "Country on the map. Button" (unnamed: naming them
+  would give the answer away), so **Find can't be played without sight** (a double tap answers, "That's Belgium. Try
+  again.", but nothing says which country is which; see the remaining limitations below).
+- Travel: "Start: Portugal. Destination: Italy. Heading", the shortest route, crossings left, "You are in Portugal.",
+  "Cross the border into:. Heading", the cards as buttons, Hint, Undo and Restart with their state ("Undo. Button.
+  disabled"), the note. A wrong turn: the stop is announced at once ("You can't reach Italy in the crossings left: this
+  route has left the shortest one. Undo your last move or try again."), then Undo and Retry.
+- The Quick Challenge: the neighbours round (above), its Results in order (the score, "Correct: 3", …, the practice
+  note, Share result, Play again, Review on the map, Explore Europe levels, "Countries to practise. Heading", each country
+  with what was chosen and its neighbours), and Back during a round: the leave dialog's message, "KEEP PLAYING. Button",
+  "LEAVE. Button".
+- Not checked with TalkBack: the share sheet's own contents (Android's), Review on the map's chips one by one, and a
+  hardware keyboard or switch access (the emulator's console keys didn't reach TalkBack's keyboard shortcuts).
+- Found and left as they are: on the lesson map, explore by touch doesn't land on a country (its target is
+  `pointerEvents="none"`, out of reach of touch exploration); swiping reaches each one.
 
 ## Playing a level
 
@@ -386,10 +432,13 @@ map. Back during a round asks first ("Keep playing", the default, or "Leave"); l
 file handed over by an inline require, as Levels 10–12's) and its start view (`challengeCamera.ts`: Europe with
 every small-country ring whole) to six times it. The lesson map's gestures and buttons (`useMapGesture`,
 `MapControls`), picking (`pick.ts`, pool countries only) and the shared small-country rings (Luxembourg, Andorra).
-At the start view Belgium lies mostly inside Luxembourg's ring, as on the website, so a press there answers
-Luxembourg: zoom in to tap Belgium (the website's own phone review notes Belgium, Slovenia and Albania are about 12 px
-across there). Results and the review name the round's countries (the missed first), each only where it overlaps no
-other name, ring or button, as the website's map does.
+Luxembourg's ring stands beside it, east, with a short leader (`RING_OFFSETS`, Phase 4A, 2026-10-25, on the website
+too): on its point it covered most of Belgium at the start view, which then had to be zoomed to (docs/DATA.md,
+"Small-country rings"). Every one of the 40 countries can now be tapped at the start view through a spot at least 4 dp
+across, on phones from 320 dp wide (`selection.test.ts`); the smallest (Kosovo, Montenegro, Slovenia, Belgium) are
+still small targets, and zooming helps. Results and the review name the round's countries (the missed first), each
+only where it overlaps no other name, leader, ring or button, and with a leader that crosses none of them, as the
+website's map does (`names.test.ts`).
 
 **Sharing** (`src/challenge/ShareCard.tsx`, `ShareResult.tsx`): the website's card, the same template, places and
 sizes (`src/core/challenge/shareCardLayout.ts`, moved there from the website's `shareCard.ts` for both to read), the
@@ -400,11 +449,36 @@ round's size and its time are on it: practice rounds have no name. Closing the s
 doesn't say whether anything was shared, so nothing claims it was.
 
 **Accessibility.** For screen readers the map is one image, named as the website names it ("Map of Europe without
-country names"): answering needs the map, as on the website, and naming the countries would give the answers away.
-Skip, the feedback (a live region), the seconds left (a timer), Results, the review's chips (each "found" or "missed")
-and the card's description are all words. Colour is never the only cue (icons and words beside every tone). Large text:
-the round's status stays in view, the counts and buttons wrap rather than clip. Reduced motion: nothing moves but
-the map under the player's own fingers.
+country names"): the map round needs sight, as on the website, and naming the countries would give the answers away.
+Skip, the feedback, the seconds left (a timer), Results, the review's chips (each "found" or "missed") and the card's
+description are all words. Colour is never the only cue (icons and words beside every tone). Large text: the round's
+status stays in view, the counts and buttons wrap rather than clip. Reduced motion: nothing moves but the map under
+the player's own fingers.
+
+**The neighbours round (Phase 4A, 2026-10-25): the challenge without the map.** A player who can't see the map gets
+a task of the same kind rather than a list of names to pick the answer from (which would test reading, not geography):
+each question names a country, as the map round does, and lists four others; the player chooses the one that borders
+it (`src/core/challenge/neighbours.ts`). Exactly one option does; the other three are among the country's nearest
+non-neighbours, so none is far off and obvious; the country itself is never an option. Knowing where a country lies is
+still the task.
+- **Borders**: land borders from the challenge map's own data (TopoJSON's shared arcs: `neighbours` in
+  `src/geo/challengeMap.ts`), checked against every level's border graph (itself checked against the CIA World
+  Factbook) in `neighbours.test.ts`. The levels' fixed links (the Øresund, the Channel Tunnel) are no land borders.
+- **A round of its own**: the 39 countries of the pool with a land neighbour among them (all but Iceland), 15 a round;
+  ten minutes, ten times the map round's 60 seconds (WCAG 2.2.1's extension, for listening to four options each
+  time); 1.5 to 2.5 seconds of feedback, so it can be read out. Played by the shared engine (an option that borders the
+  country answers it; another is a wrong answer, recorded with it); saved with its options (`session.ts`; rounds saved
+  before still load).
+- **Distinguished**: chosen on the ready screen ("Neighbours round (no map)", below Start; when a screen reader is on,
+  the screen first says that the map round needs sight); "Neighbours round" above the question and on Results; Results
+  name, for each missed country, the option chosen ("which doesn't border it") and its neighbours; shared as text only
+  ("12/15 in AriMap's neighbours round, without the map"), never on the map round's card. Like every practice round,
+  never ranked. The map is hidden while it asks (not answered on it), and back for Results and the review.
+- **With TalkBack** (tested 2026-10-25, below): each new question takes the focus and is read ("Question 2 of 15.
+  Which of these borders Austria?"), the options are buttons, a double tap answers, and the feedback is announced
+  ("✗ Incorrect. Netherlands doesn't border it."). A live region alone wasn't spoken, and the focus stayed on an option
+  that by then held another country, so the round sets the focus and announces the feedback itself.
+- The website has no neighbours round yet: its map round is the one a screen reader can't play there.
 
 ## Maps
 

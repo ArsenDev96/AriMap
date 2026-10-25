@@ -233,7 +233,7 @@ function NeighboursPlaying({
   onChoose: (option: CountryId, index: number) => void;
   onSkip: () => void;
 }) {
-  const { t, name, app } = useI18n();
+  const { t, name, app, caps } = useI18n();
   const questionRef = useRef<ComponentRef<typeof Text>>(null);
   const asked = target ?? feedback?.target ?? null;
   const index = target ? round.index : (feedback?.index ?? round.index);
@@ -261,7 +261,7 @@ function NeighboursPlaying({
   return (
     <>
       <View>
-        <Text style={styles.find}>{app("neighboursLabel")}</Text>
+        <Text style={styles.find}>{caps(app("neighboursLabel"))}</Text>
         <Text ref={questionRef} accessible style={styles.question} testID="challenge-target" accessibilityLabel={asked ? `${position}. ${app("neighboursQuestion", { name: name(asked) })}` : undefined}>
           {asked ? app("neighboursQuestion", { name: name(asked) }) : ""}
         </Text>
@@ -368,7 +368,7 @@ function Results({
   onHome: () => void;
 }) {
   const i18n = useI18n();
-  const { t, tp, name, l, app } = i18n;
+  const { t, tp, name, l, app, caps } = i18n;
   const { fontScale } = useWindowDimensions();
   const neighboursRound = neighbours !== undefined;
   const counts = [
@@ -381,7 +381,7 @@ function Results({
   const tileWidth = longestWordWidth(counts.map((c) => c.label), type.small.fontSize * fontScale) + 2 * space.md + 4;
   return (
     <>
-      {neighboursRound && <Text style={styles.eyebrow}>{app("neighboursLabel")}</Text>}
+      {neighboursRound && <Text style={styles.eyebrow}>{caps(app("neighboursLabel"))}</Text>}
       <Text accessibilityRole="header" style={styles.title}>
         {t(result.endReason === "timeUp" ? "challengeResults.timeUp" : "challengeResults.complete")}
       </Text>

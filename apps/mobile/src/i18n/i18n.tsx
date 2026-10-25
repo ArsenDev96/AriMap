@@ -89,6 +89,11 @@ export function useI18n() {
       /** One of the app's own texts, its {placeholders} filled from `params`. */
       app: (key: AppTextKey, params?: Record<string, string | number>) =>
         localize(APP_TEXT[key], locale).replace(/\{(\w+)\}/g, (all, name: string) => (params && name in params ? String(params[name]) : all)),
+      /**
+       * Text for an uppercase label (textTransform "uppercase"): Armenian's և spelled out as եվ, so that it is set in
+       * capitals as ԵՎ (modern Eastern Armenian), not ԵՒ, which uppercasing the ligature gives.
+       */
+      caps: (text: string) => (locale === "hy" ? text.replace(/և/g, "եվ") : text),
       /** Base country name. */
       name: (id: CountryId) => localize(countryName(id), locale),
       /** Params for messages mentioning a country: {country} in-sentence form, {name} base form. */
