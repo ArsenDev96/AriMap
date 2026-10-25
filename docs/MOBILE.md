@@ -65,7 +65,7 @@ archive check fails (below).
   kept on Expo's servers (`npx eas-cli@latest credentials`). Development and preview builds are signed with it, so one
   installs over the other with the app's data kept. The same key would sign a production build: it would become the
   Play upload key (Play App Signing keeps the app signing key itself).
-- **Size.** The preview APK is about 127 MB (19 MB of it the landmark pictures): one APK for all four CPU types (arm64-v8a, armeabi-v7a, x86, x86_64). The
+- **Size.** The preview APK is about 130 MB (19 MB of it the landmark pictures, 2 MB the Quick Challenge's card template): one APK for all four CPU types (arm64-v8a, armeabi-v7a, x86, x86_64). The
   production AAB lets Google Play deliver each device only its own.
 
 ### What EAS uploads
