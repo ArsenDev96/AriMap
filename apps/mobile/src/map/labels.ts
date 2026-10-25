@@ -8,7 +8,9 @@ import { textWidth } from "../theme/textWidth";
  * place (up or down a line or two, or a little sideways) where a marker (a capital, a landmark, the traveller), a
  * name already placed or the map's buttons are in the way, and kept within the map; a small country
  * (`map.smallCountries`, Level 1's Luxembourg) narrower on screen than its name gets a callout beside it with a
- * leader line to its label point, as on the website, until zooming makes it wide enough. Pure, so it is tested.
+ * leader line to its label point, as on the website, until zooming makes it wide enough. A leader never crosses a
+ * name, marker, ring or button, and no name is placed on a leader (as the website's mapNames.ts keeps them apart).
+ * Pure, so it is tested.
  */
 
 export interface Box {
@@ -52,6 +54,28 @@ const CALLOUT_REACH = 30;
 export { textWidth };
 
 const overlaps = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+
+/** Whether the segment p→q passes through the box's inside (Liang–Barsky clipping; touching an edge is no crossing). */
+export function crosses([px, py]: Point, [qx, qy]: Point, b: Box): boolean {
+  const [dx, dy] = [qx - px, qy - py];
+  let [t0, t1] = [0, 1];
+  for (const [p, q] of [
+    [-dx, px - b.x0],
+    [dx, b.x1 - px],
+    [-dy, py - b.y0],
+    [dy, b.y1 - py],
+  ]) {
+    if (p === 0) {
+      if (q <= 0) return false;
+    } else {
+      const r = q / p;
+      if (p < 0) t0 = Math.max(t0, r);
+      else t1 = Math.min(t1, r);
+      if (t0 >= t1) return false;
+    }
+  }
+  return true;
+}
 const inside = (b: Box, w: number, h: number) => b.x0 >= 0 && b.y0 >= 0 && b.x1 <= w && b.y1 <= h;
 
 function boxAt([x, y]: Point, width: number, height: number): Box {
@@ -74,6 +98,10 @@ export function placeLabels(
   const lineHeight = fontSize * 1.25;
   const taken: Box[] = [...obstacles];
   const placed: PlacedLabel[] = [];
+  /** Leaders drawn so far, from a country's label point to its name's centre. */
+  const leaders: [Point, Point][] = [];
+  /** A box clear of what is taken and of every leader. */
+  const free = (b: Box) => !taken.some((t) => overlaps(b, t)) && !leaders.some(([p, q]) => crosses(p, q, b));
   // Small countries' callouts last: the larger names keep their own points.
   const order = [...requests].sort((a, b) => Number(a.small) - Number(b.small));
   for (const r of order) {
@@ -82,6 +110,11 @@ export function placeLabels(
     if (ax < 0 || ay < 0 || ax > vw || ay > vh) continue;
     const textW = textWidth(r.text, fontSize) + (r.badge ? BADGE_SIZE + 4 : 0);
     const centre = (b: Box): Point => [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+    /**
+     * Whether a leader from the label point to a name at `b` would cross nothing taken (but what the label point is
+     * under, which any leader from it starts in: Level 10's Finland, under the map's buttons).
+     */
+    const leaderClear = (b: Box) => !taken.some((t) => !(ax > t.x0 && ax < t.x1 && ay > t.y0 && ay < t.y1) && crosses(r.anchor, centre(b), t));
     // A callout beside the country, then above or below it, then further out: the first clear of names, markers and
     // the map's buttons (undefined where none is), or the first on the map (`anyway`).
     const calloutBox = (anyway: boolean): Box | undefined => {
@@ -96,12 +129,13 @@ export function placeLabels(
         [ax, ay - CALLOUT_REACH * reach - h / 2],
       ] as Point[]);
       const fits = spots.map((p) => boxAt(p, w, h)).filter((b) => inside(b, vw, vh));
-      return fits.find((b) => !taken.some((t) => overlaps(b, t))) ?? (anyway ? fits[0] : undefined);
+      return fits.find((b) => free(b) && leaderClear(b)) ?? (anyway ? fits[0] : undefined);
     };
     if (r.small && r.width < textW) {
       const box = calloutBox(!onlyClear);
       if (!box) continue;
       taken.push(box);
+      leaders.push([r.anchor, centre(box)]);
       placed.push({ id: r.id, at: centre(box), box, callout: { anchor: r.anchor } });
       continue;
     }
@@ -127,14 +161,16 @@ export function placeLabels(
     // the last two joined to the country by a leader.
     const away = (b: Box) => Math.hypot(centre(b)[0] - ax, centre(b)[1] - ay);
     const nearest = (boxes: Box[]) => (boxes.length ? boxes.reduce((best, b) => (away(b) < away(best) ? b : best)) : undefined);
-    const clear = [...rows, ...slid].filter((b) => !taken.some((t) => overlaps(b, t)));
+    const clear = [...rows, ...slid].filter(free);
     const onCountry = (b: Box) => !r.covers || r.covers(centre(b));
-    const near = nearest(clear.filter(onCountry)) ?? nearest(clear);
+    // Off its country, a name needs a leader that crosses nothing.
+    const near = nearest(clear.filter(onCountry)) ?? nearest(clear.filter(leaderClear));
     const clearBox = near ?? calloutBox(false);
     if (!clearBox && onlyClear) continue;
     const box = clearBox ?? rows[0];
     const leader = near ? !onCountry(near) : box !== rows[0];
     taken.push(box);
+    if (leader) leaders.push([r.anchor, centre(box)]);
     placed.push({ id: r.id, at: centre(box), box, callout: leader ? { anchor: r.anchor } : null });
   }
   return placed;

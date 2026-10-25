@@ -2,21 +2,20 @@ import { memo, useEffect, useMemo, useState } from "react";
 import { PixelRatio, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from "react-native-svg";
 import { RING_COUNTRIES } from "@/core/challenge/europe";
-import { RING_RADIUS, type Ring } from "@/core/challenge/smallCountries";
-import { COUNTRIES } from "@/core/content/countries";
-import type { CountryId, LonLat } from "@/core/content/types";
+import type { Ring } from "@/core/challenge/smallCountries";
+import type { CountryId } from "@/core/content/types";
 import { fitWithRings, viewAt } from "@/geo/challengeCamera";
 import type { ChallengeMapData } from "@/geo/challengeMap";
-import { insideOutlineOf } from "@/geo/hitTest";
-import type { Point, Transform } from "@/geo/regionMap";
+import type { Transform } from "@/geo/regionMap";
 import { useI18n } from "../i18n/i18n";
-import { toScreen, toWorld, type CameraLimits } from "../map/camera";
-import { LABEL_FONT, placeLabels, type Box, type LabelRequest } from "../map/labels";
+import type { CameraLimits } from "../map/camera";
+import { LABEL_FONT, placeLabels, type Box } from "../map/labels";
 import { controlsBox, MapControls } from "../map/MapControls";
 import { countryAt, ringsFor } from "../map/pick";
 import { RingMark } from "../map/RingMark";
 import { useMapGesture } from "../map/useMapGesture";
 import { colors, mapColors, radius, space, type } from "../theme/tokens";
+import { nameRequests, ringBoxes } from "./mapNames";
 
 /** Colours a country can show (the website's ChallengeMap): found, where a missed one was, the player's wrong choice. */
 export type ChallengeTone = "correct" | "missed" | "chosen";
@@ -47,8 +46,6 @@ interface Props {
   onReady?: (ready: boolean) => void;
 }
 
-/** A country's label point: its content's, or a small country's ring point (the website's labelPoint). */
-const labelPoint = (id: CountryId): LonLat | null => COUNTRIES[id]?.label.coordinates ?? RING_COUNTRIES[id] ?? null;
 
 /**
  * The Quick Challenge's map in the app: the whole of Europe without names (src/geo/challengeMap.ts, the website's
@@ -145,31 +142,12 @@ interface DrawingProps {
 function Drawing({ map, pool, tones, names, focus, camera, size, rings, keepClear }: DrawingProps) {
   const { name } = useI18n();
   const fontSize = LABEL_FONT * Math.min(1.35, Math.max(1, PixelRatio.getFontScale()));
-  const project = (p: readonly [number, number]): Point => toScreen(camera, map.project(p));
 
   // Names (Results and the review): the focus first, then the round's countries, each at its label point, the nearest
   // clear place or a callout (labels.ts), clear of the rings, the buttons and each other; one with no clear place is
   // left out until zooming makes room, as on the website.
-  const ordered = focus ? [focus, ...names.filter((id) => id !== focus)] : names;
-  const requests: LabelRequest[] = ordered.flatMap((id) => {
-    const point = labelPoint(id);
-    const shape = map.shapes.find((s) => s.id === id);
-    if (!point || !shape) return [];
-    const [[x0], [x1]] = shape.bounds;
-    return [
-      {
-        id,
-        text: name(id),
-        anchor: project(point),
-        width: (x1 - x0) * camera.k,
-        small: id in RING_COUNTRIES,
-        badge: false,
-        covers: (p: Point) => insideOutlineOf(shape, toWorld(camera, p)) !== false,
-      },
-    ];
-  });
-  const ringBoxes: Box[] = rings.map(({ x, y }) => ({ x0: x - RING_RADIUS, y0: y - RING_RADIUS, x1: x + RING_RADIUS, y1: y + RING_RADIUS }));
-  const labels = placeLabels(requests, [...ringBoxes, ...keepClear], size, fontSize, true);
+  const requests = nameRequests(map, names, focus, camera, name);
+  const labels = placeLabels(requests, [...ringBoxes(rings), ...keepClear], size, fontSize, true);
   const outline = focus ? map.outlines.get(focus) : undefined;
 
   return (
