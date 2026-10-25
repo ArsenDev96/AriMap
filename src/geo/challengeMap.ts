@@ -38,11 +38,16 @@ let loading: Promise<ChallengeMapData> | null = null;
 
 /** Loads and projects the challenge's map (once per page). */
 export function loadChallengeMap(): Promise<ChallengeMapData> {
-  loading ??= import("@/data/geo/europe-challenge.topo.json").then((module) => buildChallengeMap(module.default as unknown as ChallengeTopology));
+  loading ??= import("@/data/geo/europe-challenge.topo.json").then((module) => challengeMapFrom(module.default));
   return loading;
 }
 
-function buildChallengeMap(topology: ChallengeTopology): ChallengeMapData {
+/**
+ * Projects the challenge's map from its data file's contents: what loadChallengeMap does once the file has loaded. The
+ * app hands the file over itself (Metro's development server can't serve its import() from outside apps/mobile).
+ */
+export function challengeMapFrom(data: unknown): ChallengeMapData {
+  const topology = data as ChallengeTopology;
   const { rotate, scale, translate } = topology.projection;
   const projection: GeoProjection = geoAzimuthalEqualArea().rotate(rotate).scale(scale).translate(translate);
   const path = geoPath(projection);

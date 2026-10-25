@@ -1,5 +1,6 @@
 /**
- * A QR code for the shared result card (shareCard.ts): the site's address as the card prints it, so a phone can open
+ * A QR code for the shared result card (the website draws it in src/components/challenge/shareCard.ts, the app in
+ * apps/mobile): the site's address as the card prints it, so a phone can open
  * it from the image. Plain arithmetic, no library: byte mode, error correction level M (about 15% of the code may be
  * lost), the smallest version from 1 to 10 that holds the text, and the mask with the lowest penalty, as ISO/IEC 18004
  * specifies (the same steps as Project Nayuki's QR Code generator). Returns the modules, dark as true, without the
