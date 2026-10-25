@@ -13,7 +13,6 @@ import { regionMapFor, viewLimits } from "@/geo/regionMap";
 import { mapPadding, toScreen } from "../map/camera";
 import { countryAt } from "../map/pick";
 import { cardActions } from "./levelActions";
-import { isPlayableInApp } from "./playable";
 import { acceptPress, PRESS_GAP_MS } from "./pressGuard";
 
 /*
@@ -73,11 +72,6 @@ function throughFind(s: AppState, answer: (target: CountryId, s: AppState) => Ap
 const travel = (s: AppState, ...route: CountryId[]) => route.reduce((acc, c) => step(acc, { type: "travelMove", country: c }), s);
 
 describe("Level 1 in the app", () => {
-  it("is the level the app plays (the others show their map)", () => {
-    expect(isPlayableInApp(L1)).toBe(true);
-    expect(isPlayableInApp(L2)).toBe(false);
-  });
-
   it("Discover: tapping each country selects and explores it; a faded neighbour selects nothing", () => {
     let s = open(createInitialState());
     expect(progress(s)).toMatchObject({ started: true, stage: "discover" });

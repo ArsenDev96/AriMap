@@ -68,6 +68,9 @@ export const mapColors = {
   coral: "#e85b45",
   route: "#1f3a5f",
   hintFill: "rgba(255, 187, 69, 0.18)",
+  /** A small-country ring (the Quick Challenge's): a light halo, and a faint inside. */
+  ringHalo: "rgba(255, 255, 255, 0.9)",
+  ringFill: "rgba(255, 255, 255, 0.22)",
   pinShadow: "rgba(31, 58, 95, 0.25)",
   markerRing: "rgba(31, 58, 95, 0.45)",
   control: "#fffaf3",

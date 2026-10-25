@@ -127,10 +127,29 @@ export function insideOutlineOf(shape: CountryShape, [x, y]: Point): boolean | n
   // Outside the shape's bounds it can't be inside: skips the costly hit test on the full outline.
   const [[x0, y0], [x1, y1]] = shape.bounds;
   if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+  const outline = cachedOutline(shape);
+  return outline ? insideOutline(outline, Math.fround(x), Math.fround(y)) : null;
+}
+
+/**
+ * The shape's area in world units² (its land: holes subtracted, islands added), or null for an outline this can't
+ * read (see insideOutlineOf). The app's lesson map rings a country drawn smaller than a ring by it
+ * (src/core/challenge/smallCountries.ts), as the Quick Challenge rings by d3-geo's area of the same shape.
+ */
+export function outlineArea(shape: CountryShape): number | null {
+  const outline = cachedOutline(shape);
+  if (!outline) return null;
+  const e = outline.edges;
+  let twice = 0;
+  for (let i = 0; i < e.length; i += 4) twice += e[i] * e[i + 3] - e[i + 2] * e[i + 1];
+  return Math.abs(twice) / 2;
+}
+
+function cachedOutline(shape: CountryShape): Outline | null {
   let outline = outlineCache.get(shape.d);
   if (outline === undefined) {
     outline = outlineOf(shape.d);
     outlineCache.set(shape.d, outline);
   }
-  return outline ? insideOutline(outline, Math.fround(x), Math.fround(y)) : null;
+  return outline;
 }

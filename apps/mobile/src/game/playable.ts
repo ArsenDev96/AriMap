@@ -3,6 +3,6 @@
  * still show their map and countries until each has been checked on phones (its map data, its landmarks' pictures,
  * its travel options). Their progress, unlocks and stars are the website's rules either way.
  */
-const NATIVE_PLAYABLE: ReadonlySet<string> = new Set(["western-europe-1"]);
+const NATIVE_PLAYABLE: ReadonlySet<string> = new Set(["western-europe-1", "around-the-alps", "central-europe", "along-the-adriatic"]);
 
 export const isPlayableInApp = (levelId: string) => NATIVE_PLAYABLE.has(levelId);

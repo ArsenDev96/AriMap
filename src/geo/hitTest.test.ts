@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCountry } from "@/core/content/countries";
 import { westernEuropeLesson } from "@/core/lessons/western-europe";
-import { insideOutlineOf } from "./hitTest";
+import { insideOutlineOf, outlineArea } from "./hitTest";
 import { regionMapFor, type CountryShape } from "./regionMap";
 
 const shape = (d: string, bounds: CountryShape["bounds"]): CountryShape => ({ id: "X", d, coast: "", bounds });
@@ -41,5 +41,22 @@ describe("insideOutlineOf", () => {
       const hits = map.shapes.filter((s) => insideOutlineOf(s, at)).map((s) => s.id);
       expect(hits, id).toEqual([id]);
     }
+  });
+});
+
+describe("outlineArea", () => {
+  it("is the land: holes subtracted, islands added", () => {
+    expect(outlineArea(shape("M0,0L10,0L10,10L0,10Z", [[0, 0], [10, 10]]))).toBe(100);
+    expect(outlineArea(shape("M0,0L10,0L10,10L0,10ZM3,3L3,7L7,7L7,3ZM20,0L25,0L25,5L20,5Z", [[0, 0], [25, 10]]))).toBe(100 - 16 + 25);
+    expect(outlineArea(shape("M0,0C5,5 10,5 10,0Z", [[0, 0], [10, 5]]))).toBeNull();
+  });
+
+  it("orders Level 1's countries by size, Luxembourg by far the smallest", () => {
+    const map = regionMapFor(westernEuropeLesson);
+    const area = (id: string) => outlineArea(map.shapes.find((s) => s.id === id)!)!;
+    expect(area("LUX") * 10).toBeLessThan(area("BEL"));
+    expect(area("BEL")).toBeLessThan(area("NLD") * 1.1);
+    expect(area("NLD")).toBeLessThan(area("DEU"));
+    expect(area("DEU")).toBeLessThan(area("FRA"));
   });
 });

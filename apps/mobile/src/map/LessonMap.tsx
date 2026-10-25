@@ -6,14 +6,16 @@ import type { CountryId } from "@/core/content/types";
 import type { CountryTone, MapView } from "@/core/lesson/mapView";
 import type { LessonStage } from "@/core/lesson/progress";
 import type { LessonDefinition } from "@/core/lessons/types";
+import { insideOutlineOf } from "@/geo/hitTest";
 import { viewLimits, type RegionMap, type ScreenMark, type Transform } from "@/geo/regionMap";
 import { routeLine, routeSettings } from "@/geo/route";
+import { RING_RADIUS, type Ring } from "@/core/challenge/smallCountries";
 import { useI18n } from "../i18n/i18n";
 import { colors, mapColors, radius, space, TAP, type } from "../theme/tokens";
-import { isBase, mapPadding, MAX_ZOOM, toScreen, zoomTo, ZOOM_STEP, type CameraLimits } from "./camera";
+import { isBase, mapPadding, MAX_ZOOM, toScreen, toWorld, zoomTo, ZOOM_STEP, type CameraLimits } from "./camera";
 import { beginGesture, endGesture, moveGesture, type Finger, type MapGesture } from "./gesture";
 import { BADGE_SIZE, LABEL_FONT, placeLabels, textWidth, type Box, type LabelRequest } from "./labels";
-import { countryAt } from "./pick";
+import { countryAt, ringsFor } from "./pick";
 
 interface Props {
   lesson: LessonDefinition;
@@ -43,13 +45,18 @@ const DARK_TONES: ReadonlySet<CountryTone> = new Set(["selected", "correct", "vi
 const PIN_BOX = { x0: -8, y0: -23, x1: 8, y1: 2 };
 const MARK_BOX = { x0: -7, y0: -7, x1: 7, y1: 7 };
 const FLASH_MS = 900;
+/** Room each side of a callout's name within its pill, past its box. */
+const PILL_PAD = 4;
+/** A ring's dashes and gaps, evenly round it (the Quick Challenge's twelve). */
+const RING_DASH = (2 * Math.PI * RING_RADIUS) / 24;
 const CONTROL = 44;
 
 /**
  * A level's map in play: the website's shapes (src/geo/regionMap.ts) drawn with react-native-svg, marked as the game
  * says (buildMapView: each country's tone, names, capital and landmark markers, the traveller, the route, Find's hint
  * circle and the latest answer's outline). Pinch and drag to zoom and pan, within the website's limits (camera.ts);
- * a tap answers only when it is a tap (gesture.ts), on the country under the finger (pick.ts). Zoom buttons do the
+ * a tap answers only when it is a tap (gesture.ts), on the country under the finger (pick.ts), or in Discover and Find
+ * inside the ring of a country too small to tap (the Quick Challenge's small-country rings). Zoom buttons do the
  * same without gestures. For screen readers each of the level's countries is a target where it is on the map, named
  * as the website names it (unnamed in Find, where naming it would give the answer away).
  */
@@ -144,8 +151,8 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
       const point = endGesture(current.g, at, e.nativeEvent.timestamp);
       if (!point || !current.g.tap) return;
       // The same country where the press began and ended (the website's rule).
-      const country = countryAt(map.shapes, active, camera, point);
-      if (country && country === countryAt(map.shapes, active, camera, current.g.tap.at)) onCountryTap(country);
+      const country = countryAt(map.shapes, active, camera, point, rings);
+      if (country && country === countryAt(map.shapes, active, camera, current.g.tap.at, rings)) onCountryTap(country);
     },
     onResponderTerminate: () => {
       gesture.current = null;
@@ -157,6 +164,8 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
     setCamera(zoomTo(camera, camera.k * factor, [size.width / 2, size.height / 2], size.width, size.height, limits));
   };
   const atBase = !camera || !limits || isBase(camera, limits.base);
+  // Small-country rings while the map takes countries (Discover, Find), each while its country is drawn too small.
+  const rings = map && camera && (stage === "discover" || stage === "find") ? ringsFor(map.shapes, lesson.countries, camera, map.project) : [];
 
   const ready = map && size && camera && limits;
   return (
@@ -164,7 +173,7 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
       {ready ? (
         <>
           <View style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants" {...responder}>
-            <MapDrawing lesson={lesson} map={map} view={view} active={active} camera={camera} size={size} keepClear={controls ? [controls] : []} reducedMotion={reducedMotion} />
+            <MapDrawing lesson={lesson} map={map} view={view} active={active} camera={camera} size={size} rings={rings} keepClear={controls ? [controls] : []} reducedMotion={reducedMotion} />
           </View>
           <CountryTargets map={map} view={view} active={active} camera={camera} size={size} onCountryTap={onCountryTap} name={name} t={t} />
           <View style={[styles.controls, controlsInRow && styles.controlsRow]}>
@@ -212,12 +221,13 @@ interface DrawingProps {
   active: readonly CountryId[];
   camera: Transform;
   size: { width: number; height: number };
+  rings: readonly Ring[];
   /** Areas on the map names keep clear of (the zoom buttons). */
   keepClear: readonly Box[];
   reducedMotion: boolean;
 }
 
-function MapDrawing({ lesson, map, view, active, camera, size, keepClear, reducedMotion }: DrawingProps) {
+function MapDrawing({ lesson, map, view, active, camera, size, rings, keepClear, reducedMotion }: DrawingProps) {
   const { name } = useI18n();
   const flash = useAnswerFlash(view);
   const fontSize = LABEL_FONT * Math.min(1.35, Math.max(1, PixelRatio.getFontScale()));
@@ -233,7 +243,8 @@ function MapDrawing({ lesson, map, view, active, camera, size, keepClear, reduce
 
   const explored = new Set(view.explored);
   const requests: LabelRequest[] = view.labels.map((id) => {
-    const bounds = shapeOf(id)?.bounds;
+    const shape = shapeOf(id);
+    const bounds = shape?.bounds;
     return {
       id,
       text: name(id),
@@ -241,9 +252,11 @@ function MapDrawing({ lesson, map, view, active, camera, size, keepClear, reduce
       width: bounds ? (bounds[1][0] - bounds[0][0]) * camera.k : 0,
       small: (lesson.map.smallCountries ?? []).includes(id),
       badge: explored.has(id),
+      covers: (p) => !shape || insideOutlineOf(shape, toWorld(camera, p)) !== false,
     };
   });
-  const labels = placeLabels(requests, [...markerBoxes, ...keepClear], size, fontSize);
+  const ringBoxes: Box[] = rings.map(({ x, y }) => ({ x0: x - RING_RADIUS, y0: y - RING_RADIUS, x1: x + RING_RADIUS, y1: y + RING_RADIUS }));
+  const labels = placeLabels(requests, [...markerBoxes, ...ringBoxes, ...keepClear], size, fontSize);
 
   // Find's hint: a circle around the country's label point, sized from its area, capped (the website's).
   let area: { cx: number; cy: number; r: number } | null = null;
@@ -266,6 +279,24 @@ function MapDrawing({ lesson, map, view, active, camera, size, keepClear, reduce
         <CountryLayer map={map} active={active} tones={view.tones} />
         {flash && flashShape && <AnswerFlash key={flash.key} d={flashShape.d} kind={flash.kind} reducedMotion={reducedMotion} />}
       </G>
+      {rings.map((ring) => {
+        const tone = view.tones[ring.id];
+        return (
+          <G key={`ring-${ring.id}`}>
+            <Circle cx={ring.x} cy={ring.y} r={RING_RADIUS} fill="none" stroke={mapColors.ringHalo} strokeWidth={3.5} />
+            <Circle
+              cx={ring.x}
+              cy={ring.y}
+              r={RING_RADIUS}
+              fill={tone && tone !== "default" ? TONE_FILL[tone] : mapColors.ringFill}
+              fillOpacity={tone && tone !== "default" ? 0.6 : 1}
+              stroke={colors.ink}
+              strokeWidth={1.25}
+              strokeDasharray={`${RING_DASH} ${RING_DASH}`}
+            />
+          </G>
+        );
+      })}
       {area && <Circle cx={area.cx} cy={area.cy} r={area.r} fill={mapColors.hintFill} stroke={mapColors.amberDark} strokeWidth={2.5} strokeDasharray="8 6" />}
       {route.length > 1 && (
         <Polyline
@@ -315,9 +346,9 @@ function MapDrawing({ lesson, map, view, active, camera, size, keepClear, reduce
                 <Line x1={label.callout.anchor[0]} y1={label.callout.anchor[1]} x2={label.at[0]} y2={label.at[1]} stroke={mapColors.label} strokeWidth={1.5} strokeLinecap="round" />
                 <Circle cx={label.callout.anchor[0]} cy={label.callout.anchor[1]} r={3} fill={mapColors.label} stroke={colors.white} strokeWidth={1.5} />
                 <Rect
-                  x={label.box.x0}
+                  x={label.box.x0 - PILL_PAD}
                   y={label.box.y0}
-                  width={label.box.x1 - label.box.x0}
+                  width={label.box.x1 - label.box.x0 + 2 * PILL_PAD}
                   height={label.box.y1 - label.box.y0}
                   rx={(label.box.y1 - label.box.y0) / 2}
                   fill={colors.white}

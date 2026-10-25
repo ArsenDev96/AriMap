@@ -30,6 +30,17 @@ describe("country names on the lesson map", () => {
   it("stay on the map near its edge", () => {
     const [label] = placeLabels([request("Netherlands", [3, 100])], [], viewport);
     expect(label.box.x0).toBeGreaterThanOrEqual(0);
+    // Its top edge too (Level 4's Slovenia, whose label point is near the top of a short map).
+    const [top] = placeLabels([request("Slovenia", [150, 3])], [], viewport);
+    expect(top.box.y0).toBeGreaterThanOrEqual(0);
+  });
+
+  it("take the clear place nearest their label point: a little sideways rather than two lines away", () => {
+    // Blocked on its own row and one line up and down; free a few pixels left.
+    const block = { x0: 175, y0: 75, x1: 215, y1: 125 };
+    const [label] = placeLabels([request("Montenegro", [160, 100])], [block], viewport);
+    expect(overlap(label.box, block)).toBe(false);
+    expect(label.at[1]).toBe(100);
   });
 
   it("are left out where the label point is off the map", () => {

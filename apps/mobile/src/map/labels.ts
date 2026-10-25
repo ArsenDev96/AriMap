@@ -3,8 +3,9 @@ import type { Point } from "@/geo/regionMap";
 
 /**
  * Where the lesson map's country names go, on screen. A simpler cousin of the website's label layout
- * (src/components/map/RegionMap.tsx): each name is centred on its country's label point, moved up or down where a
- * marker (a capital, a landmark, the traveller) or a name already placed is in the way; a small country
+ * (src/components/map/RegionMap.tsx): each name is centred on its country's label point, moved to the nearest clear
+ * place (up or down a line or two, or a little sideways) where a marker (a capital, a landmark, the traveller), a
+ * name already placed or the map's buttons are in the way, and kept within the map; a small country
  * (`map.smallCountries`, Level 1's Luxembourg) narrower on screen than its name gets a callout beside it with a
  * leader line to its label point, as on the website, until zooming makes it wide enough. Pure, so it is tested.
  */
@@ -26,6 +27,8 @@ export interface LabelRequest {
   small: boolean;
   /** Room after the name for Discover's explored check. */
   badge: boolean;
+  /** Whether a point on screen is on the country: a name moved off it is joined to it by a leader. */
+  covers?: (p: Point) => boolean;
 }
 
 export interface PlacedLabel {
@@ -33,7 +36,10 @@ export interface PlacedLabel {
   /** The name's centre. */
   at: Point;
   box: Box;
-  /** A small country's callout: its box (a pill around the name) and the leader from the anchor. */
+  /**
+   * A callout: the name in a pill, with a leader from the anchor. A small country's, or a name that found no clear
+   * place on its own country (Level 4's Montenegro in Armenian at 200% text, beside the map's buttons).
+   */
   callout: { anchor: Point } | null;
 }
 
@@ -89,15 +95,16 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
       placed.push({ id: r.id, at: [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2], box, callout: { anchor: r.anchor } });
       continue;
     }
-    const tries = [0, -1, 1, -2, 2].map((n) => boxAt([ax, ay + n * lineHeight], textW, lineHeight));
     // Kept on the map: a name near its edge moves in rather than being cut.
-    const shifted = tries.map((b) => {
+    const onMap = (b: Box): Box => {
       const dx = b.x0 < 2 ? 2 - b.x0 : b.x1 > vw - 2 ? vw - 2 - b.x1 : 0;
-      return { x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0, y1: b.y1 };
-    });
-    // Then, where every height is blocked (the map's buttons are taller than the names' moves), slid sideways just
-    // clear of what is in the way, by at most half the name, so it stays over its country.
-    const slid = shifted.flatMap((b) =>
+      const dy = b.y0 < 2 ? 2 - b.y0 : b.y1 > vh - 2 ? vh - 2 - b.y1 : 0;
+      return { x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0 + dy, y1: b.y1 + dy };
+    };
+    const rows = [0, -1, 1, -2, 2].map((n) => onMap(boxAt([ax, ay + n * lineHeight], textW, lineHeight)));
+    // Each row also slid sideways just clear of what is in the way (the map's buttons are taller than the names'
+    // moves up and down), by at most half the name, so it stays over its country.
+    const slid = rows.flatMap((b) =>
       taken
         .filter((t) => overlaps(b, t))
         .flatMap((t) => [t.x0 - 2 - b.x1, t.x1 + 2 - b.x0])
@@ -105,9 +112,16 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
         .map((dx) => ({ x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0, y1: b.y1 }))
         .filter((s) => inside(s, vw, vh)),
     );
-    const box = [...shifted, ...slid].find((b) => !taken.some((t) => overlaps(b, t))) ?? shifted[0];
+    // The clear place nearest the label point with its centre on the country, else the nearest clear place, joined
+    // to the country by a leader.
+    const centre = (b: Box): Point => [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+    const away = (b: Box) => Math.hypot(centre(b)[0] - ax, centre(b)[1] - ay);
+    const nearest = (boxes: Box[]) => (boxes.length ? boxes.reduce((best, b) => (away(b) < away(best) ? b : best)) : undefined);
+    const clear = [...rows, ...slid].filter((b) => !taken.some((t) => overlaps(b, t)));
+    const onCountry = (b: Box) => !r.covers || r.covers(centre(b));
+    const box = nearest(clear.filter(onCountry)) ?? nearest(clear) ?? rows[0];
     taken.push(box);
-    placed.push({ id: r.id, at: [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2], box, callout: null });
+    placed.push({ id: r.id, at: centre(box), box, callout: onCountry(box) ? null : { anchor: r.anchor } });
   }
   return placed;
 }

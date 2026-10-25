@@ -23,17 +23,13 @@
 !/src/geo/
 !/src/data/
 
-# The landmark pictures of the levels the app plays (apps/mobile/src/components/landmarkImages.ts), one by one: the
-# rest of the website's pictures stay behind.
+# The landmark pictures the levels show (apps/mobile/src/components/landmarkImages.ts): the pictures themselves,
+# not their thumbnails nor the rest of the website's pictures.
 !/src/assets/
 /src/assets/*
 !/src/assets/landmarks/
 /src/assets/landmarks/*
-!/src/assets/landmarks/eiffel-tower.webp
-!/src/assets/landmarks/atomium.webp
-!/src/assets/landmarks/amsterdam-canal-houses.webp
-!/src/assets/landmarks/adolphe-bridge.webp
-!/src/assets/landmarks/brandenburg-gate.webp
+!/src/assets/landmarks/*.webp
 
 # --- Never uploaded, wherever they are ------------------------------------------------------------------------
 # Git history (the clone's .git).
