@@ -75,11 +75,12 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
     // A country whose label point is off the map is not named.
     if (ax < 0 || ay < 0 || ax > vw || ay > vh) continue;
     const textW = textWidth(r.text, fontSize) + (r.badge ? BADGE_SIZE + 4 : 0);
-    if (r.small && r.width < textW) {
+    const centre = (b: Box): Point => [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+    // A callout beside the country, then above or below it, then further out: the first clear of names, markers and
+    // the map's buttons (undefined where none is), or the first on the map (`anyway`).
+    const calloutBox = (anyway: boolean): Box | undefined => {
       const w = textW + 2 * CALLOUT_PAD;
       const h = lineHeight + CALLOUT_PAD;
-      // Beside the country, then above or below it, then further out: the first clear of names, markers and the
-      // map's buttons.
       const spots: Point[] = [1, 1.8].flatMap((reach) => [
         [ax + CALLOUT_REACH * reach + w / 2, ay + CALLOUT_REACH * 0.6 * reach],
         [ax + CALLOUT_REACH * reach + w / 2, ay - CALLOUT_REACH * 0.6 * reach],
@@ -89,10 +90,13 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
         [ax, ay - CALLOUT_REACH * reach - h / 2],
       ] as Point[]);
       const fits = spots.map((p) => boxAt(p, w, h)).filter((b) => inside(b, vw, vh));
-      const box = fits.find((b) => !taken.some((t) => overlaps(b, t))) ?? fits[0];
+      return fits.find((b) => !taken.some((t) => overlaps(b, t))) ?? (anyway ? fits[0] : undefined);
+    };
+    if (r.small && r.width < textW) {
+      const box = calloutBox(true);
       if (!box) continue;
       taken.push(box);
-      placed.push({ id: r.id, at: [(box.x0 + box.x1) / 2, (box.y0 + box.y1) / 2], box, callout: { anchor: r.anchor } });
+      placed.push({ id: r.id, at: centre(box), box, callout: { anchor: r.anchor } });
       continue;
     }
     // Kept on the map: a name near its edge moves in rather than being cut.
@@ -112,16 +116,18 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
         .map((dx) => ({ x0: b.x0 + dx, x1: b.x1 + dx, y0: b.y0, y1: b.y1 }))
         .filter((s) => inside(s, vw, vh)),
     );
-    // The clear place nearest the label point with its centre on the country, else the nearest clear place, joined
-    // to the country by a leader.
-    const centre = (b: Box): Point => [(b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2];
+    // The clear place nearest the label point with its centre on the country, else the nearest clear place, else a
+    // callout further out (Level 10's Finland, its label point under the map's buttons and beside the traveller):
+    // the last two joined to the country by a leader.
     const away = (b: Box) => Math.hypot(centre(b)[0] - ax, centre(b)[1] - ay);
     const nearest = (boxes: Box[]) => (boxes.length ? boxes.reduce((best, b) => (away(b) < away(best) ? b : best)) : undefined);
     const clear = [...rows, ...slid].filter((b) => !taken.some((t) => overlaps(b, t)));
     const onCountry = (b: Box) => !r.covers || r.covers(centre(b));
-    const box = nearest(clear.filter(onCountry)) ?? nearest(clear) ?? rows[0];
+    const near = nearest(clear.filter(onCountry)) ?? nearest(clear);
+    const box = near ?? calloutBox(false) ?? rows[0];
+    const leader = near ? !onCountry(near) : box !== rows[0];
     taken.push(box);
-    placed.push({ id: r.id, at: centre(box), box, callout: onCountry(box) ? null : { anchor: r.anchor } });
+    placed.push({ id: r.id, at: centre(box), box, callout: leader ? { anchor: r.anchor } : null });
   }
   return placed;
 }

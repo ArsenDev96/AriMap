@@ -14,7 +14,6 @@ import { loadMapData, regionMapFor, viewLimits, type RegionMap } from "@/geo/reg
 import { mapPadding, toScreen } from "../map/camera";
 import { countryAt, ringsFor } from "../map/pick";
 import { cardActions } from "./levelActions";
-import { isPlayableInApp } from "./playable";
 
 /*
  * Every European level played as the app plays it, on its real map: Discover and Find answered by taps resolved as
@@ -24,8 +23,6 @@ import { isPlayableInApp } from "./playable";
  */
 
 const EUROPE = levelsOf("europe");
-/** The levels the app plays: Level 1 and those after it, in order. */
-const PLAYABLE = EUROPE.filter((level) => isPlayableInApp(level.id));
 
 /**
  * Lesson maps on phones: a 360dp-wide phone's portrait map (the screen less its gutters, 40% of the height), the same
@@ -123,10 +120,10 @@ function play(s: AppState, levelId: string, size: readonly [number, number] = SI
 }
 
 describe("every European level in the app", () => {
-  it("are played in the app, from Level 1 on, each with its landmarks' pictures", () => {
+  it("are all twelve, each with a lesson and its landmarks' pictures", () => {
     expect(EUROPE).toHaveLength(12);
-    expect(PLAYABLE.map((l) => l.id)).toEqual(EUROPE.slice(0, PLAYABLE.length).map((l) => l.id));
-    for (const level of PLAYABLE) {
+    for (const level of EUROPE) {
+      expect(level.lesson, level.id).toBeDefined();
       for (const { lesson } of levelVersions(level)) {
         for (const id of lesson.countries) {
           const illustration = getCountry(id).landmark?.illustration;
@@ -137,7 +134,7 @@ describe("every European level in the app", () => {
   });
 
   it("each country can be tapped at its label point at the start view of every phone map, tiny ones by their ring", () => {
-    for (const level of PLAYABLE) {
+    for (const level of EUROPE) {
       for (const { lesson } of levelVersions(level)) {
         for (const size of SIZES) {
           for (const id of lesson.countries) expect(tapAt(lesson, size, id), `${level.id} r${lesson.revision ?? 1} ${size.join("x")}: ${id}`).toBe(id);
@@ -158,10 +155,10 @@ describe("every European level in the app", () => {
     for (const level of EUROPE) for (const size of SIZES) expect(ringed(level.id, size).every((id) => id === "AND" || id === "LUX"), level.id).toBe(true);
   });
 
-  it("in order, from a new game: each perfect, saved, and opening the next", () => {
+  it("in order, from a new game: each perfect, saved, and opening the next; 12/12 and 36/36 at the end", () => {
     let s = createInitialState();
     const store = memoryStorage();
-    for (const [i, level] of PLAYABLE.entries()) {
+    for (const [i, level] of EUROPE.entries()) {
       expect(canPlay(s, level.id), level.id).toBe(true);
       if (i + 1 < EUROPE.length) expect(canPlay(s, EUROPE[i + 1].id), EUROPE[i + 1].id).toBe(false);
       s = play(s, level.id, SIZES[i % SIZES.length]);
@@ -178,12 +175,13 @@ describe("every European level in the app", () => {
         expect(canPlay(s, next!.id)).toBe(true);
       } else expect(next).toBeNull();
     }
-    expect(continentStars(s, "europe")).toEqual({ earned: 3 * PLAYABLE.length, max: 36 });
+    expect(continentStars(s, "europe")).toEqual({ earned: 36, max: 36 });
+    expect(EUROPE.every((level) => levelStatus(s, level).kind === "completed")).toBe(true);
   });
 
   it("an assisted run earns fewer stars, and a later perfect one raises the best; a worse replay never lowers it", () => {
     let s = createInitialState();
-    const levels = PLAYABLE.slice(0, 4);
+    const levels = EUROPE.slice(0, 4);
     for (const level of levels) {
       s = play(s, level.id, SIZES[0], 1);
       expect(attemptRating(activeProgress(s)), level.id).toBe(2);
@@ -200,9 +198,9 @@ describe("every European level in the app", () => {
 
   it("leaving a level mid-lesson completes nothing and opens nothing; Continue resumes it", () => {
     let s = createInitialState();
-    const level = PLAYABLE[PLAYABLE.length - 1];
+    const level = EUROPE[EUROPE.length - 1];
     const lesson = level.lesson!;
-    for (const before of PLAYABLE.slice(0, -1)) s = play(s, before.id);
+    for (const before of EUROPE.slice(0, -1)) s = play(s, before.id);
     s = appReducer(s, { type: "openLevel", levelId: level.id });
     const [first, second] = lesson.countries;
     s = tap(s, tapAt(lesson, SIZES[2], first));
@@ -213,14 +211,14 @@ describe("every European level in the app", () => {
     s = loadAppState(store);
     expect(levelStatus(s, level).kind).not.toBe("completed");
     expect(s.levels[level.id].records).toMatchObject({ findDone: false, travelDone: false, bestRating: null });
-    expect(continentStars(s, "europe").earned).toBe(3 * (PLAYABLE.length - 1));
+    expect(continentStars(s, "europe").earned).toBe(3 * (EUROPE.length - 1));
     s = appReducer(s, { type: "openLevel", levelId: level.id });
     expect(activeProgress(s)).toMatchObject({ stage: "find", find: { index: 0, question: { target: first, wrongGuesses: [second], solved: false } } });
   });
 
   it("Level 7: Andorra answered through its ring; France, shown at the start, moves nothing and says so", () => {
     let s = createInitialState();
-    for (const level of PLAYABLE.slice(0, 6)) s = play(s, level.id);
+    for (const level of EUROPE.slice(0, 6)) s = play(s, level.id);
     const lesson = getLevel("iberian-journey")!.lesson!;
     s = appReducer(s, { type: "openLevel", levelId: lesson.id });
     s = step(s, { type: "startFinding", order: ["AND", "PRT", "ESP", "FRA", "ITA"] });
@@ -262,10 +260,51 @@ describe("every European level in the app", () => {
     }
     // Level 4, from Montenegro: Croatia, Bosnia and Herzegovina, and Serbia (travel-only).
     let s = createInitialState();
-    for (const level of PLAYABLE.slice(0, 3)) s = play(s, level.id);
+    for (const level of EUROPE.slice(0, 3)) s = play(s, level.id);
     s = toTravel(s, "along-the-adriatic");
     const lesson = activeLesson(s);
     expect(travelChoices(activeProgress(s).travel!, lesson.borders).map((c) => c.country)).toContain("SRB");
+  });
+});
+
+describe("the late levels' journeys", () => {
+  /** The cards at the start of a level's journey, after Levels 1 to `levelNumber - 1`. */
+  function startCards(levelNumber: number) {
+    let s = createInitialState();
+    for (const level of EUROPE.slice(0, levelNumber - 1)) s = play(s, level.id);
+    s = toTravel(s, EUROPE[levelNumber - 1].id);
+    const lesson = activeLesson(s);
+    return { s, lesson, cards: travelChoices(activeProgress(s).travel!, lesson.borders, lesson.travel.nonNeighbourOptions) };
+  }
+
+  it("Level 10: Denmark leads to Sweden over the Øresund link and to travel-only Germany; Iceland is never reached", () => {
+    const { lesson, cards } = startCards(10);
+    expect(cards.map((c) => c.country)).toEqual(expect.arrayContaining(["SWE", "DEU"]));
+    expect(lesson.map.borderLinks?.[0].between).toEqual(expect.arrayContaining(["DNK", "SWE"]));
+    expect(lesson.countries).toContain("ISL");
+    expect(lesson.borders.ISL ?? []).toEqual([]);
+    // Travel's note says why (the link, and Iceland), in place of the usual one.
+    expect(lesson.travel.note).toBeDefined();
+  });
+
+  it("Level 11: from Germany, Great Britain is reached through France and the Channel Tunnel", () => {
+    const { s, lesson } = startCards(11);
+    expect(shortestPath(lesson.borders, "DEU", "GBR")).toEqual(["DEU", "FRA", "GBR"]);
+    const done = (["FRA", "GBR"] as const).reduce((acc, country) => step(acc, { type: "travelMove", country }), s);
+    expect(activeProgress(done)).toMatchObject({ stage: "results", lastTravelResult: { route: ["DEU", "FRA", "GBR"] } });
+  });
+
+  it("Level 12: Finland, shown at the start in Estonia, shares no border with it; Results offers no next level", () => {
+    const { s, cards } = startCards(12);
+    expect(cards).toContainEqual({ country: "FIN", neighbour: false });
+    const after = step(s, { type: "travelMove", country: "FIN" });
+    expect(activeProgress(after).travel!.path).toEqual(["EST"]);
+    expect(activeProgress(after).travelNotice).toMatchObject({ kind: "notNeighbour", country: "FIN" });
+    const lesson = activeLesson(s);
+    const route = shortestPath(lesson.borders, "EST", "BLR")!;
+    const done = route.slice(1).reduce((acc, country) => step(acc, { type: "travelMove", country }), after);
+    expect(attemptRating(activeProgress(done))).toBe(3);
+    expect(nextLevel(done, lesson.id)).toBeNull();
   });
 });
 

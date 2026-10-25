@@ -1,6 +1,18 @@
 import { useEffect, useState } from "react";
 import type { LessonDefinition } from "@/core/lessons/types";
-import { loadMapData, regionMapFor, type RegionMap } from "@/geo/regionMap";
+import { isMapDataLoaded, loadMapData, regionMapFor, setMapData, type LoadedDataset, type RegionMap } from "@/geo/regionMap";
+
+/**
+ * The map data of the levels drawn from data of their own (Levels 10–12), bundled with the app and read only when
+ * such a level opens (an inline require runs then). The website loads them with import() (regionMap.ts's
+ * loadMapData); Metro's development server can't serve a file outside apps/mobile that way, so the app hands them
+ * over itself, the same in development and in release.
+ */
+const MAP_DATA: Readonly<Record<LoadedDataset, () => unknown>> = {
+  north: () => require("@/data/geo/europe-north.topo.json"),
+  channel: () => require("@/data/geo/europe-channel.topo.json"),
+  east: () => require("@/data/geo/europe-east.topo.json"),
+};
 
 /**
  * A level's map (src/geo/regionMap.ts, shared with the website): its countries projected as SVG paths in the levels'
@@ -14,7 +26,9 @@ export function useRegionMap(lesson: LessonDefinition | undefined): RegionMap | 
     if (!lesson) return;
     let current = true;
     const timer = setTimeout(() => {
-      loadMapData(lesson.map.dataset).then(() => current && setMap({ lesson, map: regionMapFor(lesson) }));
+      const dataset = lesson.map.dataset;
+      if (dataset && !isMapDataLoaded(dataset)) setMapData(dataset, MAP_DATA[dataset]());
+      loadMapData(dataset).then(() => current && setMap({ lesson, map: regionMapFor(lesson) }));
     }, 0);
     return () => {
       current = false;

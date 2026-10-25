@@ -9,7 +9,6 @@ import { getLevel, type LevelInfo } from "@/core/lessons";
 import { activeLesson, activeProgress, nextLevel } from "@/core/progress/appState";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { useGame } from "../game/GameProvider";
-import { isPlayableInApp } from "../game/playable";
 import { acceptPress } from "../game/pressGuard";
 import { useI18n } from "../i18n/i18n";
 import { LessonMap } from "../map/LessonMap";
@@ -89,12 +88,12 @@ export function LessonScreen({ levelId }: { levelId: string }) {
   // Back to the level's continent's levels: back down the stack where it is there, in its place otherwise (a level
   // continued from Home), so the header's and Results' "Back to levels" always lead there.
   const backToLevels = () => router.dismissTo({ pathname: "/continent/[id]", params: { id: getLevel(levelId)!.continent } });
-  // Next level: played here when the app plays it, otherwise its map and countries (opening starts nothing there).
+  // Next level, opened where it was left (Discover the first time), in this screen's place.
   const openNext = (next: LevelInfo) => {
     const now = Date.now();
     if (!acceptPress(lastPress.current, now)) return;
     lastPress.current = now;
-    if (isPlayableInApp(next.id)) dispatch({ type: "openLevel", levelId: next.id });
+    dispatch({ type: "openLevel", levelId: next.id });
     router.replace({ pathname: "/level/[id]", params: { id: next.id } });
   };
   const playAgain = () => confirmRestart("playAgain", getLevel(levelId)!.title, i18n, () => dispatch({ type: "restartLevel", levelId }));

@@ -2,7 +2,7 @@ import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-
 import { useCallback } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { getContinent, hasPlayableLevels, isContinentId, levelsOf, type LevelInfo } from "@/core/lessons";
-import { allLevelsComplete, continentStars, hasSavedResults, hasUnfinishedAttempt, levelStatus, mainAction, versionOf, type LevelStatus } from "@/core/progress/appState";
+import { allLevelsComplete, continentStars, levelStatus, mainAction, versionOf, type LevelStatus } from "@/core/progress/appState";
 import { MAX_STARS } from "@/core/lesson/rating";
 import { Button } from "../../components/Button";
 import { Screen } from "../../components/Screen";
@@ -10,7 +10,6 @@ import { ScreenHeader } from "../../components/ScreenHeader";
 import { StarTotal } from "../../components/StarTotal";
 import { useGame } from "../../game/GameProvider";
 import { cardActions, type CardAction } from "../../game/levelActions";
-import { isPlayableInApp } from "../../game/playable";
 import { STEPS, stepOf } from "../../game/steps";
 import { useI18n } from "../../i18n/i18n";
 import { confirmRestart } from "../../lesson/confirmRestart";
@@ -79,8 +78,8 @@ function useOpenLevel() {
   const router = useRouter();
   const { dispatch } = useGame();
   return (level: LevelInfo) => {
-    // A level the app plays opens where it was left (openLevel); another shows its map, changing nothing.
-    if (isPlayableInApp(level.id)) dispatch({ type: "openLevel", levelId: level.id });
+    // The level opens where it was left (openLevel; Discover the first time).
+    dispatch({ type: "openLevel", levelId: level.id });
     router.push({ pathname: "/level/[id]", params: { id: level.id } });
   };
 }
@@ -100,14 +99,8 @@ function LevelCard({ level, status, upNext }: { level: LevelInfo; status: LevelS
   const done = [records?.discoverDone, records?.findDone, records?.travelDone].map(Boolean);
   const best = completed ? (records?.bestRating ?? null) : null;
   const title = l(level.title);
-  // A level the app plays has the website's actions (levelActions.ts); another opens its map.
-  const actions = isPlayableInApp(level.id) ? cardActions(state, level) : null;
-
-  // The card's action, as on the website: Continue an attempt under way, View results of a finished one, Play again
-  // a completed level, otherwise Start.
-  const action = t(
-    hasUnfinishedAttempt(state, level.id) ? "welcome.continue" : completed && hasSavedResults(state, level.id) ? "welcome.viewResults" : completed ? "welcome.playAgain" : "welcome.start",
-  );
+  // The website's actions (levelActions.ts): none for a locked or coming-soon level.
+  const actions = cardActions(state, level);
 
   let statusText: string;
   let detail: string | null = null;
@@ -169,14 +162,7 @@ function LevelCard({ level, status, upNext }: { level: LevelInfo; status: LevelS
         </View>
       )}
 
-      {/* Locked and coming-soon levels have no action. */}
-      {playable && actions ? (
-        <View style={styles.actions}>
-          {[actions.main, actions.other].map((a, i) => a && cardButton(a, i))}
-        </View>
-      ) : (
-        playable && <Button label={action} accessibilityLabel={t("level.forLevel", { action, level: title })} onPress={() => openLevel(level)} />
-      )}
+      {actions && <View style={styles.actions}>{[actions.main, actions.other].map((a, i) => a && cardButton(a, i))}</View>}
     </View>
   );
 

@@ -7,20 +7,9 @@ import { localize, translate, translatePlural, type MessageKey, type MessagePara
 import { useGame } from "../game/GameProvider";
 
 /**
- * The app's own text, for what the website has no words for (yet), in both languages. Everything else is the
- * website's catalogs (src/core/i18n), shared as they are.
+ * The text helpers of the website's useI18n (src/components/i18n.tsx), in the language of the saved game: all the
+ * app's words are the website's catalogs (src/core/i18n), shared as they are.
  */
-const APP_TEXT = {
-  // A level the app doesn't play yet (game/playable.ts): its map and countries are shown instead.
-  levelPreviewNote: {
-    en: "Playing this level in the app is coming soon. Here are its map and countries.",
-    hy: "Այս մակարդակը հավելվածում խաղալու հնարավորությունը շուտով կավելանա։ Ահա նրա քարտեզն ու երկրները։",
-  },
-} as const satisfies Record<string, LocalizedText>;
-
-export type AppTextKey = keyof typeof APP_TEXT;
-
-/** The text helpers of the website's useI18n (src/components/i18n.tsx), in the language of the saved game. */
 export function useI18n() {
   const locale: Locale = useGame().state.locale;
   return useMemo(
@@ -29,8 +18,7 @@ export function useI18n() {
       t: (key: MessageKey, params?: MessageParams) => translate(locale, key, params),
       tp: (key: PluralKey, count: number, params?: MessageParams) => translatePlural(locale, key, count, params),
       l: (text: LocalizedText) => localize(text, locale),
-      app: (key: AppTextKey) => localize(APP_TEXT[key], locale),
-      /** Base country name (also for countries of levels not playable yet). */
+      /** Base country name. */
       name: (id: CountryId) => localize(countryName(id), locale),
       /** Params for messages mentioning a country: {country} in-sentence form, {name} base form. */
       countryParams: (id: CountryId) => ({

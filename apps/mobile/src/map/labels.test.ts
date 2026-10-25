@@ -43,6 +43,15 @@ describe("country names on the lesson map", () => {
     expect(label.at[1]).toBe(100);
   });
 
+  it("where no place near the label point is clear, go further out in a callout with a leader", () => {
+    // Level 10's Finland: its label point under the map's buttons, the traveller just below.
+    const buttons = { x0: 250, y0: 10, x1: 296, y1: 150 };
+    const pin = { x0: 222, y0: 140, x1: 262, y1: 180 };
+    const [label] = placeLabels([request("Finland", [255, 145])], [buttons, pin], viewport);
+    expect(label.callout).toEqual({ anchor: [255, 145] });
+    expect(overlap(label.box, buttons) || overlap(label.box, pin)).toBe(false);
+  });
+
   it("are left out where the label point is off the map", () => {
     expect(placeLabels([request("France", [-20, 100])], [], viewport)).toEqual([]);
   });
