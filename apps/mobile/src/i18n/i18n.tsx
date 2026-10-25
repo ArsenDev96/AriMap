@@ -11,7 +11,7 @@ import { useGame } from "../game/GameProvider";
  * website's catalogs (src/core/i18n), shared as they are.
  */
 const APP_TEXT = {
-  // Until the levels are playable in the app (the next phase): the level's map and countries are shown instead.
+  // A level the app doesn't play yet (game/playable.ts): its map and countries are shown instead.
   levelPreviewNote: {
     en: "Playing this level in the app is coming soon. Here are its map and countries.",
     hy: "Այս մակարդակը հավելվածում խաղալու հնարավորությունը շուտով կավելանա։ Ահա նրա քարտեզն ու երկրները։",

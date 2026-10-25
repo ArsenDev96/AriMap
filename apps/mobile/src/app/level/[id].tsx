@@ -5,27 +5,34 @@ import { canPlay, versionOf } from "@/core/progress/appState";
 import { Screen } from "../../components/Screen";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { useGame } from "../../game/GameProvider";
+import { isPlayableInApp } from "../../game/playable";
 import { useI18n } from "../../i18n/i18n";
+import { LessonScreen } from "../../lesson/LessonScreen";
 import { RegionMapView } from "../../map/RegionMapView";
 import { useRegionMap } from "../../map/useRegionMap";
 import { colors, radius, space, type } from "../../theme/tokens";
 
 /**
- * A level: where the lesson (Discover, Find, Travel, Results) will be played. Until then it shows the level's map,
- * drawn from the website's map data, and its countries. Opening it starts nothing and changes no progress: the
- * level's place, records and unlocks stay as saved.
+ * A level: played from Discover to Results (LessonScreen) where the app plays it (game/playable.ts), otherwise its map
+ * and countries. Only a playable, unlocked level opens, as on the website.
  */
 export default function Level() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { state } = useGame();
-  const { t, l, name, app } = useI18n();
   const level = typeof id === "string" ? getLevel(id) : undefined;
-  // The version the level's attempt is on (an attempt from before its countries changed keeps its own).
-  const lesson = level && versionOf(state, level)?.lesson;
-  const map = useRegionMap(lesson);
+  if (!level || !level.lesson || !canPlay(state, level.id)) return <Redirect href="/" />;
+  return isPlayableInApp(level.id) ? <LessonScreen levelId={level.id} /> : <LevelPreview levelId={level.id} />;
+}
 
-  // Only a playable, unlocked level opens, as on the website.
-  if (!level || !lesson || !canPlay(state, level.id)) return <Redirect href="/" />;
+/** A level the app doesn't play yet: its map and countries. Opening it starts nothing and changes no progress. */
+function LevelPreview({ levelId }: { levelId: string }) {
+  const { state } = useGame();
+  const { t, l, name, app } = useI18n();
+  const level = getLevel(levelId)!;
+  // The version the level's attempt is on (an attempt from before its countries changed keeps its own).
+  const lesson = versionOf(state, level)?.lesson;
+  const map = useRegionMap(lesson);
+  if (!lesson) return null;
 
   return (
     <Screen header={<ScreenHeader back={{ label: t("results.backToLevels") }} />}>

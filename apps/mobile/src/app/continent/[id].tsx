@@ -9,8 +9,11 @@ import { Screen } from "../../components/Screen";
 import { ScreenHeader } from "../../components/ScreenHeader";
 import { StarTotal } from "../../components/StarTotal";
 import { useGame } from "../../game/GameProvider";
+import { cardActions, type CardAction } from "../../game/levelActions";
+import { isPlayableInApp } from "../../game/playable";
 import { STEPS, stepOf } from "../../game/steps";
 import { useI18n } from "../../i18n/i18n";
+import { confirmRestart } from "../../lesson/confirmRestart";
 import { colors, radius, space, type } from "../../theme/tokens";
 
 /**
@@ -74,13 +77,19 @@ export default function ContinentLevels() {
  */
 function useOpenLevel() {
   const router = useRouter();
-  return (level: LevelInfo) => router.push({ pathname: "/level/[id]", params: { id: level.id } });
+  const { dispatch } = useGame();
+  return (level: LevelInfo) => {
+    // A level the app plays opens where it was left (openLevel); another shows its map, changing nothing.
+    if (isPlayableInApp(level.id)) dispatch({ type: "openLevel", levelId: level.id });
+    router.push({ pathname: "/level/[id]", params: { id: level.id } });
+  };
 }
 
 function LevelCard({ level, status, upNext }: { level: LevelInfo; status: LevelStatus; upNext: boolean }) {
   const openLevel = useOpenLevel();
-  const { state } = useGame();
-  const { t, l, name } = useI18n();
+  const { state, dispatch } = useGame();
+  const i18n = useI18n();
+  const { t, l, name } = i18n;
   const playable = status.kind !== "comingSoon" && status.kind !== "locked";
   const completed = status.kind === "completed";
   const progress = state.levels[level.id];
@@ -91,6 +100,8 @@ function LevelCard({ level, status, upNext }: { level: LevelInfo; status: LevelS
   const done = [records?.discoverDone, records?.findDone, records?.travelDone].map(Boolean);
   const best = completed ? (records?.bestRating ?? null) : null;
   const title = l(level.title);
+  // A level the app plays has the website's actions (levelActions.ts); another opens its map.
+  const actions = isPlayableInApp(level.id) ? cardActions(state, level) : null;
 
   // The card's action, as on the website: Continue an attempt under way, View results of a finished one, Play again
   // a completed level, otherwise Start.
@@ -159,9 +170,29 @@ function LevelCard({ level, status, upNext }: { level: LevelInfo; status: LevelS
       )}
 
       {/* Locked and coming-soon levels have no action. */}
-      {playable && <Button label={action} accessibilityLabel={t("level.forLevel", { action, level: title })} onPress={() => openLevel(level)} />}
+      {playable && actions ? (
+        <View style={styles.actions}>
+          {[actions.main, actions.other].map((a, i) => a && cardButton(a, i))}
+        </View>
+      ) : (
+        playable && <Button label={action} accessibilityLabel={t("level.forLevel", { action, level: title })} onPress={() => openLevel(level)} />
+      )}
     </View>
   );
+
+  /** One of the card's actions (levelActions.ts), named with the level; starting over asks first. */
+  function cardButton(a: CardAction, key: number) {
+    const label = t(a.kind === "open" ? a.label : a.mode === "playAgain" ? "welcome.playAgain" : "welcome.startOver");
+    const onPress =
+      a.kind === "open"
+        ? () => openLevel(level)
+        : () =>
+            confirmRestart(a.mode, level.title, i18n, () => {
+              dispatch({ type: "restartLevel", levelId: level.id });
+              openLevel(level);
+            });
+    return <Button key={key} grow label={label} accessibilityLabel={t("level.forLevel", { action: label, level: title })} onPress={onPress} />;
+  }
 }
 
 const styles = StyleSheet.create({
@@ -201,6 +232,7 @@ const styles = StyleSheet.create({
   statusText: { ...type.bodyStrong, color: colors.ink },
   statusDetail: { ...type.small, color: colors.inkSoft },
   steps: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
+  actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
   step: { paddingHorizontal: space.md, paddingVertical: space.xs, borderRadius: radius.pill },
   stepText: { ...type.small, fontWeight: "700" },
 });

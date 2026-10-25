@@ -17,8 +17,16 @@ import { fileURLToPath } from "node:url";
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(appDir, "../..");
 
-/** Where the archive may have files: the app, and the shared code it imports. */
-const ALLOWED = [/^\.easignore$/, /^apps\/mobile\//, /^src\/(core|geo|data)\//];
+/**
+ * The landmark pictures the app bundles (src/components/landmarkImages.ts): each must be uploaded (/.easignore lets
+ * them in one by one), and no other of the website's pictures may be.
+ */
+const LANDMARK_IMAGES = [
+  ...readFileSync(path.join(appDir, "src/components/landmarkImages.ts"), "utf8").matchAll(/require\("@\/(assets\/landmarks\/[a-z0-9-]+\.webp)"\)/g),
+].map((m) => `src/${m[1]}`);
+
+/** Where the archive may have files: the app, the shared code it imports, and its landmark pictures. */
+const ALLOWED = [/^\.easignore$/, /^apps\/mobile\//, /^src\/(core|geo|data)\//, ...LANDMARK_IMAGES.map((file) => new RegExp(`^${file.replace(/[.]/g, "\\.")}$`))];
 
 /** Never in the archive, wherever they are. */
 const FORBIDDEN = [
@@ -52,6 +60,7 @@ const REQUIRED = [
   "src/data/geo/europe-north.topo.json",
   "src/data/geo/europe-channel.topo.json",
   "src/data/geo/europe-east.topo.json",
+  ...LANDMARK_IMAGES,
 ];
 
 /** Secret-shaped strings in text files. */

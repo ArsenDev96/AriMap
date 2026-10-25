@@ -41,6 +41,39 @@ export const colors = {
   white: "#ffffff",
 } as const;
 
+/**
+ * The lesson map's palette (the website's RegionMap.module.css): its sea, land and borders, the countries' tones as
+ * the game marks them (buildMapView's CountryTone), names, markers and the route.
+ */
+export const mapColors = {
+  sea: "#b3e2de",
+  land: "#d3efdc",
+  landBorder: "#4a7c85",
+  context: "#f0ebdf",
+  contextBorder: "#dcd2bf",
+  coast: "rgba(38, 124, 131, 0.3)",
+  label: "#1f3a5f",
+  labelHalo: "rgba(255, 255, 255, 0.78)",
+  labelOnDark: "#ffffff",
+  labelOnDarkHalo: "rgba(9, 74, 67, 0.55)",
+  labelDestination: "#5c3900",
+  labelDestinationHalo: "rgba(255, 236, 196, 0.8)",
+  /** Selected (Discover), correct (Find) and visited (Travel). */
+  teal: "#149486",
+  /** The traveller's country, and the correct-answer outline. */
+  tealDark: "#0d6f65",
+  wrong: "#f6b3a6",
+  amber: "#ffbb45",
+  amberDark: "#c07d05",
+  coral: "#e85b45",
+  route: "#1f3a5f",
+  hintFill: "rgba(255, 187, 69, 0.18)",
+  pinShadow: "rgba(31, 58, 95, 0.25)",
+  markerRing: "rgba(31, 58, 95, 0.45)",
+  control: "#fffaf3",
+  controlBorder: "rgba(31, 58, 95, 0.16)",
+} as const;
+
 /** The home map's colours, by WORLD_REGIONS key (the website's ContinentScreen.module.css). */
 export const worldColors = {
   water: "#2cbbe9",

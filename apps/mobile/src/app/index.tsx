@@ -8,6 +8,7 @@ import { Screen } from "../components/Screen";
 import { ScreenHeader } from "../components/ScreenHeader";
 import { StarTotal } from "../components/StarTotal";
 import { useGame } from "../game/GameProvider";
+import { isPlayableInApp } from "../game/playable";
 import { useI18n } from "../i18n/i18n";
 import { WorldMap } from "../map/WorldMap";
 import { colors, radius, space, TAP, type, worldColors } from "../theme/tokens";
@@ -49,7 +50,10 @@ export default function Home() {
               level: t("level.number", { number: resume.number }),
               title: l(resume.title),
             })}
-            onPress={() => router.push({ pathname: "/level/[id]", params: { id: resume.id } })}
+            onPress={() => {
+              if (isPlayableInApp(resume.id)) dispatch({ type: "openLevel", levelId: resume.id });
+              router.push({ pathname: "/level/[id]", params: { id: resume.id } });
+            }}
           />
         ) : (
           playable[0] && <Button variant="primary" label={t("continents.explore", { continent: l(playable[0].nameInText) })} onPress={() => openContinent(playable[0])} />

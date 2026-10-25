@@ -19,6 +19,13 @@ function deviceLocale(): Locale {
 }
 
 /**
+ * Whether the save could be read as the app started. If not (the database busy or failing), the game is played in
+ * memory and never saved: a fresh game written over a save that is only unreadable for a moment would lose every
+ * level's progress. The next launch reads it again.
+ */
+let storeReadable = true;
+
+/**
  * The saved game, read once before the first screen renders. A first launch (no save yet) starts in the device's
  * language; after that the language is the player's choice, kept in the save like everything else.
  */
@@ -27,7 +34,9 @@ function initialState(storage: KeyValueStorage): AppState {
   try {
     firstLaunch = storage.getItem(STORAGE_KEY) === null;
   } catch {
-    // Unreadable store: loadAppState starts afresh in memory, in the default language.
+    // Unreadable store: loadAppState starts afresh in memory, in the default language, and nothing is saved over
+    // the store (see GameProvider).
+    storeReadable = false;
   }
   const state = loadAppState(storage);
   return firstLaunch ? appReducer(state, { type: "setLocale", locale: deviceLocale() }) : state;
@@ -41,7 +50,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(appReducer, nativeStorage(), initialState);
 
   useEffect(() => {
-    saveAppState(nativeStorage(), state);
+    if (storeReadable) saveAppState(nativeStorage(), state);
   }, [state]);
 
   const game = useMemo(() => ({ state, dispatch }), [state]);

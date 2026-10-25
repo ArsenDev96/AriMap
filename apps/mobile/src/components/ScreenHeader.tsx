@@ -45,7 +45,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.line,
     backgroundColor: colors.bg,
   },
-  start: { flexShrink: 1, flexGrow: 1 },
+  // At least about half the row: with large text the language switch moves to a row of its own rather than squeeze
+  // the back action until a word ("Վերադառնալ") breaks.
+  start: { flexShrink: 1, flexGrow: 1, minWidth: "55%" },
   back: { minHeight: TAP, justifyContent: "center", alignSelf: "flex-start" },
   backLabel: { ...type.bodyStrong, color: colors.ink },
 });

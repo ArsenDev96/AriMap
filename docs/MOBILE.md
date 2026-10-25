@@ -3,7 +3,8 @@
 The native app lives in `apps/mobile`: React Native with Expo (SDK 58, React Native 0.88), Expo Router and TypeScript.
 It is drawn natively (react-native-svg for maps), with no WebView, no login and no backend. Phase 1 is its foundation:
 navigation, safe areas, theme, language selection, saved progress, and the Home and Europe level-selection screens
-with the real levels. Levels are not playable in the app yet: a level opens a preview of its map and countries.
+with the real levels. Phase 2A makes Level 1 (France and its neighbours) playable from Discover to Results with the
+website's own game rules ("Playing a level", below); the other levels still open a preview of their map and countries.
 
 ## Run it
 
@@ -77,7 +78,8 @@ Every cloud build uploads a project archive to Expo. Two rules decide what is in
    caches, keystores) can't be included.
 2. **Only what the app builds from** (`.easignore`, at the repository root, where EAS CLI reads it). From the clone it
    deletes every file matching its rules: an allowlist keeping `apps/mobile` and `src/core`, `src/geo` and `src/data`
-   only, then a deny list (Git data, env files, credentials and keys, installed packages, generated native projects,
+   only, and the landmark pictures the app bundles one by one (`src/assets/landmarks/…`, Level 1's five), then a deny
+   list (Git data, env files, credentials and keys, installed packages, generated native projects,
    build output and caches, logs, temporary files, the shared code's tests). It also removes the clone's `.git`, so no
    history is uploaded. With `requireCommit` off, `.easignore` would replace every `.gitignore` for the working-tree
    copy, which is why its deny list repeats them.
@@ -91,7 +93,8 @@ build; the website's folders remain only as empty directories.
 build:inspect --stage archive`, which makes the archive exactly as a build does (the same code) in a local folder and
 uploads nothing, then fails if:
 
-- a file is outside `apps/mobile`, `src/core`, `src/geo` or `src/data`;
+- a file is outside `apps/mobile`, `src/core`, `src/geo` or `src/data`, other than the landmark pictures the app
+  bundles (read from `apps/mobile/src/components/landmarkImages.ts`, each of which must be there);
 - a file is forbidden anywhere (Git data, env files, credentials, keys and certificates, website build output or
   caches, installed packages, the generated `android/` or `ios/`, Expo or Metro caches, logs, temporary files, tests);
 - a file the build needs is missing (`package.json`, the lockfile, `app.json`, `eas.json`, the Metro config, the
@@ -114,7 +117,7 @@ node scripts/check-eas-archive.mjs --dir <that folder>
 honouring `.gitignore` files but not `.git/info/exclude`, where the local Next.js build folders (`.next-preview`,
 `.next-l11`, `.next-l12`) were excluded. They were uploaded, and `.next-preview`'s Turbopack cache held the values of
 `.env.local`, including `SUPABASE_SECRET_KEY` and `VERCEL_AUTOMATION_BYPASS_SECRET`. The build was cancelled and
-deleted, and the credentials are being rotated. The root `.gitignore` now ignores every `.next-*` folder too.
+deleted, and both credentials have since been rotated and the old values revoked. The root `.gitignore` now ignores every `.next-*` folder too.
 
 **The app holds no secret.** It has no backend, no Supabase client and no environment variables (`process.env`,
 `EXPO_PUBLIC_…`): the bundle contains only the app's code and the shared game code, and the release APK's bundle was
@@ -129,6 +132,8 @@ website does.
 cd apps/mobile
 npm run typecheck    # TypeScript, including the shared src/core, src/geo and src/data it imports
 npm run lint         # ESLint (eslint-config-expo)
+npm test             # Vitest: the map's camera, gestures, picking and labels, the level cards, and Level 1 played
+                     # through the shared rules (src/**/*.test.ts; the repository's Vitest, vitest.config.mts)
 npm run doctor       # expo-doctor: SDK version alignment and config
 ```
 
@@ -144,14 +149,22 @@ apps/mobile/                 a project of its own: package.json, package-lock.js
   src/app/                   Expo Router routes (every file is a screen)
     _layout.tsx              the stack, providers, status bar, reduced motion
     index.tsx                Home: the continents, world map, Europe's progress and stars, Continue / Explore Europe
-    continent/[id].tsx       a continent's level selection (Europe's twelve levels)
-    level/[id].tsx           a level: for now its map and countries (the lesson comes next)
+    continent/[id].tsx       a continent's level selection (Europe's twelve levels), with the website's card actions
+    level/[id].tsx           a level: played (LessonScreen) where the app plays it, otherwise its map and countries
+  src/lesson/                a level in play: LessonScreen (map + panel), DiscoverPanel, FindPanel, TravelPanel,
+                             ResultsPanel, Panel (scrolling content, pinned main action), StepsBar and Stars (parts),
+                             confirmRestart (Start over / Play again asks first)
   src/game/GameProvider.tsx  the game's state: src/core's appReducer, loaded and saved through the native store
+  src/game/playable.ts       the levels the app plays (Level 1)
+  src/game/levelActions.ts   a level card's actions (the website's rules: Continue, View results, Start over, Play again)
+  src/game/pressGuard.ts     ignores a second gameplay press within 400 ms
   src/storage/nativeStorage.ts  the native KeyValueStorage (SQLite)
   src/i18n/i18n.tsx          useI18n over src/core/i18n (plus the app's own few strings, in both languages)
-  src/map/                   react-native-svg maps: WorldMap (home), RegionMapView + useRegionMap (a level)
-  src/theme/                 tokens (the website's palette), useReducedMotion
-  src/components/            Screen (safe areas), ScreenHeader, LanguageSwitch, Button, StarTotal
+  src/map/                   react-native-svg maps: WorldMap (home), RegionMapView + useRegionMap (a level's preview),
+                             LessonMap (a level in play) with camera.ts (zoom and pan limits), gesture.ts (tap or drag),
+                             pick.ts (the country under a tap) and labels.ts (where names go)
+  src/theme/                 tokens (the website's palette, and its map's), useReducedMotion
+  src/components/            Screen (safe areas), ScreenHeader, LanguageSwitch, Button, StarTotal, landmarkImages
 ```
 
 ### Shared code
@@ -179,9 +192,9 @@ migrated by `src/core/progress/storage.ts`, here in a SQLite key-value store (`e
 first screen renders and every new state is saved as it is made. Progress on the website and in the app are separate
 (no account or backend).
 
-The saved screen and continent follow the screens (Home: `goHome`; a level selection: `openContinent`). The app
-always opens on Home; the system's Back goes back one screen. Opening a level's preview starts nothing and changes no
-progress.
+The saved screen and continent follow the screens (Home: `goHome`; a level selection: `openContinent`; a level the app
+plays: `openLevel`, which opens it where it was left). The app always opens on Home; the system's Back goes back one
+screen. Opening a level's preview starts nothing and changes no progress.
 
 ### Navigation
 
@@ -200,21 +213,77 @@ the system font (Android has Armenian in Noto Sans Armenian); the website's Nuni
 
 ### Accessibility
 
-- Text follows the system font size: no text has scaling turned off, and layouts wrap and grow rather than clip.
-- Reduced motion (Android "Remove animations") turns off screen transitions (`useReducedMotion`); anything animated
-  later must check it too.
+- Text follows the system font size: no text has scaling turned off, and layouts wrap and grow rather than clip. With large text the header puts the language switch on a row of its own
+  rather than break a word, and the lesson's map takes less of the height. Map names grow a little (to 1.35×).
+- Reduced motion (Android "Remove animations") turns off screen transitions (`useReducedMotion`) and the fade of
+  Find's answer outline; anything animated later must check it too.
 - Touch targets are at least 48dp; buttons named by their visible label first ("Start: Around the Alps").
-- Maps are decorative for screen readers: what they show is in text beside them.
+- Preview and home maps are decorative for screen readers: what they show is in text beside them. The lesson map's
+  countries are targets of their own ("Playing a level").
 - Edge to edge (required from Android 15): the header stays below the status bar and the action area above the
   navigation bar (`Screen`).
 
+## Playing a level
+
+Level 1 is played as on the website, by the website's own rules: nothing about answers, scoring, stars, unlocking or
+saving is written again for the app.
+
+- **Shared, used as they are.** The lesson reducer (`src/core/lesson/progress.ts`: Discover, Find, Travel, Results)
+  through `appReducer`'s `lesson` action; Find's questions, hints and answers (`src/core/game/find.ts`); Travel's
+  moves, crossings, Undo, Restart and dead ends (`src/core/game/travel.ts`, `graph.ts`); the star rating and its "next
+  star" (`src/core/lesson/rating.ts`); what the map shows at each moment (`buildMapView`, `src/core/lesson/mapView.ts`:
+  tones, names, markers, the route, Find's hint circle, the latest answer); level status, unlocks, Continue and Next
+  level (`src/core/progress/appState.ts`); the save (`storage.ts`); the text (`src/core/i18n`, both languages); the
+  geometry (`src/geo/regionMap.ts`, `route.ts`), and the point-in-country test (`src/geo/hitTest.ts`, moved there from
+  the website's `src/components/map/insideShape.ts`, which keeps only its canvas fallback for curves).
+- **Native.** The screens (`src/lesson/`), the map in play (`src/map/LessonMap.tsx`) and what only a phone needs: how
+  a touch becomes a tap, a drag or a pinch, which country a tap is on, where names go, and the press guard.
+- **Welcome** is the level selection, as on the website (its WelcomeScreen): each card's title, description,
+  countries, status and steps, and its actions by the website's rules (`levelActions.ts`): Start; Continue with Start
+  over (or Play again, once completed) beside it; View results with Play again. Start over and Play again ask first
+  (Android's dialog, keeping being the default; Back keeps too) and then clear only that level's place.
+- **Find** is one round of five questions, as the website plays it now (its earlier two-round Find survives only as a
+  save format it migrates). Travel's moves are the neighbour cards, as on the website: the map shows the route and
+  never takes a move.
+- **Taps and gestures.** A tap answers only when it is one (`gesture.ts`, the website's rule: one finger, down and up
+  within 10 px and 700 ms), on the country under the finger where the press began and ended (`pick.ts`: the level's
+  countries first, as they are drawn over the faded ones; a tap on the sea within 8 px of a coast takes that country, as
+  a browser moves a touch to a nearby target). Dragging and pinching move the map within the website's limits
+  (`camera.ts`: from the start view to 8× it, panned within `viewLimits`, d3-zoom's constraint); +, − and "Show the
+  whole map" do the same with buttons. While a finger is on the map nothing else takes the gesture. Each stage starts
+  at the whole map.
+- **Repeated presses.** The rules ignore a repeated action (a second Next, a second move into the same country, an
+  answer after the question is answered); a second gameplay press within 400 ms is ignored too (`pressGuard.ts`), so a
+  double tap can't land on the button that has just replaced the first (Next on Hint, a new neighbour card).
+- **Leaving and coming back.** Every action is saved as it is made. Back (the header's or Android's) returns to the
+  level selection at any point; Continue resumes the same question or route, also after the app is closed or Android
+  recreates it (which reopens it on Home, see "Navigation"). Nothing is completed or rated before the journey arrives.
+  If the save can't be read as the app starts, the game is played in memory and never saved over it.
+- **Screen readers.** Each of the level's countries is a target where its name is drawn, named as the website names it
+  (unnamed in Find, "Country on the map", where the name would give the answer away), and activated to answer; the
+  panels announce answers and moves (live regions). The zoom buttons are named.
+
+### Differences from the website
+
+- The map has no painted relief, forests or scenery, and no magnified close-up of Luxembourg: it is the flat palette,
+  with Luxembourg named in a callout beside it (as the website does at its whole-map view). Pinch to zoom in on it.
+- Names are placed more simply: at each country's label point, moved up or down clear of markers, other names and the
+  zoom buttons; a small country narrower than its name gets the callout. The website's full layout (leader placement
+  around obstacles, two-line callouts, capital and landmark names on the map) is not ported: capitals and landmarks
+  are marked on the map and named in the panel.
+- The route line appears at once (no drawing along, no landing pin or arrival glow); Find's answer outline fades out
+  (held, then gone, with reduced motion); Results' star doesn't pop.
+- Start over and Play again ask in Android's own dialog, not the website's styled one.
+- Next level opens a level the app doesn't play yet as its preview, which starts nothing there.
+
 ## Maps
 
-`src/geo/regionMap.ts` already produces each country as an SVG path string in the levels' shared projected
-coordinates, with the level's focus and coverage, and `fitTransform` fits them to a box. `RegionMapView` draws those
-paths with react-native-svg inside one transformed group (strokes divided by the scale so they keep their width).
-Levels 10–12 load their own dataset first (`loadMapData`), as on the website. The lesson map (labels, markers,
-route, taps, pan and zoom, the painted relief) builds on this in the next phase.
+`src/geo/regionMap.ts` produces each country as an SVG path string in the levels' shared projected coordinates, with
+the level's focus and coverage. A preview (`RegionMapView`) fits them to its box (`fitTransform`); the lesson map
+(`LessonMap`) starts at the website's start view (`viewLimits`) and draws the countries in one transformed group with
+non-scaling strokes, so moving the map changes only that group's transform. Names, markers, the route and the hint
+circle are drawn on screen over it, at fixed sizes. Levels 10–12 load their own dataset first (`loadMapData`), as on
+the website.
 
 ## Google Play
 
