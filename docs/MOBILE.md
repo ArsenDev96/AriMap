@@ -269,7 +269,7 @@ saving is written again for the app.
 - The map has no painted relief, forests or scenery, and no magnified close-up of Luxembourg: it is the flat palette,
   with Luxembourg named in a callout beside it (as the website does at its whole-map view). Pinch to zoom in on it.
 - Names are placed more simply: at each country's label point, moved up or down clear of markers, other names and the
-  zoom buttons; a small country narrower than its name gets the callout. The website's full layout (leader placement
+  zoom buttons (slid a little sideways where moving up or down cannot clear the buttons); a small country narrower than its name gets the callout. The website's full layout (leader placement
   around obstacles, two-line callouts, capital and landmark names on the map) is not ported: capitals and landmarks
   are marked on the map and named in the panel.
 - The route line appears at once (no drawing along, no landing pin or arrival glow); Find's answer outline fades out
