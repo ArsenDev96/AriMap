@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { crossingsLeft, currentCountry, isAssisted, isDeadEnd, travelChoices, type TravelAttempt } from "@/core/game/travel";
+import { crossingsLeft, currentCountry, isAssisted, travelChoices, travelStop, type TravelAttempt, type TravelStop } from "@/core/game/travel";
 import { useI18n } from "../i18n";
 import type { PanelProps } from "../LessonScreen";
 import styles from "../LessonScreen.module.css";
@@ -58,12 +58,16 @@ function useNeighborColumns(labelsKey: string) {
   return { gridRef, measureRef, columns };
 }
 
+/** The stop panel's test id, by why the journey stopped. */
+const STOP_TEST_ID: Record<TravelStop, string> = { outOfCrossings: "out-of-crossings", deadEnd: "dead-end", offCourse: "off-course" };
+
 export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Props) {
   const { t, tp, l, name, countryParams } = useI18n();
   const stuckRef = useRef<HTMLDivElement>(null);
   const attempt = progress.travel;
-  // Out of crossings, or a dead end with crossings left (every neighbour already on the route).
-  const isStuck = !!attempt && (attempt.status === "outOfCrossings" || isDeadEnd(attempt, lesson.borders));
+  // Out of crossings, a dead end with crossings left (every neighbour already on the route), or off course (the
+  // destination out of reach in the crossings left): travelStop.
+  const isStuck = !!attempt && !!travelStop(attempt, lesson.borders);
   // The state's choices: its moves, and a non-neighbour option shown there (Level 7's France at the start), as alike
   // cards; which one is no neighbour is never shown before it is chosen.
   const choicesOf = (a: TravelAttempt) => travelChoices(a, lesson.borders, lesson.travel.nonNeighbourOptions).map((c) => c.country);
@@ -82,9 +86,15 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
   const moves = choicesOf(attempt);
   // The last choice was a non-neighbour option: said in place of the usual line, again at each such choice.
   const notice = progress.travelNotice;
-  const deadEnd = isDeadEnd(attempt, lesson.borders);
-  const stuck = attempt.status === "outOfCrossings" || deadEnd;
+  const stop = travelStop(attempt, lesson.borders);
+  const stuck = !!stop;
   const hasMoved = attempt.path.length > 1;
+  const stopMessage = (why: TravelStop) =>
+    why === "deadEnd"
+      ? t("travel.deadEnd", countryParams(here))
+      : why === "offCourse"
+        ? t("travel.offCourse", { there: countryParams(attempt.to).country })
+        : t("travel.outOfCrossings");
 
   return (
     <>
@@ -134,16 +144,12 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Prop
         {hintVisible && <p className={`${styles.muted} ${styles.small}`} style={{ marginTop: 6 }}>{t("travel.hintShown")}</p>}
       </div>
 
-      {stuck ? (
+      {stop ? (
         // Its own element (not the neighbours' box restyled), so it is at full size when scrolled into view.
-        // A dead end says so, not that the crossings ran out: some are left, but no neighbour is new.
-        <div
-          key={deadEnd ? "dead-end" : "stuck"}
-          ref={stuckRef}
-          className={`${styles.feedback} ${styles.feedbackWrong}`}
-          data-testid={deadEnd ? "dead-end" : "out-of-crossings"}
-        >
-          <p>{deadEnd ? t("travel.deadEnd", countryParams(here)) : t("travel.outOfCrossings")}</p>
+        // Each stop says why: a dead end (no neighbour is new) or off course (the destination out of reach) has
+        // crossings left; out of crossings has none.
+        <div key={stop} ref={stuckRef} className={`${styles.feedback} ${styles.feedbackWrong}`} data-testid={STOP_TEST_ID[stop]}>
+          <p>{stopMessage(stop)}</p>
           <div className={styles.row} style={{ marginTop: 10 }}>
             <button type="button" className="btn btn-primary" onClick={() => act({ type: "travelUndo" })}>
               {t("travel.undo")}

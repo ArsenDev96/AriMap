@@ -192,7 +192,7 @@ describe("map view", () => {
   });
 
   it("undo restores the previous map display", () => {
-    const before = run(toTravel(), { type: "travelMove", country: "LUX" });
+    const before = run(toTravel(), { type: "travelMove", country: "BEL" });
     const after = run(before, { type: "travelMove", country: "DEU" }, { type: "travelUndo" });
     const a = buildMapView(lesson, progressOf(before), NO_UI);
     const b = buildMapView(lesson, progressOf(after), NO_UI);

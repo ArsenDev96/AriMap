@@ -42,7 +42,7 @@ const sameRoute = (a: readonly CountryId[], b: readonly CountryId[]) => a.length
 
 /** The non-neighbour options shown at this state (never a neighbour of the current country, nor a country on the route). */
 export function nonNeighbourChoices(a: TravelAttempt, graph: BorderGraph, options: readonly NonNeighbourOption[] = []): readonly CountryId[] {
-  if (a.status !== "playing" || crossingsLeft(a) <= 0) return [];
+  if (travelStop(a, graph)) return [];
   const here = currentCountry(a);
   return options
     .filter((o) => sameRoute(o.route, a.path) && !areNeighbors(graph, here, o.country) && !a.path.includes(o.country))
@@ -94,24 +94,70 @@ export const currentCountry = (a: TravelAttempt): CountryId => a.path[a.path.len
 export const crossingsUsed = (a: TravelAttempt): number => a.path.length - 1;
 export const crossingsLeft = (a: TravelAttempt): number => a.budget - crossingsUsed(a);
 
+/** The current country's neighbours not yet on the route: where a move could go, were moves possible. */
+const newNeighbours = (a: TravelAttempt, graph: BorderGraph) => neighborsOf(graph, currentCountry(a)).filter((id) => !a.path.includes(id));
+
+/**
+ * Whether the destination can still be reached from the current country within the crossings left, never entering a
+ * country twice: breadth-first over the border graph without the route's countries (a shortest path there is the
+ * shortest way on that enters none of them again).
+ */
+export function canStillArrive(a: TravelAttempt, graph: BorderGraph): boolean {
+  if (a.status === "arrived") return true;
+  const visited = new Set(a.path);
+  let frontier = [currentCountry(a)];
+  for (let step = 0; step < crossingsLeft(a) && frontier.length; step++) {
+    const next: CountryId[] = [];
+    for (const id of frontier) {
+      for (const neighbour of neighborsOf(graph, id)) {
+        if (neighbour === a.to) return true;
+        if (!visited.has(neighbour)) {
+          visited.add(neighbour);
+          next.push(neighbour);
+        }
+      }
+    }
+    frontier = next;
+  }
+  return false;
+}
+
+export type TravelStop = "outOfCrossings" | "deadEnd" | "offCourse";
+
+/**
+ * Why a journey short of its destination can't go on, or null while it can. Only Undo or Retry go on from here.
+ * - "outOfCrossings": the crossings ran out: a wrong turn took the last one (or, saved before 2026-10-25, went on past
+ *   an earlier wrong turn).
+ * - "deadEnd": crossings are left, but every neighbour of the current country is already on the route.
+ * - "offCourse": crossings are left and neighbours are new, but none leads to the destination within them: the route
+ *   has left every shortest one (the budget is the shortest distance, so any wrong turn does). Since 2026-10-25 the
+ *   journey stops there, rather than offering moves that can only run the crossings out (docs/DATA.md, "Wrong turns
+ *   stop off course").
+ */
+export function travelStop(a: TravelAttempt, graph: BorderGraph): TravelStop | null {
+  if (a.status === "outOfCrossings") return "outOfCrossings";
+  if (a.status !== "playing" || crossingsLeft(a) <= 0) return null;
+  if (newNeighbours(a, graph).length === 0) return "deadEnd";
+  return canStillArrive(a, graph) ? null : "offCourse";
+}
+
 /**
  * The current country's active neighbours not yet on this journey's route (the start included), while
  * moves are possible. Undo takes a country off the route, so it is offered again wherever it is a
- * neighbour. Choices are never narrowed to those that still reach the destination within the
- * crossings left: a longer route stays possible, and runs out of crossings.
+ * neighbour. Wrong turns stay among the choices wherever the destination can still be reached (choices are
+ * never narrowed to the winning ones); once it can't (travelStop), there are none.
  */
 export function availableMoves(a: TravelAttempt, graph: BorderGraph): readonly CountryId[] {
-  if (a.status !== "playing" || crossingsLeft(a) <= 0) return [];
-  return neighborsOf(graph, currentCountry(a)).filter((id) => !a.path.includes(id));
+  if (a.status !== "playing" || crossingsLeft(a) <= 0 || travelStop(a, graph)) return [];
+  return newNeighbours(a, graph);
 }
 
 /**
  * Stopped short of the destination with crossings still left: every neighbour of the current country
- * is already on the route (a route saved before countries could not be visited twice can end so).
- * Only Undo or Retry go on.
+ * is already on the route. Only Undo or Retry go on.
  */
 export function isDeadEnd(a: TravelAttempt, graph: BorderGraph): boolean {
-  return a.status === "playing" && crossingsLeft(a) > 0 && availableMoves(a, graph).length === 0;
+  return travelStop(a, graph) === "deadEnd";
 }
 
 function statusAfter(path: readonly CountryId[], a: TravelAttempt): TravelStatus {
@@ -124,8 +170,8 @@ export function move(
   graph: BorderGraph,
   to: CountryId,
 ): { attempt: TravelAttempt; outcome: MoveOutcome } {
-  // A country already on the route is never entered again.
-  if (a.status !== "playing" || crossingsLeft(a) <= 0 || !areNeighbors(graph, currentCountry(a), to) || a.path.includes(to)) {
+  // A country already on the route is never entered again, and a journey that can no longer arrive goes no further.
+  if (a.status !== "playing" || crossingsLeft(a) <= 0 || !areNeighbors(graph, currentCountry(a), to) || a.path.includes(to) || travelStop(a, graph)) {
     return { attempt: a, outcome: "invalid" };
   }
   const path = [...a.path, to];

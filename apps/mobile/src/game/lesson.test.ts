@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCountry } from "@/core/content/countries";
 import type { CountryId } from "@/core/content/types";
-import { travelChoices } from "@/core/game/travel";
+import { travelChoices, travelStop } from "@/core/game/travel";
 import { buildMapView } from "@/core/lesson/mapView";
 import type { LessonAction } from "@/core/lesson/progress";
 import { attemptRating } from "@/core/lesson/rating";
@@ -129,12 +129,15 @@ describe("Level 1 in the app", () => {
     expect(travel(s, "BEL")).toBe(s);
   });
 
-  it("Travel: a longer route runs out of crossings; Undo and Retry go on, and count as help", () => {
+  it("Travel: a wrong turn stops the journey off course; Undo and Retry go on, and count as help", () => {
     let s = throughFind(createInitialState());
     expect(activeProgress(s).travel!.budget).toBe(2);
-    s = travel(s, "LUX", "BEL");
-    expect(activeProgress(s).travel).toMatchObject({ status: "outOfCrossings", path: ["FRA", "LUX", "BEL"] });
-    expect(travel(s, "NLD")).toBe(s);
+    // Luxembourg, the wrong turn: the Netherlands is then two crossings away with one left, so the journey stops there.
+    s = travel(s, "LUX");
+    expect(activeProgress(s).travel).toMatchObject({ status: "playing", path: ["FRA", "LUX"] });
+    expect(travelStop(activeProgress(s).travel!, lesson.borders)).toBe("offCourse");
+    expect(travelChoices(activeProgress(s).travel!, lesson.borders)).toEqual([]);
+    for (const country of ["BEL", "DEU", "NLD"]) expect(travel(s, country)).toBe(s);
     s = step(s, { type: "travelUndo" });
     s = step(s, { type: "travelRestart" });
     expect(activeProgress(s).travel).toMatchObject({ status: "playing", path: ["FRA"], undoUsed: true });

@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { getCountry } from "@/core/content/countries";
 import type { CountryId } from "@/core/content/types";
 import { shortestPath } from "@/core/game/graph";
-import { travelChoices } from "@/core/game/travel";
+import { travelChoices, travelStop } from "@/core/game/travel";
 import type { LessonAction } from "@/core/lesson/progress";
 import { attemptRating } from "@/core/lesson/rating";
 import { getLevel, levelsOf, levelVersions, type LessonDefinition } from "@/core/lessons";
@@ -309,7 +309,7 @@ describe("the late levels' journeys", () => {
 });
 
 describe("Travel states with a single choice (the shared rules, audited)", () => {
-  it("in every current journey, a single choice comes only where the destination is already out of reach", () => {
+  it("in every current journey, no state that goes on offers a single choice; out of reach, the journey stops with none", () => {
     for (const level of EUROPE) {
       const lesson = level.lesson!;
       const opts = lesson.travel.nonNeighbourOptions;
@@ -319,11 +319,10 @@ describe("Travel states with a single choice (the shared rules, audited)", () =>
         if (here === lesson.travel.mission.to || left === 0) return;
         const attempt = { missionId: lesson.travel.mission.id, from: path[0], to: lesson.travel.mission.to, budget: path.length - 1 + left, path, status: "playing" as const, hintUsed: false, undoUsed: false };
         const cards = travelChoices(attempt, lesson.borders, opts);
-        if (cards.length === 1) {
-          // One crossing left, and the one card isn't the destination: the journey runs out whatever is chosen.
-          expect(left, `${level.id}: ${path.join(">")}`).toBe(1);
-          expect(cards[0].country, `${level.id}: ${path.join(">")}`).not.toBe(lesson.travel.mission.to);
-        }
+        // Until 2026-10-25 a single card came after some wrong turns (docs/MOBILE.md): the journey now stops there,
+        // off course, with Undo and Retry; every state that goes on has a real choice.
+        if (travelStop(attempt, lesson.borders)) expect(cards, `${level.id}: ${path.join(">")}`).toEqual([]);
+        else expect(cards.length, `${level.id}: ${path.join(">")}`).toBeGreaterThan(1);
         for (const c of cards.filter((c) => c.neighbour)) walk([...path, c.country], left - 1);
       };
       const budget = shortestPath(lesson.borders, lesson.travel.mission.from, lesson.travel.mission.to)!.length - 1;

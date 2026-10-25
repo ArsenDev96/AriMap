@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { crossingsLeft, currentCountry, isAssisted, isDeadEnd, travelChoices } from "@/core/game/travel";
+import { crossingsLeft, currentCountry, isAssisted, travelChoices, travelStop, type TravelStop } from "@/core/game/travel";
 import { Button } from "../components/Button";
 import { useI18n } from "../i18n/i18n";
 import { longestWordWidth } from "../theme/textWidth";
@@ -29,9 +29,15 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Pane
   const halfText = (cardsWidth - space.sm) / 2 - 2 * space.lg - 2 * CARD_BORDER - ARROW - space.sm;
   const oneColumn = cardsWidth > 0 && longestWord > halfText;
   const notice = progress.travelNotice;
-  const deadEnd = isDeadEnd(attempt, lesson.borders);
-  const stuck = attempt.status === "outOfCrossings" || deadEnd;
+  const stop = travelStop(attempt, lesson.borders);
+  const stuck = !!stop;
   const hasMoved = attempt.path.length > 1;
+  const stopMessage = (why: TravelStop) =>
+    why === "deadEnd"
+      ? t("travel.deadEnd", countryParams(here))
+      : why === "offCourse"
+        ? t("travel.offCourse", { there: countryParams(attempt.to).country })
+        : t("travel.outOfCrossings");
 
   return (
     <Panel top={`travel:${progress.journeyReplay}`}>
@@ -70,10 +76,11 @@ export function TravelPanel({ lesson, progress, act, hintVisible, onHint }: Pane
         {hintVisible && <Text style={styles.muted}>{t("travel.hintShown")}</Text>}
       </View>
 
-      {stuck ? (
-        // A dead end says so, not that the crossings ran out: some are left, but no neighbour is new.
-        <View style={[styles.stuck]} accessibilityLiveRegion="polite">
-          <Text style={styles.stuckText}>{deadEnd ? t("travel.deadEnd", countryParams(here)) : t("travel.outOfCrossings")}</Text>
+      {stop ? (
+        // Each stop says why: a dead end (no neighbour is new) or off course (the destination out of reach) has
+        // crossings left; out of crossings has none (travelStop).
+        <View style={[styles.stuck]} accessibilityLiveRegion="polite" testID={`travel-stop-${stop}`}>
+          <Text style={styles.stuckText}>{stopMessage(stop)}</Text>
           <View style={styles.row}>
             <Button variant="primary" grow label={t("travel.undo")} onPress={() => act({ type: "travelUndo" })} />
             <Button grow label={t("travel.retry")} onPress={() => act({ type: "travelRestart" })} />

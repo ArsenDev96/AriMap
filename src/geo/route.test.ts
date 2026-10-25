@@ -133,13 +133,15 @@ for (const lesson of LESSON_VERSIONS) {
       }
       const borders = new Set(allMoves.map(([a, b]) => borderKey(a, b)));
       for (const key of Object.keys(crossings)) expect(borders.has(key), key).toBe(true);
-      // Levels 10 and 11 draw no leg no journey takes: Level 10's Norway–Finland, never reached within the crossings, and
-      // Level 11's United Kingdom–Ireland, beyond the journey's end in the United Kingdom, have none. (Levels 8 and 9 kept
-      // crossings for a border no journey reaches: Moldova–Romania, Greece–North Macedonia.)
+      // Levels 10 and 11 draw no leg no journey ever took: Level 10's Norway–Finland, never reached within the crossings,
+      // and Level 11's United Kingdom–Ireland, beyond the journey's end in the United Kingdom, have none. (Levels 8 and 9
+      // kept crossings for a border no journey reaches: Moldova–Romania, Greece–North Macedonia.) Legs reached only by
+      // going on after a wrong turn, as journeys did until they stopped off course (2026-10-25, travel.ts), keep their
+      // crossings: a route saved then (Level 11's Germany → Belgium → Luxembourg, say) still draws.
       if (lesson.id === "nordic-countries" || lesson.id === "across-the-channel") {
         const crossed = new Set([...reachable].map((key) => borderKey(...(key.split(">") as [string, string]))));
-        expect(new Set(Object.keys(crossings))).toEqual(crossed);
-        expect(crossed.has(lesson.id === "nordic-countries" ? "FIN-NOR" : "GBR-IRL")).toBe(false);
+        for (const key of crossed) expect(key in crossings, key).toBe(true);
+        expect((lesson.id === "nordic-countries" ? "FIN-NOR" : "GBR-IRL") in crossings).toBe(false);
       }
       for (const key of Object.keys(via)) expect(moves.some(([a, b]) => viaKey(a, b) === key), key).toBe(true);
     });

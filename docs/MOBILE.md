@@ -307,9 +307,16 @@ between levels is in their definitions (`src/core/lessons`), read by the same sc
 
 ### Travel states with a single choice
 
-Audited over every state each level's journey can reach by its cards (`apps/mobile/src/game/levels.test.ts` checks
-it): in the current journeys a single card appears only where the route has already left every shortest route, with
-one crossing left and the destination out of reach, so that card, like any, runs the crossings out:
+**Resolved (Phase 4A, 2026-10-25): a journey now stops off course** as soon as the destination can't be reached in the
+crossings left, with the reason and Undo and Retry, on the website and in the app (`travelStop` in
+`src/core/game/travel.ts`; docs/DATA.md, "Wrong turns stop off course"). No state that goes on offers a single card
+(`src/core/progress/levels.test.ts` and `apps/mobile/src/game/levels.test.ts` check every state of every level), and
+each route below now stops where it used to offer one (in Level 4, Montenegro → Serbia stops in Serbia, a step
+earlier). Scoring and saves are unchanged.
+
+The audit before the change, over every state each level's journey could reach by its cards: a single card appeared
+only where the route had already left every shortest route, with one crossing left and the destination out of reach,
+so that card, like any, ran the crossings out:
 
 | Level | Route so far | The one card |
 | --- | --- | --- |
@@ -318,13 +325,10 @@ one crossing left and the destination out of reach, so that card, like any, runs
 | 6 | Poland → Belarus → Lithuania; Poland → Lithuania → Belarus | Latvia |
 | 7 | Portugal → Spain → Andorra | France |
 
-There the meaningful choices are Undo and Restart, which the panel offers below the card. No state on a shortest route
-has a single choice. Two older versions do: an attempt saved on Level 4's earlier journey (Italy → Montenegro) starts
-with Slovenia alone, and one on Level 6's first version (Germany → Estonia) has one card at every step; new attempts
-and Play again never use them. Changing this is the website's rules' call, not the app's: ways that keep the rules
-honest would be ending such a journey as soon as the destination can no longer be reached (a rule change, for every
-level), or a travel-only real neighbour (`travelOnly`, as Level 10's Germany) where one adds a choice without a shorter
-route. Invented neighbours, or cards narrowed to winning moves, are not.
+No state on a shortest route has a single choice. Two older versions do, on a shortest route, by geography: an attempt
+saved on Level 4's earlier journey (Italy → Montenegro) starts with Slovenia alone (Italy's one neighbour there), and
+one on Level 6's first version (Germany → Estonia) has one card at every step; new attempts and Play again never use
+them, and no neighbour is invented for them.
 
 ## Quick Challenge
 

@@ -13,6 +13,7 @@ import {
   move,
   restart,
   travelChoices,
+  travelStop,
   undo,
   type NonNeighbourOption,
   type TravelAttempt,
@@ -74,21 +75,38 @@ describe("travel mission France → Netherlands", () => {
   });
 
   it("undo makes the country it leaves a choice again, where it is a neighbour", () => {
-    const { attempt } = play(["LUX"]);
-    expect([...availableMoves(attempt, graph)].sort()).toEqual(["BEL", "DEU"]);
+    const { attempt } = play(["BEL"]);
+    expect([...availableMoves(attempt, graph)].sort()).toEqual(["DEU", "LUX", "NLD"]);
     const start = undo(attempt);
     expect([...availableMoves(start, graph)].sort()).toEqual(["BEL", "DEU", "LUX"]);
-    const inBelgium = move(start, graph, "BEL").attempt;
-    expect([...availableMoves(inBelgium, graph)].sort()).toEqual(["DEU", "LUX", "NLD"]);
+    const inGermany = move(start, graph, "DEU").attempt;
+    expect([...availableMoves(inGermany, graph)].sort()).toEqual(["BEL", "LUX", "NLD"]);
   });
 
-  it("keeps a longer route selectable: choices are not narrowed to those within the crossings left", () => {
-    // Luxembourg is a real neighbour of France but not on a shortest route to the Netherlands.
+  it("offers a wrong turn among the choices, then stops the journey there: off course, Undo or Restart", () => {
+    // Luxembourg is a real neighbour of France but not on a shortest route to the Netherlands: a choice, not
+    // narrowed away, while the destination can still be reached.
     const start = createAttempt(graph, mission);
     expect(availableMoves(start, graph)).toContain("LUX");
+    expect(travelStop(start, graph)).toBeNull();
     const { attempt } = play(["LUX"]);
-    // From Luxembourg, neither choice reaches the Netherlands with the one crossing left; both are offered.
-    expect([...availableMoves(attempt, graph)].sort()).toEqual(["BEL", "DEU"]);
+    // From Luxembourg the Netherlands is two crossings away, and one is left: the journey can't arrive, so it stops
+    // there with a crossing left (until 2026-10-25 it offered Belgium and Germany, either running the crossings out).
+    expect(crossingsLeft(attempt)).toBe(1);
+    expect(attempt.status).toBe("playing");
+    expect(travelStop(attempt, graph)).toBe("offCourse");
+    expect(isDeadEnd(attempt, graph)).toBe(false);
+    expect(availableMoves(attempt, graph)).toEqual([]);
+    expect(travelChoices(attempt, graph)).toEqual([]);
+    for (const country of ["BEL", "DEU"]) expect(move(attempt, graph, country)).toEqual({ attempt, outcome: "invalid" });
+    // Undo and Restart go on, as from any stop.
+    expect(travelStop(undo(attempt), graph)).toBeNull();
+    expect(travelStop(restart(attempt), graph)).toBeNull();
+  });
+
+  it("is never off course on a shortest route, nor once arrived", () => {
+    for (const route of [[], ["BEL"], ["DEU"]]) expect(travelStop(play(route).attempt, graph), route.join()).toBeNull();
+    expect(travelStop(play(["BEL", "NLD"]).attempt, graph)).toBeNull();
   });
 
   it.each([
@@ -103,12 +121,23 @@ describe("travel mission France → Netherlands", () => {
   });
 
   it("does not accept a longer, geographically valid route", () => {
-    const { attempt, outcomes } = play(["LUX", "BEL"]);
-    expect(outcomes).toEqual(["moved", "outOfCrossings"]);
-    expect(attempt.status).toBe("outOfCrossings");
-    expect(availableMoves(attempt, graph)).toEqual([]);
+    // France → Luxembourg → Belgium → the Netherlands is three crossings, the shortest two: it stops in Luxembourg.
+    const { attempt, outcomes } = play(["LUX", "BEL", "NLD"]);
+    expect(outcomes).toEqual(["moved", "invalid", "invalid"]);
+    expect(attempt.path).toEqual(["FRA", "LUX"]);
+    expect(travelStop(attempt, graph)).toBe("offCourse");
+  });
+
+  it("a route saved out of crossings (before 2026-10-25) stays so, and Undo goes back along it", () => {
+    const saved: TravelAttempt = { ...createAttempt(graph, mission), path: ["FRA", "LUX", "BEL"], status: "outOfCrossings" };
+    expect(travelStop(saved, graph)).toBe("outOfCrossings");
+    expect(availableMoves(saved, graph)).toEqual([]);
     // No further moves once the budget is spent, even to the destination.
-    expect(move(attempt, graph, "NLD").outcome).toBe("invalid");
+    expect(move(saved, graph, "NLD").outcome).toBe("invalid");
+    const back = undo(saved);
+    expect(back.path).toEqual(["FRA", "LUX"]);
+    expect(travelStop(back, graph)).toBe("offCourse");
+    expect(undo(back).path).toEqual(["FRA"]);
   });
 
   it("rejects moves to non-neighbours", () => {
@@ -118,17 +147,13 @@ describe("travel mission France → Netherlands", () => {
   });
 
   it("undo restores the route, budget and status, and records assistance", () => {
-    const { attempt: stuck } = play(["LUX", "DEU"]);
-    expect(stuck.status).toBe("outOfCrossings");
-    const back = undo(stuck);
-    expect(back.path).toEqual(["FRA", "LUX"]);
-    expect(crossingsLeft(back)).toBe(1);
-    expect(back.status).toBe("playing");
-    expect(back.undoUsed).toBe(true);
-
-    const start = undo(back);
+    const { attempt: stuck } = play(["LUX"]);
+    expect(travelStop(stuck, graph)).toBe("offCourse");
+    const start = undo(stuck);
     expect(start.path).toEqual(["FRA"]);
     expect(crossingsLeft(start)).toBe(2);
+    expect(start.status).toBe("playing");
+    expect(start.undoUsed).toBe(true);
 
     const { attempt } = play(["BEL", "NLD"], start);
     expect(attempt.status).toBe("arrived");
@@ -207,20 +232,21 @@ describe("a dead end with crossings left (Level 4, Montenegro → Italy, before 
     expect([...availableMoves(fresh, adriatic)].sort()).toEqual(["BIH", "HRV"]);
   });
 
-  it("through Bosnia and Herzegovina first is the longer way: out of crossings in Slovenia, not a dead end", () => {
+  it("through Bosnia and Herzegovina first is the longer way: off course there at once, not a dead end", () => {
+    // Italy is three crossings from Bosnia and Herzegovina, and two are left; Croatia is new, so no dead end.
     const longer = via(["BIH", "HRV"]);
-    // Every real neighbour not on the route stays a choice, though none reaches Italy in time.
-    expect(availableMoves(longer, adriatic)).toEqual(["SVN"]);
-    const attempt = move(longer, adriatic, "SVN").attempt;
-    expect(attempt.status).toBe("outOfCrossings");
-    expect(isDeadEnd(attempt, adriatic)).toBe(false);
+    expect(longer.path).toEqual(["MNE", "BIH"]);
+    expect(crossingsLeft(longer)).toBe(2);
+    expect(travelStop(longer, adriatic)).toBe("offCourse");
+    expect(isDeadEnd(longer, adriatic)).toBe(false);
   });
 
-  it("is no dead end in the level now: Serbia, a Travel-only neighbour, is offered there", () => {
+  it("in the level, Serbia (Travel only) is new there: off course rather than a dead end, and no move offered", () => {
     let attempt = createAttempt(adriaticLesson.borders, toItaly);
     for (const country of ["HRV", "BIH"]) attempt = move(attempt, adriaticLesson.borders, country).attempt;
-    expect(availableMoves(attempt, adriaticLesson.borders)).toEqual(["SRB"]);
-    expect(isDeadEnd(attempt, adriaticLesson.borders)).toBe(false);
+    expect(attempt.path).toEqual(["MNE", "HRV", "BIH"]);
+    expect(travelStop(attempt, adriaticLesson.borders)).toBe("offCourse");
+    expect(availableMoves(attempt, adriaticLesson.borders)).toEqual([]);
   });
 });
 
@@ -268,14 +294,15 @@ describe("non-neighbour options: shown among the choices, never a move (Level 7'
   it("leaves real moves, wrong turns, Undo and Restart as they were", () => {
     const start = createAttempt(iberia, toItaly);
     expect(choose(start, iberia, "ESP", options)).toEqual(move(start, iberia, "ESP"));
+    // Spain → Andorra, the wrong turn, is offered and taken; from Andorra Italy is two crossings away, one left.
     const andorra = choose(choose(start, iberia, "ESP", options).attempt, iberia, "AND", options).attempt;
-    const wrong = choose(andorra, iberia, "FRA", options);
-    expect(wrong).toEqual(move(andorra, iberia, "FRA"));
-    expect(wrong.outcome).toBe("outOfCrossings");
+    expect(andorra.path).toEqual(["PRT", "ESP", "AND"]);
+    expect(travelStop(andorra, iberia)).toBe("offCourse");
+    // Stopped there: no choices at all, and France is no move.
+    expect(travelChoices(andorra, iberia, options)).toEqual([]);
+    expect(choose(andorra, iberia, "FRA", options)).toEqual({ attempt: andorra, outcome: "invalid" });
     // Back at the start by Undo or Restart: the option is shown again.
     expect(travelChoices(undo(choose(start, iberia, "ESP", options).attempt), iberia, options).map((c) => c.country)).toEqual(["ESP", "FRA"]);
-    expect(travelChoices(restart(wrong.attempt), iberia, options).map((c) => c.country)).toEqual(["ESP", "FRA"]);
-    // Out of crossings: no choices at all.
-    expect(travelChoices(wrong.attempt, iberia, options)).toEqual([]);
+    expect(travelChoices(restart(andorra), iberia, options).map((c) => c.country)).toEqual(["ESP", "FRA"]);
   });
 });

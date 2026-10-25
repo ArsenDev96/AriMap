@@ -284,6 +284,7 @@ export const en = {
   "travel.notNeighbour": "There's no border between {here} and {there}. Choose a neighbouring country.",
   "travel.outOfCrossings": "No crossings left. Each move crossed a real border, but this route is longer than the shortest one. Undo your last move or try again.",
   "travel.deadEnd": "Dead end in {country}. All its neighbours on this journey are already on your route, and you can't enter a country twice. Undo your last move or try again.",
+  "travel.offCourse": "You can't reach {there} in the crossings left: this route has left the shortest one. Undo your last move or try again.",
   "travel.helpUsed": "Help used on this journey",
 
   "results.title": "Journey complete!",

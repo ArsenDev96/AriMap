@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createFindOrder } from "../game/find";
 import { isConnectedRoute, shortestDistance } from "../game/graph";
-import { availableMoves, createAttempt, isDeadEnd, move, travelChoices, undo } from "../game/travel";
+import { availableMoves, createAttempt, isDeadEnd, move, travelChoices, travelStop, undo } from "../game/travel";
 import { seededRandom } from "../game/random";
 import { CONTINENTS, getLevel, hasPlayableLevels, LESSON_VERSIONS, LESSONS, LEVELS, levelsOf, travelCountries } from "../lessons";
 import { alpsLesson as alps } from "../lessons/alps";
@@ -792,7 +792,7 @@ describe("Level 4: Along the Adriatic", () => {
     expect(s.levels[L4].records).toMatchObject({ travelDone: true, travelWithoutHelp: true, bestFindScore: { independent: 5, total: 5 } });
   });
 
-  it("offers every real neighbour not yet on the route, Hungary and Serbia (Travel only) included; the longer ways stay possible and none is a dead end; Hint, Undo and Restart count as help", () => {
+  it("offers every real neighbour not yet on the route, Hungary and Serbia (Travel only) included; a wrong turn stops off course, none is a dead end; Hint, Undo and Restart count as help", () => {
     expect(adriatic.travelOnly).toEqual(["HUN", "SRB"]);
     let s = complete(run(level3Done(), open(L4)), ["MNE"]);
     const neighbours = (st: AppState) => [...adriatic.borders[st.levels[L4].travel!.path.at(-1)!]].sort();
@@ -801,38 +801,41 @@ describe("Level 4: Along the Adriatic", () => {
     expect(neighbours(s)).toEqual(["BIH", "HRV", "SRB"]);
     expect(offered(s)).toEqual(["BIH", "HRV", "SRB"]);
     for (const country of ["ITA", "SVN", "HUN"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    // Through Bosnia and Herzegovina first: real borders, but out of crossings in Slovenia.
+    const stop = (st: AppState) => travelStop(st.levels[L4].travel!, adriatic.borders);
+    // Through Bosnia and Herzegovina first: a real border, but Italy is then three crossings away with two left, so the
+    // journey stops there, off course, nothing offered (until 2026-10-25 it went on, out of crossings in Slovenia).
     s = run(s, play({ type: "travelMove", country: "BIH" }));
-    expect(offered(s)).toEqual(["HRV", "SRB"]);
-    s = run(s, play({ type: "travelMove", country: "HRV" }));
-    expect(offered(s)).toEqual(["HUN", "SRB", "SVN"]);
-    s = run(s, play({ type: "travelMove", country: "SVN" }));
-    expect(s.levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["MNE", "BIH", "HRV", "SVN"] });
+    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "BIH"] });
+    expect(stop(s)).toBe("offCourse");
+    expect(offered(s)).toEqual([]);
+    expect(run(s, play({ type: "travelMove", country: "HRV" }))).toBe(s);
     s = run(s, play({ type: "travelUndo" }));
-    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "BIH", "HRV"], undoUsed: true });
-    s = run(s, play({ type: "travelRestart" }));
+    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE"], undoUsed: true });
+    s = run(s, play({ type: "travelMove", country: "BIH" }), play({ type: "travelRestart" }));
     expect(s.levels[L4].travel).toMatchObject({ path: ["MNE"], undoUsed: true });
-    // Into Bosnia and Herzegovina from Croatia: one way on, into Serbia (once a dead end, before Serbia).
+    // Into Bosnia and Herzegovina from Croatia: Serbia is new there (it was a dead end before Serbia), but Italy is out
+    // of reach with the crossing left: off course, saved and read again as it is (the stop is the route's, not saved).
     s = run(s, play({ type: "travelMove", country: "HRV" }));
     expect(neighbours(s)).toEqual(["BIH", "HUN", "MNE", "SRB", "SVN"]);
     expect(offered(s)).toEqual(["BIH", "HUN", "SRB", "SVN"]);
     s = run(s, play({ type: "travelMove", country: "BIH" }));
     expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "HRV", "BIH"] });
     expect(isDeadEnd(s.levels[L4].travel!, adriatic.borders)).toBe(false);
-    expect(offered(s)).toEqual(["SRB"]);
-    // A wrong turn into a Travel-only country runs out of crossings there, and is saved and read again as it is.
-    s = run(s, play({ type: "travelMove", country: "SRB" }));
-    expect(s.levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["MNE", "HRV", "BIH", "SRB"] });
-    expect(refresh(s).levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["MNE", "HRV", "BIH", "SRB"] });
-    s = run(s, play({ type: "travelUndo" }));
+    expect(stop(s)).toBe("offCourse");
+    expect(offered(s)).toEqual([]);
     expect(refresh(s).levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "HRV", "BIH"] });
-    // Slovenia, a crossing left: Italy or Hungary, a choice.
+    expect(stop(refresh(s))).toBe("offCourse");
+    // A wrong turn into a Travel-only country stops there too.
+    s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "SRB" }));
+    expect(s.levels[L4].travel).toMatchObject({ status: "playing", path: ["MNE", "HRV", "SRB"] });
+    expect(stop(s)).toBe("offCourse");
+    // Slovenia, a crossing left: Italy or Hungary, a choice; Hungary takes the last crossing, and they run out.
     s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "SVN" }));
     expect(offered(s)).toEqual(["HUN", "ITA"]);
     s = run(s, play({ type: "travelMove", country: "HUN" }));
     expect(s.levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["MNE", "HRV", "SVN", "HUN"] });
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }), play({ type: "travelMove", country: "BIH" }));
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "SVN" }), play({ type: "travelMove", country: "ITA" }));
+    expect(refresh(s).levels[L4].travel).toMatchObject({ status: "outOfCrossings", path: ["MNE", "HRV", "SVN", "HUN"] });
+    s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "ITA" }));
     expect(s.levels[L4].lastTravelResult).toMatchObject({ missionId: "mne-to-ita", route: ["MNE", "HRV", "SVN", "ITA"], undoUsed: true, hintUsed: false, independent: false });
     expect(s.levels[L4].records.travelWithoutHelp).toBe(false);
     // A hint alone also counts as help; Replay journey starts Travel again and keeps the completion.
@@ -955,12 +958,15 @@ describe("Level 5: Towards Greece", () => {
     expect(moves(s)).toEqual(["BGR", "HUN", "ROU"]);
     // Serbia doesn't meet Greece (North Macedonia lies between, outside the level).
     expect(run(s, play({ type: "travelMove", country: "GRC" }))).toBe(s);
-    // Sideways into Romania: then Bulgaria is two crossings on, with one left.
+    // Sideways into Romania: then Greece is two crossings on, with one left, so the journey stops there, off course;
+    // Bulgaria, its one way on, is no longer offered as though it led anywhere (until 2026-10-25 it was).
     s = run(s, play({ type: "travelMove", country: "ROU" }));
     expect(moves(s)).toEqual(["BGR", "HUN", "SRB"]);
-    s = run(s, play({ type: "travelMove", country: "BGR" }));
-    expect(s.levels[L5].travel).toMatchObject({ status: "outOfCrossings", path: ["HUN", "SRB", "ROU", "BGR"] });
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }));
+    expect(s.levels[L5].travel).toMatchObject({ status: "playing", path: ["HUN", "SRB", "ROU"] });
+    expect(travelStop(s.levels[L5].travel!, greece.borders)).toBe("offCourse");
+    expect(availableMoves(s.levels[L5].travel!, greece.borders)).toEqual([]);
+    expect(run(s, play({ type: "travelMove", country: "BGR" }))).toBe(s);
+    s = run(s, play({ type: "travelUndo" }));
     expect(s.levels[L5].travel).toMatchObject({ status: "playing", path: ["HUN", "SRB"], undoUsed: true });
     s = refresh(s);
     expect(s.levels[L5].travel).toMatchObject({ path: ["HUN", "SRB"], undoUsed: true });
@@ -1063,7 +1069,7 @@ describe("Level 6: Baltic Journey", () => {
     }
   });
 
-  it("offers every real neighbour within the level not yet on the route, wrong turns included; a wrong turn runs out of crossings; Undo and Restart count as help", () => {
+  it("offers every real neighbour within the level not yet on the route, wrong turns included; a wrong turn stops off course; Undo and Restart count as help", () => {
     let s = complete(run(level5Done(), open(L6)), ["POL"]);
     const neighbours = (st: AppState) => [...baltic.borders[st.levels[L6].travel!.path.at(-1)!]].sort();
     const offered = (st: AppState) => [...availableMoves(st.levels[L6].travel!, baltic.borders)].sort();
@@ -1080,14 +1086,14 @@ describe("Level 6: Baltic Journey", () => {
     // Lithuania doesn't meet Estonia (Latvia lies between).
     expect(run(s, play({ type: "travelMove", country: "EST" }))).toBe(s);
     s = run(s, play({ type: "travelMove", country: "BLR" }));
+    // In Belarus, Estonia is two crossings on with one left: the journey stops there, off course, and Latvia, its one
+    // way on, is no longer offered as though it led anywhere (until 2026-10-25 it was, then ran the crossings out).
     expect(s.levels[L6].travel).toMatchObject({ status: "playing", path: ["POL", "LTU", "BLR"] });
-    expect(offered(s)).toEqual(["LVA"]);
-    s = run(s, play({ type: "travelMove", country: "LVA" }));
-    // In Latvia with no crossing left, one short of Estonia: nothing more is offered.
-    expect(s.levels[L6].travel).toMatchObject({ status: "outOfCrossings", path: ["POL", "LTU", "BLR", "LVA"] });
+    expect(travelStop(s.levels[L6].travel!, baltic.borders)).toBe("offCourse");
     expect(offered(s)).toEqual([]);
     expect(isDeadEnd(s.levels[L6].travel!, baltic.borders)).toBe(false);
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }));
+    expect(run(s, play({ type: "travelMove", country: "LVA" }))).toBe(s);
+    s = run(s, play({ type: "travelUndo" }));
     expect(s.levels[L6].travel).toMatchObject({ status: "playing", path: ["POL", "LTU"], undoUsed: true });
     expect(offered(s)).toEqual(["BLR", "LVA"]);
     s = run(s, play({ type: "travelMove", country: "LVA" }));
@@ -1110,19 +1116,22 @@ describe("Level 6: Baltic Journey", () => {
     expect(s.levels[L6].lastTravelResult).toMatchObject({ route: ["POL", "BLR", "LVA", "EST"], undoUsed: true, independent: false });
   });
 
-  it("never reaches a dead end with crossings left: every wrong turn ends out of crossings", () => {
+  it("never reaches a dead end with crossings left: every wrong turn stops off course, or takes the last crossing", () => {
     const ends: string[] = [];
     const walk = (attempt: ReturnType<typeof createAttempt>) => {
       expect(isDeadEnd(attempt, baltic.borders), attempt.path.join(">")).toBe(false);
-      if (attempt.status !== "playing") return ends.push(`${attempt.path.join(">")} ${attempt.status}`);
+      const stop = travelStop(attempt, baltic.borders);
+      if (attempt.status !== "playing" || stop) return ends.push(`${attempt.path.join(">")} ${stop ?? attempt.status}`);
       for (const next of availableMoves(attempt, baltic.borders)) walk(move(attempt, baltic.borders, next).attempt);
     };
     walk(createAttempt(baltic.borders, baltic.travel.mission));
     expect(ends.filter((e) => e.endsWith("arrived")).sort()).toEqual(["POL>BLR>LVA>EST arrived", "POL>LTU>LVA>EST arrived"]);
+    // The single-card states of Phase 2B's audit (Belarus after Lithuania, Lithuania after Belarus, each offering only
+    // Latvia) now stop off course.
     expect(ends.filter((e) => !e.endsWith("arrived")).sort()).toEqual([
-      "POL>BLR>LTU>LVA outOfCrossings",
+      "POL>BLR>LTU offCourse",
       "POL>BLR>LVA>LTU outOfCrossings",
-      "POL>LTU>BLR>LVA outOfCrossings",
+      "POL>LTU>BLR offCourse",
       "POL>LTU>LVA>BLR outOfCrossings",
     ]);
   });
@@ -1370,10 +1379,13 @@ describe("Level 7: Iberian Journey", () => {
     s = run(s, play({ type: "travelMove", country: "AND" }));
     expect(moves(s)).toEqual(["ESP", "FRA"]);
     expect(run(s, play({ type: "travelMove", country: "ITA" }))).toBe(s);
-    // Through Andorra the crossings run out in France, before Italy.
-    s = run(s, play({ type: "travelMove", country: "FRA" }));
-    expect(s.levels[L7].travel).toMatchObject({ status: "outOfCrossings", path: ["PRT", "ESP", "AND", "FRA"] });
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }));
+    // Through Andorra Italy is two crossings on, with one left: the journey stops there, off course, and France, its
+    // one way on, is no longer offered as though it led anywhere (until 2026-10-25 it ran the crossings out there).
+    expect(s.levels[L7].travel).toMatchObject({ status: "playing", path: ["PRT", "ESP", "AND"] });
+    expect(travelStop(s.levels[L7].travel!, iberian.borders)).toBe("offCourse");
+    expect(travelChoices(s.levels[L7].travel!, iberian.borders, iberian.travel.nonNeighbourOptions)).toEqual([]);
+    expect(run(s, play({ type: "travelMove", country: "FRA" }))).toBe(s);
+    s = run(s, play({ type: "travelUndo" }));
     expect(s.levels[L7].travel).toMatchObject({ status: "playing", path: ["PRT", "ESP"], undoUsed: true });
     s = refresh(s);
     expect(s.levels[L7].travel).toMatchObject({ path: ["PRT", "ESP"], undoUsed: true });
@@ -1531,35 +1543,34 @@ describe("Level 8: Eastern Europe", () => {
     expect(levelStatus(s, LEVELS[8]).kind).toBe("ready");
   });
 
-  it("offers every real neighbour within the level and Latvia (Travel only), and only those; out of crossings, Undo and Restart recover; help is counted", () => {
+  it("offers every real neighbour within the level and Latvia (Travel only), and only those; off course, out of crossings, Undo and Restart recover; help is counted", () => {
     expect(eastern.travelOnly).toEqual(["LVA"]);
     let s = complete(run(level7Done(), open(L8)), ["POL"]);
     const moves = (st: AppState) => [...eastern.borders[st.levels[L8].travel!.path.at(-1)!]].sort();
     // Poland meets Belarus and Ukraine here; never Moldova or Romania.
     expect(moves(s)).toEqual(["BLR", "UKR"]);
     for (const country of ["MDA", "ROU", "LVA"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    // Through Belarus the crossings run out in Ukraine, before Moldova, or in Latvia: a choice, both wrong turns.
+    // Through Belarus Moldova is two crossings on, with one left: the journey stops there, off course, and Ukraine and
+    // Latvia, both wrong turns, are no longer offered (until 2026-10-25 either ran the crossings out).
     s = run(s, play({ type: "travelMove", country: "BLR" }));
     expect(moves(s)).toEqual(["LVA", "POL", "UKR"]);
-    expect([...availableMoves(s.levels[L8].travel!, eastern.borders)].sort()).toEqual(["LVA", "UKR"]);
-    for (const country of ["MDA", "ROU"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    s = run(s, play({ type: "travelMove", country: "LVA" }));
-    expect(s.levels[L8].travel).toMatchObject({ status: "outOfCrossings", path: ["POL", "BLR", "LVA"] });
-    expect(refresh(s).levels[L8].travel).toMatchObject({ status: "outOfCrossings", path: ["POL", "BLR", "LVA"] });
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "UKR" }));
-    expect(s.levels[L8].travel).toMatchObject({ status: "outOfCrossings", path: ["POL", "BLR", "UKR"] });
-    // No move is accepted with no crossings left.
-    for (const country of ["MDA", "ROU", "POL", "BLR"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    s = run(s, play({ type: "travelUndo" }), play({ type: "travelUndo" }));
+    expect(s.levels[L8].travel).toMatchObject({ status: "playing", path: ["POL", "BLR"] });
+    expect(travelStop(s.levels[L8].travel!, eastern.borders)).toBe("offCourse");
+    expect(availableMoves(s.levels[L8].travel!, eastern.borders)).toEqual([]);
+    for (const country of ["MDA", "ROU", "LVA", "UKR"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
+    expect(refresh(s).levels[L8].travel).toMatchObject({ status: "playing", path: ["POL", "BLR"] });
+    s = run(s, play({ type: "travelUndo" }));
     expect(s.levels[L8].travel).toMatchObject({ status: "playing", path: ["POL"], undoUsed: true });
     s = refresh(s);
     expect(s.levels[L8].travel).toMatchObject({ path: ["POL"], undoUsed: true });
     // Ukraine offers all four others.
     s = run(s, play({ type: "travelMove", country: "UKR" }));
     expect(moves(s)).toEqual(["BLR", "MDA", "POL", "ROU"]);
-    // Through Romania the crossings run out there too.
+    // Through Romania, the last crossing: they run out there.
     s = run(s, play({ type: "travelMove", country: "ROU" }));
     expect(s.levels[L8].travel).toMatchObject({ status: "outOfCrossings", path: ["POL", "UKR", "ROU"] });
+    // No move is accepted with no crossings left.
+    for (const country of ["MDA", "UKR", "POL", "BLR"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
     s = run(s, play({ type: "travelRestart" }));
     expect(s.levels[L8].travel).toMatchObject({ status: "playing", path: ["POL"], undoUsed: true });
     s = run(s, play({ type: "travelMove", country: "UKR" }), play({ type: "travelMove", country: "MDA" }));
@@ -1843,22 +1854,21 @@ describe("Level 10: Nordic Countries", () => {
     expect(continentStars(s, "europe")).toEqual({ earned: 30, max: 36 });
   });
 
-  it("offers every real neighbour within the level and Germany's (Travel only), and only those; Sweden → Norway and Denmark → Germany run out of crossings; Undo and Restart recover; help is counted", () => {
+  it("offers every real neighbour within the level and Germany's (Travel only), and only those; Sweden → Norway runs out of crossings, Denmark → Germany stops off course; Undo and Restart recover; help is counted", () => {
     let s = complete(run(level9Done(), open(L10)), ["DNK"]);
     // Denmark offers Sweden, over the Øresund, or Germany; never Norway, Finland or Iceland, nor Germany's neighbours.
     expect(moves(s)).toEqual(["SWE", "DEU"]);
     for (const country of ["NOR", "FIN", "ISL", "POL", "NLD"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    // Denmark → Germany: a crossing left, Poland or the Netherlands; either runs out of crossings, far from Finland.
+    // Denmark → Germany: a crossing left, and Finland far beyond it: the journey stops there, off course; Poland and the
+    // Netherlands are no longer offered (until 2026-10-25 either ran the crossings out).
     s = run(s, play({ type: "travelMove", country: "DEU" }));
     expect(s.levels[L10].travel).toMatchObject({ status: "playing", path: ["DNK", "DEU"] });
-    expect(moves(s)).toEqual(["POL", "NLD"]);
-    s = run(s, play({ type: "travelMove", country: "NLD" }));
-    expect(s.levels[L10].travel).toMatchObject({ status: "outOfCrossings", path: ["DNK", "DEU", "NLD"] });
+    expect(travelStop(s.levels[L10].travel!, nordic.borders)).toBe("offCourse");
     expect(moves(s)).toEqual([]);
-    expect(refresh(s).levels[L10].travel).toMatchObject({ status: "outOfCrossings", path: ["DNK", "DEU", "NLD"] });
+    for (const country of ["POL", "NLD"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
+    expect(refresh(s).levels[L10].travel).toMatchObject({ status: "playing", path: ["DNK", "DEU"] });
     s = run(s, play({ type: "travelUndo" }));
-    expect(refresh(s).levels[L10].travel).toMatchObject({ status: "playing", path: ["DNK", "DEU"], undoUsed: true });
-    s = run(s, play({ type: "travelUndo" }));
+    expect(refresh(s).levels[L10].travel).toMatchObject({ status: "playing", path: ["DNK"], undoUsed: true });
     expect(moves(s)).toEqual(["SWE", "DEU"]);
     s = run(s, play({ type: "travelMove", country: "SWE" }));
     // Sweden offers Finland and Norway; Iceland never.
@@ -1880,7 +1890,7 @@ describe("Level 10: Nordic Countries", () => {
     expect(s.levels[L10].lastTravelResult).toMatchObject({ route: ["DNK", "SWE", "FIN"], budget: 2, undoUsed: true, independent: false });
     // Undo is help: the third star is missed.
     expect(s.levels[L10].records.bestRating).toBe(2);
-    // No dead end: from every country of a route within the crossings, a move is left until they run out.
+    // No dead end: from every country of a route within the crossings, a neighbour is new until they run out.
     for (const route of [["DNK"], ["DNK", "SWE"], ["DNK", "DEU"]]) {
       let a = createAttempt(nordic.borders, nordic.travel.mission);
       for (const country of route.slice(1)) a = move(a, nordic.borders, country).attempt;
@@ -2021,33 +2031,34 @@ describe("Level 11: Across the Channel", () => {
     expect(continentStars(s, "europe")).toEqual({ earned: 33, max: 36 });
   });
 
-  it("offers every real neighbour within the level and Luxembourg (Travel only), and only those; the wrong turns run out of crossings on the Continent; Undo, Restart and a refresh recover; help is counted", () => {
+  it("offers every real neighbour within the level and Luxembourg (Travel only), and only those; the wrong turns stop on the Continent; Undo, Restart and a refresh recover; help is counted", () => {
     let s = complete(run(level10Done(), open(L11)), ["DEU"]);
     // Germany offers France, Belgium or Luxembourg; never the United Kingdom or Ireland (no border).
     expect(moves(s)).toEqual(["FRA", "BEL", "LUX"]);
     for (const country of ["GBR", "IRL", "NLD"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
-    // Germany → Belgium: a crossing left, France or Luxembourg; either runs out of crossings on the Continent.
+    // Germany → Belgium: a crossing left, and the United Kingdom two on: the journey stops there, off course; France and
+    // Luxembourg are no longer offered (until 2026-10-25 either ran the crossings out on the Continent).
     s = run(s, play({ type: "travelMove", country: "BEL" }));
     expect(s.levels[L11].travel).toMatchObject({ status: "playing", path: ["DEU", "BEL"] });
-    expect(moves(s)).toEqual(["FRA", "LUX"]);
-    s = run(s, play({ type: "travelMove", country: "FRA" }));
-    expect(s.levels[L11].travel).toMatchObject({ status: "outOfCrossings", path: ["DEU", "BEL", "FRA"] });
-    // In France, the tunnel is there, but no crossing is left.
+    expect(travelStop(s.levels[L11].travel!, channel.borders)).toBe("offCourse");
     expect(moves(s)).toEqual([]);
-    expect(run(s, play({ type: "travelMove", country: "GBR" }))).toBe(s);
-    expect(refresh(s).levels[L11].travel).toMatchObject({ status: "outOfCrossings", path: ["DEU", "BEL", "FRA"] });
+    for (const country of ["FRA", "LUX", "GBR"]) expect(run(s, play({ type: "travelMove", country }))).toBe(s);
+    expect(refresh(s).levels[L11].travel).toMatchObject({ status: "playing", path: ["DEU", "BEL"] });
+    // A journey through Luxembourg (Travel only) stops so too, and is saved and restored as it is.
     s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "LUX" }));
-    expect(s.levels[L11].travel).toMatchObject({ status: "outOfCrossings", path: ["DEU", "BEL", "LUX"], undoUsed: true });
-    // A journey through Luxembourg (Travel only) is saved and restored as it is.
-    s = run(s, play({ type: "travelRestart" }), play({ type: "travelMove", country: "LUX" }));
     s = refresh(s);
     expect(s.levels[L11].travel).toMatchObject({ status: "playing", path: ["DEU", "LUX"], undoUsed: true });
-    expect(moves(s)).toEqual(["FRA", "BEL"]);
+    expect(travelStop(s.levels[L11].travel!, channel.borders)).toBe("offCourse");
+    expect(moves(s)).toEqual([]);
     s = run(s, play({ type: "travelRestart" }), play({ type: "travelMove", country: "FRA" }));
     // France offers the United Kingdom, through the tunnel, and its neighbours on the Continent.
     expect(moves(s)).toEqual(["GBR", "BEL", "LUX"]);
+    // France → Belgium takes the last crossing: they run out on the Continent.
     s = run(s, play({ type: "travelMove", country: "BEL" }));
     expect(s.levels[L11].travel).toMatchObject({ status: "outOfCrossings", path: ["DEU", "FRA", "BEL"] });
+    // In Belgium no crossing is left.
+    expect(moves(s)).toEqual([]);
+    expect(refresh(s).levels[L11].travel).toMatchObject({ status: "outOfCrossings", path: ["DEU", "FRA", "BEL"] });
     s = run(s, play({ type: "travelUndo" }), play({ type: "travelMove", country: "GBR" }));
     // Arrived: the journey ends in the United Kingdom; Ireland, beyond it, is never entered.
     expect(s.levels[L11].lastTravelResult).toMatchObject({ route: ["DEU", "FRA", "GBR"], budget: 2, undoUsed: true, independent: false });
@@ -2313,12 +2324,12 @@ describe("travel choices in every level", () => {
     // Every version, Level 6's first included (attempts started on it go on).
     for (const lesson of LESSON_VERSIONS) {
       const graph = lesson.borders;
-      // Every journey the choices allow, to the destination or the end of the crossings: at each step the
-      // choices are exactly the current country's neighbours not on the route, so none repeats a country.
+      // Every journey the choices allow, to the destination, the end of the crossings or a stop off course: at each
+      // step the choices are exactly the current country's neighbours not on the route, so none repeats a country.
       const walk = (attempt: ReturnType<typeof createAttempt>) => {
         const here = attempt.path.at(-1)!;
         const offered = availableMoves(attempt, graph);
-        if (attempt.status !== "playing") return expect(offered).toEqual([]);
+        if (attempt.status !== "playing" || travelStop(attempt, graph)) return expect(offered).toEqual([]);
         expect([...offered].sort(), `${lesson.id}: ${attempt.path.join(">")}`).toEqual(graph[here].filter((c) => !attempt.path.includes(c)).sort());
         for (const next of offered) {
           const moved = move(attempt, graph, next).attempt;
@@ -2333,47 +2344,57 @@ describe("travel choices in every level", () => {
   });
 
   /**
-   * Every state of a journey under way (crossings left, not arrived) with fewer than two choices, a non-neighbour option
-   * shown there (Level 7's France) counting as one: "route:[choices]".
+   * Every state of a journey that goes on (crossings left, not arrived, not stopped: travelStop) with fewer than two
+   * choices, a non-neighbour option shown there (Level 7's France) counting as one: "route:[choices]".
    */
   const forcedStates = (lesson: (typeof LESSON_VERSIONS)[number], mission = lesson.travel.mission) => {
     const found: string[] = [];
     const walk = (attempt: ReturnType<typeof createAttempt>) => {
       const offered = availableMoves(attempt, lesson.borders);
       const shown = travelChoices(attempt, lesson.borders, lesson.travel.nonNeighbourOptions).map((c) => c.country);
-      if (attempt.status === "playing" && shown.length < 2) found.push(`${attempt.path.join(">")}:[${shown.join(",")}]`);
+      if (attempt.status === "playing" && !travelStop(attempt, lesson.borders) && shown.length < 2) found.push(`${attempt.path.join(">")}:[${shown.join(",")}]`);
       for (const next of offered) walk(move(attempt, lesson.borders, next).attempt);
     };
     walk(createAttempt(lesson.borders, mission));
     return found.sort();
   };
 
-  it("offer a choice wherever a real neighbour can give one: the states left with one move have no other real neighbour to add", () => {
+  it("never offer a single move as though it led anywhere: every state that goes on has a choice", () => {
+    // Until 2026-10-25 a single card was offered after some wrong turns, the destination already out of reach
+    // (docs/MOBILE.md, "Travel states with a single choice"): Level 4's Bosnia and Herzegovina, Level 5's Romania or
+    // Serbia, Level 6's Belarus or Lithuania, Level 7's Andorra. The journey now stops there (below).
     const forced = Object.fromEntries(LEVELS.map((level) => [level.id, forcedStates(level.lesson!)]));
-    expect(forced).toEqual({
-      [L1]: [],
-      [L2]: [],
-      [L3]: [],
-      // Bosnia and Herzegovina has three neighbours: entered second, one is left (Serbia or Croatia), never none.
-      [L4]: ["MNE>HRV>BIH:[SRB]", "MNE>SRB>BIH:[HRV]"],
-      // Wrong turns with a crossing left: Romania's other neighbours (Moldova, Ukraine) and Serbia's would each need
-      // more countries to offer a choice in turn, or (North Macedonia) give a shorter route.
-      [L5]: ["HUN>ROU>SRB:[BGR]", "HUN>SRB>ROU:[BGR]"],
-      // Lithuania's only other neighbour, Russia (Kaliningrad and the mainland, one country in the data), would make a
-      // shorter route to Estonia; Belarus's, Ukraine, would need four countries more to offer a choice in turn.
-      [L6]: ["POL>BLR>LTU:[LVA]", "POL>LTU>BLR:[LVA]"],
-      // Andorra borders only Spain and France. Portugal borders only Spain: its start offers France beside it, a
-      // non-neighbour option (lesson.travel.nonNeighbourOptions), so it has a choice.
-      [L7]: ["PRT>ESP>AND:[FRA]"],
-      [L8]: [],
-      [L9]: [],
-      [L10]: [],
-      // Germany offers three ways; Belgium and Luxembourg, entered from it, each offer France and the other.
-      [L11]: [],
-      // Estonia offers Latvia and Russia (and Finland, a non-neighbour); Latvia offers Russia and Belarus; Russia offers
-      // Finland, Latvia and Belarus.
-      [L12]: [],
-    });
+    expect(forced).toEqual(Object.fromEntries(LEVELS.map((level) => [level.id, []])));
+  });
+
+  it("stops off course where a single card used to be offered, with crossings left, explaining nothing was moved", () => {
+    const lessonOf = (id: string) => LEVELS.find((l) => l.id === id)!.lesson!;
+    const ROUTES: [string, string[], string][] = [
+      [L4, ["MNE", "HRV", "BIH"], "SRB"],
+      // Montenegro → Serbia is itself the wrong turn: the journey stops in Serbia, a step before the old single card.
+      [L4, ["MNE", "SRB"], "BIH"],
+      [L5, ["HUN", "ROU", "SRB"], "BGR"],
+      [L5, ["HUN", "SRB", "ROU"], "BGR"],
+      [L6, ["POL", "BLR", "LTU"], "LVA"],
+      [L6, ["POL", "LTU", "BLR"], "LVA"],
+      [L7, ["PRT", "ESP", "AND"], "FRA"],
+    ];
+    for (const [id, route, card] of ROUTES) {
+      const lesson = lessonOf(id);
+      let a = createAttempt(lesson.borders, lesson.travel.mission);
+      for (const country of route.slice(1)) a = move(a, lesson.borders, country).attempt;
+      const where = `${id}: ${route.join(">")}`;
+      expect(a.path, where).toEqual(route);
+      expect(a.status, where).toBe("playing");
+      expect(travelStop(a, lesson.borders), where).toBe("offCourse");
+      expect(travelChoices(a, lesson.borders, lesson.travel.nonNeighbourOptions), where).toEqual([]);
+      // The old single card is a real neighbour, but no move: nothing is invented, nothing narrowed while it can arrive.
+      expect(lesson.borders[route.at(-1)!], where).toContain(card);
+      expect(move(a, lesson.borders, card).outcome, where).toBe("invalid");
+      // Undo goes back to a state that goes on; Restart to the start.
+      expect(travelStop(undo(a), lesson.borders), where).toBeNull();
+      expect(availableMoves(undo(a), lesson.borders), where).toContain(route.at(-1));
+    }
   });
 
   it("show a non-neighbour option only where it is none: never an edge, a neighbour there, on the route or the destination", () => {
