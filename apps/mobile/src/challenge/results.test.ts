@@ -76,18 +76,18 @@ describe("practice Results", () => {
     expect(timedOut).toMatchObject({ endReason: "timeUp", score: 12, total: 15 });
     const en = shareText(shareSummary(timedOut), "en");
     expect(en.score).toBe("12/15");
-    expect(en.found).toBe("12/15 countries · 60 seconds");
-    expect(en.message).toBe(`12/15 countries · 60 seconds. Can you beat my score? ${SITE_URL}`);
+    expect(en.found).toBe("12/15 countries in 60 seconds");
+    expect(en.message).toBe(`12/15 countries in 60 seconds. Can you beat my score? ${SITE_URL}`);
     expect(en.player).toBeNull();
     const hy = shareText(shareSummary(timedOut), "hy");
-    expect(hy.found).toBe("12/15 երկիր · 60 վայրկյան");
+    expect(hy.found).toBe("12/15 երկիր 60 վայրկյանում");
     expect(hy.capitals).toBe(false);
     expect(hy.url).toBe(SITE_URL);
 
     const completed: ChallengeResult = play("ccccccccccccccc").result;
     expect(completed).toMatchObject({ endReason: "completed", score: 15 });
     // 15 answers a second apart, with 14 feedbacks between: 20.6 s, shared as 21.
-    expect(shareText(shareSummary(completed), "en").found).toBe("15/15 countries · 21 seconds");
+    expect(shareText(shareSummary(completed), "en").found).toBe("15/15 countries in 21 seconds");
   });
 
   it("the card is the website's: its size, its places in the template, and a QR code to the site", () => {

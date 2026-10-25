@@ -146,7 +146,7 @@ export const en = {
 
   "challengeShare.button": "Share result",
   "challengeShare.title": "Share your result",
-  "challengeShare.found": "{score} countries · {time}",
+  "challengeShare.found": "{score} countries in {time}",
   "challengeShare.cardTitle": "Europe Quick Challenge",
   "challengeShare.caption": "Countries found",
   "challengeShare.turn": "Your turn!",

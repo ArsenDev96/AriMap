@@ -29,7 +29,7 @@ describe("Quick Challenge sharing", () => {
     const result = challengeResult(round)!;
     expect(result.endReason).toBe("timeUp");
     expect(shareSummary(result)).toEqual({ endReason: "timeUp", correct: 2, total: 15, seconds: 60, displayName: null });
-    expect(shareText(shareSummary(result), "en").found).toBe("2/15 countries · 60 seconds");
+    expect(shareText(shareSummary(result), "en").found).toBe("2/15 countries in 60 seconds");
   });
 
   it("shares a completed round with mistakes by its correct answers, not its questions, and its time", () => {
@@ -39,11 +39,11 @@ describe("Quick Challenge sharing", () => {
     expect(result.endReason).toBe("completed");
     expect(shareSummary(result)).toEqual({ endReason: "completed", correct: 11, total: 15, seconds: 40, displayName: null });
     const en = shareText(shareSummary(result), "en");
-    expect(en.found).toBe("11/15 countries · 40 seconds");
+    expect(en.found).toBe("11/15 countries in 40 seconds");
     expect(en.beat).toBe("Can you beat my score?");
     expect(en.fileName).toBe("arimap-quick-challenge-11-of-15.png");
     const hy = shareText(shareSummary(result), "hy");
-    expect(hy.found).toBe("11/15 երկիր · 40 վայրկյան");
+    expect(hy.found).toBe("11/15 երկիր 40 վայրկյանում");
     expect(hy.appName).toBe("ԱրիՄապ");
   });
 

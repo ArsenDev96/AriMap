@@ -48,7 +48,7 @@ export interface ShareText {
   score: string;
   /** The player's display name, by the score; null when they have none. */
   player: string | null;
-  /** "12/15 countries · 60 seconds" (the share message and the image's description). */
+  /** "12/15 countries in 60 seconds": the time the round took (the share message and the image's description). */
   found: string;
   /** The card's title: "Europe Quick Challenge". */
   title: string;

@@ -148,7 +148,7 @@ export const hy: Record<keyof typeof en, string> = {
 
   "challengeShare.button": "Կիսվել արդյունքով",
   "challengeShare.title": "Կիսվիր քո արդյունքով",
-  "challengeShare.found": "{score} երկիր · {time}",
+  "challengeShare.found": "{score} երկիր {time}ում",
   "challengeShare.cardTitle": "Եվրոպայի արագ մարտահրավեր",
   "challengeShare.caption": "Գտնված երկրներ",
   "challengeShare.turn": "Քո հերթն է",
