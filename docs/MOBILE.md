@@ -4,7 +4,8 @@ The native app lives in `apps/mobile`: React Native with Expo (SDK 58, React Nat
 It is drawn natively (react-native-svg for maps), with no WebView, no login and no backend. Phase 1 is its foundation:
 navigation, safe areas, theme, language selection, saved progress, and the Home and Europe level-selection screens
 with the real levels. Phase 2A made Level 1 (France and its neighbours) playable from Discover to Results with the
-website's own game rules, and Phase 2B all twelve European levels ("Playing a level", below).
+website's own game rules, and Phase 2B all twelve European levels ("Playing a level", below). Phase 3 adds the Quick
+Challenge, as practice rounds on the phone ("Quick Challenge", below).
 
 ## Run it
 
@@ -78,7 +79,9 @@ Every cloud build uploads a project archive to Expo. Two rules decide what is in
    caches, keystores) can't be included.
 2. **Only what the app builds from** (`.easignore`, at the repository root, where EAS CLI reads it). From the clone it
    deletes every file matching its rules: an allowlist keeping `apps/mobile` and `src/core`, `src/geo` and `src/data`
-   only, and the landmark pictures (`src/assets/landmarks/*.webp`, the forty the levels show; not their thumbnails), then a deny
+   only, the landmark pictures (`src/assets/landmarks/*.webp`, the forty the levels show; not their thumbnails) and the
+   Quick Challenge's share card template (`public/images/share/quick-challenge-postcard-template-v2.png`, that one file of
+   `public/`), then a deny
    list (Git data, env files, credentials and keys, installed packages, generated native projects,
    build output and caches, logs, temporary files, the shared code's tests). It also removes the clone's `.git`, so no
    history is uploaded. With `requireCommit` off, `.easignore` would replace every `.gitignore` for the working-tree
@@ -88,7 +91,8 @@ The website (`public/`, `e2e/`, `supabase/`, `scripts/`, `docs/`, its configs) n
 Measured with `eas build:inspect` (2026-10-24): 92 files, 2.9 MB, against 1,647 files and 314 MB (153 MB of it `.git`)
 before. A clean `npm ci` and an Android bundle made inside that archive alone bundle the same 1,471 modules as a cloud
 build; the website's folders remain only as empty directories. With every level's landmark pictures (2026-10-25): 151
-files, 21.6 MB, 18.6 MB of it the pictures.
+files, 21.6 MB, 18.6 MB of it the pictures. With the Quick Challenge (2026-10-25): the card template (2.2 MB) and the
+challenge's map data are in as well.
 
 **Check before every build.** `npm run check:archive` (`apps/mobile/scripts/check-eas-archive.mjs`) runs `eas
 build:inspect --stage archive`, which makes the archive exactly as a build does (the same code) in a local folder and
@@ -96,7 +100,8 @@ uploads nothing, then fails if:
 
 - a file is outside `apps/mobile`, `src/core`, `src/geo` or `src/data`, other than the landmark pictures the app
   bundles (read from `apps/mobile/src/components/landmarkImages.ts`, each of which must be there: a picture added to
-  the website and not to the app fails the check until it is listed there);
+  the website and not to the app fails the check until it is listed there), and the share card template it requires
+  (read from `apps/mobile/src/challenge/ShareCard.tsx`);
 - a file is forbidden anywhere (Git data, env files, credentials, keys and certificates, website build output or
   caches, installed packages, the generated `android/` or `ios/`, Expo or Metro caches, logs, temporary files, tests);
 - a file the build needs is missing (`package.json`, the lockfile, `app.json`, `eas.json`, the Metro config, the
@@ -135,8 +140,9 @@ cd apps/mobile
 npm run typecheck    # TypeScript, including the shared src/core, src/geo and src/data it imports
 npm run lint         # ESLint (eslint-config-expo)
 npm test             # Vitest: the map's camera, gestures, picking and labels, the level cards, and every level
-                     # played through the shared rules on its real map at phone sizes (src/**/*.test.ts; the
-                     # repository's Vitest, vitest.config.mts)
+                     # played through the shared rules on its real map at phone sizes; the Quick Challenge's
+                     # rounds, clock and results on clocks the tests move (src/**/*.test.ts; the repository's
+                     # Vitest, vitest.config.mts)
 npm run doctor       # expo-doctor: SDK version alignment and config
 ```
 
@@ -151,20 +157,26 @@ apps/mobile/                 a project of its own: package.json, package-lock.js
   metro.config.js            shares ../../src with the bundler (see "Shared code")
   src/app/                   Expo Router routes (every file is a screen)
     _layout.tsx              the stack, providers, status bar, reduced motion
-    index.tsx                Home: the continents, world map, Europe's progress and stars, Continue / Explore Europe
+    index.tsx                Home: the Quick Challenge, the continents, world map, Europe's progress and stars,
+                             Continue / Explore Europe
+    challenge.tsx            the Quick Challenge: ready screen, round, Results, review on the map
     continent/[id].tsx       a continent's level selection (Europe's twelve levels), with the website's card actions
     level/[id].tsx           a level, played from Discover to Results (LessonScreen)
   src/lesson/                a level in play: LessonScreen (map + panel), DiscoverPanel, FindPanel, TravelPanel,
                              ResultsPanel, Panel (scrolling content, pinned main action), StepsBar and Stars (parts),
                              confirmRestart (Start over / Play again asks first)
+  src/challenge/             the Quick Challenge: clock.ts (its timer), session.ts (a round saved as it plays),
+                             useChallenge (the round on screen), ChallengeMap, results.ts (Results' colours, names and
+                             lesson links), ShareCard and ShareResult (the result card, and Android's share sheet)
   src/game/GameProvider.tsx  the game's state: src/core's appReducer, loaded and saved through the native store
   src/game/levelActions.ts   a level card's actions (the website's rules: Continue, View results, Start over, Play again)
   src/game/pressGuard.ts     ignores a second gameplay press within 400 ms
   src/storage/nativeStorage.ts  the native KeyValueStorage (SQLite)
-  src/i18n/i18n.tsx          useI18n over src/core/i18n (the website's words, all of them)
+  src/i18n/i18n.tsx          useI18n over src/core/i18n, and the app's own few words (practice rounds), both languages
   src/map/                   react-native-svg maps: WorldMap (home), and LessonMap (a level in play) with useRegionMap
                              (its map data), camera.ts (zoom and pan limits), gesture.ts (tap or drag), pick.ts (the
-                             country under a tap, small-country rings) and labels.ts (where names go)
+                             country under a tap, small-country rings), labels.ts (where names go), and what both
+                             maps share: useMapGesture (touches to pan, pinch or tap) and MapControls (the zoom buttons)
   src/theme/                 tokens (the website's palette, and its map's), useReducedMotion, textWidth (will a word fit)
   src/components/            Screen (safe areas), ScreenHeader, LanguageSwitch, Button, StarTotal, landmarkImages
 ```
@@ -177,7 +189,8 @@ shapes, fit transforms) and `@/data/...` (prepared map data). Nothing is copied 
 
 - `metro.config.js` watches `../../src` and resolves `@/` there. Packages the shared code imports (`d3-geo`,
   `topojson-client`) resolve from the app's own `node_modules`, so the app bundles the versions in its own
-  `package.json` and never depends on the website's install.
+  `package.json` and never depends on the website's install. It also watches `../../public/images/share`, for the
+  Quick Challenge's card template (required as `@/../public/…`).
 - `tsconfig.json` maps the same paths for type checking (Expo's own tsconfig-paths resolution is turned off in
   `app.json` so that Metro follows `metro.config.js` alone).
 
@@ -313,6 +326,82 @@ honest would be ending such a journey as soon as the destination can no longer b
 level), or a travel-only real neighbour (`travelOnly`, as Level 10's Germany) where one adds a choice without a shorter
 route. Invented neighbours, or cards narrowed to winning moves, are not.
 
+## Quick Challenge
+
+The website's Quick Challenge (`src/core/challenge`, `src/components/challenge`): find 15 countries on an unlabelled
+map of Europe against one timer, one answer each, then Results, a review on the map and a shared result card.
+
+**Rules: the website's, as they are.** `CHALLENGE_RULES` and `CHALLENGE_POOL` (`src/core/challenge`): 15 countries,
+**60 seconds**, 400 ms of feedback after each answer, drawn from a pool of **40** (Europe's 44 M49 countries and
+Kosovo, less Malta, Liechtenstein, San Marino, Monaco and Vatican City). The Phase 3 brief asked for 45 seconds and a
+pool of 30: those were the challenge's first rules (12 October 2026), changed on 13 October 2026 to 60 seconds and 40
+countries, as recorded in `docs/QUICK_CHALLENGE_CHECKPOINT.md`, `docs/DATA.md` and `docs/QUICK-CHALLENGE-SHARING.md`
+and enforced by the website's server. The owner chose the current rules for the app (2026-10-25), so its rounds,
+Results and cards match the website's and no rule is duplicated.
+
+**Practice rounds, on the phone alone (the owner's decision, 2026-10-25).** On the website the server runs every
+round: an anonymous Supabase session; one free attempt a day (and bonus attempts for all 36 stars); questions drawn
+by the server; answers received and scored on the database's clock, with a 1-second allowance and the 400 ms rhythm
+enforced; results confirmed, then ranked on the leaderboard under a saved name; and no practice rounds (docs/PLAYER-
+BACKEND.md, "Rounds"). The server is there to prevent manipulation of ranked results and to ration attempts, not to
+play the round: the device already plays it by the same shared rules for its immediate feedback. The app's rounds
+are practice: drawn on the phone (`createChallenge`), played and scored by the same shared code, unlimited (Play
+again), offline, never sent anywhere and never ranked; the screens say so. The app has no session, no key and no
+network code for it. Ranked rounds would reuse the website's `/api/challenge` routes with the publishable key and an
+anonymous session, as the website does: a later phase.
+
+**The timer** (`src/challenge/clock.ts`). The shared rules take any clock that never runs backwards; the round starts
+at 0 on the app's, so its deadline is the duration. Each reading adds the larger of two clocks' advances since the
+last: `performance.now` (monotonic: changing the phone's date, time or zone doesn't move it) and `Date.now` (which
+runs on while the phone sleeps). So the background, sleep, and setting the clock back (alone or in turn) gain no time;
+setting it forward only costs the player.
+
+- **Nothing runs before Start**, and Start is enabled only once the map is drawn.
+- **Saved as it plays** (`session.ts`: `arimap:practice` in the app's SQLite store, apart from the lessons' save):
+  the round, and its clock's time with the wall clock's then. Leaving the screen (asked first), Home, the app going
+  to the background, Android recreating it (a font size change) or closing it: the round carries on against the same
+  deadline, and opens where it was, or on its Results if its time ran out meanwhile. A round opened after the app was
+  closed adds the wall clock's advance since (never less than nothing).
+- **Ends once**: the 15th answer or the deadline (`tick`, as often as every 100 ms, and at once when the app comes to
+  the foreground); a later tick changes nothing. Answers after the deadline, a second tap while the feedback shows (a
+  double tap), and a tap on a country outside the pool are no answers (`answer`). The countdown shown is the round's
+  own time left, redrawn when its second changes.
+- Nothing is submitted anywhere, so there is no duplicate submission to prevent; an ended round's Results are made
+  from its saved answers each time, never counted twice.
+
+**Screens** (`src/app/challenge.tsx`): Home's card (the website's: the rules and Play). The ready screen: the
+challenge, its rules, the practice note and Start, under the map. The round: the question, score and seconds left
+(kept in view), the country to find, the last answer's feedback in words with an icon (Correct, Incorrect, Skipped:
+✓ ✗ ↷), and Skip. Results: time's up or complete, the score of 15, the time used (a completed round), the counts,
+Share result, Play again, Review on the map, Explore Europe lessons, then the countries to practise, each with what was
+chosen (or skipped, or not reached) and a link to the first level that teaches it (every country the challenge asks
+has one), and Back to home. The review: each of the round's countries, found or missed, zoomed to and outlined on the
+map. Back during a round asks first ("Keep playing", the default, or "Leave"); leaving an ended round clears it.
+
+**The map** (`src/challenge/ChallengeMap.tsx`): the website's challenge map (`src/geo/challengeMap.ts`, its data
+file handed over by an inline require, as Levels 10–12's) and its start view (`challengeCamera.ts`: Europe with
+every small-country ring whole) to six times it. The lesson map's gestures and buttons (`useMapGesture`,
+`MapControls`), picking (`pick.ts`, pool countries only) and the shared small-country rings (Luxembourg, Andorra).
+At the start view Belgium lies mostly inside Luxembourg's ring, as on the website, so a press there answers
+Luxembourg: zoom in to tap Belgium (the website's own phone review notes Belgium, Slovenia and Albania are about 12 px
+across there). Results and the review name the round's countries (the missed first), each only where it overlaps no
+other name, ring or button, as the website's map does.
+
+**Sharing** (`src/challenge/ShareCard.tsx`, `ShareResult.tsx`): the website's card, the same template, places and
+sizes (`src/core/challenge/shareCardLayout.ts`, moved there from the website's `shareCard.ts` for both to read), the
+same words (`share.ts`) and QR code (`qrCode.ts`, moved to `src/core/challenge` from the website's components), drawn
+as an SVG. Share image captures it at 1080 × 1350 (`react-native-view-shot`) and opens Android's share sheet with the
+PNG (`expo-sharing`); Share as text sends the website's share message (React Native's Share). Only the score, the
+round's size and its time are on it: practice rounds have no name. Closing the share sheet shows nothing; Android
+doesn't say whether anything was shared, so nothing claims it was.
+
+**Accessibility.** For screen readers the map is one image, named as the website names it ("Map of Europe without
+country names"): answering needs the map, as on the website, and naming the countries would give the answers away.
+Skip, the feedback (a live region), the seconds left (a timer), Results, the review's chips (each "found" or "missed")
+and the card's description are all words. Colour is never the only cue (icons and words beside every tone). Large text:
+the round's status stays in view, the counts and buttons wrap rather than clip. Reduced motion: nothing moves but
+the map under the player's own fingers.
+
 ## Maps
 
 `src/geo/regionMap.ts` produces each country as an SVG path string in the levels' shared projected coordinates, with
@@ -328,6 +417,11 @@ target API requirement. The app id is `world.arimap.app` (`app.json`). Developme
 EAS (above); no production build has been made and nothing has been uploaded to Google Play.
 
 ## Dependency audit
+
+Since 2026-10-25 a fifth high-severity finding: [GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)
+in `zod` before 4.6.6 (memory exhaustion validating oversized constrained collections), from `@expo/cli` and
+`eslint-plugin-react-hooks`: development tools only, never in the app, and no input of the player's reaches them.
+The Quick Challenge's two new packages (`expo-sharing`, `react-native-view-shot`) bring no finding.
 
 `npm audit` in `apps/mobile` reports 4 high-severity findings (checked 2026-10-23). They are one advisory,
 [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv) in `node-forge` (RSA PKCS#1 v1.5 signature

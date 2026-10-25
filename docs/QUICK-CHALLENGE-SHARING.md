@@ -4,6 +4,10 @@ Given 2026-10-16 by the owner. Sharing for **Quick Challenge Results only**: a s
 
 AriMap's public website address: **https://arimap.world** (the canonical domain since 2026-10-18, in `src/core/site.ts`). It's in the share message, Copy link, the card's printed address and its QR code. The address the owner first gave (2026-10-16) was https://ari-map.vercel.app; cards and links shared before the change still point there.
 
+**Shared with the app (2026-10-25).** The card's size and places (`SPOTS`, the palette, the QR code's size) moved from
+`src/components/challenge/shareCard.ts` to `src/core/challenge/shareCardLayout.ts`, and `qrCode.ts` to
+`src/core/challenge`, unchanged, so the Android app draws the same card (docs/MOBILE.md, "Quick Challenge").
+
 ## Shared result card
 
 Generate a PNG using AriMap's existing logo, navy/coral/gold palette and illustrated-map styling. Keep it uncluttered and readable on a phone.
