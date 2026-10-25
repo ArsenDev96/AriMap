@@ -65,10 +65,29 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
   // In Travel and its Results, countries Travel can also enter are drawn as the level's own (LessonDefinition.travelOnly).
   const active = useMemo(() => (travelling ? [...lesson.countries, ...(lesson.travelOnly ?? [])] : lesson.countries), [lesson, travelling]);
 
+  // The zoom buttons, top right: in a column, or in a row on a map too short for one. Names keep clear of them, and
+  // so does the traveller in the start view (the website's clearOf).
+  const controlsInRow = !!size && size.height < 3 * CONTROL + 4 * space.xs;
+  const controls = useMemo<Box | null>(() => {
+    if (!size) return null;
+    const length = 3 * CONTROL + 2 * space.xs;
+    return controlsInRow
+      ? { x0: size.width - space.sm - length, y0: space.sm, x1: size.width - space.sm, y1: space.sm + CONTROL }
+      : { x0: size.width - space.sm - CONTROL, y0: space.sm, x1: size.width - space.sm, y1: space.sm + length };
+  }, [size, controlsInRow]);
+
   const markers = view.markers;
   const marks = useMemo<ScreenMark[]>(
-    () => (map ? markers.map((m) => ({ at: map.project(m.coordinates), extent: m.kind === "current" ? PIN_BOX : MARK_BOX, keep: m.kind === "current" && (lesson.travelOnly ?? []).includes(m.country) })) : []),
-    [map, markers, lesson],
+    () =>
+      map
+        ? markers.map((m) => ({
+            at: map.project(m.coordinates),
+            extent: m.kind === "current" ? PIN_BOX : MARK_BOX,
+            keep: m.kind === "current" && (lesson.travelOnly ?? []).includes(m.country),
+            clearOf: m.kind === "current" && controls ? [controls] : undefined,
+          }))
+        : [],
+    [map, markers, lesson, controls],
   );
   const limits = useMemo<CameraLimits | null>(
     () => (map && size ? viewLimits(map, size.width, size.height, mapPadding(size.width, size.height), marks, travelling) : null),
@@ -140,14 +159,6 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
   const atBase = !camera || !limits || isBase(camera, limits.base);
 
   const ready = map && size && camera && limits;
-  // The zoom buttons, top right: in a column, or in a row on a map too short for one. Names keep clear of them.
-  const controlsInRow = !!size && size.height < 3 * CONTROL + 4 * space.xs;
-  const controlsLength = 3 * CONTROL + 2 * space.xs;
-  const controls: Box | null = size
-    ? controlsInRow
-      ? { x0: size.width - space.sm - controlsLength, y0: space.sm, x1: size.width - space.sm, y1: space.sm + CONTROL }
-      : { x0: size.width - space.sm - CONTROL, y0: space.sm, x1: size.width - space.sm, y1: space.sm + controlsLength }
-    : null;
   return (
     <View style={styles.frame} onLayout={onLayout}>
       {ready ? (

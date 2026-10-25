@@ -86,10 +86,9 @@ export function LessonScreen({ levelId }: { levelId: string }) {
     [dispatch, lesson, opened, progress.stage],
   );
 
-  const backToLevels = () => {
-    if (router.canGoBack()) router.back();
-    else router.replace({ pathname: "/continent/[id]", params: { id: getLevel(levelId)!.continent } });
-  };
+  // Back to the level's continent's levels: back down the stack where it is there, in its place otherwise (a level
+  // continued from Home), so the header's and Results' "Back to levels" always lead there.
+  const backToLevels = () => router.dismissTo({ pathname: "/continent/[id]", params: { id: getLevel(levelId)!.continent } });
   // Next level: played here when the app plays it, otherwise its map and countries (opening starts nothing there).
   const openNext = (next: LevelInfo) => {
     const now = Date.now();

@@ -255,8 +255,9 @@ saving is written again for the app.
 - **Repeated presses.** The rules ignore a repeated action (a second Next, a second move into the same country, an
   answer after the question is answered); a second gameplay press within 400 ms is ignored too (`pressGuard.ts`), so a
   double tap can't land on the button that has just replaced the first (Next on Hint, a new neighbour card).
-- **Leaving and coming back.** Every action is saved as it is made. Back (the header's or Android's) returns to the
-  level selection at any point; Continue resumes the same question or route, also after the app is closed or Android
+- **Leaving and coming back.** Every action is saved as it is made. The header's "Back to levels" (and Results') leads
+  to the level's continent at any point, also for a level continued from Home; Android's Back goes to the previous
+  screen. Continue resumes the same question or route, also after the app is closed or Android
   recreates it (which reopens it on Home, see "Navigation"). Nothing is completed or rated before the journey arrives.
   If the save can't be read as the app starts, the game is played in memory and never saved over it.
 - **Screen readers.** Each of the level's countries is a target where its name is drawn, named as the website names it
