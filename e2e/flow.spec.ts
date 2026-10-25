@@ -392,36 +392,58 @@ test("complete lesson flow", async ({ page }) => {
   await shot(page, "travel-start");
   await checkArmenian(page, "travel-start");
 
-  // A longer route through real borders runs out of crossings.
+  // A wrong turn through a real border: Luxembourg is offered, but the Netherlands is two crossings on from it with one
+  // left, so the journey stops there, off course, with no move offered (since 2026-10-25; it used to offer Belgium and
+  // Germany, either running the crossings out).
   expect(await drawnRoute(page)).toBe("");
   const traveller = () => page.locator('[data-testid="map-main"] [data-traveller]').getAttribute("data-traveller");
   const newSegments = () => page.locator('[data-testid="map-main"] [data-route-new]').count();
   expect(await traveller()).toBe("FRA");
+  const startLabels = await allMapNames(page);
   await page.getByTestId("move-LUX").click();
+  await expect(page.getByTestId("off-course")).toBeVisible();
+  await expect(page.getByTestId("off-course")).toContainText("You can't reach the Netherlands in the crossings left: this route has left the shortest one.");
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves()).toEqual([]);
+  await expect(page.getByTestId("travel-tools").getByRole("button", { name: "Hint" })).toBeDisabled();
   expect(await drawnRoute(page)).toBe("FRA,LUX");
   expect(await newSegments()).toBe(1);
   expect(await traveller()).toBe("LUX");
-  // France, where the journey started, is not offered again; Belgium still is, though it is the longer way.
-  expect(await moves()).toEqual(["BEL", "DEU"]);
-  const beforeUndoLabels = await allMapNames(page);
+  await shot(page, "travel-off-course");
+  await checkArmenian(page, "travel-off-course");
+
+  // Undo from there: back in France, both crossings and every choice restored.
+  await page.getByTestId("off-course").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("off-course")).toHaveCount(0);
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  expect(await moves()).toEqual(["BEL", "DEU", "LUX"]);
+  expect(await allMapNames(page)).toEqual(startLabels);
+  expect(await drawnRoute(page)).toBe("");
+  expect(await traveller()).toBe("FRA");
+
+  // A wrong turn that takes the last crossing runs out of crossings: France → Belgium → Germany.
   await page.getByTestId("move-BEL").click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  // France, where the journey started, is not offered again; Germany and Luxembourg still are, though the wrong way.
+  expect(await moves()).toEqual(["DEU", "LUX", "NLD"]);
+  const beforeUndoLabels = await allMapNames(page);
+  await page.getByTestId("move-DEU").click();
   await expect(page.getByTestId("out-of-crossings")).toBeVisible();
   await expect(page.getByTestId("out-of-crossings")).toContainText("Each move crossed a real border");
-  expect(await drawnRoute(page)).toBe("FRA,LUX,BEL");
+  expect(await drawnRoute(page)).toBe("FRA,BEL,DEU");
   await shot(page, "travel-out-of-crossings");
 
   // Undo restores route, budget and map.
   await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  expect(await moves()).toEqual(["BEL", "DEU"]);
+  expect(await moves()).toEqual(["DEU", "LUX", "NLD"]);
   expect(await allMapNames(page)).toEqual(beforeUndoLabels);
-  await expect(page.locator('[data-testid="map-main"] path[data-country="BEL"]')).toHaveAttribute("data-tone", "default");
+  await expect(page.locator('[data-testid="map-main"] path[data-country="DEU"]')).toHaveAttribute("data-tone", "default");
   await expect(page.getByText("Help used on this journey")).toBeVisible();
   // Undo removed the last segment of the drawn route; nothing animates, the traveller is back.
-  expect(await drawnRoute(page)).toBe("FRA,LUX");
+  expect(await drawnRoute(page)).toBe("FRA,BEL");
   expect(await newSegments()).toBe(0);
-  expect(await traveller()).toBe("LUX");
+  expect(await traveller()).toBe("BEL");
 
   // Restart, then France → Belgium → Netherlands.
   await page.getByRole("button", { name: "Restart" }).click();
@@ -571,12 +593,13 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
         expect(actions.y + actions.height).toBeLessThanOrEqual(panelBox.y + panelBox.height + 1);
       }
 
-      // Travel: Hint, Undo and Restart are reachable and not covered.
+      // Travel: Hint, Undo and Restart are reachable and not covered, mid-journey with choices shown (France →
+      // Luxembourg, used here until 2026-10-25, now stops off course, with none).
       await writeSave(page, {
         version: 1,
         locale,
         screen: "lesson",
-        lessons: { "western-europe-1": { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "LUX"] } } },
+        lessons: { "western-europe-1": { started: true, stage: "travel", travel: { missionId: "fra-to-nld", path: ["FRA", "BEL"] } } },
       });
       await expect(page.getByTestId("travel-tools")).toBeAttached();
       await toBottom();
@@ -589,7 +612,7 @@ test("phone panels scroll fully above pinned actions", async ({ page }) => {
         expect(hit, `${width}×${height} ${locale}: button not covered`).toBe(await button.textContent());
       }
       // Undo is usable at this size and removes the last route segment.
-      expect(await drawnRoute(page)).toBe("FRA,LUX");
+      expect(await drawnRoute(page)).toBe("FRA,BEL");
       await page.getByTestId("travel-tools").getByRole("button").nth(1).click();
       expect(await drawnRoute(page)).toBe("");
     }
@@ -691,12 +714,16 @@ test("only Discover opens the close-up by itself; the traveller replaces Luxembo
     expect(Math.hypot(tx - start[0], ty - start[1]), where).toBeLessThan(0.5);
     // A hand-off dot shows only until the pin lands (at once with reduced motion).
     await expect.poll(() => lux.locator("circle").evaluateAll((els) => els.filter((c) => getComputedStyle(c).opacity !== "0").length), { timeout: 2000 }).toBe(0);
-    // Leaving Luxembourg restores the dot; Undo brings the traveller back and removes it again.
-    await page.getByTestId("move-DEU").click();
+    // Leaving Luxembourg restores the dot; moving back in removes it again. The journey stops off course in Luxembourg
+    // (since 2026-10-25: no move on from it), so it is left by Undo, back to France.
+    await expect(page.getByTestId("off-course")).toBeVisible();
+    await page.getByTestId("off-course").getByRole("button", { name: "Undo" }).click();
+    await expect(page.locator('[data-testid="map-main"] [data-traveller]')).toHaveAttribute("data-traveller", "FRA");
     await expect(closeUp, where).toHaveCount(0);
     await expect(dot, where).toHaveCount(1);
-    await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
+    await page.getByTestId("move-LUX").click();
     await expect(page.locator('[data-testid="map-main"] [data-traveller]')).toHaveAttribute("data-traveller", "LUX");
+    await expect(lux, where).toHaveCount(1);
     await expect(dot, where).toHaveCount(0);
     await expect(closeUp, where).toHaveCount(0);
   }

@@ -614,16 +614,21 @@ test("Level 7, Iberian Journey: unlock from a Level 6 save, Discover, Find, Trav
   // Lisbon → north of the Tagus estuary → the border → Madrid.
   await expect(route).toHaveAttribute("data-route", "PRT,ESP");
   await expect(route).toHaveAttribute("data-points", "4");
-  // Through Andorra: one crossing too many, so the journey runs out in France.
+  // Through Andorra: Italy is then two crossings on, with one left, so the journey stops there, off course; France, its
+  // one way on, is no longer offered as though it led anywhere (until 2026-10-25 it ran the crossings out there).
   await page.getByTestId("move-AND").click();
-  expect(await moves()).toEqual(["FRA"]);
-  await page.getByTestId("move-FRA").click();
-  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
-  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("off-course")).toBeVisible();
+  await expect(page.getByTestId("off-course")).toContainText("You can't reach Italy in the crossings left");
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves()).toEqual([]);
+  await page.getByTestId("off-course").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  expect(await moves()).toEqual(["AND", "FRA"]);
+  await page.getByTestId("move-AND").click();
   await page.reload();
-  // A refresh keeps the journey where it was.
+  // A refresh keeps the journey where it was, stopped as it was.
   await expect(route).toHaveAttribute("data-route", "PRT,ESP,AND");
+  await expect(page.getByTestId("off-course")).toBeVisible();
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
   // Back in Portugal: France is offered beside Spain again.

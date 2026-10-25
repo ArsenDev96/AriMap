@@ -6,7 +6,8 @@ import { homeToEurope } from "./helpers/home";
  * Level 10 (Nordic Countries) from Discover to Results, its unlock from Level 9 (an existing save), its five
  * landmark cards (all its own artwork, supplied 2026-10-14), Find's hints and spoiler-free map (no artwork, even after
  * a hint names the landmark), the Denmark → Finland journey (one shortest route, over the Øresund and through Sweden;
- * the wrong turn into Norway runs out of crossings, recovered by Undo or Restart; Iceland, learned in Discover and
+ * the wrong turn into Germany stops off course, and into Norway runs out of crossings, recovered by Undo, Retry or
+ * Restart; Iceland, learned in Discover and
  * Find, is on no journey, as the level's Travel note says), Level 9's Next level, its own Next level (Level 11), the
  * level selection once Level 10 is completed (Level 11 up next) and once all twelve levels are, and its map: all
  * five countries whole, Iceland tapped on the map itself, Denmark through the close-up on phones, the close-up beside
@@ -432,23 +433,21 @@ test("Level 10, Nordic Countries: unlock from a Level 9 save, Discover, Find, Tr
   await expect(page.getByTestId("travel-note")).toHaveText(NOTE);
   // Denmark offers Sweden or Germany (Travel only); Iceland is never offered.
   expect(await moves(page)).toEqual(["DEU", "SWE"]);
-  // Denmark → Germany: a crossing left, Poland or the Netherlands, both away from Finland.
+  // Denmark → Germany: a crossing left, and Finland far beyond it: the journey stops there, off course, with no move
+  // offered (until 2026-10-25 it offered Poland and the Netherlands, either running the crossings out).
   await page.getByTestId("move-DEU").click();
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  expect(await moves(page)).toEqual(["NLD", "POL"]);
+  await expect(page.getByTestId("off-course")).toContainText("You can't reach Finland in the crossings left");
+  expect(await moves(page)).toEqual([]);
   const germany = page.locator(`${MAIN} [data-testid="route-line"]`);
   // Copenhagen across Zealand, the Great Belt, Funen and the Little Belt, Jutland to the border, Hamburg, Berlin.
   await expect(germany).toHaveAttribute("data-route", "DNK,DEU");
   await expect(germany).toHaveAttribute("data-points", "17");
   await expect(page.locator(`${MAIN} [data-country="DEU"]`)).toHaveAttribute("data-tone", "current");
-  await page.getByTestId("move-NLD").click();
-  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
-  await expect(germany).toHaveAttribute("data-route", "DNK,DEU,NLD");
-  await expect(germany).toHaveAttribute("data-points", "19");
-  // A refresh keeps the journey where it ran out; Retry goes back to Denmark.
+  // A refresh keeps the journey where it stopped; Retry goes back to Denmark.
   await page.reload();
-  await expect(germany).toHaveAttribute("data-route", "DNK,DEU,NLD");
-  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Retry" }).click();
+  await expect(germany).toHaveAttribute("data-route", "DNK,DEU");
+  await page.getByTestId("off-course").getByRole("button", { name: "Retry" }).click();
   await expect(germany).toHaveCount(0);
   expect(await moves(page)).toEqual(["DEU", "SWE"]);
   await page.getByTestId("move-SWE").click();
@@ -593,7 +592,7 @@ test("Level 10 on phones and desktop: every card in both languages, Find with Ic
   }
 });
 
-test("Level 10's traveller pin whole and clear of the map controls: Germany, Poland and the Netherlands entered and restored, Undo, Restart, Results", async ({ page }) => {
+test("Level 10's traveller pin whole and clear of the map controls: Germany entered and restored, Poland and the Netherlands restored, Undo, Restart, Results", async ({ page }) => {
   test.skip(!["small-phone", "desktop"].includes(project()), "Runs on small-phone and desktop.");
   test.setTimeout(600_000);
   // Phones (320×568; 390×844; landscape, with 200% text too) and a desktop. Without the clearance, Warsaw's pin lay
@@ -631,7 +630,9 @@ test("Level 10's traveller pin whole and clear of the map controls: Germany, Pol
           await panel.evaluate((el) => el.scrollTo(0, 0));
         }
       };
-      // A saved journey restored in each.
+      // A saved journey restored in each. Poland and the Netherlands only so since 2026-10-25: the journey stops off
+      // course in Germany, so they are no longer entered, but routes saved through them before (out of crossings) open
+      // as they were.
       for (const path of [
         ["DNK", "DEU"],
         ["DNK", "DEU", "POL"],
@@ -641,19 +642,16 @@ test("Level 10's traveller pin whole and clear of the map controls: Germany, Pol
         await enlarge();
         await expectClear(path.at(-1)!, "restored");
       }
-      // Entered from Denmark; Undo and Restart.
+      // Entered from Denmark; Undo (from off course in Germany) and Restart.
       await openLevel10(page, travelAt(["DNK"]), locale);
       await enlarge();
       await expectClear("DNK", "start");
       await page.getByTestId("move-DEU").click();
       await expectClear("DEU", "entered");
-      await page.getByTestId("move-POL").click();
-      await expectClear("POL", "entered");
-      await page.getByTestId("out-of-crossings").getByRole("button").first().click();
-      await expectClear("DEU", "Undo");
-      await page.getByTestId("move-NLD").click();
-      await expectClear("NLD", "entered");
-      await page.getByTestId("out-of-crossings").getByRole("button").first().click();
+      await page.getByTestId("off-course").getByRole("button").first().click();
+      await expectClear("DNK", "Undo");
+      await page.getByTestId("move-SWE").click();
+      await expectClear("SWE", "entered");
       await page.getByTestId("travel-tools").getByRole("button").nth(2).click();
       await expectClear("DNK", "Restart");
       // Results, restored: the traveller in Helsinki.

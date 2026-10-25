@@ -488,17 +488,21 @@ test("Level 5, Towards Greece: unlock, Discover, Find, Travel, Results, and Leve
   // Budapest → the Hungarian–Serbian border → Belgrade: straight legs.
   await expect(route).toHaveAttribute("data-route", "HUN,SRB");
   await expect(route).toHaveAttribute("data-points", "3");
-  // Sideways into Romania: Greece is then two crossings away, with one left.
+  // Sideways into Romania: Greece is then two crossings away, with one left, so the journey stops there, off course;
+  // Bulgaria, its one way on, is no longer offered as though it led anywhere (until 2026-10-25 it was).
   await page.getByTestId("move-ROU").click();
-  // Hungary and Serbia are on the route: Bulgaria, the longer way on, is the only choice.
-  expect(await moves()).toEqual(["BGR"]);
-  await page.getByTestId("move-BGR").click();
-  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
-  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("off-course")).toBeVisible();
+  await expect(page.getByTestId("off-course")).toContainText("You can't reach Greece in the crossings left");
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves()).toEqual([]);
+  await page.getByTestId("off-course").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  expect(await moves()).toEqual(["BGR", "ROU"]);
+  await page.getByTestId("move-ROU").click();
   await page.reload();
-  // A refresh keeps the journey where it was.
+  // A refresh keeps the journey where it was, stopped as it was.
   await expect(route).toHaveAttribute("data-route", "HUN,SRB,ROU");
+  await expect(page.getByTestId("off-course")).toBeVisible();
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
   expect(await moves()).toEqual(["ROU", "SRB"]);

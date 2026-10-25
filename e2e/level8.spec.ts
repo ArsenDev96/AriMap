@@ -8,8 +8,8 @@ import { homeToEurope } from "./helpers/home";
  * Moldova's own, supplied 2026-10-05: whole, unstretched, above the pinned button on phones, and reached by
  * scrolling with enlarged text and in short landscape), Find's hints and spoiler-free map (no artwork, even
  * after a hint names the landmark), the
- * Poland → Moldova journey (one shortest route, through Ukraine; Belarus and Romania offered too, and running
- * out of crossings there, recovered by Undo or Restart), Level 7's Next level, its own Next level (Level 9),
+ * Poland → Moldova journey (one shortest route, through Ukraine; Belarus and Romania offered too, stopping off course
+ * or running out of crossings there, recovered by Undo or Restart), Level 7's Next level, its own Next level (Level 9),
  * the level selection once Level 8 is completed (Level 9 up next) and once all twelve levels are, and its map:
  * framing (Crimea included, as part of Ukraine), the traveller's pin in Warsaw and Chisinau, and the
  * landscape it loads.
@@ -415,16 +415,25 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   await expect(page.getByTestId("travel-note")).toHaveText(
     "On this journey, you can travel through these five countries and some of their neighbours. Other neighbouring countries cannot be selected.",
   );
-  // Through Belarus: real neighbours, but the crossings run out in Ukraine or Latvia.
+  // Through Belarus: a real neighbour, but Moldova is then two crossings on with one left, so the journey stops there,
+  // off course, with no move offered. Until 2026-10-25 it offered Ukraine and Latvia (Travel only), either running the
+  // crossings out; Latvia, met only from Belarus here, is now never entered.
   await page.getByTestId("move-BLR").click();
-  // Poland, the start, is not offered again; Latvia (Travel only) is, beside Ukraine.
-  expect(await moves(page)).toEqual(["LVA", "UKR"]);
-  await page.getByTestId("move-LVA").click();
-  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
-  await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "POL,BLR,LVA");
-  await expect(page.locator('[data-testid="map-main"] [data-country="LVA"]')).toHaveAttribute("data-tone", "current");
-  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
+  const offCourse = page.getByTestId("off-course");
+  await expect(offCourse).toContainText("You can't reach Moldova in the crossings left: this route has left the shortest one.");
+  await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
+  expect(await moves(page)).toEqual([]);
+  await expect(page.locator('[data-testid="map-main"] [data-testid="route-line"]')).toHaveAttribute("data-route", "POL,BLR");
+  await expect(page.locator('[data-testid="map-main"] [data-country="BLR"]')).toHaveAttribute("data-tone", "current");
+  await expect(offCourse.getByRole("button", { name: "Undo" })).toBeInViewport();
+  await offCourse.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  expect(await moves(page)).toEqual(["BLR", "UKR"]);
   await page.getByTestId("move-UKR").click();
+  // Ukraine offers the three others not on the route (Poland, the start, is).
+  expect(await moves(page)).toEqual(["BLR", "MDA", "ROU"]);
+  // Into Romania, the last crossing: they run out there.
+  await page.getByTestId("move-ROU").click();
   const stuck = page.getByTestId("out-of-crossings");
   await expect(stuck).toContainText("No crossings left. Each move crossed a real border, but this route is longer than the shortest one.");
   await expect(page.getByTestId("crossings-left")).toHaveText("0 crossings left");
@@ -435,8 +444,6 @@ test("Level 8, Eastern Europe: unlock from a Level 7 save, Discover, Find, Trave
   await page.getByTestId("travel-tools").getByRole("button", { name: "Restart" }).click();
   await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
   await page.getByTestId("move-UKR").click();
-  // Ukraine offers the three others not on the route (Poland, the start, is).
-  expect(await moves(page)).toEqual(["BLR", "MDA", "ROU"]);
   await page.getByTestId("move-MDA").click();
 
   // --- Results: Level 9 follows; Next level ------------------------------------------------
@@ -619,7 +626,7 @@ test("Level 8 at phone and desktop sizes: every card, unanswered Find, Travel an
             await shot(page, `${locale}-find-hint-${target}`);
           }
         }
-        // Travel from Poland, and out of crossings in Ukraine (through Belarus).
+        // Travel from Poland, then stopped off course and out of crossings.
         await openLevel8(page, travellingAt(["POL"]), locale);
         await textSize(page, size);
         await expectNoHorizontalOverflow(page, `${where} Travel`);
@@ -632,7 +639,13 @@ test("Level 8 at phone and desktop sizes: every card, unanswered Find, Travel an
           expect(s.bottom, `${where}: first neighbour below the fold`).toBeLessThanOrEqual(s.fold + 0.5);
         }
         await shot(page, `${locale}-travel${size === 100 ? "" : `-text${size}`}`);
-        await openLevel8(page, travellingAt(["POL", "BLR", "UKR"]), locale);
+        // Off course in Belarus, and out of crossings in Romania (through Ukraine): since 2026-10-25 Belarus → Ukraine,
+        // shown here until then, is no longer reached.
+        await openLevel8(page, travellingAt(["POL", "BLR"]), locale);
+        await textSize(page, size);
+        await expect(page.getByTestId("off-course").getByRole("button").first()).toBeVisible();
+        await expectNoHorizontalOverflow(page, `${where} off course`);
+        await openLevel8(page, travellingAt(["POL", "UKR", "ROU"]), locale);
         await textSize(page, size);
         await expect(page.getByTestId("out-of-crossings").getByRole("button").first()).toBeVisible();
         await expectNoHorizontalOverflow(page, `${where} out of crossings`);

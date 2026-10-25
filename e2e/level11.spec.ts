@@ -6,8 +6,9 @@ import { homeToEurope } from "./helpers/home";
  * Level 11 (Across the Channel) from Discover to Results, its unlock from Level 10 (an existing save), its five
  * landmark cards (Big Ben's and the Cliffs of Moher's own artwork, supplied 2026-10-15; France's, Belgium's and
  * Germany's from Level 1), Find's spoiler-free map, the Germany → United Kingdom journey (one shortest route, through
- * France and the Channel Tunnel; the wrong turns into Belgium and Luxembourg, Travel only, run out of crossings on the
- * Continent, recovered by Undo, Retry or Restart; Ireland, learned in Discover and Find, lies beyond the journey's end),
+ * France and the Channel Tunnel; the wrong turns into Belgium and Luxembourg, Travel only, stop off course, and from
+ * France run out of crossings on the Continent, recovered by Undo, Retry or Restart; Ireland, learned in Discover and
+ * Find, lies beyond the journey's end),
  * Level 10's Next level, its own Next level (Level 12), the level selection once Level 11 is completed (Level 12 up
  * next) and once all twelve levels are, and its map: the five whole, Ireland tapped on the map itself, Belgium through
  * the close-up on phones (the close-up beside its toggle, clear of Ireland), the traveller's pin whole and clear of the
@@ -439,37 +440,46 @@ test("Level 11, Across the Channel: unlock from a Level 10 save, Discover, Find,
   // Germany offers France, Belgium or Luxembourg (Travel only); never the United Kingdom or Ireland.
   expect(await moves(page)).toEqual(["FRA", "BEL", "LUX"]);
   const route = page.locator(`${MAIN} [data-testid="route-line"]`);
-  // Germany → Belgium: a crossing left, France or Luxembourg; either runs out of crossings on the Continent.
+  // Germany → Belgium: a crossing left, and the United Kingdom two on: the journey stops there, off course, with no move
+  // offered (until 2026-10-25 it offered France and Luxembourg, either running the crossings out on the Continent).
   await page.getByTestId("move-BEL").click();
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  expect(await moves(page)).toEqual(["FRA", "LUX"]);
+  const offCourse = page.getByTestId("off-course");
+  await expect(offCourse).toContainText("You can't reach the United Kingdom in the crossings left");
+  expect(await moves(page)).toEqual([]);
+  await expect(route).toHaveAttribute("data-route", "DEU,BEL");
+  await offCourse.getByRole("button", { name: "Undo" }).click();
+  expect(await moves(page)).toEqual(["FRA", "BEL", "LUX"]);
+  // Germany → Luxembourg (Travel only) stops so too.
   await page.getByTestId("move-LUX").click();
-  await expect(page.getByTestId("out-of-crossings")).toBeVisible();
-  await expect(route).toHaveAttribute("data-route", "DEU,BEL,LUX");
-  await expect(route).toHaveAttribute("data-points", "5");
+  await expect(offCourse).toBeVisible();
+  expect(await moves(page)).toEqual([]);
+  await expect(route).toHaveAttribute("data-route", "DEU,LUX");
   // Luxembourg, a few pixels across, is named in a callout while the traveller is there.
   expect(await drawnNames(page, NAMES)).toContain("LUX");
-  await page.getByTestId("out-of-crossings").getByRole("button", { name: "Undo" }).click();
-  await page.getByTestId("move-FRA").click();
-  // In France with no crossing left: the tunnel is there, but the journey stops.
-  const stuck = page.getByTestId("out-of-crossings");
-  await expect(stuck).toContainText("No crossings left.");
-  expect(await moves(page)).toEqual([]);
-  // A refresh keeps the journey where it ran out; Retry goes back to Germany.
+  // A refresh keeps the journey where it stopped; Retry goes back to Germany.
   await page.reload();
-  await expect(route).toHaveAttribute("data-route", "DEU,BEL,FRA");
-  await stuck.getByRole("button", { name: "Retry" }).click();
+  await expect(route).toHaveAttribute("data-route", "DEU,LUX");
+  await offCourse.getByRole("button", { name: "Retry" }).click();
   await expect(route).toHaveCount(0);
   expect(await moves(page)).toEqual(["FRA", "BEL", "LUX"]);
-  await page.getByTestId("move-LUX").click();
-  expect(await moves(page)).toEqual(["FRA", "BEL"]);
-  await page.getByTestId("travel-tools").getByRole("button", { name: "Restart" }).click();
-  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
   await page.getByTestId("move-FRA").click();
   // France offers the United Kingdom, through the tunnel, and its neighbours on the Continent.
   expect(await moves(page)).toEqual(["GBR", "BEL", "LUX"]);
   await expect(route).toHaveAttribute("data-route", "DEU,FRA");
   await expect(route).toHaveAttribute("data-points", "3");
+  // France → Belgium takes the last crossing: in Belgium with none left, the journey stops on the Continent.
+  await page.getByTestId("move-BEL").click();
+  const stuck = page.getByTestId("out-of-crossings");
+  await expect(stuck).toContainText("No crossings left.");
+  await expect(page.getByTestId("crossings-left")).toHaveText("0 crossings left");
+  expect(await moves(page)).toEqual([]);
+  await expect(route).toHaveAttribute("data-route", "DEU,FRA,BEL");
+  await stuck.getByRole("button", { name: "Undo" }).click();
+  expect(await moves(page)).toEqual(["GBR", "BEL", "LUX"]);
+  await page.getByTestId("travel-tools").getByRole("button", { name: "Restart" }).click();
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  await page.getByTestId("move-FRA").click();
   await page.getByTestId("move-GBR").click();
 
   // --- Results: Level 12 follows; Next level ------------------------------------------------
@@ -622,7 +632,8 @@ test("Level 11's traveller pin whole and clear of the map controls: the Continen
         expect(t.reachable, `${where}, ${at}: the zoom buttons uncovered`).toBe(true);
         await expect.poll(async () => (await toolbar(page)).uk, `${where}, ${at}: the United Kingdom in view`).toBe(100);
       };
-      // Saved journeys restored, wrong turns included.
+      // Saved journeys restored, wrong turns included: off course in Belgium or Luxembourg, out of crossings in France
+      // and Belgium (saved before 2026-10-25: the journey now stops a step before them).
       for (const path of [
         ["DEU", "BEL"],
         ["DEU", "LUX"],
@@ -639,11 +650,15 @@ test("Level 11's traveller pin whole and clear of the map controls: the Continen
       await enlarge();
       await expectClear("DEU", "start");
       await page.getByTestId("move-LUX").click();
-      await expectClear("LUX", "entered");
+      await expectClear("LUX", "entered, off course");
+      await page.getByTestId("off-course").getByRole("button").first().click();
+      await expectClear("DEU", "Undo");
       await page.getByTestId("move-FRA").click();
-      await expectClear("FRA", "entered, out of crossings");
+      await expectClear("FRA", "entered");
+      await page.getByTestId("move-BEL").click();
+      await expectClear("BEL", "entered, out of crossings");
       await page.getByTestId("out-of-crossings").getByRole("button").first().click();
-      await expectClear("LUX", "Undo");
+      await expectClear("FRA", "Undo");
       await page.getByTestId("travel-tools").getByRole("button").nth(2).click();
       await expectClear("DEU", "Restart");
       // Results, restored: the traveller in London.

@@ -798,13 +798,15 @@ test.describe("Travel neighbour buttons", () => {
   test("every neighbour set a journey offers, in Levels 1–4, in both languages", async ({ page }) => {
     test.setTimeout(600_000);
     test.skip(project() !== "small-phone" && project() !== "desktop", "Chromium phone and desktop.");
-    // The countries a journey can stand in with crossings left: the start and its neighbours.
+    // The countries a journey can stand in with choices offered: the start and its neighbours. Since 2026-10-25 a
+    // journey stops off course, with no choice, in Level 1's Luxembourg and Level 4's Bosnia and Herzegovina (both here
+    // until then); Level 4's Slovenia, after Croatia, stands in for the latter.
     const states: [string, string[]][] = [
-      [L1, ["FRA"]], [L1, ["FRA", "BEL"]], [L1, ["FRA", "LUX"]], [L1, ["FRA", "DEU"]],
+      [L1, ["FRA"]], [L1, ["FRA", "BEL"]], [L1, ["FRA", "DEU"]],
       [L2, ["FRA"]], [L2, ["FRA", "CHE"]], [L2, ["FRA", "DEU"]], [L2, ["FRA", "ITA"]],
       [L3, ["POL"]], [L3, ["POL", "CZE"]], [L3, ["POL", "SVK"]], [L3, ["POL", "DEU"]],
       // Level 4 starts in Montenegro (Croatia or Bosnia and Herzegovina's long name); Croatia offers Bosnia and Herzegovina too.
-      [L4, ["MNE"]], [L4, ["MNE", "HRV"]], [L4, ["MNE", "BIH"]],
+      [L4, ["MNE"]], [L4, ["MNE", "HRV"]], [L4, ["MNE", "HRV", "SVN"]],
     ];
     const sizes = project() === "desktop" ? [[1366, 800]] : [[320, 568], [390, 844]];
     const summary: string[] = [];
@@ -833,12 +835,13 @@ test.describe("Travel neighbour buttons", () => {
   test("the first row of neighbours shows without scrolling, before and after a move, in Levels 1–4; the map keeps its height and the text its size", async ({ page }) => {
     test.setTimeout(1_800_000);
     test.skip(!isPhoneProject(), "Runs on the small-phone (Chromium) and webkit-phone (WebKit) projects.");
-    // Each journey's start, and the saved places after the first move to each neighbour.
+    // Each journey's start, and the saved places after the first move to each neighbour that offers choices (since
+    // 2026-10-25 Level 1's Luxembourg and Level 4's Bosnia and Herzegovina stop off course, with none).
     const journeys: [string, string, string[][]][] = [
-      [L1, "FRA", [["FRA", "BEL"], ["FRA", "LUX"], ["FRA", "DEU"]]],
+      [L1, "FRA", [["FRA", "BEL"], ["FRA", "DEU"]]],
       [L2, "FRA", [["FRA", "CHE"], ["FRA", "DEU"], ["FRA", "ITA"]]],
       [L3, "POL", [["POL", "CZE"], ["POL", "SVK"], ["POL", "DEU"]]],
-      [L4, "MNE", [["MNE", "HRV"], ["MNE", "BIH"]]],
+      [L4, "MNE", [["MNE", "HRV"]]],
     ];
     const summary = () =>
       page.evaluate(() => {

@@ -6,8 +6,9 @@ import { homeToEurope } from "./helpers/home";
  * Level 6 (Baltic Journey) from Discover to Results, its unlock from Level 5 (an existing save),
  * its five illustrated landmark cards (Poland's artwork shared with earlier levels and Belarus's with
  * Level 8; Lithuania's, Latvia's and Estonia's their own, supplied 2026-10-03), the Poland → Estonia
- * journey (two shortest routes, through Lithuania or Belarus; a wrong turn runs out of crossings in
- * Latvia), the level selection once Level 6 is completed (Level 7 up next) and once all twelve levels
+ * journey (two shortest routes, through Lithuania or Belarus; a wrong turn stops off course in
+ * Belarus, or runs out of crossings there through Latvia), the level selection once Level 6 is
+ * completed (Level 7 up next) and once all twelve levels
  * are, and its map: framing (Estonia's islands included), reset, and the landscape it loads.
  *
  * Level 6's second version (revision 2, since 2026-10-06): fixtures for it carry `revision: 2`, as the
@@ -569,27 +570,36 @@ test("Level 6, Baltic Journey: unlock from a Level 5 save, Discover, Find, Trave
   expect(await moves()).toEqual(["BLR", "LVA"]);
   await page.getByTestId("move-BLR").click();
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  // Belarus meets Latvia (and Poland and Lithuania, already on the route), not Estonia.
-  expect(await moves()).toEqual(["LVA"]);
+  // Belarus meets Latvia (and Poland and Lithuania, already on the route), not Estonia: Estonia is two crossings on with
+  // one left, so the journey stops there, off course, not a dead end; Latvia is no longer offered as though it led
+  // anywhere (until 2026-10-25 it was its one card, running the crossings out).
+  const offCourse = page.getByTestId("off-course");
+  await expect(offCourse).toContainText("You can't reach Estonia in the crossings left: this route has left the shortest one. Undo your last move or try again.");
+  await expect(page.getByTestId("dead-end")).toHaveCount(0);
+  await expect(page.getByTestId("out-of-crossings")).toHaveCount(0);
+  expect(await moves()).toEqual([]);
+  // Undo from there takes Belarus off the route: Lithuania offers Belarus and Latvia again.
+  await offCourse.getByRole("button", { name: "Undo" }).click();
+  await expect(route).toHaveAttribute("data-route", "POL,LTU");
+  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
+  expect(await moves()).toEqual(["BLR", "LVA"]);
+  // Latvia, then Belarus, the wrong turn on the last crossing: out of crossings in Belarus, one short of Estonia.
   await page.getByTestId("move-LVA").click();
-  // Out of crossings in Latvia, one crossing short of Estonia: not a dead end.
+  expect(await moves()).toEqual(["BLR", "EST"]);
+  await page.getByTestId("move-BLR").click();
   const stuck = page.getByTestId("out-of-crossings");
   await expect(stuck).toContainText("No crossings left. Each move crossed a real border, but this route is longer than the shortest one.");
   await expect(page.getByTestId("crossings-left")).toHaveText("0 crossings left");
   await expect(page.getByTestId("dead-end")).toHaveCount(0);
   expect(await moves()).toEqual([]);
-  // Undo from there: back in Belarus, Latvia offered again.
+  // Undo from there: back in Latvia, Belarus offered again.
   await stuck.getByRole("button", { name: "Undo" }).click();
-  await expect(route).toHaveAttribute("data-route", "POL,LTU,BLR");
+  await expect(route).toHaveAttribute("data-route", "POL,LTU,LVA");
   await expect(page.getByTestId("crossings-left")).toHaveText("1 crossing left");
-  expect(await moves()).toEqual(["LVA"]);
-  // Undo again takes Belarus off the route: Lithuania offers Belarus and Latvia again.
-  await page.getByTestId("travel-tools").getByRole("button", { name: "Undo" }).click();
-  await expect(page.getByTestId("crossings-left")).toHaveText("2 crossings left");
-  expect(await moves()).toEqual(["BLR", "LVA"]);
+  expect(await moves()).toEqual(["BLR", "EST"]);
   await page.reload();
   // A refresh keeps the journey where it was.
-  await expect(route).toHaveAttribute("data-route", "POL,LTU");
+  await expect(route).toHaveAttribute("data-route", "POL,LTU,LVA");
   await page.getByRole("button", { name: "Restart" }).click();
   await expect(route).toHaveCount(0);
   expect(await moves()).toEqual(["BLR", "LTU"]);
@@ -1004,8 +1014,8 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
       await expectFindSpoilerFree(page, "EST");
       await shot(page, `${locale}-find-hint`);
 
-      // Travel: at the start (two ways north), in Lithuania (on, or back south through Belarus) and out of crossings in
-      // Latvia. The first choice whole without scrolling on phones.
+      // Travel: at the start (two ways north), in Lithuania (on, or back south through Belarus), off course in Belarus and
+      // out of crossings there through Latvia. The first choice whole without scrolling on phones.
       for (const path of [["POL"], ["POL", "LTU"]]) {
         await openLevel6(page, travellingAt(path), locale);
         await expect(page.locator('[data-testid^="move-"]').first()).toBeVisible();
@@ -1016,7 +1026,22 @@ test("Level 6 at phone and desktop sizes: every card, unanswered Find, Travel an
         await expectNoHorizontalOverflow(page);
         await shot(page, `${locale}-travel-${path.at(-1)}`);
       }
-      await openLevel6(page, travellingAt(["POL", "LTU", "BLR", "LVA"]), locale);
+      // Off course in Belarus after Lithuania, a crossing left (since 2026-10-25; Lithuania → Belarus → Latvia, out of
+      // crossings here until then, is no longer reached), and out of crossings in Belarus after Latvia.
+      await openLevel6(page, travellingAt(["POL", "LTU", "BLR"]), locale);
+      const offCourse = page.getByTestId("off-course");
+      await expect(offCourse.getByRole("button").first()).toBeVisible();
+      await expect(offCourse.locator("p")).toHaveText(
+        locale === "en"
+          ? "You can't reach Estonia in the crossings left: this route has left the shortest one. Undo your last move or try again."
+          : "Մնացած սահմանահատումներով այլևս չես հասնի նպատակակետին՝ Էստոնիան։ Այս երթուղին ամենակարճից շեղվել է։ Հետարկիր վերջին քայլը կամ փորձիր նորից։",
+      );
+      await expect(page.getByTestId("crossings-left")).toHaveText(locale === "en" ? "1 crossing left" : "Մնաց 1 սահմանահատում");
+      await expectWordsWhole(offCourse.locator("p"), where("off course"));
+      await expectMapTextClear(page);
+      await expectNoHorizontalOverflow(page);
+      await shot(page, `${locale}-travel-off-course`);
+      await openLevel6(page, travellingAt(["POL", "LTU", "LVA", "BLR"]), locale);
       const stuck = page.getByTestId("out-of-crossings");
       await expect(stuck.getByRole("button").first()).toBeVisible();
       await expect(page.getByTestId("crossings-left")).toHaveText(locale === "en" ? "0 crossings left" : "Մնաց 0 սահմանահատում");
