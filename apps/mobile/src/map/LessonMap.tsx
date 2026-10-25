@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, PixelRatio, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type LayoutChangeEvent } from "react-native";
+import { Animated, PixelRatio, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import Svg, { Circle, Ellipse, G, Line, Path, Polyline, Rect, Text as SvgText } from "react-native-svg";
 import { getCountry } from "@/core/content/countries";
 import type { CountryId } from "@/core/content/types";
@@ -12,10 +12,11 @@ import { routeLine, routeSettings } from "@/geo/route";
 import { RING_RADIUS, type Ring } from "@/core/challenge/smallCountries";
 import { useI18n } from "../i18n/i18n";
 import { colors, mapColors, radius, space, TAP, type } from "../theme/tokens";
-import { isBase, mapPadding, MAX_ZOOM, toScreen, toWorld, zoomTo, ZOOM_STEP, type CameraLimits } from "./camera";
-import { beginGesture, endGesture, moveGesture, type Finger, type MapGesture } from "./gesture";
+import { isBase, mapPadding, toScreen, toWorld, zoomTo, type CameraLimits } from "./camera";
 import { BADGE_SIZE, LABEL_FONT, placeLabels, textWidth, type Box, type LabelRequest } from "./labels";
+import { controlsBox, MapControls } from "./MapControls";
 import { countryAt, ringsFor } from "./pick";
+import { useMapGesture } from "./useMapGesture";
 
 interface Props {
   lesson: LessonDefinition;
@@ -49,7 +50,6 @@ const FLASH_MS = 900;
 const PILL_PAD = 4;
 /** A ring's dashes and gaps, evenly round it (the Quick Challenge's twelve). */
 const RING_DASH = (2 * Math.PI * RING_RADIUS) / 24;
-const CONTROL = 44;
 
 /**
  * A level's map in play: the website's shapes (src/geo/regionMap.ts) drawn with react-native-svg, marked as the game
@@ -72,16 +72,10 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
   // In Travel and its Results, countries Travel can also enter are drawn as the level's own (LessonDefinition.travelOnly).
   const active = useMemo(() => (travelling ? [...lesson.countries, ...(lesson.travelOnly ?? [])] : lesson.countries), [lesson, travelling]);
 
-  // The zoom buttons, top right: in a column, or in a row on a map too short for one. Names keep clear of them, and
-  // so does the traveller in the start view (the website's clearOf).
-  const controlsInRow = !!size && size.height < 3 * CONTROL + 4 * space.xs;
-  const controls = useMemo<Box | null>(() => {
-    if (!size) return null;
-    const length = 3 * CONTROL + 2 * space.xs;
-    return controlsInRow
-      ? { x0: size.width - space.sm - length, y0: space.sm, x1: size.width - space.sm, y1: space.sm + CONTROL }
-      : { x0: size.width - space.sm - CONTROL, y0: space.sm, x1: size.width - space.sm, y1: space.sm + length };
-  }, [size, controlsInRow]);
+  // The zoom buttons, top right (MapControls). Names keep clear of them, and so does the traveller in the start view
+  // (the website's clearOf).
+  const placed = useMemo(() => (size ? controlsBox(size) : null), [size]);
+  const controls = placed?.box ?? null;
 
   const markers = view.markers;
   const marks = useMemo<ScreenMark[]>(
@@ -119,51 +113,19 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
     });
   }, [limits, size, stage]);
 
-  // The fingers on the map: the gesture so far (gesture.ts), and the map's position on the page.
-  const gesture = useRef<{ g: MapGesture; offset: [number, number] } | null>(null);
-  const fingersOf = (e: GestureResponderEvent, offset: [number, number]): Finger[] =>
-    e.nativeEvent.touches.map((touch) => ({ id: String(touch.identifier), at: [touch.pageX - offset[0], touch.pageY - offset[1]] as const }));
-
-  // The map takes every touch that starts on it, and keeps it: while a finger is on the map, nothing else (a parent,
-  // the screen) takes the gesture over.
-  const responder = {
-    onStartShouldSetResponder: () => true,
-    onMoveShouldSetResponder: () => true,
-    onResponderTerminationRequest: () => false,
-    onResponderGrant: (e: GestureResponderEvent) => {
-      if (!camera) return;
-      // The map's own coordinates: the page position of this first touch less its position on the map.
-      const offset: [number, number] = [e.nativeEvent.pageX - e.nativeEvent.locationX, e.nativeEvent.pageY - e.nativeEvent.locationY];
-      gesture.current = { g: beginGesture(camera, fingersOf(e, offset), e.nativeEvent.timestamp), offset };
-    },
-    onResponderMove: (e: GestureResponderEvent) => {
-      const current = gesture.current;
-      if (!current || !camera || !size || !limits) return;
-      const { gesture: g, view: next } = moveGesture(current.g, camera, fingersOf(e, current.offset), { width: size.width, height: size.height, limits });
-      gesture.current = { g, offset: current.offset };
-      if (next !== camera) setCamera(next);
-    },
-    onResponderRelease: (e: GestureResponderEvent) => {
-      const current = gesture.current;
-      gesture.current = null;
-      if (!current || !camera || !map || !view.interactive) return;
-      const at: [number, number] = [e.nativeEvent.pageX - current.offset[0], e.nativeEvent.pageY - current.offset[1]];
-      const point = endGesture(current.g, at, e.nativeEvent.timestamp);
-      if (!point || !current.g.tap) return;
+  const responder = useMapGesture({
+    camera,
+    size,
+    limits,
+    onCamera: setCamera,
+    onTap: (start, end) => {
+      if (!camera || !map || !view.interactive) return;
       // The same country where the press began and ended (the website's rule).
-      const country = countryAt(map.shapes, active, camera, point, rings);
-      if (country && country === countryAt(map.shapes, active, camera, current.g.tap.at, rings)) onCountryTap(country);
+      const country = countryAt(map.shapes, active, camera, end, rings);
+      if (country && country === countryAt(map.shapes, active, camera, start, rings)) onCountryTap(country);
     },
-    onResponderTerminate: () => {
-      gesture.current = null;
-    },
-  };
+  });
 
-  const zoomBy = (factor: number) => {
-    if (!camera || !limits || !size) return;
-    setCamera(zoomTo(camera, camera.k * factor, [size.width / 2, size.height / 2], size.width, size.height, limits));
-  };
-  const atBase = !camera || !limits || isBase(camera, limits.base);
   // Small-country rings while the map takes countries (Discover, Find), each while its country is drawn too small.
   const rings = map && camera && (stage === "discover" || stage === "find") ? ringsFor(map.shapes, lesson.countries, camera, map.project) : [];
 
@@ -176,41 +138,12 @@ export function LessonMap({ lesson, map, view, stage, onCountryTap, reducedMotio
             <MapDrawing lesson={lesson} map={map} view={view} active={active} camera={camera} size={size} rings={rings} keepClear={controls ? [controls] : []} reducedMotion={reducedMotion} />
           </View>
           <CountryTargets map={map} view={view} active={active} camera={camera} size={size} onCountryTap={onCountryTap} name={name} t={t} />
-          <View style={[styles.controls, controlsInRow && styles.controlsRow]}>
-            <MapButton icon="in" accessibilityLabel={t("map.zoomIn")} onPress={() => zoomBy(ZOOM_STEP)} disabled={camera.k >= limits.base.k * MAX_ZOOM - 1e-9} />
-            <MapButton icon="out" accessibilityLabel={t("map.zoomOut")} onPress={() => zoomBy(1 / ZOOM_STEP)} disabled={camera.k <= limits.minScale + 1e-9} />
-            <MapButton icon="whole" accessibilityLabel={t("map.reset")} onPress={() => setCamera(limits.base)} disabled={atBase} />
-          </View>
+          <MapControls camera={camera} limits={limits} size={size} inRow={!!placed?.inRow} onCamera={setCamera} />
         </>
       ) : (
         <Text style={styles.loading}>{t("app.loading")}</Text>
       )}
     </View>
-  );
-}
-
-const CONTROL_ICONS = {
-  in: "M12 5v14M5 12h14",
-  out: "M5 12h14",
-  // Four corners: the whole map.
-  whole: "M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5",
-} as const;
-
-function MapButton({ icon, accessibilityLabel, onPress, disabled }: { icon: keyof typeof CONTROL_ICONS; accessibilityLabel: string; onPress: () => void; disabled: boolean }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
-      onPress={onPress}
-      hitSlop={2}
-      style={({ pressed }) => [styles.control, pressed && styles.controlPressed]}
-    >
-      <Svg width={22} height={22} viewBox="0 0 24 24">
-        <Path d={CONTROL_ICONS[icon]} fill="none" stroke={disabled ? "rgba(31, 58, 95, 0.3)" : colors.ink} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
-      </Svg>
-    </Pressable>
   );
 }
 
@@ -493,18 +426,5 @@ function CountryTargets({
 const styles = StyleSheet.create({
   frame: { flex: 1, borderRadius: radius.md, overflow: "hidden", backgroundColor: mapColors.sea },
   loading: { ...type.body, color: colors.ink, textAlign: "center", marginTop: space.xl },
-  controls: { position: "absolute", top: space.sm, right: space.sm, gap: space.xs },
-  controlsRow: { flexDirection: "row" },
-  control: {
-    width: CONTROL,
-    height: CONTROL,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: mapColors.control,
-    borderWidth: 1,
-    borderColor: mapColors.controlBorder,
-  },
-  controlPressed: { backgroundColor: "#f6eee1" },
   target: { position: "absolute", width: TAP, height: TAP },
 });

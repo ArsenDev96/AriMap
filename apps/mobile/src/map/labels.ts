@@ -58,7 +58,18 @@ function boxAt([x, y]: Point, width: number, height: number): Box {
   return { x0: x - width / 2, y0: y - height / 2, x1: x + width / 2, y1: y + height / 2 };
 }
 
-export function placeLabels(requests: readonly LabelRequest[], obstacles: readonly Box[], viewport: { width: number; height: number }, fontSize = LABEL_FONT): PlacedLabel[] {
+/**
+ * The names' places, in `requests`' order (small countries' callouts last). A name with no clear place is drawn where
+ * it fits best anyway, over what is there, unless `onlyClear`: then it is left out until zooming makes room (the
+ * Quick Challenge's map, which names up to fifteen countries at once, as the website's does).
+ */
+export function placeLabels(
+  requests: readonly LabelRequest[],
+  obstacles: readonly Box[],
+  viewport: { width: number; height: number },
+  fontSize = LABEL_FONT,
+  onlyClear = false,
+): PlacedLabel[] {
   const { width: vw, height: vh } = viewport;
   const lineHeight = fontSize * 1.25;
   const taken: Box[] = [...obstacles];
@@ -88,7 +99,7 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
       return fits.find((b) => !taken.some((t) => overlaps(b, t))) ?? (anyway ? fits[0] : undefined);
     };
     if (r.small && r.width < textW) {
-      const box = calloutBox(true);
+      const box = calloutBox(!onlyClear);
       if (!box) continue;
       taken.push(box);
       placed.push({ id: r.id, at: centre(box), box, callout: { anchor: r.anchor } });
@@ -119,7 +130,9 @@ export function placeLabels(requests: readonly LabelRequest[], obstacles: readon
     const clear = [...rows, ...slid].filter((b) => !taken.some((t) => overlaps(b, t)));
     const onCountry = (b: Box) => !r.covers || r.covers(centre(b));
     const near = nearest(clear.filter(onCountry)) ?? nearest(clear);
-    const box = near ?? calloutBox(false) ?? rows[0];
+    const clearBox = near ?? calloutBox(false);
+    if (!clearBox && onlyClear) continue;
+    const box = clearBox ?? rows[0];
     const leader = near ? !onCountry(near) : box !== rows[0];
     taken.push(box);
     placed.push({ id: r.id, at: centre(box), box, callout: leader ? { anchor: r.anchor } : null });

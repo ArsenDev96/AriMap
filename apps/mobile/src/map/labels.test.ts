@@ -52,6 +52,13 @@ describe("country names on the lesson map", () => {
     expect(overlap(label.box, buttons) || overlap(label.box, pin)).toBe(false);
   });
 
+  it("with onlyClear, a name with no clear place is left out rather than drawn over another", () => {
+    const blockAll = { x0: 0, y0: 0, x1: 300, y1: 200 };
+    expect(placeLabels([request("Moldova", [150, 100])], [blockAll], viewport)).toHaveLength(1);
+    expect(placeLabels([request("Moldova", [150, 100])], [blockAll], viewport, undefined, true)).toEqual([]);
+    expect(placeLabels([request("Luxembourg", [150, 100], { small: true, width: 2 })], [blockAll], viewport, undefined, true)).toEqual([]);
+  });
+
   it("are left out where the label point is off the map", () => {
     expect(placeLabels([request("France", [-20, 100])], [], viewport)).toEqual([]);
   });

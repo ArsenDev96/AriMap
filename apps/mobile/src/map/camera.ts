@@ -15,7 +15,12 @@ export interface CameraLimits {
   base: Transform;
   minScale: number;
   translateExtent: Bounds;
+  /** How far in it zooms, relative to the start view: MAX_ZOOM unless set (the Quick Challenge's map: 6). */
+  maxZoom?: number;
 }
+
+/** The largest scale the view may take. */
+export const maxScale = (limits: CameraLimits) => limits.base.k * (limits.maxZoom ?? MAX_ZOOM);
 
 /** Room around the level's countries in the start view: the website's (4% of the map's shorter side, at least 10px). */
 export function mapPadding(width: number, height: number): number {
@@ -39,7 +44,7 @@ export function constrain(t: Transform, width: number, height: number, [[ex0, ey
   return tx === 0 && ty === 0 ? t : { k: t.k, x: t.x + t.k * tx, y: t.y + t.k * ty };
 }
 
-const clampScale = (k: number, limits: CameraLimits) => Math.min(limits.base.k * MAX_ZOOM, Math.max(limits.minScale, k));
+const clampScale = (k: number, limits: CameraLimits) => Math.min(maxScale(limits), Math.max(limits.minScale, k));
 
 /** The view scaled to `k` (within the limits) about a point on screen, which stays where it is. */
 export function zoomTo(t: Transform, k: number, [fx, fy]: Point, width: number, height: number, limits: CameraLimits): Transform {
